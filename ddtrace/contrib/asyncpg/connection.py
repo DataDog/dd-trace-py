@@ -1,14 +1,12 @@
-import asyncio
 from ...ext import sql
 
 from ddtrace import Pin
 from ddtrace.vendor import wrapt
 
 
-@asyncio.coroutine
-def _trace_method(method, pin, trace_name, query, rowcount_method, extra_tags, *args, **kwargs):
+async def _trace_method(method, pin, trace_name, query, rowcount_method, extra_tags, *args, **kwargs):
     if not pin or not pin.enabled():
-        result = yield from method(*args, **kwargs)  # noqa: E999
+        result = await method(*args, **kwargs)
         return result
 
     service = pin.service
@@ -18,7 +16,7 @@ def _trace_method(method, pin, trace_name, query, rowcount_method, extra_tags, *
         s.set_tags(pin.tags)
         s.set_tags(extra_tags)
 
-        result = yield from method(*args, **kwargs)  # noqa: E999
+        result = await method(*args, **kwargs)
 
         if rowcount_method:
             rowcount_method(s, result)
@@ -48,26 +46,23 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
         pin.onto(self)
         self._self_name = pin.app or "sql"
 
-    @asyncio.coroutine
-    def _trace_method(self, method, query, rowcount_method, extra_tags, *args, **kwargs):
+    async def _trace_method(self, method, query, rowcount_method, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
 
-        result = yield from _trace_method(
+        result = await _trace_method(
             method, pin, self._self_name + "." + method.__name__, query, rowcount_method, extra_tags, *args, **kwargs
-        )  # noqa: E999
+        )
 
         return result
 
-    @asyncio.coroutine
-    def prepare(self, stmt_name, query, timeout, *args, **kwargs):
-        result = yield from self._trace_method(
+    async def prepare(self, stmt_name, query, timeout, *args, **kwargs):
+        result = await self._trace_method(
             self.__wrapped__.prepare, query, None, {}, stmt_name, query, timeout, *args, **kwargs
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def bind_execute(self, state, args, portal_name, limit, return_extra, timeout):
-        result = yield from self._trace_method(
+    async def bind_execute(self, state, args, portal_name, limit, return_extra, timeout):
+        result = await self._trace_method(
             self.__wrapped__.bind_execute,
             state.query,
             _fetch_rowcount,
@@ -78,12 +73,11 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
             limit,
             return_extra,
             timeout,
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def bind_execute_many(self, state, args, portal_name, return_extra, timeout):
-        result = yield from self._trace_method(
+    async def bind_execute_many(self, state, args, portal_name, return_extra, timeout):
+        result = await self._trace_method(
             self.__wrapped__.bind_execute_many,
             state.query,
             None,
@@ -93,19 +87,17 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
             portal_name,
             return_extra,
             timeout,
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def bind(self, state, args, portal_name, timeout):
-        result = yield from self._trace_method(
+    async def bind(self, state, args, portal_name, timeout):
+        result = await self._trace_method(
             self.__wrapped__.bind, state.query, None, {}, state, args, portal_name, timeout
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def execute(self, state, portal_name, limit, return_extra, timeout):
-        result = yield from self._trace_method(
+    async def execute(self, state, portal_name, limit, return_extra, timeout):
+        result = await self._trace_method(
             self.__wrapped__.execute,
             state.query,
             _execute_rowcount,
@@ -115,36 +107,31 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
             limit,
             return_extra,
             timeout,
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def query(self, query, timeout):
-        result = yield from self._trace_method(self.__wrapped__.query, query, None, {}, query, timeout)  # noqa: E999
+    async def query(self, query, timeout):
+        result = await self._trace_method(self.__wrapped__.query, query, None, {}, query, timeout)
         return result
 
-    @asyncio.coroutine
-    def copy_out(self, copy_stmt, sink, timeout):
-        result = yield from self._trace_method(
+    async def copy_out(self, copy_stmt, sink, timeout):
+        result = await self._trace_method(
             self.__wrapped__.copy_out, copy_stmt, None, {}, copy_stmt, sink, timeout
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def copy_in(self, copy_stmt, reader, data, records, record_stmt, timeout):
-        result = yield from self._trace_method(
+    async def copy_in(self, copy_stmt, reader, data, records, record_stmt, timeout):
+        result = await self._trace_method(
             self.__wrapped__.copy_in, copy_stmt, None, {}, copy_stmt, reader, data, records, record_stmt, timeout
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def close_statement(self, state, timeout):
-        result = yield from self._trace_method(
+    async def close_statement(self, state, timeout):
+        result = await self._trace_method(
             self.__wrapped__.close_statement, state.query, None, {}, state, timeout
-        )  # noqa: E999
+        )
         return result
 
-    @asyncio.coroutine
-    def close(self, timeout):
-        result = yield from self._trace_method(self.__wrapped__.close, "", None, {}, timeout)  # noqa: E999
+    async def close(self, timeout):
+        result = await self._trace_method(self.__wrapped__.close, "", None, {}, timeout)
         return result

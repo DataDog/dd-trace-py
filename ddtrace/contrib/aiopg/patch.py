@@ -47,7 +47,7 @@ def _make_dsn(dsn, **kwargs):
 # This is left as a coroutine due to how aiopg < 1.0 incorrectly yields from an __await__
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs_param):
-    async def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,  # noqa: E999
+    async def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,
                enable_json=True, enable_hstore=True, enable_uuid=True,
                echo=False, **kwargs):
 
