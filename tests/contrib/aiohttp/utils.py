@@ -1,3 +1,4 @@
+import asyncio
 import pkg_resources
 
 import aiohttp
@@ -38,8 +39,11 @@ class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
         # aiohttp 2.0+ stores the loop instance in self.loop; for
         # backward compatibility, we should expect a `loop` argument
         # However since 3.3+ it's been deprecated
+        # Older versions of aiohttp set the event loop to None so we
+        # need to set it back or there will be no active loop
         if not AIOHTTP_33x:
             loop = loop or self.loop
+            asyncio.set_event_loop(loop)
 
         # create the app with the testing loop
         self.app = setup_app(loop)
