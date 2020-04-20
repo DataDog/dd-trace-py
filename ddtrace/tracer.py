@@ -171,12 +171,7 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self._context_provider.active(*args, **kwargs)
-
-    @property
-    def context_provider(self):
-        """Returns the current Tracer Context Provider"""
-        return self._context_provider
+        return self.context_provider.active(*args, **kwargs)
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("dogstatsd_host", "Use `dogstatsd_url` instead",
@@ -290,7 +285,7 @@ class Tracer(object):
         self.writer.dogstatsd = self._dogstatsd_client
 
         if context_provider is not None:
-            self._context_provider = context_provider
+            self.context_provider = context_provider
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
