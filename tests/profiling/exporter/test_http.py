@@ -2,6 +2,7 @@
 import collections
 import email.parser
 import platform
+import socket
 import threading
 import time
 
@@ -11,7 +12,6 @@ from ddtrace import compat
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import error
 
 import ddtrace
 from ddtrace.profiling.exporter import http
@@ -172,7 +172,7 @@ def test_export_timeout(endpoint_test_timeout_server):
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.exception
-    assert isinstance(e, error.HTTPError)
+    assert isinstance(e, socket.timeout)
 
 
 def test_export_reset(endpoint_test_reset_server):
