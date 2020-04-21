@@ -24,9 +24,6 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 
-# NOTE: this will create a trace for the outer request, and a span for each
-#       connect (redirect), and optionally a span for the read of the body
-
 def _get_url_obj(obj):
     url_obj = obj.url
 
@@ -214,10 +211,8 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
 
 def _create_wrapped_request(method, enable_distributed, trace_headers,
                             trace_context, func, instance, args, kwargs):
-    # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
 
-    # bail on the tracing if not enabled.
     if not pin.tracer.enabled:
         return func(*args, **kwargs)
 
