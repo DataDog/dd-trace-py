@@ -53,8 +53,8 @@ def _set_request_tags(span, url):
     else:
         port = ':{}'.format(url.port)
 
-    url_str = '{scheme}://{host}{port}{path}'.format(
-        scheme=url.scheme, host=url.host, port=port, path=url.path)
+    url_str = '{scheme}://{host}{port}{path}'.format(scheme=url.scheme, host=url.host, port=port, path=url.path)
+
     span.set_tag(ext_http.URL, url_str)
     span.resource = url.path
 
@@ -205,7 +205,7 @@ def _create_wrapped_request(method, func, instance, args, kwargs):
     if not pin.tracer.enabled:
         return func(*args, **kwargs)
 
-    if method == 'REQUEST':
+    if method == "REQUEST":
         method = kwargs.get("method", args[0])
         url = URL(kwargs.get("url", args[1]))
     else:
@@ -246,16 +246,14 @@ def _wrap_clientsession_init(func, instance, args, kwargs):
     if not pin.tracer.enabled:
         return func(*args, **kwargs)
 
-    connector = kwargs.get("connector")
-    if connector is not None:
-        kwargs["connector"] = _WrappedConnectorClass(connector, pin)
+    session = func(*args, **kwargs)
 
-    response_class = kwargs.get("response_class", None)
-    if response_class is not None:
-        wrapper = functools.partial(_create_wrapped_response, instance)
-        kwargs["response_class"] = wrapt.FunctionWrapper(response_class, wrapper)
+    # replace properties with our wrappers
+    wrapper = functools.partial(_create_wrapped_response, instance)
+    session._response_class = wrapt.FunctionWrapper(session._response_class, wrapper)
 
-    return func(*args, **kwargs)
+    session._connector = _WrappedConnectorClass(session._connector, pin)
+    return session
 
 
 _clientsession_wrap_methods = {
