@@ -27,6 +27,12 @@ REQUEST_SPAN_KEY = "__datadog_request_span"
 propagator = HTTPPropagator()
 
 
+config._add("aiohttp_server", dict(
+    service="aiohttp.server",
+    distributed_tracing_enabled=True,
+))
+
+
 @middleware
 async def trace_middleware_2x(request, handler, app=None):
     # application configs
@@ -126,7 +132,7 @@ async def on_prepare(request, response):
     request_span.finish()
 
 
-def trace_app(app, tracer, service="aiohttp-web", distributed_tracing=True):
+def trace_app(app, tracer, service="aiohttp-web"):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
@@ -134,7 +140,6 @@ def trace_app(app, tracer, service="aiohttp-web", distributed_tracing=True):
     :param app: aiohttp application to trace
     :param tracer: tracer instance to use
     :param service: service name of tracer
-    :param distributed_tracing: set to True to enable distributed tracing
     """
 
     # safe-guard: don't trace an application twice
@@ -146,7 +151,7 @@ def trace_app(app, tracer, service="aiohttp-web", distributed_tracing=True):
     app[CONFIG_KEY] = {
         "tracer": tracer,
         "service": config._get_service(default=service),
-        "distributed_tracing_enabled": distributed_tracing,
+        "distributed_tracing_enabled": config.aiohttp_server.distributed_tracing_enabled,
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,
     }
