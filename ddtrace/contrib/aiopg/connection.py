@@ -106,33 +106,56 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         result = await self.__wrapped__.__anext__()
         return result
 
+    if AIOPG_1X:
+        async def __aenter__(self):
+            await self.__wrapped__.__aenter__()
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
 
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
+    def __init__(self, conn, pin=None):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
         db_pin = pin or Pin(service=name, app=name)
         db_pin.onto(self)
-        # wrapt requires prefix of `_self` for attributes that are only in the
-        # proxy (since some of our source objects will use `__slots__`)
-        self._self_cursor_cls = cursor_cls
 
     def cursor(self, *args, **kwargs):
+        if hasattr(self, 'close_cursor'):
+            self.close_cursor()
+
         # unfortunately we also need to patch this method as otherwise "self"
         # ends up being the aiopg connection object
         self._last_usage = self._loop.time()  # set like wrapped class
         coro = self._cursor(*args, **kwargs)
         return _ContextManager(coro)
 
-    @asyncio.coroutine  # here for aiopg < 1.0
-    def _cursor(self, *args, **kwargs):
-        cursor = yield from self.__wrapped__._cursor(*args, **kwargs)
-        pin = Pin.get_from(self)
-        if not pin:
+    if AIOPG_1X:
+        # This cannot be the old style generator
+        async def _cursor(self, *args, **kwargs):
+            cursor = await self.__wrapped__._cursor(*args, **kwargs)
+            pin = Pin.get_from(self)
+            if not pin:
+                return cursor
+
+            cursor = AIOTracedCursor(cursor, pin)
+            if hasattr(self, '_cursor_instance'):
+                self._cursor_instance = cursor
+
             return cursor
-        return self._self_cursor_cls(cursor, pin)
+    else:
+        @asyncio.coroutine  # here for aiopg < 1.0
+        def _cursor(self, *args, **kwargs):
+            cursor = yield from self.__wrapped__._cursor(*args, **kwargs)
+            pin = Pin.get_from(self)
+            if not pin:
+                return cursor
+
+            return AIOTracedCursor(cursor, pin)
 
     if AIOPG_1X:
         async def _await_helper(self):
@@ -150,3 +173,6 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         async def __aenter__(self):
             await self.__wrapped__.__aenter__()
             return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
