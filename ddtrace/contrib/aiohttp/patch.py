@@ -236,20 +236,18 @@ def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
 
-    # bail on the tracing if not enabled.
     if not pin.tracer.enabled:
         return func(*args, **kwargs)
 
-    response_class = kwargs.get('response_class', aiohttp.ClientResponse)
-
-    connector = kwargs.get('connector')
-    if not connector:
-        connector = aiohttp.TCPConnector()
-
-    kwargs['connector'] = _WrappedConnectorClass(connector, pin)
+    connector = kwargs.get("connector")
+    if connector is not None:
+        kwargs["connector"] = _WrappedConnectorClass(connector, pin)
 
     wrapper = functools.partial(_create_wrapped_response, instance, trace_headers)
-    kwargs['response_class'] = wrapt.FunctionWrapper(response_class, wrapper)
+
+    response_class = kwargs.get("response_class", None)
+    if "response_class" is not None:
+        kwargs["response_class"] = wrapt.FunctionWrapper(response_class, wrapper)
 
     return func(*args, **kwargs)
 
