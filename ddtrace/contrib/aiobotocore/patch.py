@@ -84,6 +84,8 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
     # we can't enable aiohttp distributed tracing for aiobotocore's
     # aiohttp session as it would inject headers into the API calls
     aio_session = deep_getattr(instance, '_endpoint._aio_session')
+    if not aio_session:
+        aio_session = deep_getattr(instance, '_endpoint.http_session')
     if not hasattr(aio_session, ENABLE_DISTRIBUTED_ATTR_NAME):
         setattr(aio_session, ENABLE_DISTRIBUTED_ATTR_NAME, False)
 
