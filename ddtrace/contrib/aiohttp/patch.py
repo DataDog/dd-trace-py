@@ -246,14 +246,15 @@ def _wrap_clientsession_init(func, instance, args, kwargs):
     if not pin.tracer.enabled:
         return func(*args, **kwargs)
 
-    session = func(*args, **kwargs)
+    # note init doesn't really return anything
+    ret = func(*args, **kwargs)
 
     # replace properties with our wrappers
     wrapper = functools.partial(_create_wrapped_response, instance)
-    session._response_class = wrapt.FunctionWrapper(session._response_class, wrapper)
+    instance._response_class = wrapt.FunctionWrapper(instance._response_class, wrapper)
 
-    session._connector = _WrappedConnectorClass(session._connector, pin)
-    return session
+    instance._connector = _WrappedConnectorClass(instance._connector, pin)
+    return ret
 
 
 _clientsession_wrap_methods = {
