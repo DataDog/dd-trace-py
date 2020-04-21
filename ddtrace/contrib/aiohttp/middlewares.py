@@ -44,7 +44,8 @@ async def trace_middleware_2x(request, handler, app=None):
         if context.trace_id:
             tracer.context_provider.activate(context)
         else:
-            # clear out any existing context for new request
+            # In case a non-distributed request comes after a distributed request we need to clear out
+            # the previous context
             tracer.context_provider.activate(Context())
 
     # trace the handler

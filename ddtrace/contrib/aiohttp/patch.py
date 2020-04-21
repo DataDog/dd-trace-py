@@ -50,8 +50,8 @@ def _set_request_tags(span, url):
     else:
         port = ':{}'.format(url.port)
 
-    url_str = '{scheme}://{host}{port}{path}'.format(
-        scheme=url.scheme, host=url.host, port=port, path=url.path)
+    url_str = '{scheme}://{host}{port}{path}'.format(scheme=url.scheme, host=url.host, port=port, path=url.path)
+
     span.set_tag(ext_http.URL, url_str)
     span.resource = url.path
 
@@ -217,20 +217,10 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
         return func(*args, **kwargs)
 
     if method == 'REQUEST':
-        if 'method' in kwargs:
-            method = kwargs['method']
-        else:
-            method = args[0]
-
-        if 'url' in kwargs:
-            url = URL(kwargs['url'])
-        else:
-            url = URL(args[1])
+        method = kwargs.get('method', args[0])
+        url = URL(kwargs.get('url', args[1]))
     else:
-        if 'url' in kwargs:
-            url = URL(kwargs['url'])
-        else:
-            url = URL(args[0])
+        url = URL(kwargs.get('url', args[0]))
 
     if should_skip_request(pin, url):
         result = func(*args, **kwargs)
@@ -271,18 +261,15 @@ def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
     if not pin.tracer.enabled:
         return func(*args, **kwargs)
 
-    response_class = kwargs.get('response_class', aiohttp.ClientResponse)
+    session = func(*args, **kwargs)
 
-    connector = kwargs.get('connector')
-    if not connector:
-        connector = aiohttp.TCPConnector()
-
-    kwargs['connector'] = _WrappedConnectorClass(connector, pin)
-
+    # replace properties with our wrappers
     wrapper = functools.partial(_create_wrapped_response, instance, trace_headers)
-    kwargs['response_class'] = wrapt.FunctionWrapper(response_class, wrapper)
+    session._response_class = wrapt.FunctionWrapper(session._response_class, wrapper)
 
-    return func(*args, **kwargs)
+    session._connector = _WrappedConnectorClass(session._connector, pin)
+
+    return session
 
 
 _clientsession_wrap_methods = {
@@ -296,12 +283,10 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None, trace_conte
         * aiohttp_jinja2
         * aiohttp ClientSession request
 
-    :param trace_context: set to true to expand span to life of response
-                          context
+    :param trace_context: set to true to expand span to life of response context
     :param trace_headers: set of headers to trace
     :param tracer: tracer to use
-    :param enable_distributed: enable aiohttp client to set parent span IDs in
-                               requests
+    :param enable_distributed: enable aiohttp client to set parent span IDs in requests
     """
 
     _w = wrapt.wrap_function_wrapper
