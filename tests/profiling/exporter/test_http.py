@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import collections
+import errno
 import email.parser
 import platform
 import socket
@@ -164,7 +165,7 @@ def test_export_server_down():
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
         e = t.exception
         assert isinstance(e, (IOError, OSError))
-        assert e.errno in (61, 99)
+        assert e.errno == errno.ECONNREFUSED
 
 
 def test_export_timeout(endpoint_test_timeout_server):
