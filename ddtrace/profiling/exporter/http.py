@@ -4,6 +4,7 @@ import datetime
 import gzip
 import os
 import platform
+import socket
 import uuid
 
 from ddtrace.utils import deprecation
@@ -189,6 +190,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         req = request.Request(self.endpoint, data=body, headers=headers)
 
         try:
-            request.urlopen(req)
-        except (error.HTTPError, error.URLError, http_client.HTTPException) as e:
+            request.urlopen(req, timeout=self.timeout)
+        except (error.HTTPError, error.URLError, http_client.HTTPException, socket.timeout) as e:
             raise UploadFailed(e)
