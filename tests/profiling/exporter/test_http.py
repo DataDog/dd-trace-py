@@ -367,7 +367,9 @@ def test_get_tags_legacy(monkeypatch):
     assert tags["mytag"] == b"baz"
 
     # precedence
-    monkeypatch.setenv("DD_TAGS", "mytag:val1")
-    monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:val2")
+    monkeypatch.setenv("DD_TAGS", "mytag:val1,ddtag:hi")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:val2,ddptag:lo")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
-    assert tags["mytag"] == b"val1"
+    assert tags["mytag"] == b"val2"
+    assert tags["ddtag"] == b"hi"
+    assert tags["ddptag"] == b"low"
