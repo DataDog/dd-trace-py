@@ -143,7 +143,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if env:
             tags["env"] = env
 
-        user_tags = os.getenv("DD_PROFILING_TAGS")
+        user_tags = os.environ.get("DD_TAGS", os.environ.get("DD_PROFILING_TAGS"))
         if user_tags:
             tags.update({k: six.ensure_binary(v) for k, v in parse_tags_str(user_tags).items()})
         return tags
