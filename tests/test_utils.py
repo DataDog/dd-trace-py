@@ -137,14 +137,21 @@ class TestUtils(unittest.TestCase):
             tags = parse_tags_str("key,key2:val1")
         assert tags == dict(key2="val1")
         log.error.assert_called_once_with(
-            "Malformed tag in tag pair '%s' from tag string '%s'", "key", "key,key2:val1"
+            "Malformed tag in tag pair '%s' from tag string '%s'.", "key", "key,key2:val1"
+        )
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key2:val1:")
+        assert tags == dict()
+        log.error.assert_called_once_with(
+            "Malformed tag in tag pair '%s' from tag string '%s'.", "key2:val1:", "key2:val1:"
         )
 
         with mock.patch("ddtrace.utils.formats.log") as log:
             tags = parse_tags_str("key,key2,key3")
         assert tags == dict()
         log.error.assert_has_calls([
-            mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key", "key,key2,key3"),
-            mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key2", "key,key2,key3"),
-            mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key3", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key2", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key3", "key,key2,key3"),
         ])

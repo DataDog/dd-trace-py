@@ -372,4 +372,4 @@ def test_get_tags_legacy(monkeypatch):
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert tags["mytag"] == b"val2"
     assert tags["ddtag"] == b"hi"
-    assert tags["ddptag"] == b"low"
+    assert tags["ddptag"] == b"lo"
