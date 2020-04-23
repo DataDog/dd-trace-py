@@ -5,6 +5,7 @@ import warnings
 
 from ddtrace.utils.deprecation import deprecation, deprecated, format_message
 from ddtrace.utils.formats import asbool, get_env, flatten_dict, parse_tags_str
+from ddtrace.utils.random import rand64
 
 
 class TestUtils(unittest.TestCase):
@@ -155,3 +156,11 @@ class TestUtils(unittest.TestCase):
             mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key2", "key,key2,key3"),
             mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key3", "key,key2,key3"),
         ])
+
+    def test_random(self):
+        m = set()
+        for i in range(0, 2**16):
+            n = next(rand64)
+            assert 0 <= n <= 2**64-1
+            assert n not in m
+            m.add(n)
