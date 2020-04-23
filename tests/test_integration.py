@@ -289,8 +289,8 @@ class TestAPITransport(TestCase):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace("client.testing").finish()
         trace = self.tracer.writer.pop()
-        # 30k is a right number to have both json and msgpack send 2 payload :)
-        traces = [trace] * 30000
+        # 20k is a right number to have both json and msgpack send 2 payload :)
+        traces = [trace] * 20000
 
         self._send_traces_and_check(traces, 2)
 
