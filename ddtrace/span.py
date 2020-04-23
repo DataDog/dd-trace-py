@@ -94,8 +94,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or random.rand64()
-        self.span_id = span_id or random.rand64()
+        self.trace_id = trace_id or next(random.rand64)
+        self.span_id = span_id or next(random.rand64)
         self.parent_id = parent_id
         self.tracer = tracer
 
@@ -420,4 +420,3 @@ class Span(object):
             self.parent_id,
             self.name,
         )
-

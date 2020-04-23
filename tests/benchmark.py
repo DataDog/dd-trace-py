@@ -51,10 +51,6 @@ def test_tracer_wrap_instancemethod(benchmark, tracer):
     benchmark(f.func)
 
 
-def test_tracer_start_span(benchmark, tracer):
-    benchmark(tracer.start_span, 'benchmark')
-
-
 def test_tracer_start_finish_span(benchmark, tracer):
     def func(tracer):
         s = tracer.start_span('benchmark')
@@ -90,3 +86,23 @@ def test_tracer_large_trace(benchmark, tracer):
             func(tracer, level + 1)
 
     benchmark(func, tracer)
+
+
+def test_tracer_start_span(benchmark, tracer):
+    benchmark(tracer.start_span, 'benchmark')
+
+
+def test_span_id_randbits(benchmark):
+    from ddtrace.compat import getrandbits
+    benchmark(getrandbits, 64)
+
+
+def test_span_id_rand64_interval(benchmark):
+    from ddtrace.utils import random
+    benchmark(next, random.rand64)
+
+
+def test_span_id_rand64_xor(benchmark):
+    from ddtrace.utils import random
+    gen = random.xorshift64s()
+    benchmark(next, gen)

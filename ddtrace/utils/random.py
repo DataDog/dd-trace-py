@@ -3,41 +3,8 @@ import threading
 from .. import compat
 
 
-def ranq2():
-    """Generator for pseudorandom 64-bit integers.
-
-    Implements an xorshift generator described by Marsaglia.
-
-    This algorithm is from Numeric Recipes Chapter 7 (Ranq2).
-    """
-    j = compat.getrandbits(64)
-    v = 4101842887655102017
-    w = 1
-
-    v ^= j
-
-    def int64():
-        nonlocal v, w
-        v ^= v >> 17
-        v ^= v << 31
-        v &= 0xFFFFFFFFFFFFFFFF
-        v ^= v >> 8
-        w = 4294957665 * (w & 0xFFFFFFFF)
-        w &= 0xFFFFFFFFFFFFFFFF
-        w = w >> 32
-        return v ^ w
-
-    v = int64()
-    w = int64()
-    lock = threading.Lock()
-
-    while True:
-        with lock:
-            yield int64()
-
-
 def xorshift64s():
-    """Generator for pseudorandom 64-bit integers.
+    """Thread-safe generator for pseudorandom 64-bit integers.
 
     Implements the xorshift* algorithm with a non-linear transformation
     (multiplication) applied to the result.
@@ -58,17 +25,40 @@ def xorshift64s():
     of 100k spans/second (with no application restart) until the period
     is reached.
     """
-    x = compat.getrandbits(64) ^ 4101842887655102017
-    lock = threading.Lock()
+    loc = threading.local()
+    loc.x = compat.getrandbits(64) ^ 4101842887655102017
 
     while True:
-        with lock:
-            x ^= x >> 21
-            x ^= x << 35
-            # Python integers are unbounded
-            x &= 0xFFFFFFFFFFFFFFFF
-            x ^= x >> 4
-            yield (x * 2685821657736338717) & 0xFFFFFFFFFFFFFFFF
+        x = loc.x
+        x ^= x >> 21
+        x ^= x << 35
+        # Python integers are unbounded
+        x &= 0xFFFFFFFFFFFFFFFF
+        x ^= x >> 4
+        loc.x = x
+        yield (x * 2685821657736338717) & 0xFFFFFFFFFFFFFFFF
 
 
-rand64 = xorshift64s()
+def rand64bits(reseed_interval=0):
+    """Thread-safe generator for pseudorandom 64-bit integers.
+
+    An optional reseed interval can be specified. If > 0 then a random number
+    will be retrieved and used as a base for subsequent calls in the interval.
+    """
+    loc = threading.local()
+    i = 0
+
+    while True:
+        if not reseed_interval:
+            yield compat.getrandbits(64)
+        else:
+            if i == 0:
+                loc.r = compat.getrandbits(64)
+            yield loc.r + i
+            i = 0 if i == reseed_interval else i + 1
+
+
+if compat.PY2:
+    rand64 = rand64bits(reseed_interval=20)
+else:
+    rand64 = rand64bits(reseed_interval=0)
