@@ -91,9 +91,6 @@ class Pin(object):
         :rtype: :class:`ddtrace.pin.Pin`, None
         :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
         """
-        if hasattr(obj, '__getddpin__'):
-            return obj.__getddpin__()
-
         pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
         pin = getattr(obj, pin_name, None)
         # detect if the PIN has been inherited from a class
@@ -138,9 +135,6 @@ class Pin(object):
         """
         # Actually patch it on the object.
         try:
-            if hasattr(obj, '__setddpin__'):
-                return obj.__setddpin__(self)
-
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
 
             # set the target reference; any get_from, clones and retarget the new PIN
