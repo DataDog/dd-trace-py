@@ -474,7 +474,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         def fn_task():
             return 42
 
-        # Ensure producer analytics sample rate is disabled by default 
+        # Ensure producer analytics sample rate is disabled by default
         t = fn_task.delay()
         self.assertEqual("PENDING", t.status)
 
