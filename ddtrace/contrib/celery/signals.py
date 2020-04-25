@@ -31,7 +31,7 @@ def trace_prerun(*args, **kwargs):
     service = config.celery['worker_service_name']
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
     # set analytics sample rate
-    s.set_tag(
+    span.set_tag(
         ANALYTICS_SAMPLE_RATE_KEY,
         config.celery.get_analytics_sample_rate()
     )
@@ -87,7 +87,7 @@ def trace_before_publish(*args, **kwargs):
     service = config.celery['producer_service_name']
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
     # set analytics sample rate
-    s.set_tag(
+    span.set_tag(
         ANALYTICS_SAMPLE_RATE_KEY,
         config.celery.get_analytics_sample_rate()
     )
