@@ -69,6 +69,12 @@ Configuration
 
    Default: ``''``
 
+.. py:data:: ddtrace.config.django['instrument_middleware']
+
+   Whether or not to instrument middleware.
+
+   Default: ``True``
+
 .. py:data:: ddtrace.config.django['instrument_databases']
 
    Whether or not to instrument databases.
