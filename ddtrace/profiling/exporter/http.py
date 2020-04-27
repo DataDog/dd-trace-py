@@ -5,8 +5,9 @@ import gzip
 import logging
 import os
 import platform
-import socket
 import uuid
+
+import tenacity
 
 from ddtrace.utils import deprecation
 from ddtrace.vendor import six
@@ -91,6 +92,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service_name = attr.ib(factory=_get_service_name)
+    max_retry_delay = attr.ib(default=None)
+
+    def __attrs_post_init__(self):
+        if self.max_retry_delay is None:
+            self.max_retry_delay = self.timeout * 3
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -200,7 +206,16 @@ class PprofHTTPExporter(pprof.PprofExporter):
         # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)
         req = request.Request(self.endpoint, data=body, headers=headers)
 
+        retry = tenacity.Retrying(
+            # Retry after 1s, 2s, 4s, 8s with some randomness
+            wait=tenacity.wait_random_exponential(multiplier=0.5),
+            stop=tenacity.stop_after_delay(self.max_retry_delay),
+            retry=tenacity.retry_if_exception_type(
+                (error.HTTPError, error.URLError, http_client.HTTPException, OSError, IOError)
+            ),
+        )
+
         try:
-            request.urlopen(req, timeout=self.timeout)
-        except (error.HTTPError, error.URLError, http_client.HTTPException, socket.timeout) as e:
-            raise UploadFailed(e)
+            retry(request.urlopen, req, timeout=self.timeout)
+        except tenacity.RetryError as e:
+            raise UploadFailed(e.last_attempt.exception())
