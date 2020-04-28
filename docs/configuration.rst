@@ -34,6 +34,10 @@ below:
      - String
      -
      - Deprecated: use ``DD_SERVICE``.
+   * - ``DD_TAGS``
+     - String
+     -
+     - Set global tags to be attached to every span. e.g. ``key1:value1,key2,value2``. Added in ``v0.38.0``.
    * - ``DD_VERSION``
      - String
      -
