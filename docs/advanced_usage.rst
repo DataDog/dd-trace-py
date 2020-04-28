@@ -220,6 +220,8 @@ For most libraries, APM events can be enabled with the environment variable ``DD
 +----------------------+----------------------------------------+
 | :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
 +----------------------+----------------------------------------+
+| :ref:`celery`        | ``DD_CELERY_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------+
 | :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
 +----------------------+----------------------------------------+
 | :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
