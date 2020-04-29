@@ -107,6 +107,25 @@ commands:
           paths:
             - ".tox"
 
+  restore_benchmarks:
+    description: "Restore .benchmarks directory from previous runs"
+    steps:
+      - restore_cache:
+          key: benchmark-latest
+
+  save_benchmarks:
+    description: "Save .benchmarks directory into cache"
+    # Only persist benchmarks on git version tag push
+    # (Assumes that push will be the latest version)
+    filters:
+      tags:
+        only: /(^v[0-9]+(\.[0-9]+)*$)/
+    steps:
+      - save_cache:
+          key: benchmark-latest
+          paths:
+            - ".benchmarks"
+
   save_results:
     description: "Persist tox *.results files to /tmp directory"
     steps:
@@ -697,16 +716,12 @@ jobs:
       - checkout
       - setup_tox
       - restore_tox_cache
+      - restore_benchmarks
       - run:
-          command: |
-            mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
-      - store_test_results:
-          path: /tmp/test-reports
-      - store_artifacts:
-          path: /tmp/test-reports
+          command: tox -e '{py27,py35,py36,py37,py38}-benchmark'
       - save_results
       - save_tox_cache
+      - save_benchmarks
 
   build_wheels:
     <<: *machine_executor
