@@ -11,9 +11,6 @@ python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
-# The circleci/python:3.4 images are broken, we cannot do `pip install <package>`
-# https://github.com/circleci/circleci-images/issues/466
-python34_image: &python34_image python:3.4
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
@@ -184,10 +181,6 @@ executors:
     docker:
       - image: *python35_image
     resource_class: *resource_class
-  python34:
-    docker:
-      - image: *python34_image
-    resource_class: *resource_class
   python27:
     docker:
       - image: *python27_image
@@ -272,10 +265,6 @@ jobs:
       - test_build
   test_build_py35:
     executor: python35
-    steps:
-      - test_build
-  test_build_py34:
-    executor: python34
     steps:
       - test_build
   test_build_py27:
