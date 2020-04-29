@@ -92,7 +92,7 @@ def test_tracer_start_span(benchmark, tracer):
     benchmark(tracer.start_span, "benchmark")
 
 
-@pytest.mark.benchmark(group="span-id")
+@pytest.mark.benchmark(group="span-id", min_time=0.005)
 def test_span_id_randbits(benchmark):
     from ddtrace.compat import getrandbits
 
@@ -108,42 +108,31 @@ def test_span_id_rand64_interval(benchmark):
 
     @benchmark
     def f():
-        _ = next(random.get_rand64bits())  # span id
-        _ = next(random.get_rand64bits())  # trace id
+        rng = random.get_rand64bits(reseed_interval=30)
+        _ = next(rng)  # span id
+        _ = next(rng)  # trace id
 
 
-@pytest.mark.benchmark(group="span-id")
-def test_span_id_rand64_interval_nots(benchmark):
-    from ddtrace.internal import random
-
-    gen = random.rand64bits()
-
-    @benchmark
-    def f():
-        _ = next(gen)  # span id
-        _ = next(gen)  # trace id)
-
-
-@pytest.mark.benchmark(group="span-id")
+@pytest.mark.benchmark(group="span-id", min_time=0.005)
 def test_span_id_rand64_xor_c(benchmark):
     from ddtrace.internal import rand
 
-    gen = rand.xorshift64s()
-
     @benchmark
     def f():
-        _ = next(gen)  # span id
-        _ = next(gen)  # trace id
+        rng = rand.get_cxorshift64s()
+        _ = next(rng)  # span id
+        _ = next(rng)  # trace id
 
 
-@pytest.mark.benchmark(group="span-id")
-def test_span_id_rand64_xor_c_ts(benchmark):
+@pytest.mark.benchmark(group="span-id", min_time=0.005)
+def test_span_id_rand64_xor_c_no_gen(benchmark):
     from ddtrace.internal import rand
 
     @benchmark
     def f():
-        _ = next(rand.get_cxorshift64s())  # span id
-        _ = next(rand.get_cxorshift64s())  # trace id
+        rng = rand.get_cxorshift64s()
+        _ = rng.next()  # span id
+        _ = rng.next()  # trace id
 
 
 @pytest.mark.benchmark(group="span-id")
@@ -152,5 +141,6 @@ def test_span_id_rand64_xor(benchmark):
 
     @benchmark
     def f():
-        _ = next(random.get_xorshift64s())  # span id
-        _ = next(random.get_xorshift64s())  # trace id)
+        rng = random.get_xorshift64s()
+        _ = next(rng)  # span id
+        _ = next(rng)  # trace id)

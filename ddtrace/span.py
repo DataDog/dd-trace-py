@@ -97,8 +97,12 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or next(random.get_rand64bits())
-        self.span_id = span_id or next(random.get_rand64bits())
+        # DEV: explicitly invoke ``__next__`` on generator vs using next(rng) as there is an overhead
+        # (my guess is that the overhead is for exception handling when using next(rng))
+
+        rng = random.get_rand64bits()
+        self.trace_id = trace_id or rng.__next__()
+        self.span_id = span_id or rng.__next__()
         self.parent_id = parent_id
         self.tracer = tracer
 
