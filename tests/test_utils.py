@@ -5,7 +5,7 @@ import warnings
 
 from ddtrace.utils.deprecation import deprecation, deprecated, format_message
 from ddtrace.utils.formats import asbool, get_env, flatten_dict, parse_tags_str
-from ddtrace.utils.random import rand64
+from ddtrace.internal import random
 
 
 class TestUtils(unittest.TestCase):
@@ -160,7 +160,7 @@ class TestUtils(unittest.TestCase):
     def test_random(self):
         m = set()
         for i in range(0, 2**16):
-            n = next(rand64)
+            n = next(random.get_cxorshift64s())
             assert 0 <= n <= 2**64 - 1
             assert n not in m
             m.add(n)

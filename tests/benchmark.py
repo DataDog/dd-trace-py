@@ -13,7 +13,7 @@ def tracer():
 
 def test_tracer_context(benchmark, tracer):
     def func(tracer):
-        with tracer.trace('a', service='s', resource='r', span_type='t'):
+        with tracer.trace("a", service="s", resource="r", span_type="t"):
             pass
 
     benchmark(func, tracer)
@@ -53,7 +53,7 @@ def test_tracer_wrap_instancemethod(benchmark, tracer):
 
 def test_tracer_start_finish_span(benchmark, tracer):
     def func(tracer):
-        s = tracer.start_span('benchmark')
+        s = tracer.start_span("benchmark")
         s.finish()
 
     benchmark(func, tracer)
@@ -61,10 +61,10 @@ def test_tracer_start_finish_span(benchmark, tracer):
 
 def test_trace_simple_trace(benchmark, tracer):
     def func(tracer):
-        with tracer.trace('parent'):
+        with tracer.trace("parent"):
             for i in range(5):
-                with tracer.trace('child') as c:
-                    c.set_tag('i', i)
+                with tracer.trace("child") as c:
+                    c.set_tag("i", i)
 
     benchmark(func, tracer)
 
@@ -79,7 +79,7 @@ def test_tracer_large_trace(benchmark, tracer):
 
         # do some work
         num = random.randint(1, 10)
-        span.set_tag('num', num)
+        span.set_tag("num", num)
 
         if level < 10:
             func(tracer, level + 1)
@@ -89,20 +89,68 @@ def test_tracer_large_trace(benchmark, tracer):
 
 
 def test_tracer_start_span(benchmark, tracer):
-    benchmark(tracer.start_span, 'benchmark')
+    benchmark(tracer.start_span, "benchmark")
 
 
+@pytest.mark.benchmark(group="span-id")
 def test_span_id_randbits(benchmark):
     from ddtrace.compat import getrandbits
-    benchmark(getrandbits, 64)
+
+    @benchmark
+    def f():
+        _ = getrandbits(64)  # span id
+        _ = getrandbits(64)  # trace id
 
 
+@pytest.mark.benchmark(group="span-id")
 def test_span_id_rand64_interval(benchmark):
-    from ddtrace.utils import random
-    benchmark(next, random.rand64)
+    from ddtrace.internal import random
+
+    @benchmark
+    def f():
+        _ = next(random.get_rand64bits())  # span id
+        _ = next(random.get_rand64bits())  # trace id
 
 
+@pytest.mark.benchmark(group="span-id")
+def test_span_id_rand64_interval_nots(benchmark):
+    from ddtrace.internal import random
+
+    gen = random.rand64bits()
+
+    @benchmark
+    def f():
+        _ = next(gen)  # span id
+        _ = next(gen)  # trace id)
+
+
+@pytest.mark.benchmark(group="span-id")
+def test_span_id_rand64_xor_c(benchmark):
+    from ddtrace.internal import rand
+
+    gen = rand.xorshift64s()
+
+    @benchmark
+    def f():
+        _ = next(gen)  # span id
+        _ = next(gen)  # trace id
+
+
+@pytest.mark.benchmark(group="span-id")
+def test_span_id_rand64_xor_c_ts(benchmark):
+    from ddtrace.internal import rand
+
+    @benchmark
+    def f():
+        _ = next(rand.get_cxorshift64s())  # span id
+        _ = next(rand.get_cxorshift64s())  # trace id
+
+
+@pytest.mark.benchmark(group="span-id")
 def test_span_id_rand64_xor(benchmark):
-    from ddtrace.utils import random
-    gen = random.xorshift64s()
-    benchmark(next, gen)
+    from ddtrace.internal import random
+
+    @benchmark
+    def f():
+        _ = next(random.get_xorshift64s())  # span id
+        _ = next(random.get_xorshift64s())  # trace id)

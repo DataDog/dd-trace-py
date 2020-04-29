@@ -1,5 +1,6 @@
 import math
 import sys
+import threading
 import traceback
 
 from .vendor import six
@@ -15,10 +16,12 @@ from .constants import (
 )
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
-from .utils import random
-
+from .internal import random
 
 log = get_logger(__name__)
+
+
+rand64 = threading.local()
 
 
 class Span(object):
@@ -84,7 +87,7 @@ class Span(object):
         self.resource = resource or name
         self.span_type = span_type.value if isinstance(span_type, SpanTypes) else span_type
 
-        # tags / metatdata
+        # tags / metadata
         self.meta = {}
         self.error = 0
         self.metrics = {}
@@ -94,8 +97,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or next(random.rand64)
-        self.span_id = span_id or next(random.rand64)
+        self.trace_id = trace_id or next(random.get_rand64bits())
+        self.span_id = span_id or next(random.get_rand64bits())
         self.parent_id = parent_id
         self.tracer = tracer
 

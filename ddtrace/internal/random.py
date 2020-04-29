@@ -1,6 +1,9 @@
 import threading
 
-from .. import compat
+from ddtrace import compat
+import pyximport; pyximport.install()  # noqa
+from . import rand
+from .rand import get_cxorshift64s  # noqa
 
 
 def xorshift64s():
@@ -45,20 +48,36 @@ def rand64bits(reseed_interval=0):
     An optional reseed interval can be specified. If > 0 then a random number
     will be retrieved and used as a base for subsequent calls in the interval.
     """
-    loc = threading.local()
     i = 0
+    r = compat.getrandbits(64)
 
     while True:
         if not reseed_interval:
             yield compat.getrandbits(64)
         else:
             if i == 0:
-                loc.r = compat.getrandbits(64)
-            yield loc.r + i
+                r = compat.getrandbits(64)
+            yield r + i
             i = 0 if i == reseed_interval else i + 1
 
 
-if compat.PY2:
-    rand64 = rand64bits(reseed_interval=20)
-else:
-    rand64 = rand64bits(reseed_interval=0)
+loc = threading.local()
+
+
+def get_rand64bits(*args, **kwargs):
+    gen = getattr(loc, "rand64bits", None)
+    if not gen:
+        if compat.PY3:
+            gen = rand64bits(*args, **kwargs)
+        else:
+            gen = rand.xorshift64s()
+        setattr(loc, "rand64bits", gen)
+    return gen
+
+
+def get_xorshift64s(*args, **kwargs):
+    gen = getattr(loc, "xorshift64s", None)
+    if not gen:
+        gen = xorshift64s(*args, **kwargs)
+        setattr(loc, "xorshift64s", gen)
+    return gen
