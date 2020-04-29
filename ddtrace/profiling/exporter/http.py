@@ -2,13 +2,14 @@
 import binascii
 import datetime
 import gzip
-import logging
 import os
 import platform
-import socket
 import uuid
 
+import tenacity
+
 from ddtrace.utils import deprecation
+from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
 from ddtrace.vendor.six.moves.urllib import error
@@ -20,9 +21,6 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 from ddtrace.profiling.exporter import pprof
-
-
-LOG = logging.getLogger(__name__)
 
 
 RUNTIME_ID = str(uuid.uuid4()).encode()
@@ -91,6 +89,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service_name = attr.ib(factory=_get_service_name)
+    max_retry_delay = attr.ib(default=None)
+
+    def __attrs_post_init__(self):
+        if self.max_retry_delay is None:
+            self.max_retry_delay = self.timeout * 3
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -146,17 +149,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if env:
             tags["env"] = env
 
-        user_tags = os.getenv("DD_PROFILING_TAGS")
-        if user_tags:
-            for tag in user_tags.split(","):
-                try:
-                    key, value = tag.split(":", 1)
-                except ValueError:
-                    LOG.error("Malformed tag in DD_PROFILING_TAGS: %s", tag)
-                else:
-                    if isinstance(value, six.text_type):
-                        value = value.encode("utf-8")
-                    tags[key] = value
+        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
+        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
+        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
     def export(self, events, start_time_ns, end_time_ns):
@@ -200,7 +195,16 @@ class PprofHTTPExporter(pprof.PprofExporter):
         # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)
         req = request.Request(self.endpoint, data=body, headers=headers)
 
+        retry = tenacity.Retrying(
+            # Retry after 1s, 2s, 4s, 8s with some randomness
+            wait=tenacity.wait_random_exponential(multiplier=0.5),
+            stop=tenacity.stop_after_delay(self.max_retry_delay),
+            retry=tenacity.retry_if_exception_type(
+                (error.HTTPError, error.URLError, http_client.HTTPException, OSError, IOError)
+            ),
+        )
+
         try:
-            request.urlopen(req, timeout=self.timeout)
-        except (error.HTTPError, error.URLError, http_client.HTTPException, socket.timeout) as e:
-            raise UploadFailed(e)
+            retry(request.urlopen, req, timeout=self.timeout)
+        except tenacity.RetryError as e:
+            raise UploadFailed(e.last_attempt.exception())

@@ -15,7 +15,7 @@ from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
-from .utils.formats import get_env
+from .utils.formats import get_env, parse_tags_str
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
@@ -115,6 +115,19 @@ class Tracer(object):
             else:
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
 
+        # globally set tags
+        self.tags = {}
+        env_tags = environ.get("DD_TAGS")
+        if env_tags:
+            self.set_tags(parse_tags_str(env_tags))
+
+        # a buffer for service info so we don't perpetually send the same things
+        self._services = set()
+
+        # Runtime id used for associating data collected during runtime to
+        # traces
+        self._pid = getpid()
+
         # Apply the default configuration
         self.configure(
             enabled=True,
@@ -127,16 +140,6 @@ class Tracer(object):
             dogstatsd_url=dogstatsd_url,
             writer=writer,
         )
-
-        # globally set tags
-        self.tags = {}
-
-        # a buffer for service info so we don't perpetually send the same things
-        self._services = set()
-
-        # Runtime id used for associating data collected during runtime to
-        # traces
-        self._pid = getpid()
 
     @property
     def debug_logging(self):
