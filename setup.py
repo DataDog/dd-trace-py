@@ -150,6 +150,12 @@ setup(
         ext_modules=cythonize(
             [
                 Cython.Distutils.Extension(
+                    "ddtrace.internal.rand",
+                    sources=["ddtrace/internal/rand.pyx"],
+                    language="c",
+                    extra_compile_args=["-DPy_BUILD_CORE"],
+                ),
+                Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
                     sources=["ddtrace/profiling/collector/stack.pyx"],
                     language="c",

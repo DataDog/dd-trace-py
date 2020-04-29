@@ -1,7 +1,6 @@
 import threading
 
 from ddtrace import compat
-import pyximport; pyximport.install()  # noqa
 from . import rand
 from .rand import get_cxorshift64s  # noqa
 
