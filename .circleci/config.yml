@@ -855,7 +855,6 @@ workflows:
       - aiopg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
-      - benchmarks: *requires_pre_test
       - boto: *requires_pre_test
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
