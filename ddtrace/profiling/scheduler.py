@@ -18,7 +18,12 @@ class Scheduler(_periodic.PeriodicService):
     recorder = attr.ib()
     exporters = attr.ib()
     _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
+    _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        # Copy the value to use it later since we're going to adjust the real interval
+        self._configured_interval = self.interval
 
     def start(self):
         """Start the scheduler."""
@@ -43,5 +48,11 @@ class Scheduler(_periodic.PeriodicService):
                 except Exception:
                     LOG.exception("Error while exporting %d events", total_events)
 
-    periodic = flush
+    def periodic(self):
+        start_time = compat.monotonic()
+        try:
+            self.flush()
+        finally:
+            self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
+
     on_shutdown = flush
