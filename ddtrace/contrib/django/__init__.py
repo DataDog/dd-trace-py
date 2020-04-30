@@ -73,6 +73,8 @@ Configuration
 
    Whether or not to instrument middleware.
 
+   Can also be enabled with the ``DD_DJANGO_INSTRUMENT_MIDDLEWARE`` environment variable.
+
    Default: ``True``
 
 .. py:data:: ddtrace.config.django['instrument_databases']
