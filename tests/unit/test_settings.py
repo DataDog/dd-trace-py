@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from ddtrace.settings import Config, HttpConfig, IntegrationConfig
 
 from ..base import BaseTestCase
@@ -214,3 +216,27 @@ class TestIntegrationConfig(BaseTestCase):
             config = Config()
             ic = IntegrationConfig(config, 'foo')
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
+
+    def test_deepcopy(self):
+        ic = IntegrationConfig(
+            self.config, 'foo', analytics_enabled=True, analytics_sample_rate=0.5, deep={"field": "sodeep"}
+        )
+        cpy = deepcopy(ic)
+        assert isinstance(cpy, IntegrationConfig)
+        assert cpy == ic
+        assert cpy.deep["field"] == ic.deep["field"]
+        ic.deep["field"] = ""
+        assert cpy.deep["field"] != ic.deep["field"]
+
+    def test_copy(self):
+        ic = IntegrationConfig(self.config, 'foo', analytics_enabled=True, analytics_sample_rate=0.5)
+        copy = ic.copy()
+        assert isinstance(copy, IntegrationConfig)
+
+        for key in ic:
+            assert key in copy
+
+        for key in copy:
+            assert key in ic
+
+        assert ic == copy
