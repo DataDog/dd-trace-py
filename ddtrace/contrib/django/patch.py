@@ -18,7 +18,7 @@ from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.utils.formats import get_env
+from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
 from .compat import get_resolver, user_is_authenticated
@@ -35,7 +35,7 @@ config._add(
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
-        instrument_middleware=get_env("django", "instrument_middleware", default=True),
+        instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,
         instrument_caches=True,
         analytics_enabled=None,  # None allows the value to be overridden by the global config
