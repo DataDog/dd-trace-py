@@ -1,9 +1,10 @@
+import mock
 import os
 import unittest
 import warnings
 
 from ddtrace.utils.deprecation import deprecation, deprecated, format_message
-from ddtrace.utils.formats import asbool, get_env, flatten_dict
+from ddtrace.utils.formats import asbool, get_env, flatten_dict, parse_tags_str
 
 
 class TestUtils(unittest.TestCase):
@@ -101,3 +102,56 @@ class TestUtils(unittest.TestCase):
         d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
         e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
         self.assertEquals(flatten_dict(d, sep='_'), e)
+
+    def test_parse_env_tags(self):
+        tags = parse_tags_str("key:val")
+        assert tags == dict(key="val")
+
+        tags = parse_tags_str("key:val,key2:val2")
+        assert tags == dict(key="val", key2="val2")
+
+        tags = parse_tags_str("key:val,key2:val2,key3:1234.23")
+        assert tags == dict(key="val", key2="val2", key3="1234.23")
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key:,key3:val1,")
+        assert tags == dict(key3="val1")
+        assert log.error.call_count == 2
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("")
+        assert tags == dict()
+        assert log.error.call_count == 0
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str(",")
+        assert tags == dict()
+        assert log.error.call_count == 2
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str(":,:")
+        assert tags == dict()
+        assert log.error.call_count == 2
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key,key2:val1")
+        assert tags == dict(key2="val1")
+        log.error.assert_called_once_with(
+            "Malformed tag in tag pair '%s' from tag string '%s'.", "key", "key,key2:val1"
+        )
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key2:val1:")
+        assert tags == dict()
+        log.error.assert_called_once_with(
+            "Malformed tag in tag pair '%s' from tag string '%s'.", "key2:val1:", "key2:val1:"
+        )
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key,key2,key3")
+        assert tags == dict()
+        log.error.assert_has_calls([
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key2", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key3", "key,key2,key3"),
+        ])
