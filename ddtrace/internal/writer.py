@@ -295,7 +295,7 @@ class Q(Queue):
             # check qsize value.
             with self.mutex:
                 qsize = self._qsize()
-                if qsize != 0:
+                if qsize >= self.maxsize:
                     idx = random.randrange(0, qsize)
                     self.queue[idx] = item
                     log.warning("Writer queue is full has more than %d traces, some traces will be lost", self.maxsize)
