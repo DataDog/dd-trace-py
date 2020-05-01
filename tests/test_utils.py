@@ -159,9 +159,8 @@ class TestUtils(unittest.TestCase):
 
     def test_random(self):
         m = set()
-        gen = rand.get_rand64_gen()
         for i in range(0, 2**16):
-            n = next(gen)
+            n = rand.rand64bits()
             assert 0 <= n <= 2**64 - 1
             assert n not in m
             m.add(n)

@@ -103,22 +103,10 @@ def test_span_id_randbits(benchmark):
 
 
 @pytest.mark.benchmark(group="span-id", min_time=0.005)
-def test_span_id_rand64_c(benchmark):
+def test_span_id_rand64bits(benchmark):
     from ddtrace.internal import _rand
 
     @benchmark
     def f():
-        rng = _rand.get_rand64_gen()
-        _ = next(rng)  # span id
-        _ = next(rng)  # trace id
-
-
-@pytest.mark.benchmark(group="span-id", min_time=0.005)
-def test_span_id_rand64(benchmark):
-    from ddtrace.internal import rand
-
-    @benchmark
-    def f():
-        rng = rand.get_rand64_gen()
-        _ = next(rng)  # span id
-        _ = next(rng)  # trace id
+        _ = _rand.rand64bits()
+        _ = _rand.rand64bits()

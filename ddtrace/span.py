@@ -1,6 +1,5 @@
 import math
 import sys
-import threading
 import traceback
 
 from .vendor import six
@@ -19,9 +18,6 @@ from .internal.logger import get_logger
 from .internal import rand
 
 log = get_logger(__name__)
-
-
-rand64 = threading.local()
 
 
 class Span(object):
@@ -100,9 +96,8 @@ class Span(object):
         # DEV: explicitly invoke ``__next__`` on generator vs using next(rng) as there is an overhead
         # (my guess is that the overhead is for exception handling when using next(rng))
 
-        rng = rand.get_rand64_gen()
-        self.trace_id = trace_id or rng.__next__()
-        self.span_id = span_id or rng.__next__()
+        self.trace_id = trace_id or rand.rand64bits()
+        self.span_id = span_id or rand.rand64bits()
         self.parent_id = parent_id
         self.tracer = tracer
 
