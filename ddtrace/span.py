@@ -15,7 +15,7 @@ from .constants import (
 )
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
-from .internal import rand
+from .internal import _rand
 
 log = get_logger(__name__)
 
@@ -93,11 +93,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        # DEV: explicitly invoke ``__next__`` on generator vs using next(rng) as there is an overhead
-        # (my guess is that the overhead is for exception handling when using next(rng))
-
-        self.trace_id = trace_id or rand.rand64bits()
-        self.span_id = span_id or rand.rand64bits()
+        self.trace_id = trace_id or _rand.rand64bits()
+        self.span_id = span_id or _rand.rand64bits()
         self.parent_id = parent_id
         self.tracer = tracer
 

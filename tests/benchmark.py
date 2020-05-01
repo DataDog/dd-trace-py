@@ -93,16 +93,6 @@ def test_tracer_start_span(benchmark, tracer):
 
 
 @pytest.mark.benchmark(group="span-id", min_time=0.005)
-def test_span_id_randbits(benchmark):
-    from ddtrace.compat import getrandbits
-
-    @benchmark
-    def f():
-        _ = getrandbits(64)  # span id
-        _ = getrandbits(64)  # trace id
-
-
-@pytest.mark.benchmark(group="span-id", min_time=0.005)
 def test_span_id_rand64bits(benchmark):
     from ddtrace.internal import _rand
 
