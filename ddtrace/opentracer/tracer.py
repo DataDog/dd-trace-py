@@ -78,8 +78,8 @@ class Tracer(opentracing.Tracer):
                                   """)
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
-
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
+        _patch_scope_manager(self._scope_manager, dd_context_provider)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
@@ -155,7 +155,6 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
-
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
@@ -301,3 +300,29 @@ class Tracer(opentracing.Tracer):
         dd_span_ctx = ot_span_ctx._dd_context
         self._dd_tracer.context_provider.activate(dd_span_ctx)
         return ot_span_ctx
+
+
+def _patch_scope_manager(scope_manager, context_provider):
+    """
+    Patches a scope manager so that any time a span is activated
+    it'll also activate the underlying ddcontext with the underlying
+    datadog context provider.
+
+    This allows opentracing users to rely on ddtrace.contrib patches and
+    have them parent correctly.
+
+    :param scope_manager: Something that implements `opentracing.ScopeManager`
+    :param context_provider: Something that implements `datadog.provider.BaseContextProvider`
+    """
+    if getattr(scope_manager, '_datadog_patch', False):
+        return
+    setattr(scope_manager, '_datadog_patch', True)
+
+    old_method = scope_manager.activate
+
+    def _patched_activate(*args, **kwargs):
+        otspan = kwargs.get('span', args[0])
+        context_provider.activate(otspan._dd_context)
+        return old_method(*args, **kwargs)
+
+    scope_manager.activate = _patched_activate
