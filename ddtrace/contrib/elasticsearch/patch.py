@@ -13,7 +13,14 @@ from ...settings import config
 
 
 def _es_modules():
-    module_names = ("elasticsearch", "elasticsearch1", "elasticsearch2", "elasticsearch5", "elasticsearch6")
+    module_names = (
+        "elasticsearch",
+        "elasticsearch1",
+        "elasticsearch2",
+        "elasticsearch5",
+        "elasticsearch6",
+        "elasticsearch7",
+    )
     for module_name in module_names:
         try:
             yield import_module(module_name)
@@ -71,7 +78,7 @@ def _get_perform_request(elasticsearch):
             if config.elasticsearch.trace_query_string:
                 span.set_tag(http.QUERY_STRING, encoded_params)
 
-            if method == "GET":
+            if method in ["GET", "POST"]:
                 span.set_tag(metadata.BODY, instance.serializer.dumps(body))
             status = None
 
