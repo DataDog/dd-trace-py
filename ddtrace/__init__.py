@@ -15,7 +15,7 @@ try:
     __version__ = pkg_resources.get_distribution(__name__).version
 except pkg_resources.DistributionNotFound:
     # package is not installed
-    __version__ = None
+    __version__ = "dev"
 
 
 # a global tracer instance with integration settings
