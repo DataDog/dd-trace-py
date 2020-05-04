@@ -4,9 +4,12 @@ from copy import deepcopy
 from .internal.logger import get_logger
 from .span import Span
 
+from .vendor import attr
+
 log = get_logger(__name__)
 
 
+@attr.s(slots=True)
 class Hooks(object):
     """
     Hooks configuration object is used for registering and calling hook functions
@@ -17,10 +20,7 @@ class Hooks(object):
         def on_request(span, request, response):
             pass
     """
-    __slots__ = ['_hooks']
-
-    def __init__(self):
-        self._hooks = collections.defaultdict(set)
+    _hooks = attr.ib(init=False, factory=lambda: collections.defaultdict(set))
 
     def __deepcopy__(self, memodict=None):
         hooks = Hooks()
@@ -114,9 +114,3 @@ class Hooks(object):
             except Exception:
                 # DEV: Use log.debug instead of log.error until we have a throttled logger
                 log.debug('Failed to run hook %s function %s', hook, func, exc_info=True)
-
-    def __repr__(self):
-        """Return string representation of this class instance"""
-        cls = self.__class__
-        hooks = ','.join(self._hooks.keys())
-        return '{}.{}({})'.format(cls.__module__, cls.__name__, hooks)
