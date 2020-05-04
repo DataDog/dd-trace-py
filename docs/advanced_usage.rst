@@ -187,9 +187,9 @@ The ``RateSampler`` randomly samples a percentage of traces::
 App Analytics
 ------------------------
 
-Use `App Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
+Use `App Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and analyzed spans by user-defined tags. An APM event is generated every time a trace is generated.
 
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
+Enabling analyzed spans for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
 
 * :ref:`aiohttp`
 * :ref:`bottle`
@@ -203,7 +203,7 @@ Enabling APM events for all web frameworks can be accomplished by setting the en
 * :ref:`tornado`
 
 
-For most libraries, APM events can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
+For most libraries, analyzed spans can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
 
 +----------------------+----------------------------------------+
 |       Library        |          Environment Variable          |
