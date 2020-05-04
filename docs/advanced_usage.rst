@@ -184,10 +184,10 @@ The ``RateSampler`` randomly samples a percentage of traces::
     tracer.sampler = RateSampler(sample_rate)
 
 
-Trace Search & Analytics
+App Analytics
 ------------------------
 
-Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
+Use `App Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
 
 Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
 
@@ -273,7 +273,7 @@ For datastore libraries that extend another, use the setting for the underlying 
 | :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
 +------------------------+----------------------------------+
 
-Where environment variables are not used for configuring the tracer, the instructions for configuring trace analytics is provided in the library documentation:
+Where environment variables are not used for configuring the tracer, the instructions for configuring app analytics is provided in the library documentation:
 
 * :ref:`aiohttp`
 * :ref:`django`
