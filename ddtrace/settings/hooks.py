@@ -24,7 +24,7 @@ class Hooks(object):
 
     def __deepcopy__(self, memodict=None):
         hooks = Hooks()
-        hooks._hooks = deepcopy(self._hooks)
+        hooks._hooks = deepcopy(self._hooks, memodict)
         return hooks
 
     def register(self, hook, func=None):
