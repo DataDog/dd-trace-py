@@ -1,8 +1,6 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
-import logging
-import os
 import sys
 import threading
 
@@ -34,8 +32,12 @@ IF UNAME_SYSNAME == "Linux":
 
     cdef extern from "<pthread.h>":
         # POSIX says this might be a struct, but CPython relies on it being an unsigned long.
-        ctypedef unsigned long pthread_t
-        int pthread_getcpuclockid(pthread_t thread, clockid_t *clock_id)
+        # We should be defining pthread_t here like this:
+        # ctypedef unsigned long pthread_t
+        # but e.g. musl libc defines pthread_t as a struct __pthread * which breaks the arithmetic Cython
+        # wants to do.
+        # We pay this with a warning at compilation time, but it works anyhow.
+        int pthread_getcpuclockid(unsigned long thread, clockid_t *clock_id)
 
     cdef p_pthread_getcpuclockid(tid):
         cdef clockid_t clock_id

@@ -4,12 +4,32 @@ from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.deprecation import get_service_legacy
 from ..utils.formats import asbool
-from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
 from ..utils.formats import get_env
 
 log = get_logger(__name__)
+
+
+# Borrowed from: https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data#20666342
+def _deepmerge(source, destination):
+    """
+    Merge the first provided ``dict`` into the second.
+
+    :param dict source: The ``dict`` to merge into ``destination``
+    :param dict destination: The ``dict`` that should get updated
+    :rtype: dict
+    :returns: ``destination`` modified
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            _deepmerge(value, node)
+        else:
+            destination[key] = value
+
+    return destination
 
 
 class Config(object):
@@ -91,7 +111,7 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
+            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
         else:
             self._config[integration] = IntegrationConfig(self, integration, settings)
 
