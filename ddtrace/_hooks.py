@@ -86,7 +86,7 @@ class Hooks(object):
             if func in funcs:
                 funcs.remove(func)
 
-    def _emit(self, hook, span, *args, **kwargs):
+    def emit(self, hook, span, *args, **kwargs):
         """
         Function used to call registered hook functions.
 
