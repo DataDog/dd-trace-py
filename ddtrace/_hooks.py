@@ -46,7 +46,7 @@ class Hooks(object):
                 pass
 
         :param hook: The name of the hook to register the function for
-        :type hook: str
+        :type hook: object
         :param func: The function to register, or ``None`` if a decorator should be returned
         :type func: function, None
         :returns: Either a function decorator if ``func is None``, otherwise ``None``
@@ -68,9 +68,9 @@ class Hooks(object):
     #        pass
     on = register
 
-    def deregister(self, func):
+    def deregister(self, hook, func):
         """
-        Function to deregister a function from all hooks it was registered under
+        Function to deregister a function from a hook it was registered under
 
         Example::
 
@@ -78,15 +78,18 @@ class Hooks(object):
             def on_request(span, request, response):
                 pass
 
-            config.falcon.hooks.deregister(on_request)
+            config.falcon.hooks.deregister('request', on_request)
 
-
+        :param hook: The name of the hook to register the function for
+        :type hook: object
         :param func: Function hook to register
         :type func: function
         """
-        for funcs in self._hooks.values():
-            if func in funcs:
-                funcs.remove(func)
+        if hook in self._hooks:
+            try:
+                self._hooks[hook].remove(func)
+            except KeyError:
+                pass
 
     def emit(self, hook, *args, **kwargs):
         """
