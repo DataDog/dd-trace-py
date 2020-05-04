@@ -2,7 +2,6 @@ import collections
 from copy import deepcopy
 
 from .internal.logger import get_logger
-from .span import Span
 
 from .vendor import attr
 
@@ -86,31 +85,21 @@ class Hooks(object):
             if func in funcs:
                 funcs.remove(func)
 
-    def emit(self, hook, span, *args, **kwargs):
+    def emit(self, hook, *args, **kwargs):
         """
         Function used to call registered hook functions.
 
         :param hook: The hook to call functions for
         :type hook: str
-        :param span: The span to call the hook with
-        :type span: :class:`ddtrace.span.Span`
         :param args: Positional arguments to pass to the hook functions
         :type args: list
         :param kwargs: Keyword arguments to pass to the hook functions
         :type kwargs: dict
         """
-        # Return early if no hooks are registered
-        if hook not in self._hooks:
-            return
-
-        # Return early if we don't have a Span
-        if not isinstance(span, Span):
-            return
-
         # Call registered hooks
-        for func in self._hooks[hook]:
+        for func in self._hooks.get(hook, ()):
             try:
-                func(span, *args, **kwargs)
+                func(*args, **kwargs)
             except Exception:
                 # DEV: Use log.debug instead of log.error until we have a throttled logger
                 log.debug('Failed to run hook %s function %s', hook, func, exc_info=True)
