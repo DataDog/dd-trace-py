@@ -19,6 +19,7 @@ class Hooks(object):
         def on_request(span, request, response):
             pass
     """
+
     _hooks = attr.ib(init=False, factory=lambda: collections.defaultdict(set))
 
     def __deepcopy__(self, memodict=None):
@@ -53,9 +54,11 @@ class Hooks(object):
         """
         # If they didn't provide a function, then return a decorator
         if not func:
+
             def wrapper(func):
                 self.register(hook, func)
                 return func
+
             return wrapper
         self._hooks[hook].add(func)
 
@@ -102,4 +105,4 @@ class Hooks(object):
                 func(*args, **kwargs)
             except Exception:
                 # DEV: Use log.debug instead of log.error until we have a throttled logger
-                log.debug('Failed to run hook %s function %s', hook, func, exc_info=True)
+                log.debug("Failed to run hook %s function %s", hook, func, exc_info=True)
