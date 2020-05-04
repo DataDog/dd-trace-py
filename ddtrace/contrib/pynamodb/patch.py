@@ -9,10 +9,9 @@ import pynamodb.connection.base
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
-from ...ext import SpanTypes, http, aws
+from ...ext import SpanTypes, http
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
-import pdb
 
 # Pynamodb connection class
 _PynamoDB_client = pynamodb.connection.base.Connection
@@ -63,16 +62,15 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tags(meta)
         result = original_func(*args, **kwargs)
 
-        if 'Attributes' in result:
-            for k,v in result['Attributes'].items():
-                span.set_tag(k, v['S'])
-
+        # Depending on the query type, there are several ways the TableName can be found
         if 'ConsumedCapacity' in result:
-            for k,v in result['ConsumedCapacity'].items():
-                span.set_tag(k, v)
+            span.set_tag('TableName', result['ConsumedCapacity']['TableName'])
 
         if 'Table' in result and 'TableName' in result['Table']:
             span.set_tag('TableName', result['Table']['TableName'])
+
+        if 'TableDescription' in result and 'TableName' in result['TableDescription']:
+            span.set_tag('TableName', result['TableDescription']['TableName'])
 
         # set analytics sample rate
         span.set_tag(
