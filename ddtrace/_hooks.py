@@ -1,8 +1,8 @@
 import collections
 from copy import deepcopy
 
-from ..internal.logger import get_logger
-from ..span import Span
+from .internal.logger import get_logger
+from .span import Span
 
 log = get_logger(__name__)
 
