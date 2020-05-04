@@ -39,24 +39,18 @@ rand64bits                         167.5956 (1.0)      211.3155 (1.0)      190.2
 random.randbits                    222.7103 (1.33)     367.4459 (1.74)     250.2699 (1.32)     26.5930 (2.78)     242.1607 (1.29)     26.4550 (2.31)          6;1        3.9957 (0.76)         36      100000
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
+from libc.stdint cimport uint64_t
+
 from ddtrace import compat
-
-
-cdef extern from "<stdint.h>":
-    ctypedef unsigned long long uint64_t
 
 
 cdef uint64_t x = compat.getrandbits(64) ^ 4101842887655102017
 
 
-cpdef public uint64_t rand64bits_unsafe() nogil:
+cpdef public uint64_t rand64bits():
     global x
     x ^= x >> 21
     x ^= x << 35
     x ^= x >> 4
     return x * <uint64_t>2685821657736338717
-
-
-def rand64bits():
-    return rand64bits_unsafe()
 
