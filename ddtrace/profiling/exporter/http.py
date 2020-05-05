@@ -142,11 +142,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         version = os.environ.get("DD_VERSION")
         if version:
-            tags["version"] = version
+            tags["version"] = version.encode("utf-8")
 
         env = os.environ.get("DD_ENV")
         if env:
-            tags["env"] = env
+            tags["env"] = env.encode("utf-8")
 
         user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
         user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
