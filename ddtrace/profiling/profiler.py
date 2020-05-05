@@ -72,7 +72,6 @@ class Profiler(object):
     exporters = attr.ib(factory=_build_default_exporters)
     schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
-    statistics = attr.ib(default=False)
 
     def __attrs_post_init__(self):
         if self.exporters:
