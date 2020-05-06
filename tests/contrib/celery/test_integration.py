@@ -514,7 +514,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         current_context = Pin.get_from(self.app).tracer.context_provider.active()
         headers = {}
         HTTPPropagator().inject(current_context, headers)
-        
+
         with self.override_config("celery", dict(distributed_tracing=True)):
             fn_task.apply(headers=headers)
 
