@@ -8,14 +8,14 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
-from .internal.runtime import RuntimeTags, RuntimeWorker
+from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
-from .utils.formats import get_env
+from .utils.formats import get_env, parse_tags_str
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
@@ -115,6 +115,19 @@ class Tracer(object):
             else:
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
 
+        # globally set tags
+        self.tags = {}
+        env_tags = environ.get("DD_TAGS")
+        if env_tags:
+            self.set_tags(parse_tags_str(env_tags))
+
+        # a buffer for service info so we don't perpetually send the same things
+        self._services = set()
+
+        # Runtime id used for associating data collected during runtime to
+        # traces
+        self._pid = getpid()
+
         # Apply the default configuration
         self.configure(
             enabled=True,
@@ -127,16 +140,6 @@ class Tracer(object):
             dogstatsd_url=dogstatsd_url,
             writer=writer,
         )
-
-        # globally set tags
-        self.tags = {}
-
-        # a buffer for service info so we don't perpetually send the same things
-        self._services = set()
-
-        # Runtime id used for associating data collected during runtime to
-        # traces
-        self._pid = getpid()
 
     @property
     def debug_logging(self):
@@ -171,12 +174,7 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self._context_provider.active(*args, **kwargs)
-
-    @property
-    def context_provider(self):
-        """Returns the current Tracer Context Provider"""
-        return self._context_provider
+        return self.context_provider.active(*args, **kwargs)
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("dogstatsd_host", "Use `dogstatsd_url` instead",
@@ -272,6 +270,9 @@ class Tracer(object):
                 default_hostname = self.DEFAULT_HOSTNAME
                 default_port = self.DEFAULT_PORT
 
+            if hasattr(self, "writer") and self.writer.is_alive():
+                self.writer.stop()
+
             self.writer = AgentWriter(
                 hostname or default_hostname,
                 port or default_port,
@@ -287,7 +288,7 @@ class Tracer(object):
         self.writer.dogstatsd = self._dogstatsd_client
 
         if context_provider is not None:
-            self._context_provider = context_provider
+            self.context_provider = context_provider
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
@@ -330,11 +331,15 @@ class Tracer(object):
             context = tracer.get_call_context()
             span = tracer.start_span('web.worker', child_of=context)
         """
+        new_ctx = self._check_new_process()
+
         if child_of is not None:
-            # retrieve if the span is a child_of a Span or a of Context
-            child_of_context = isinstance(child_of, Context)
-            context = child_of if child_of_context else child_of.context
-            parent = child_of.get_current_span() if child_of_context else child_of
+            if isinstance(child_of, Context):
+                context = new_ctx or child_of
+                parent = child_of.get_current_span()
+            else:
+                context = child_of.context
+                parent = child_of
         else:
             context = Context()
             parent = None
@@ -415,7 +420,7 @@ class Tracer(object):
 
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
-            if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
+            if self._runtime_worker and self._is_span_internal(span):
                 span.set_tag('language', 'python')
 
         # Apply default global tags
@@ -438,15 +443,13 @@ class Tracer(object):
 
         if not span._parent:
             span.set_tag(system.PID, getpid())
+            span.set_tag("runtime-id", get_runtime_id())
 
         # add it to the current context
         context.add_span(span)
 
-        # check for new process if runtime metrics worker has already been started
-        self._check_new_process()
-
         # update set of services handled by tracer
-        if service and service not in self._services:
+        if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
             # The constant tags for the dogstatsd client needs to updated with any new
@@ -480,6 +483,19 @@ class Tracer(object):
 
         self._pid = pid
 
+        ctx = self.get_call_context()
+        # The spans remaining in the context can not and will not be finished
+        # in this new process. So we need to copy out the trace metadata needed
+        # to continue the trace.
+        # Also, note that because we're in a forked process, the lock that the
+        # context has might be permanently locked so we can't use ctx.clone().
+        new_ctx = Context(
+            sampling_priority=ctx._sampling_priority,
+            span_id=ctx._parent_span_id,
+            trace_id=ctx._parent_trace_id,
+        )
+        self.context_provider.activate(new_ctx)
+
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
@@ -493,6 +509,8 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
+
+        return new_ctx
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """
@@ -529,6 +547,7 @@ class Tracer(object):
             parent2 = tracer.trace('parent2')   # has no parent span
             parent2.finish()
         """
+
         # retrieve the Context using the context provider and create
         # a new Span that could be a root or a nested span
         context = self.get_call_context()
@@ -717,3 +736,7 @@ class Tracer(object):
             # We are in an AWS Lambda environment
             return True
         return False
+
+    @staticmethod
+    def _is_span_internal(span):
+        return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES

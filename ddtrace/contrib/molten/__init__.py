@@ -25,7 +25,7 @@ Configuration
 
 .. py:data:: ddtrace.config.molten['analytics_enabled']
 
-   Whether to generate APM events in Trace Search & Analytics.
+   Whether to analyze spans for Molten in App Analytics.
 
    Can also be enabled with the ``DD_MOLTEN_ANALYTICS_ENABLED`` environment variable.
 

@@ -599,6 +599,29 @@ def test_tracer_shutdown_no_timeout():
     t.writer.join.assert_called_once_with(timeout=None)
 
 
+def test_tracer_configure_writer_stop_unstarted():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+    orig_writer = t.writer
+
+    # Make sure we aren't calling stop for an unstarted writer
+    t.configure(hostname="localhost", port=8126)
+    assert not orig_writer.stop.called
+
+
+def test_tracer_configure_writer_stop_started():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+    orig_writer = t.writer
+
+    # Do a write to start the writer
+    with t.trace("something"):
+        pass
+
+    t.configure(hostname="localhost", port=8126)
+    orig_writer.stop.assert_called_once_with()
+
+
 def test_tracer_shutdown_timeout():
     t = ddtrace.Tracer()
     t.writer = mock.Mock(wraps=t.writer)
@@ -658,7 +681,7 @@ def test_tracer_fork():
                 assert t.writer._trace_queue != original_writer._trace_queue
 
         # Assert the trace got written into the correct queue
-        assert original_writer._trace_queue.qsize() == 0
+        assert original_writer._trace_queue.empty()
         assert t.writer._trace_queue.qsize() == 1
         assert [[span]] == list(t.writer._trace_queue.get())
 
@@ -670,8 +693,7 @@ def test_tracer_fork():
     finally:
         p.join(timeout=2)
 
-    while errors.qsize() > 0:
-        raise errors.get()
+    assert errors.empty(), errors.get()
 
     # Ensure writing into the tracer in this process still works as expected
     with t.trace('test', service='test') as span:
@@ -683,6 +705,85 @@ def test_tracer_fork():
     assert original_writer._trace_queue.qsize() == 1
     assert t.writer._trace_queue.qsize() == 1
     assert [[span]] == list(t.writer._trace_queue.get())
+
+
+def test_tracer_trace_across_fork():
+    """
+    When a trace is started in a parent process and a child process is spawned
+        The trace should be continued in the child process
+    """
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    def task(tracer, q):
+        tracer.writer = DummyWriter()
+        with tracer.trace("child"):
+            pass
+        spans = tracer.writer.pop()
+        q.put([dict(trace_id=s.trace_id, parent_id=s.parent_id) for s in spans])
+
+    # Assert tracer in a new process correctly recreates the writer
+    q = multiprocessing.Queue()
+    with tracer.trace("parent") as parent:
+        p = multiprocessing.Process(target=task, args=(tracer, q))
+        p.start()
+        p.join()
+
+    children = q.get()
+    assert len(children) == 1
+    child, = children
+    assert parent.trace_id == child["trace_id"]
+    assert child["parent_id"] == parent.span_id
+
+
+def test_tracer_trace_across_multiple_forks():
+    """
+    When a trace is started and crosses multiple process boundaries
+        The trace should be continued in the child processes
+    """
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    # Start a span in this process then start a child process which itself
+    # starts a span and spawns another child process which starts a span.
+    def task(tracer, q):
+        tracer.writer = DummyWriter()
+
+        def task2(tracer, q):
+            tracer.writer = DummyWriter()
+
+            with tracer.trace("child2"):
+                pass
+
+            spans = tracer.writer.pop()
+            q.put([dict(trace_id=s.trace_id, parent_id=s.parent_id) for s in spans])
+
+        with tracer.trace("child1"):
+            q2 = multiprocessing.Queue()
+            p = multiprocessing.Process(target=task2, args=(tracer, q2))
+            p.start()
+            p.join()
+
+        task2_spans = q2.get()
+        spans = tracer.writer.pop()
+        q.put([
+            dict(trace_id=s.trace_id, parent_id=s.parent_id, span_id=s.span_id)
+            for s in spans
+        ] + task2_spans)
+
+    # Assert tracer in a new process correctly recreates the writer
+    q = multiprocessing.Queue()
+    with tracer.trace("parent") as parent:
+        p = multiprocessing.Process(target=task, args=(tracer, q))
+        p.start()
+        p.join()
+
+    children = q.get()
+    assert len(children) == 2
+    child1, child2 = children
+    assert parent.trace_id == child1["trace_id"] == child2["trace_id"]
+    assert child1["parent_id"] == parent.span_id
+    assert child2["parent_id"] == child1["span_id"]
 
 
 def test_tracer_with_version():
@@ -834,3 +935,50 @@ class EnvTracerTestCase(BaseTracerTestCase):
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         assert isinstance(self.tracer.original_writer, AgentWriter)
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
+    def test_dd_tags(self):
+        assert self.tracer.tags["key1"] == "value1"
+        assert self.tracer.tags["key2"] == "value2"
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2,key3"))
+    def test_dd_tags_invalid(self):
+        assert "key1" in self.tracer.tags
+        assert "key2" in self.tracer.tags
+        assert "key3" not in self.tracer.tags
+
+
+def test_tracer_custom_max_traces(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
+    tracer = ddtrace.Tracer()
+    assert tracer.writer._trace_queue.maxsize == 2000
+
+
+def test_tracer_set_runtime_tags():
+    t = ddtrace.Tracer()
+    span = t.start_span("foobar")
+
+    assert len(span.get_tag("runtime-id"))
+
+    t2 = ddtrace.Tracer()
+    span2 = t2.start_span("foobaz")
+
+    assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
+
+
+def test_tracer_runtime_tags_fork():
+    tracer = ddtrace.Tracer()
+
+    def task(tracer, q):
+        span = tracer.start_span("foobaz")
+        q.put(span.get_tag("runtime-id"))
+
+    span = tracer.start_span("foobar")
+
+    q = multiprocessing.Queue()
+    p = multiprocessing.Process(target=task, args=(tracer, q))
+    p.start()
+    p.join()
+
+    children_tag = q.get()
+    assert children_tag != span.get_tag("runtime-id")

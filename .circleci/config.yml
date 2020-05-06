@@ -7,13 +7,11 @@ s3_bucket: &s3_bucket pypi.datadoghq.com
 resource_class: &resource_class medium
 busybox_image: &busybox_image busybox:latest
 cimg_base_image: &cimg_base_image cimg/base:2020.01
+python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
-# The circleci/python:3.4 images are broken, we cannot do `pip install <package>`
-# https://github.com/circleci/circleci-images/issues/466
-python34_image: &python34_image python:3.4
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
@@ -153,13 +151,11 @@ commands:
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
-      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py build_ext --force
+      - run: python setup.py build_ext --force
       # Ensure source package will build
       - run: python setup.py sdist
       # Ensure wheel will build
-      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py bdist_wheel
+      - run: python setup.py bdist_wheel
       # Ensure package long description is valid and will render
       # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
       - run: twine check dist/*
@@ -169,6 +165,10 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
+    resource_class: *resource_class
+  python38-alpine:
+    docker:
+      - image: *python38-alpine_image
     resource_class: *resource_class
   python38:
     docker:
@@ -185,10 +185,6 @@ executors:
   python35:
     docker:
       - image: *python35_image
-    resource_class: *resource_class
-  python34:
-    docker:
-      - image: *python34_image
     resource_class: *resource_class
   python27:
     docker:
@@ -260,6 +256,11 @@ jobs:
       - run: |
           docker build .
 
+  test_build_alpine:
+    executor: python38-alpine
+    steps:
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev
+      - test_build
   test_build_py38:
     executor: python38
     steps:
@@ -274,10 +275,6 @@ jobs:
       - test_build
   test_build_py35:
     executor: python35
-    steps:
-      - test_build
-  test_build_py34:
-    executor: python34
     steps:
       - test_build
   test_build_py27:
@@ -822,6 +819,7 @@ workflows:
       - flake8
 
       # Test building the package
+      - test_build_alpine: *requires_pre_test
       - test_build_py38: *requires_pre_test
       - test_build_py37: *requires_pre_test
       - test_build_py36: *requires_pre_test
@@ -940,6 +938,7 @@ workflows:
             - requestsgevent
             - sqlalchemy
             - sqlite3
+            - test_build_alpine
             - test_build_py38
             - test_build_py37
             - test_build_py36

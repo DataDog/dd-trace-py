@@ -37,7 +37,7 @@ Configuration
 
 .. py:data:: ddtrace.config.django['analytics_enabled']
 
-   Whether to generate APM events for Django in Trace Search & Analytics.
+   Whether to analyze spans for Django in App Analytics.
 
    Can also be enabled with the ``DD_DJANGO_ANALYTICS_ENABLED`` environment variable.
 
@@ -69,6 +69,14 @@ Configuration
 
    Default: ``''``
 
+.. py:data:: ddtrace.config.django['instrument_middleware']
+
+   Whether or not to instrument middleware.
+
+   Can also be enabled with the ``DD_DJANGO_INSTRUMENT_MIDDLEWARE`` environment variable.
+
+   Default: ``True``
+
 .. py:data:: ddtrace.config.django['instrument_databases']
 
    Whether or not to instrument databases.
@@ -86,6 +94,12 @@ Configuration
    Whether or not to include the query string as a tag.
 
    Default: ``False``
+
+.. py:data:: ddtrace.config.django['include_user_name']
+
+   Whether or not to include the authenticated user's username as a tag on the root request span.
+
+   Default: ``True``
 
 
 Example::

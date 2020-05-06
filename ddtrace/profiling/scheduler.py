@@ -12,57 +12,47 @@ LOG = logging.getLogger(__name__)
 
 
 @attr.s
-class Scheduler(object):
+class Scheduler(_periodic.PeriodicService):
     """Schedule export of recorded data."""
 
     recorder = attr.ib()
     exporters = attr.ib()
-    interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
-    _periodic = attr.ib(init=False, default=None)
+    _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
+    _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None)
 
-    def __enter__(self):
-        self.start()
-        return self
+    def __attrs_post_init__(self):
+        # Copy the value to use it later since we're going to adjust the real interval
+        self._configured_interval = self.interval
 
     def start(self):
         """Start the scheduler."""
-        self._periodic = _periodic.PeriodicThread(
-            self.interval, self.flush, name="%s:%s" % (__name__, self.__class__.__name__)
-        )
         LOG.debug("Starting scheduler")
+        super(Scheduler, self).start()
         self._last_export = compat.time_ns()
-        self._periodic.start()
         LOG.debug("Scheduler started")
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        return self.stop()
-
-    def stop(self, flush=True):
-        """Stop the scheduler.
-
-        :param flush: Whetever to do a final flush.
-        """
-        LOG.debug("Stopping scheduler")
-        if self._periodic:
-            self._periodic.stop()
-            self._periodic.join()
-            self._periodic = None
-        if flush:
-            self.flush()
-        LOG.debug("Scheduler stopped")
 
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
-        events = self.recorder.reset()
-        start = self._last_export
-        self._last_export = compat.time_ns()
-        total_events = sum(len(v) for v in events.values())
-        for exp in self.exporters:
-            try:
-                exp.export(events, start, self._last_export)
-            except exporter.ExportError as e:
-                LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
-            except Exception:
-                LOG.exception("Error while exporting %d events", total_events)
+        if self.exporters:
+            events = self.recorder.reset()
+            start = self._last_export
+            self._last_export = compat.time_ns()
+            total_events = sum(len(v) for v in events.values())
+            for exp in self.exporters:
+                try:
+                    exp.export(events, start, self._last_export)
+                except exporter.ExportError as e:
+                    LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
+                except Exception:
+                    LOG.exception("Error while exporting %d events", total_events)
+
+    def periodic(self):
+        start_time = compat.monotonic()
+        try:
+            self.flush()
+        finally:
+            self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
+
+    on_shutdown = flush

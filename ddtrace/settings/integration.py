@@ -47,9 +47,15 @@ class IntegrationConfig(AttrDict):
         self.setdefault('analytics_sample_rate', float(get_env(name, 'analytics_sample_rate', default=1.0)))
 
     def __deepcopy__(self, memodict=None):
-        new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
-        new.hooks = deepcopy(self.hooks)
-        new.http = deepcopy(self.http)
+        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self), memodict))
+        new.hooks = deepcopy(self.hooks, memodict)
+        new.http = deepcopy(self.http, memodict)
+        return new
+
+    def copy(self):
+        new = IntegrationConfig(self.global_config, self.integration_name, dict(self))
+        new.hooks = self.hooks
+        new.http = self.http
         return new
 
     @property
