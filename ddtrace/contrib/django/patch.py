@@ -44,6 +44,7 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
+        parent_resource_format=get_env("django", "parent_resource_format", default=None),
     ),
 )
 
@@ -354,22 +355,26 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         resolver_match = None
         resource = request.method
         try:
-            # Resolve the requested url
+            # Resolve the requested url and build resource name pieces
             resolver_match = resolver.resolve(request.path_info)
+            handler, _, _ = resolver_match
+            handler = func_name(handler)
+            urlpattern = ""
+            resource_format = config.django.parent_resource_format
 
-            # Determine the resource name to use
             # In Django >= 2.2.0 we can access the original route or regex pattern
+            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
             if django.VERSION >= (2, 2, 0):
                 route = utils.get_django_2_route(resolver, resolver_match)
-                if route:
-                    resource = "{0} {1}".format(request.method, route)
-                else:
-                    resource = request.method
-            # Older versions just use the view/handler name, e.g. `views.MyView.handler`
-            else:
-                # TODO: Validate if `resolver.pattern.regex.pattern` is available or not
-                callback, callback_args, callback_kwargs = resolver_match
-                resource = "{0} {1}".format(request.method, func_name(callback))
+                if resource_format is None:
+                    resource_format = "{method} {urlpattern}"
+
+            if resource_format is None:
+                resource_format = "{method} {handler}"
+
+            if route is not None:
+                urlpattern = route
+            resource = resource_format.format(method=request.method, urlpattern=urlpattern, handler=handler)
 
         except error_type_404:
             # Normalize all 404 requests into a single resource name
