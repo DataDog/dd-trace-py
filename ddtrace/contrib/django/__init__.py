@@ -101,6 +101,20 @@ Configuration
 
    Default: ``True``
 
+.. py:data:: ddtrace.config.django['parent_resource_format']
+
+   The format to use when settings the resource name for the parent django request.
+
+   This accepts a format string that has access to three variables, `handler`, `urlpattern`, and `method`.
+
+   For example, `"{method} {handler} {urlpattern}"` would name the top resource something like `GET myapp.views.index ^$`.
+
+   *Note:* `urlpattern` is not available for Django versions before 2.2.0. An empty string will be returned for that value instead.
+
+   Defaults:
+   Django >= 2.2.0: `"{method} {urlpattern}"`
+   Django < 2.2.0: `"{method} {handler}"`
+
 
 Example::
 

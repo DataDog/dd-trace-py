@@ -1259,3 +1259,50 @@ def test_user_name_excluded(client, test_spans):
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.meta
     assert root.meta.get("django.user.is_authenticated") == "True"
+
+
+"""
+Test parent resource name formatting
+"""
+
+
+def test_django_parent_resource_name_format(client, test_spans):
+    """
+    Test that the expected format is used when not specified in settings.
+    """
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+
+    # Assert the structure of the root `django.request` span
+    root = test_spans.get_root_span()
+    if django.VERSION >= (2, 2, 0):
+        resource = "GET ^$"
+    else:
+        resource = "GET tests.contrib.django.views.index"
+
+    root.assert_matches(resource=resource, parent_id=None, span_type="http")
+
+
+def test_django_root_span_name_format(client, test_spans):
+    """
+    Test that the specified format is used over the default.
+    """
+    if django.VERSION >= (2, 2, 0):
+        resource_format = "{urlpattern} {method}"
+    else:
+        resource_format = "{handler} {method}"
+
+    with BaseTestCase.override_config("django", dict(parent_resource_format=resource_format)):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+        if django.VERSION >= (2, 2, 0):
+            resource = "^$ GET"
+        else:
+            resource = "tests.contrib.django.views.index GET"
+
+        root.assert_matches(resource=resource, parent_id=None, span_type="http")
