@@ -2,6 +2,7 @@
 import itertools
 import os
 import random
+import threading
 import time
 import sys
 
@@ -112,6 +113,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if hasattr(time, "thread_time"):
             self._last_thread_time = time.thread_time()
         self._started = False
+        self._started_lock = threading.Lock()
 
     def recreate(self):
         """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
@@ -141,8 +143,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
         if self._started is False:
-            self.start()
-            self._started = True
+            with self._started_lock:
+                if self._started == False:
+                    time.sleep(1)
+                    self.start()
+                    self._started = True
         if spans:
             self._trace_queue.put(spans)
 
