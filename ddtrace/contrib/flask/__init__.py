@@ -39,7 +39,7 @@ Configuration
 
 .. py:data:: ddtrace.config.flask['analytics_enabled']
 
-   Whether to generate APM events for Flask in Trace Search & Analytics.
+   Whether to analyze spans for Flask in App Analytics.
 
    Can also be enabled with the ``DD_FLASK_ANALYTICS_ENABLED`` environment variable.
 

@@ -1,7 +1,11 @@
 import celery
 from celery.exceptions import Retry
 
+from ddtrace import Pin
+from ddtrace.context import Context
 from ddtrace.contrib.celery import patch, unpatch
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.propagation.http import HTTPPropagator
 
 from .base import CeleryBaseTestCase
 
@@ -416,6 +420,107 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             span = traces[0][0]
             self.assertEqual(span.service, "task-queue")
 
+    def test_worker_analytics_default(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure worker analytics sample rate is disabled by default
+        t = fn_task.apply()
+        self.assertTrue(t.successful())
+        self.assertEqual(42, t.result)
+
+        traces = self.tracer.writer.pop_traces()
+        self.assertEqual(1, len(traces))
+        self.assertEqual(1, len(traces[0]))
+        span = traces[0][0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_worker_analytics_with_rate(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure worker analytics sample rate can be changed via
+        # configuration object
+        with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+            t = fn_task.apply()
+            self.assertTrue(t.successful())
+            self.assertEqual(42, t.result)
+
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_worker_analytics_without_rate(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure worker analytics is 1.0 by default when enabled
+        # configuration object
+        with self.override_config("celery", dict(analytics_enabled=True)):
+            t = fn_task.apply()
+            self.assertTrue(t.successful())
+            self.assertEqual(42, t.result)
+
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    def test_producer_analytics_default(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure producer analytics sample rate is disabled by default
+        t = fn_task.delay()
+        self.assertEqual("PENDING", t.status)
+
+        traces = self.tracer.writer.pop_traces()
+        self.assertEqual(1, len(traces))
+        self.assertEqual(1, len(traces[0]))
+        span = traces[0][0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_producer_analytics_with_rate(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure producer analytics sample rate can be changed via
+        # configuration object
+        with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+            t = fn_task.delay()
+            self.assertEqual("PENDING", t.status)
+
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_producer_analytics_without_rate(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure producer analytics is 1.0 by default when enabled
+        # configuration object
+        with self.override_config("celery", dict(analytics_enabled=True)):
+            t = fn_task.delay()
+            self.assertEqual("PENDING", t.status)
+
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""
         ot_tracer = init_tracer("celery_svc", self.tracer)
@@ -443,9 +548,78 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         self.assert_is_measured(dd_span)
         assert dd_span.error == 0
+
         assert dd_span.name == "celery.apply"
         assert dd_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
         assert dd_span.service == "celery-producer"
         assert dd_span.get_tag("celery.id") == t.task_id
         assert dd_span.get_tag("celery.action") == "apply_async"
         assert dd_span.get_tag("celery.routing_key") == "celery"
+
+
+class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
+    """Distributed tracing is tricky to test for two reasons:
+
+    1. We aren't running anything distributed at all in this test suite
+    2. Celery doesn't run the `before_task_publish` signal we rely
+       on when running in synchronous mode, e.g. using apply.
+       https://github.com/celery/celery/issues/3864
+
+    To get around #1, we inject our own new context in a prerun signal
+    to simulate a distributed worker beginning with its own context
+    (which does not match the parent context from the publisher).
+
+    Hopefully if #2 is ever fixed we can more robustly test both of the
+    signals we're using for distributed trace propagation. For now,
+    this is only really testing the prerun part of the distributed tracing,
+    and it needs to simulate the before_publish part. :(
+    """
+
+    def setUp(self):
+        # Register our context-ruining signal before the normal ones so that
+        # the "real" task_prerun signal starts with the new context
+        celery.signals.task_prerun.connect(self.inject_new_context)
+        super(CeleryDistributedTracingIntegrationTask, self).setUp()
+        provider = Pin.get_from(self.app).tracer.context_provider
+        provider.activate(Context(trace_id=12345, span_id=12345, sampling_priority=1))
+
+    def tearDown(self):
+        celery.signals.task_prerun.disconnect(self.inject_new_context)
+        super(CeleryDistributedTracingIntegrationTask, self).tearDown()
+
+    def inject_new_context(self, *args, **kwargs):
+        pin = Pin.get_from(self.app)
+        pin.tracer.context_provider.activate(Context(trace_id=99999, span_id=99999, sampling_priority=1))
+
+    def test_distributed_tracing_disabled(self):
+        """This test is just making sure our signal hackery in this test class
+        is working the way we expect it to.
+        """
+
+        @self.app.task
+        def fn_task():
+            return 42
+
+        fn_task.apply()
+
+        traces = self.tracer.writer.pop_traces()
+        span = traces[0][0]
+        assert span.trace_id == 99999
+
+    def test_distributed_tracing_propagation(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # This header manipulation is copying the work that should be done
+        # by the before_publish signal. Rip it out if Celery ever fixes their bug.
+        current_context = Pin.get_from(self.app).tracer.context_provider.active()
+        headers = {}
+        HTTPPropagator().inject(current_context, headers)
+
+        with self.override_config("celery", dict(distributed_tracing=True)):
+            fn_task.apply(headers=headers)
+
+        traces = self.tracer.writer.pop_traces()
+        span = traces[0][0]
+        assert span.trace_id == 12345
