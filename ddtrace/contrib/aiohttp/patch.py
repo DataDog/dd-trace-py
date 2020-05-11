@@ -194,7 +194,7 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
         try:
             resp = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
-            if self._self_have_context and self._self_trace_context:
+            if self._self_have_context:
                 self._self_span.finish()
         return resp
 

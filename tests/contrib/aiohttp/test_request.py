@@ -16,10 +16,6 @@ from ...utils import assert_is_measured
 
 
 class TestRequestTracing(TraceTestCase):
-    def setUp(self):
-        super().setUp()
-        asyncio.set_event_loop(self.loop)
-
     """
     Ensures that the trace includes all traced components.
     """
@@ -166,9 +162,7 @@ class TestRequestTracing(TraceTestCase):
         assert 10 == len(traces)
         assert 1 == len(traces[0])
 
-    @mark_asyncio
-    @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    async def test_user_specified_service(self):
+    async def _test_user_specified_service(self):
         """
         When a service name is specified by the user
             The aiohttp integration should use it as the service name
@@ -187,3 +181,7 @@ class TestRequestTracing(TraceTestCase):
 
         # client spans
         assert len(traces[1]) == 4  # these are tested via client tests
+
+    @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        self.loop.run_until_complete(self._test_user_specified_service())

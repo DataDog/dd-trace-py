@@ -106,7 +106,7 @@ class SubprocessTestCase(unittest.TestCase):
         sp_test_env = os.environ.copy()
         sp_test_env.update(env_overrides)
         sp_test_env[SUBPROC_ENV_VAR] = 'True'
-        sp_test_cmd = ['python', '-m', 'unittest', full_testcase_name]
+        sp_test_cmd = ['python', '-m', 'pytest', full_testcase_name]
         sp = subprocess.Popen(
             sp_test_cmd,
             stdout=subprocess.PIPE,

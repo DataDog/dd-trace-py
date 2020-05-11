@@ -3,6 +3,7 @@ import asyncio
 from aiohttp import ClientSession
 from aiohttp.test_utils import unittest_run_loop
 
+from ddtrace import Pin
 from ddtrace.contrib.asyncio.patch import patch as aio_patch, \
     unpatch as aio_unpatch
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
@@ -15,7 +16,8 @@ class AIOHttpTest(TraceTestCase):
 
     def setUp(self):
         super(AIOHttpTest, self).setUp()
-        patch(self.tracer, enable_distributed=True)
+        patch()
+        Pin.override(ClientSession, tracer=self.tracer)
 
     def tearDown(self):
         super(TraceTestCase, self).tearDown()

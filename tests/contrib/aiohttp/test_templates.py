@@ -13,10 +13,6 @@ class TestTraceTemplate(TraceTestCase):
     """
     Ensures that the aiohttp_jinja2 library is properly traced.
     """
-    def setUp(self):
-        super().setUp()
-        asyncio.set_event_loop(self.loop)
-
     def enable_tracing(self):
         patch()
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
