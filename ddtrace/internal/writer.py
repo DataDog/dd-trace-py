@@ -145,7 +145,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if self._started is False:
             with self._started_lock:
                 if self._started == False:
-                    time.sleep(1)
                     self.start()
                     self._started = True
         if spans:
