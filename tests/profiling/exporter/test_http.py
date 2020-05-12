@@ -377,4 +377,3 @@ def test_get_tags_override(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
     assert tags["version"] == b"123"
     assert tags["env"] == b"prod"
-

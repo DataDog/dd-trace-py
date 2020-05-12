@@ -184,7 +184,7 @@ except ImportError:
                 pass
             else:
                 if not (
-                    type(class_dict) is types.GetSetDescriptorType
+                    type(class_dict) is types.GetSetDescriptorType  # noqa: E721
                     and class_dict.__name__ == "__dict__"  # noqa: E721,E261,W504
                     and class_dict.__objclass__ is entry  # noqa: E261,W504
                 ):
