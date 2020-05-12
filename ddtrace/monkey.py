@@ -181,11 +181,11 @@ def _patch_module(module):
             imported_module.patch()
         except ImportError:
             # if the import fails, the integration is not available
-            raise PatchException('integration not available')
+            raise PatchException("integration '%s' not available" % path)
         except AttributeError:
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
-            raise PatchException('module not installed')
+            raise PatchException("module '%s' not installed" % module)
 
         _PATCHED_MODULES.add(module)
         return True
