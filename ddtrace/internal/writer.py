@@ -144,7 +144,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # https://github.com/DataDog/dd-trace-py/issues/1192
         if self._started is False:
             with self._started_lock:
-                if self._started == False:
+                if self._started is False:
                     self.start()
                     self._started = True
         if spans:
