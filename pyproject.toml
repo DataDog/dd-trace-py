@@ -19,7 +19,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    (?!(compat|span|__init__)\.py$)[^/]+\.py$
+    (?!(compat|monkey|span|__init__)\.py$)[^/]+\.py$
     | commands/
     | contrib/
     (
