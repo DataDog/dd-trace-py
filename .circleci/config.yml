@@ -5,7 +5,6 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-busybox_image: &busybox_image busybox:latest
 cimg_base_image: &cimg_base_image cimg/base:2020.01
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
