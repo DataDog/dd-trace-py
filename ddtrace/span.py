@@ -394,7 +394,7 @@ class Span(object):
         ]
 
         lines.extend((' ', '%s:%s' % kv) for kv in sorted(self.meta.items()))
-        return '\n'.join('%10s %s' % l for l in lines)
+        return '\n'.join('%10s %s' % line for line in lines)
 
     @property
     def context(self):
