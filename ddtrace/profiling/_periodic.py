@@ -36,7 +36,6 @@ class PeriodicThread(threading.Thread):
     def start(self):
         """Start the thread."""
         super(PeriodicThread, self).start()
-        PERIODIC_THREAD_IDS.add(self.ident)
 
     def stop(self):
         """Stop the thread."""
@@ -44,6 +43,8 @@ class PeriodicThread(threading.Thread):
 
     def run(self):
         """Run the target function periodically."""
+        PERIODIC_THREAD_IDS.add(self.ident)
+
         try:
             while not self.quit.wait(self.interval):
                 self._target()
@@ -102,7 +103,6 @@ class _GeventPeriodicThread(PeriodicThread):
             del threading._limbo[self]
         if self._get_native_id:
             self._native_id = self._get_native_id()
-        PERIODIC_THREAD_IDS.add(self._tident)
 
     def join(self, timeout=None):
         # FIXME: handle the timeout argument
@@ -115,6 +115,8 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def run(self):
         """Run the target function periodically."""
+        PERIODIC_THREAD_IDS.add(self._tident)
+
         with threading._active_limbo_lock:
             threading._active[self._tident] = self
             del threading._limbo[self]
@@ -137,7 +139,7 @@ class _GeventPeriodicThread(PeriodicThread):
             try:
                 self.has_quit = True
                 del threading._active[self._tident]
-                PERIODIC_THREAD_IDS.remove(self.ident)
+                PERIODIC_THREAD_IDS.remove(self._tident)
             except Exception:
                 # Exceptions might happen during interpreter shutdown.
                 # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
