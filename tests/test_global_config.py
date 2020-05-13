@@ -98,7 +98,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_settings_hook(self):
         """
-        When calling `Hooks._emit()`
+        When calling `Hooks.emit()`
             When there is a hook registered
                 we call the hook as expected
         """
@@ -112,14 +112,14 @@ class GlobalConfigTestCase(TestCase):
         assert 'web.request' not in span.meta
 
         # Emit the span
-        self.config.web.hooks._emit('request', span)
+        self.config.web.hooks.emit('request', span)
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == '/'
 
     def test_settings_hook_args(self):
         """
-        When calling `Hooks._emit()` with arguments
+        When calling `Hooks.emit()` with arguments
             When there is a hook registered
                 we call the hook as expected
         """
@@ -135,7 +135,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: The actual values don't matter, we just want to test args + kwargs usage
-        self.config.web.hooks._emit('request', span, 'request', response='response')
+        self.config.web.hooks.emit('request', span, 'request', response='response')
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == 'request'
@@ -143,7 +143,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_settings_hook_args_failure(self):
         """
-        When calling `Hooks._emit()` with arguments
+        When calling `Hooks.emit()` with arguments
             When there is a hook registered that is missing parameters
                 we do not raise an exception
         """
@@ -159,14 +159,14 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: This also asserts that no exception was raised
-        self.config.web.hooks._emit('request', span, 'request', response='response')
+        self.config.web.hooks.emit('request', span, 'request', response='response')
 
         # Assert we did not update the span
         assert 'web.request' not in span.meta
 
     def test_settings_multiple_hooks(self):
         """
-        When calling `Hooks._emit()`
+        When calling `Hooks.emit()`
             When there are multiple hooks registered
                 we do not raise an exception
         """
@@ -190,7 +190,7 @@ class GlobalConfigTestCase(TestCase):
         assert 'web.method' not in span.meta
 
         # Emit the span
-        self.config.web.hooks._emit('request', span)
+        self.config.web.hooks.emit('request', span)
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == '/'
@@ -199,7 +199,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_settings_hook_failure(self):
         """
-        When calling `Hooks._emit()`
+        When calling `Hooks.emit()`
             When the hook raises an exception
                 we do not raise an exception
         """
@@ -212,12 +212,12 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks._emit('request', span)
+        self.config.web.hooks.emit('request', span)
         on_web_request.assert_called()
 
     def test_settings_no_hook(self):
         """
-        When calling `Hooks._emit()`
+        When calling `Hooks.emit()`
             When no hook is registered
                 we do not raise an exception
         """
@@ -226,11 +226,11 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks._emit('request', span)
+        self.config.web.hooks.emit('request', span)
 
     def test_settings_no_span(self):
         """
-        When calling `Hooks._emit()`
+        When calling `Hooks.emit()`
             When no span is provided
                 we do not raise an exception
         """
@@ -241,7 +241,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks._emit('request', None)
+        self.config.web.hooks.emit('request', None)
 
     def test_dd_version(self):
         c = Config()
