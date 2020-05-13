@@ -107,5 +107,4 @@ class Hooks(object):
             try:
                 func(*args, **kwargs)
             except Exception:
-                # DEV: Use log.debug instead of log.error until we have a throttled logger
-                log.debug("Failed to run hook %s function %s", hook, func, exc_info=True)
+                log.error("Failed to run hook %s function %s", hook, func, exc_info=True)
