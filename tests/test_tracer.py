@@ -952,3 +952,33 @@ def test_tracer_custom_max_traces(monkeypatch):
     monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
     tracer = ddtrace.Tracer()
     assert tracer.writer._trace_queue.maxsize == 2000
+
+
+def test_tracer_set_runtime_tags():
+    t = ddtrace.Tracer()
+    span = t.start_span("foobar")
+
+    assert len(span.get_tag("runtime-id"))
+
+    t2 = ddtrace.Tracer()
+    span2 = t2.start_span("foobaz")
+
+    assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
+
+
+def test_tracer_runtime_tags_fork():
+    tracer = ddtrace.Tracer()
+
+    def task(tracer, q):
+        span = tracer.start_span("foobaz")
+        q.put(span.get_tag("runtime-id"))
+
+    span = tracer.start_span("foobar")
+
+    q = multiprocessing.Queue()
+    p = multiprocessing.Process(target=task, args=(tracer, q))
+    p.start()
+    p.join()
+
+    children_tag = q.get()
+    assert children_tag != span.get_tag("runtime-id")

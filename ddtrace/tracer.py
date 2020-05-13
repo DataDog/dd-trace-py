@@ -8,7 +8,7 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
-from .internal.runtime import RuntimeTags, RuntimeWorker
+from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .provider import DefaultContextProvider
 from .context import Context
@@ -443,6 +443,7 @@ class Tracer(object):
 
         if not span._parent:
             span.set_tag(system.PID, getpid())
+            span.set_tag("runtime-id", get_runtime_id())
 
         # add it to the current context
         context.add_span(span)
