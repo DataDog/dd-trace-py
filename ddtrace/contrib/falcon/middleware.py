@@ -92,7 +92,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        config.falcon.hooks._emit('request', span, req, resp)
+        config.falcon.hooks.emit('request', span, req, resp)
 
         # Close the span
         span.finish()
