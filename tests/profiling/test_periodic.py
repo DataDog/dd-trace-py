@@ -10,17 +10,22 @@ from ddtrace.profiling import _service
 def test_periodic():
     x = {"OK": False}
 
+    thread_started = threading.Event()
+    thread_continue = threading.Event()
+
     def _run_periodic():
+        thread_started.set()
         x["OK"] = True
+        thread_continue.wait()
 
     def _on_shutdown():
         x["DOWN"] = True
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
+    thread_started.wait()
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
-    while not x["OK"]:
-        pass
+    thread_continue.set()
     t.stop()
     t.join()
     assert x["OK"]
@@ -33,8 +38,12 @@ def test_periodic():
 def test_periodic_error():
     x = {"OK": False}
 
+    thread_started = threading.Event()
+    thread_continue = threading.Event()
+
     def _run_periodic():
-        x["OK"] = True
+        thread_started.set()
+        thread_continue.wait()
         raise ValueError
 
     def _on_shutdown():
@@ -42,9 +51,9 @@ def test_periodic_error():
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
+    thread_started.wait()
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
-    while not x["OK"]:
-        pass
+    thread_continue.set()
     t.stop()
     t.join()
     assert "DOWN" not in x
