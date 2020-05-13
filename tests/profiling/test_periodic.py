@@ -25,6 +25,8 @@ def test_periodic():
     assert x["OK"]
     assert x["DOWN"]
     assert t.ident not in _periodic.PERIODIC_THREAD_IDS
+    if hasattr(threading, "get_native_id"):
+        assert t.native_id is not None
 
 
 def test_periodic_error():
