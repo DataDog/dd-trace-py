@@ -3,7 +3,7 @@ from copy import deepcopy
 from ..utils.attrdict import AttrDict
 from ..utils.formats import asbool, get_env
 from .http import HttpConfig
-from .hooks import Hooks
+from .._hooks import Hooks
 
 
 class IntegrationConfig(AttrDict):
