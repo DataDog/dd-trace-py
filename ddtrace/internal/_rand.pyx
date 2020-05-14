@@ -47,10 +47,9 @@ from ddtrace import compat
 cdef uint64_t x = compat.getrandbits(64) ^ 4101842887655102017
 
 
-cpdef public uint64_t rand64bits():
+def rand64bits():
     global x
     x ^= x >> 21
     x ^= x << 35
     x ^= x >> 4
     return x * <uint64_t>2685821657736338717
-
