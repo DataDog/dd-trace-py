@@ -982,3 +982,33 @@ def test_tracer_runtime_tags_fork():
 
     children_tag = q.get()
     assert children_tag != span.get_tag("runtime-id")
+
+
+def test_start_span_hooks():
+    t = ddtrace.Tracer()
+
+    result = {}
+
+    @t.on_start_span
+    def store_span(span):
+        result['span'] = span
+
+    span = t.start_span("hello")
+
+    assert span == result["span"]
+
+
+def test_deregister_start_span_hooks():
+    t = ddtrace.Tracer()
+
+    result = {}
+
+    @t.on_start_span
+    def store_span(span):
+        result['span'] = span
+
+    t.deregister_on_start_span(store_span)
+
+    t.start_span("hello")
+
+    assert result == {}
