@@ -1,8 +1,11 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+import collections
+import logging
 import sys
 import threading
+import weakref
 
 from ddtrace import compat
 from ddtrace.profiling import _attr
@@ -12,6 +15,23 @@ from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
+from ddtrace.vendor import six
+
+
+_LOG = logging.getLogger(__name__)
+
+
+if "gevent" in sys.modules:
+    try:
+        import gevent.monkey
+    except ImportError:
+        _LOG.error("gevent loaded but unable to import gevent.monkey")
+        from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
+    else:
+        _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
+else:
+    from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
+
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
 # module without having gevent crashing our dedicated thread.
@@ -32,8 +52,12 @@ IF UNAME_SYSNAME == "Linux":
 
     cdef extern from "<pthread.h>":
         # POSIX says this might be a struct, but CPython relies on it being an unsigned long.
-        ctypedef unsigned long pthread_t
-        int pthread_getcpuclockid(pthread_t thread, clockid_t *clock_id)
+        # We should be defining pthread_t here like this:
+        # ctypedef unsigned long pthread_t
+        # but e.g. musl libc defines pthread_t as a struct __pthread * which breaks the arithmetic Cython
+        # wants to do.
+        # We pay this with a warning at compilation time, but it works anyhow.
+        int pthread_getcpuclockid(unsigned long thread, clockid_t *clock_id)
 
     cdef p_pthread_getcpuclockid(tid):
         cdef clockid_t clock_id
@@ -108,6 +132,7 @@ class StackBasedEvent(event.SampleEvent):
     thread_name = attr.ib(default=None)
     frames = attr.ib(default=None)
     nframes = attr.ib(default=None)
+    trace_ids = attr.ib(default=None)
 
 
 @event.event_class
@@ -194,7 +219,7 @@ cdef get_thread_name(thread_id):
             return "Anonymous Thread %d" % thread_id
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
     current_exceptions = []
 
     IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
@@ -237,6 +262,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     running_thread_ids = {t[0] for t in running_threads}
 
+    thread_span_links.clear_threads(running_thread_ids)
+
     if ignore_profiler:
         running_thread_ids -= _periodic.PERIODIC_THREAD_IDS
 
@@ -246,11 +273,13 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     for tid, frame in running_threads:
         if ignore_profiler and tid in _periodic.PERIODIC_THREAD_IDS:
             continue
+        spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
         stack_events.append(
             StackSampleEvent(
                 thread_id=tid,
                 thread_name=get_thread_name(tid),
+                trace_ids=set(span.trace_id for span in spans),
                 nframes=nframes, frames=frames,
                 wall_time_ns=wall_time,
                 cpu_time_ns=cpu_time[tid],
@@ -277,6 +306,59 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     return stack_events, exc_events
 
 
+@attr.s(slots=True, eq=False)
+class _ThreadSpanLinks(object):
+
+    _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(weakref.WeakSet), repr=False, init=False)
+
+    # We do not use a lock because:
+    # - When adding new items, it's not possible for a same thread to call `link_span` at different time
+    #   Since the WeakSet are per-thread, there's no chance of creating 2 WeakSet for the same thread
+    # - When reading the span WeakSet for a thread, the set is copied which means that if it was ever mutated during
+    #   our reading, we wouldn't care.
+    #   In practice, here, it won't even mutate during the reading since this only used by the stack collector which
+    #   already owns the GIL.
+
+    def link_span(self, span):
+        """Link a span to its running environment.
+
+        Track threads, tasks, etc.
+        """
+        self._thread_id_to_spans[_thread_get_ident()].add(span)
+
+    def clear_threads(self, existing_thread_ids):
+        """Clear the stored list of threads based on the list of existing thread ids.
+
+        If any thread that is part of this list was stored, its data will be deleted.
+
+        :param existing_thread_ids: A set of thread ids to keep.
+        """
+        # Iterate over a copy of the list of keys in case it's mutated during our iteration.
+        for thread_id in list(self._thread_id_to_spans.keys()):
+            if thread_id not in existing_thread_ids:
+                del self._thread_id_to_spans[thread_id]
+
+    def get_active_leaf_spans_from_thread_id(self, thread_id):
+        """Return the latest active spans for a thread.
+
+        In theory this should return a single span, though if multiple children span are active without being finished,
+        there can be several spans returned.
+
+        :param thread_id: The thread id.
+        :return: A set with the active spans.
+        """
+        spans = set(self._thread_id_to_spans.get(thread_id, ()))
+        # Iterate over a copy so we can modify the original
+        for span in set(spans):
+            if not span.finished:
+                try:
+                    spans.remove(span._parent)
+                except KeyError:
+                    pass
+
+        return {span for span in spans if not span.finished}
+
+
 @attr.s(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
@@ -291,8 +373,10 @@ class StackCollector(collector.PeriodicCollector):
     max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
+    tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False)
     _last_wall_time = attr.ib(init=False, repr=False)
+    _thread_span_links = attr.ib(factory=_ThreadSpanLinks, init=False, repr=False)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -302,7 +386,14 @@ class StackCollector(collector.PeriodicCollector):
     def start(self):
         self._thread_time = ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
+        if self.tracer is not None:
+            self.tracer.on_start_span(self._thread_span_links.link_span)
         super(StackCollector, self).start()
+
+    def stop(self):
+        super(StackCollector, self).stop()
+        if self.tracer is not None:
+            self.tracer.deregister_on_start_span(self._thread_span_links.link_span)
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
@@ -315,7 +406,7 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = now
 
         all_events = stack_collect(
-            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time,
+            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time, self._thread_span_links,
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now
