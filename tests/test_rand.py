@@ -1,7 +1,7 @@
 from ddtrace.internal import _rand
 
 
-def test_random(self):
+def test_random():
     m = set()
     for i in range(0, 2 ** 16):
         n = _rand.rand64bits()
