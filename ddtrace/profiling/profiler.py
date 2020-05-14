@@ -2,6 +2,7 @@
 import logging
 import os
 
+import ddtrace
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.vendor import attr
@@ -34,7 +35,7 @@ def _build_default_exporters():
 def _build_default_collectors():
     r = recorder.Recorder()
     return [
-        stack.StackCollector(r),
+        stack.StackCollector(r, tracer=ddtrace.tracer),
         memory.MemoryCollector(r),
         exceptions.UncaughtExceptionCollector(r),
         threading.LockCollector(r),
@@ -72,7 +73,6 @@ class Profiler(object):
     exporters = attr.ib(factory=_build_default_exporters)
     schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
-    statistics = attr.ib(default=False)
 
     def __attrs_post_init__(self):
         if self.exporters:

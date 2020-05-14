@@ -37,7 +37,7 @@ Configuration
 
 .. py:data:: ddtrace.config.django['analytics_enabled']
 
-   Whether to generate APM events for Django in Trace Search & Analytics.
+   Whether to analyze spans for Django in App Analytics.
 
    Can also be enabled with the ``DD_DJANGO_ANALYTICS_ENABLED`` environment variable.
 
