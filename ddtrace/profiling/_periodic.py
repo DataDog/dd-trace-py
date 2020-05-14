@@ -33,10 +33,6 @@ class PeriodicThread(threading.Thread):
         self.quit = threading.Event()
         self.daemon = True
 
-    def start(self):
-        """Start the thread."""
-        super(PeriodicThread, self).start()
-
     def stop(self):
         """Stop the thread."""
         self.quit.set()
