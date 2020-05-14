@@ -1,4 +1,5 @@
 import platform
+import random
 import re
 import sys
 import textwrap
@@ -91,6 +92,12 @@ except ImportError:
 
     def process_time_ns():
         return int(_process_time() * 1e9)
+
+
+if sys.version_info.major < 3:
+    getrandbits = random.SystemRandom().getrandbits
+else:
+    getrandbits = random.getrandbits
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 4):
