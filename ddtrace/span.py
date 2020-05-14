@@ -1,5 +1,4 @@
 import math
-import random
 import sys
 import traceback
 
@@ -16,15 +15,9 @@ from .constants import (
 )
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
-
+from .internal import _rand
 
 log = get_logger(__name__)
-
-
-if sys.version_info.major < 3:
-    _getrandbits = random.SystemRandom().getrandbits
-else:
-    _getrandbits = random.getrandbits
 
 
 class Span(object):
@@ -90,7 +83,7 @@ class Span(object):
         self.resource = resource or name
         self.span_type = span_type.value if isinstance(span_type, SpanTypes) else span_type
 
-        # tags / metatdata
+        # tags / metadata
         self.meta = {}
         self.error = 0
         self.metrics = {}
@@ -100,8 +93,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or _new_id()
-        self.span_id = span_id or _new_id()
+        self.trace_id = trace_id or _rand.rand64bits()
+        self.span_id = span_id or _rand.rand64bits()
         self.parent_id = parent_id
         self.tracer = tracer
 
@@ -426,8 +419,3 @@ class Span(object):
             self.parent_id,
             self.name,
         )
-
-
-def _new_id():
-    """Generate a random trace_id or span_id"""
-    return _getrandbits(64)
