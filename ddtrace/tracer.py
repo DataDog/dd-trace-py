@@ -19,6 +19,7 @@ from .utils.formats import get_env, parse_tags_str
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
+from . import _hooks
 
 
 log = get_logger(__name__)
@@ -140,6 +141,30 @@ class Tracer(object):
             dogstatsd_url=dogstatsd_url,
             writer=writer,
         )
+
+        self._hooks = _hooks.Hooks()
+
+    def on_start_span(self, func):
+        """Register a function to execute when a span start.
+
+        Can be used as a decorator.
+
+        :param func: The function to call when starting a span.
+                     The started span will be passed as argument.
+        """
+        self._hooks.register(self.__class__.start_span, func)
+        return func
+
+    def deregister_on_start_span(self, func):
+        """Unregister a function registered to execute when a span starts.
+
+        Can be used as a decorator.
+
+        :param func: The function to stop calling when starting a span.
+        """
+
+        self._hooks.deregister(self.__class__.start_span, func)
+        return func
 
     @property
     def debug_logging(self):
@@ -455,6 +480,8 @@ class Tracer(object):
             # The constant tags for the dogstatsd client needs to updated with any new
             # service(s) that may have been added.
             self._update_dogstatsd_constant_tags()
+
+        self._hooks.emit(self.__class__.start_span, span)
 
         return span
 

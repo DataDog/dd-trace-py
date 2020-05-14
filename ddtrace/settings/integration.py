@@ -21,6 +21,7 @@ class IntegrationConfig(AttrDict):
         config.flask['service_name'] = 'my-service-name'
         config.flask.service_name = 'my-service-name'
     """
+
     def __init__(self, global_config, name, *args, **kwargs):
         """
         :param global_config:
@@ -32,19 +33,19 @@ class IntegrationConfig(AttrDict):
 
         # Set internal properties for this `IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
-        object.__setattr__(self, 'global_config', global_config)
-        object.__setattr__(self, 'integration_name', name)
-        object.__setattr__(self, 'hooks', Hooks())
-        object.__setattr__(self, 'http', HttpConfig())
+        object.__setattr__(self, "global_config", global_config)
+        object.__setattr__(self, "integration_name", name)
+        object.__setattr__(self, "hooks", Hooks())
+        object.__setattr__(self, "http", HttpConfig())
 
         # Set default analytics configuration, default is disabled
         # DEV: Default to `None` which means do not set this key
         # Inject environment variables for integration
-        analytics_enabled_env = get_env(name, 'analytics_enabled')
+        analytics_enabled_env = get_env(name, "analytics_enabled")
         if analytics_enabled_env is not None:
             analytics_enabled_env = asbool(analytics_enabled_env)
-        self.setdefault('analytics_enabled', analytics_enabled_env)
-        self.setdefault('analytics_sample_rate', float(get_env(name, 'analytics_sample_rate', default=1.0)))
+        self.setdefault("analytics_enabled", analytics_enabled_env)
+        self.setdefault("analytics_sample_rate", float(get_env(name, "analytics_sample_rate", default=1.0)))
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self), memodict))
@@ -92,7 +93,7 @@ class IntegrationConfig(AttrDict):
         configuration
         """
         if self._is_analytics_enabled(use_global_config):
-            analytics_sample_rate = getattr(self, 'analytics_sample_rate', None)
+            analytics_sample_rate = getattr(self, "analytics_sample_rate", None)
             # return True if attribute is None or attribute not found
             if analytics_sample_rate is None:
                 return True
@@ -105,5 +106,5 @@ class IntegrationConfig(AttrDict):
 
     def __repr__(self):
         cls = self.__class__
-        keys = ', '.join(self.keys())
-        return '{}.{}({})'.format(cls.__module__, cls.__name__, keys)
+        keys = ", ".join(self.keys())
+        return "{}.{}({})".format(cls.__module__, cls.__name__, keys)

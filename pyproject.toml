@@ -86,7 +86,6 @@ exclude = '''
     | opentracer/
     | profiling/exporter/pprof_pb2.py$
     | propagation/
-    | settings/
     | vendor/
   )
   | tests/
