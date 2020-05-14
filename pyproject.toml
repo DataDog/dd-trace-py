@@ -92,7 +92,6 @@ exclude = '''
   | tests/
   (
     base
-    | benchmark.py
     | commands
     | contrib/
     (
