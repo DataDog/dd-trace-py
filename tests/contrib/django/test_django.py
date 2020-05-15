@@ -377,6 +377,24 @@ def test_lambda_based_view(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.<lambda>"
 
 
+def test_template_view(client, test_spans):
+    resp = client.get("/template-view/")
+    assert resp.status_code == 200
+    assert resp.content == b"some content\n"
+
+    view_spans = list(test_spans.filter_spans(name="django.view"))
+    assert len(view_spans) == 1
+
+    # Assert span properties
+    view_span = view_spans[0]
+    view_span.assert_matches(
+        name="django.view", service="django", resource="tests.contrib.django.views.template_view", error=0,
+    )
+
+    root_span = test_spans.get_root_span()
+    assert root_span.get_tag("django.response.template") == "basic.html"
+
+
 def test_middleware_trace_function_based_view(client, test_spans):
     # ensures that the internals are properly traced when using a function views
     assert client.get("/fn-view/").status_code == 200

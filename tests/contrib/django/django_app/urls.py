@@ -43,6 +43,7 @@ urlpatterns = [
     url(r"^partial-view/$", views.partial_view, name="partial-view"),
     url(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
     url(r"^error-500/$", views.error_500, name="error-500"),
+    url(r"^template-view/$", views.template_view, name='template-view'),
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),

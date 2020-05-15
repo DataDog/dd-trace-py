@@ -411,7 +411,21 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     span.error = 1
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
-                    utils.set_tag_array(span, "django.response.template", response.template_name)
+                    # template_name is a bit of a misnomer, as it could be any of:
+                    # a list of strings, a tuple of strings, a single string, or an instance of Template
+                    template = response.template_name
+
+                    if isinstance(template, str):
+                        template_names = [template]
+                    if isinstance(template, (list, tuple,)):
+                        template_names = template
+                    elif hasattr(template, 'template'):
+                        template_names = [template.template.name]
+                    else:
+                        template_names = None
+
+                    utils.set_tag_array(span, "django.response.template", template_names)
+
             return response
 
 
