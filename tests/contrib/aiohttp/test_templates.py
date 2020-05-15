@@ -1,4 +1,3 @@
-import asyncio
 import aiohttp_jinja2
 
 from ddtrace.pin import Pin
