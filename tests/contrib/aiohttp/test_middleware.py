@@ -1,5 +1,3 @@
-import asyncio
-
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware, CONFIG_KEY
 from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
