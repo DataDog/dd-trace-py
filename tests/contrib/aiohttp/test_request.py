@@ -16,10 +16,6 @@ from ...utils import assert_is_measured
 
 
 class TestRequestTracing(TraceTestCase):
-    def setUp(self):
-        super().setUp()
-        asyncio.set_event_loop(self.loop)
-
     """
     Ensures that the trace includes all traced components.
     """
@@ -29,7 +25,9 @@ class TestRequestTracing(TraceTestCase):
         #   * middleware
         #   * templates
         trace_app(self.app, self.tracer, distributed_tracing=True)
-        patch(self.tracer, enable_distributed=True)
+        patch(enable_distributed=True)
+
+        Pin.override(aiohttp.ClientSession, tracer=self.tracer)
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
     def disable_tracing(self):
@@ -37,10 +35,10 @@ class TestRequestTracing(TraceTestCase):
 
     @mark_asyncio
     async def test_aiohttp_client_tracer(self):
-        session = aiohttp.ClientSession()
-        url = self.client.make_url('/')
-        result = await session.get(url)
-        await result.read()
+        async with aiohttp.ClientSession() as session:
+            url = self.client.make_url('/')
+            async with session.get(url) as response:
+                await response.read()
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 3
 
@@ -101,7 +99,7 @@ class TestRequestTracing(TraceTestCase):
         assert len(traces[2]) == 1
         read_span = traces[2][0]
         TestSpan(read_span).assert_matches(
-            name="ClientResponse.read",
+            name="FlowControlStreamReader.read",
             service="aiohttp.client",
             resource="/",
             parent_id=root_span_id,
@@ -117,7 +115,7 @@ class TestRequestTracing(TraceTestCase):
         await request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        assert 2 == len(traces)
+        assert 3 == len(traces)
         assert 2 == len(traces[0])
 
         # request
@@ -139,6 +137,7 @@ class TestRequestTracing(TraceTestCase):
 
         # client spans
         assert 4 == len(traces[1])  # these are tested via client tests
+        assert 1 == len(traces[2])  # these are tested via client tests
 
     @mark_asyncio
     async def test_multiple_full_request(self):
@@ -165,9 +164,7 @@ class TestRequestTracing(TraceTestCase):
         assert 10 == len(traces)
         assert 1 == len(traces[0])
 
-    @mark_asyncio
-    @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    async def test_user_specified_service(self):
+    async def _test_user_specified_service(self):
         """
         When a service name is specified by the user
             The aiohttp integration should use it as the service name
@@ -186,3 +183,7 @@ class TestRequestTracing(TraceTestCase):
 
         # client spans
         assert len(traces[1]) == 4  # these are tested via client tests
+
+    @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        self.loop.run_until_complete(self._test_user_specified_service())

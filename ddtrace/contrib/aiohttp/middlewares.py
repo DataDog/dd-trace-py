@@ -24,6 +24,13 @@ REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_SPAN_KEY = "__datadog_request_span"
 
+propagator = HTTPPropagator()
+
+
+config._add("aiohttp_server", dict(
+    service="aiohttp.server",
+))
+
 
 @middleware
 async def trace_middleware_2x(request, handler, app=None):
@@ -37,14 +44,13 @@ async def trace_middleware_2x(request, handler, app=None):
 
     # Create a new context based on the propagated information.
     if distributed_tracing:
-        propagator = HTTPPropagator()
         context = propagator.extract(request.headers)
 
         if context.trace_id:
-            # activate propagated context
             tracer.context_provider.activate(context)
         else:
-            # clear out any existing context for new request
+            # In case a non-distributed request comes after a distributed request we need to clear out
+            # the previous context
             tracer.context_provider.activate(Context())
 
     # trace the handler
@@ -52,7 +58,6 @@ async def trace_middleware_2x(request, handler, app=None):
     request_span.set_tag(SPAN_MEASURED_KEY)
 
     # Configure trace search sample rate
-    # DEV: aiohttp is special case maintains separate configuration from config api
     analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
     if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
         request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, app[CONFIG_KEY].get("analytics_sample_rate", True))
@@ -119,7 +124,6 @@ async def on_prepare(request, response):
     request_span.set_tag("http.method", request.method)
     request_span.set_tag("http.status_code", response.status)
     request_span.set_tag(http.URL, request.url.with_query(None))
-    # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
     if trace_query_string is None:
         trace_query_string = config._http.trace_query_string
