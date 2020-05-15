@@ -8,6 +8,7 @@ from urllib import request
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.settings import config
 
 from .utils import TraceTestCase
 from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
@@ -25,85 +26,90 @@ class TestRequestTracing(TraceTestCase):
         #   * middleware
         #   * templates
         trace_app(self.app, self.tracer)
+
+        # TODO: this needs to be supported on a per-instance basis
+        config.aiohttp_client['distributed_tracing_enabled'] = True
         patch()
+
         Pin.override(aiohttp.ClientSession, tracer=self.tracer)
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
     def disable_tracing(self):
         unpatch()
+        config.aiohttp_client['distributed_tracing_enabled'] = False
 
     @mark_asyncio
     async def test_aiohttp_client_tracer(self):
-        session = aiohttp.ClientSession()
-        url = self.client.make_url('/')
-        result = await session.get(url)
-        await result.read()
-        traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 3
+        async with aiohttp.ClientSession() as session:
+            url = self.client.make_url('/')
+            async with session.get(url) as response:
+                await response.read()
+            traces = self.tracer.writer.pop_traces()
+            assert len(traces) == 3
 
-        # client request span
-        assert len(traces[1]) == 4
-        client_request_span = traces[1][0]
-        root_span_id = client_request_span.span_id
-        root_trace_id = client_request_span.trace_id
+            # client request span
+            assert len(traces[1]) == 4
+            client_request_span = traces[1][0]
+            root_span_id = client_request_span.span_id
+            root_trace_id = client_request_span.trace_id
 
-        TestSpan(client_request_span).assert_matches(
-            name="ClientSession.request",
-            service="aiohttp.client",
-            parent_id=None,
-            resource="/",
-        )
-        # TCPConnector.connect
-        connector_connect_span = traces[1][1]
-        TestSpan(connector_connect_span).assert_matches(
-            name="TCPConnector.connect",
-            parent_id=root_span_id,
-            trace_id=root_trace_id,
-            service="aiohttp.client",
-            resource="/",
-        )
+            TestSpan(client_request_span).assert_matches(
+                name="ClientSession.request",
+                service="aiohttp.client",
+                parent_id=None,
+                resource="/",
+            )
+            # TCPConnector.connect
+            connector_connect_span = traces[1][1]
+            TestSpan(connector_connect_span).assert_matches(
+                name="TCPConnector.connect",
+                parent_id=root_span_id,
+                trace_id=root_trace_id,
+                service="aiohttp.client",
+                resource="/",
+            )
 
-        # TCPConnector._create_connection
-        connector_create_connection_span = traces[1][2]
-        TestSpan(connector_create_connection_span).assert_matches(
-            name="TCPConnector._create_connection",
-            parent_id=connector_connect_span.span_id,
-            trace_id=connector_connect_span.trace_id,
-            service="aiohttp.client",
-            resource="/",
-        )
+            # TCPConnector._create_connection
+            connector_create_connection_span = traces[1][2]
+            TestSpan(connector_create_connection_span).assert_matches(
+                name="TCPConnector._create_connection",
+                parent_id=connector_connect_span.span_id,
+                trace_id=connector_connect_span.trace_id,
+                service="aiohttp.client",
+                resource="/",
+            )
 
-        # client start span
-        client_start_span = traces[1][3]
-        TestSpan(client_start_span).assert_matches(
-            name="ClientResponse.start",
-            parent_id=root_span_id,
-            trace_id=root_trace_id,
-            service="aiohttp.client",
-            resource="/",
-        )
+            # client start span
+            client_start_span = traces[1][3]
+            TestSpan(client_start_span).assert_matches(
+                name="ClientResponse.start",
+                parent_id=root_span_id,
+                trace_id=root_trace_id,
+                service="aiohttp.client",
+                resource="/",
+            )
 
-        # web server request span
-        assert len(traces[0]) == 1
-        server_request_span = traces[0][0]
-        TestSpan(server_request_span).assert_matches(
-            name="aiohttp.request",
-            service="aiohttp-web",
-            resource="GET /",
-            parent_id=root_span_id,
-            trace_id=root_trace_id,
-        )
+            # web server request span
+            assert len(traces[0]) == 1
+            server_request_span = traces[0][0]
+            TestSpan(server_request_span).assert_matches(
+                name="aiohttp.request",
+                service="aiohttp-web",
+                resource="GET /",
+                parent_id=root_span_id,
+                trace_id=root_trace_id,
+            )
 
-        # client read span
-        assert len(traces[2]) == 1
-        read_span = traces[2][0]
-        TestSpan(read_span).assert_matches(
-            name="ClientResponse.read",
-            service="aiohttp.client",
-            resource="/",
-            parent_id=root_span_id,
-            trace_id=root_trace_id,
-        )
+            # client read span
+            assert len(traces[2]) == 1
+            read_span = traces[2][0]
+            TestSpan(read_span).assert_matches(
+                name="FlowControlStreamReader.read",
+                service="aiohttp.client",
+                resource="/",
+                parent_id=root_span_id,
+                trace_id=root_trace_id,
+            )
 
     @mark_asyncio
     async def test_full_request(self):
@@ -114,7 +120,7 @@ class TestRequestTracing(TraceTestCase):
         await request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        assert 2 == len(traces)
+        assert 3 == len(traces)
         assert 2 == len(traces[0])
 
         # request
@@ -136,6 +142,7 @@ class TestRequestTracing(TraceTestCase):
 
         # client spans
         assert 4 == len(traces[1])  # these are tested via client tests
+        assert 1 == len(traces[2])  # these are tested via client tests
 
     @mark_asyncio
     async def test_multiple_full_request(self):

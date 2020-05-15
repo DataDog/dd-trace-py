@@ -7,6 +7,7 @@ from ddtrace import Pin
 from ddtrace.contrib.asyncio.patch import patch as aio_patch, \
     unpatch as aio_unpatch
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
+from ddtrace.settings import config
 from ..utils import TraceTestCase
 from ....utils.span import TestSpan
 
@@ -16,12 +17,15 @@ class AIOHttpTest(TraceTestCase):
 
     def setUp(self):
         super(AIOHttpTest, self).setUp()
+        # TODO: this needs to have a way to set this on an instance
+        config.aiohttp_client['distributed_tracing_enabled'] = True
         patch()
         Pin.override(ClientSession, tracer=self.tracer)
 
     def tearDown(self):
         super(TraceTestCase, self).tearDown()
         unpatch()
+        config.aiohttp_client['distributed_tracing_enabled'] = False
         self.tracer = None
 
     @unittest_run_loop
@@ -41,58 +45,61 @@ class AIOHttpTest(TraceTestCase):
 
                 await asyncio.wait_for(doit(), 20)
 
-            traces = self.tracer.writer.pop_traces()
             self.assert_trace_count(1)
 
-            # outer span
-            assert len(traces[1]) == 1
-            root_span = traces[1][0]
-            root_span_id = root_span.span_id
+            spans = self.get_spans()
+            assert 6 == len(spans)
 
-            TestSpan(root_span).assert_matches(
+            # outer span
+            TestSpan(spans[-1]).assert_matches(
                 name="foo",
                 service=None,
                 resource="foo",
                 parent_id=None,
             )
 
-            assert len(traces[0]) == 4
-            client_request_span = traces[0][0]
-            TestSpan(client_request_span).assert_matches(
+            TestSpan(spans[-6]).assert_matches(
                 name="ClientSession.request",
                 service="aiohttp.client",
                 resource="/",
-                parent_id=root_span_id,
+                trace_id=spans[-1].trace_id,
+                parent_id=spans[-1].span_id,
             )
 
             # TCPConnector.connect
-            connector_connect_span = traces[0][1]
-            TestSpan(connector_connect_span).assert_matches(
+            TestSpan(spans[-5]).assert_matches(
                 name="TCPConnector.connect",
                 service="aiohttp.client",
                 resource="/",
-                parent_id=client_request_span.span_id,
-                trace_id=client_request_span.trace_id,
+                trace_id=spans[-6].trace_id,
+                parent_id=spans[-6].span_id,
             )
 
             # TCPConnector._create_connection
-            connector_create_connection_span = traces[0][2]
-            TestSpan(connector_create_connection_span).assert_matches(
+            TestSpan(spans[-4]).assert_matches(
                 name="TCPConnector._create_connection",
                 service="aiohttp.client",
                 resource="/",
-                parent_id=connector_connect_span.span_id,
-                trace_id=connector_connect_span.trace_id,
+                trace_id=spans[-5].trace_id,
+                parent_id=spans[-5].span_id,
             )
 
             # client start span
-            client_start_span = traces[0][3]
-            TestSpan(client_start_span).assert_matches(
+            TestSpan(spans[-3]).assert_matches(
                 name="ClientResponse.start",
                 service="aiohttp.client",
                 resource="/",
-                parent_id=client_request_span.span_id,
-                trace_id=client_request_span.trace_id,
+                trace_id=spans[-6].trace_id,
+                parent_id=spans[-6].span_id,
+            )
+
+            # client start span
+            TestSpan(spans[-2]).assert_matches(
+                name="FlowControlStreamReader.read",
+                service="aiohttp.client",
+                resource="/",
+                trace_id=spans[-6].trace_id,
+                parent_id=spans[-6].span_id,
             )
         finally:
             aio_unpatch()

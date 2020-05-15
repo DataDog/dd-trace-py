@@ -84,6 +84,49 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
+class _WrappedFlowControlStreamReader(wrapt.ObjectProxy):
+    def __init__(self, obj, pin, parent_trace_id, parent_span_id, parent_tags, parent_resource):
+        super().__init__(obj)
+
+        pin.onto(self)
+
+        self._self_parent_trace_id, self._self_parent_span_id = parent_trace_id, parent_span_id
+        self._self_parent_tags = parent_tags
+        self._self_parent_resource = parent_resource
+
+    async def read(self, *args, **kwargs):
+        return await self._read('read', *args, **kwargs)
+
+    async def readline(self, *args, **kwargs):
+        return await self._read('readline', *args, **kwargs)
+
+    async def readany(self, *args, **kwargs):
+        return await self._read('readany', *args, **kwargs)
+
+    async def readexactly(self, *args, **kwargs):
+        return await self._read('readexactly', *args, **kwargs)
+
+    async def _read(self, method_name, *args, **kwargs):
+        pin = Pin.get_from(self)
+        # This may not have an immediate parent as the request completed
+        with pin.tracer.trace('{}.{}'.format(self.__class__.__name__, method_name),
+                              span_type=ext_http.TYPE, service=pin.service) as span:
+
+            if self._self_parent_trace_id:
+                span.trace_id = self._self_parent_trace_id
+
+            if self._self_parent_span_id:
+                span.parent_id = self._self_parent_span_id
+
+            span.set_tags(self._self_parent_tags)
+            span.resource = self._self_parent_resource
+
+            result = await getattr(self.__wrapped__, method_name)(*args, **kwargs)
+            span.set_tag('Length', len(result))
+
+        return result
+
+
 class _WrappedResponseClass(wrapt.ObjectProxy):
     def __init__(self, obj, pin):
         super().__init__(obj)
@@ -115,30 +158,20 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                         for hdr in self._self_trace_headers
                         if hdr in resp.headers}
                 span.set_tags(tags)
+            else:
+                tags = {}
 
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.set_tag(ext_http.METHOD, resp.method)
 
+            for tag in {ext_http.URL, ext_http.STATUS_CODE, ext_http.METHOD}:
+                tags[tag] = span.get_tag(ext_http.URL)
+
+        # after start, self.__wrapped__.content is set
+        self.__wrapped__.content = _WrappedFlowControlStreamReader(
+            self.__wrapped__.content, pin, self._self_parent_trace_id, self._self_parent_span_id, tags, span.resource)
+
         return resp
-
-    async def read(self, *args, **kwargs):
-        pin = Pin.get_from(self)
-        # This may not have an immediate parent as the request completed
-        with pin.tracer.trace('{}.read'.format(self.__class__.__name__),
-                              span_type=ext_http.TYPE, service=pin.service) as span:
-
-            if self._self_parent_trace_id:
-                span.trace_id = self._self_parent_trace_id
-
-            if self._self_parent_span_id:
-                span.parent_id = self._self_parent_span_id
-
-            _set_request_tags(span, _get_url_obj(self))
-            result = await self.__wrapped__.read(*args, **kwargs)
-            span.set_tag(ext_http.STATUS_CODE, self.status)
-            span.set_tag('Length', len(result))
-
-        return result
 
     async def __aenter__(self):
         result = await self.__wrapped__.__aenter__()
