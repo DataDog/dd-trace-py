@@ -4,7 +4,7 @@ import logging
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...utils.wrappers import unwrap
+from ...utils.wrappers import unwrap, get_root_wrapped
 from ...propagation.http import HTTPPropagator
 from ...pin import Pin
 from ...ext import http as ext_http
@@ -151,27 +151,28 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                               span_type=ext_http.TYPE, service=pin.service) as span:
             _set_request_tags(span, _get_url_obj(self))
 
-            resp = await self.__wrapped__.start(*args, **kwargs)
+            wrapped = get_root_wrapped(self)
+            await wrapped.start(*args, **kwargs)
 
             if pin._config["trace_headers"]:
-                tags = {hdr: resp.headers[hdr]
+                tags = {hdr: self.headers[hdr]
                         for hdr in self._self_trace_headers
-                        if hdr in resp.headers}
+                        if hdr in self.headers}
                 span.set_tags(tags)
             else:
                 tags = {}
 
             span.set_tag(ext_http.STATUS_CODE, self.status)
-            span.set_tag(ext_http.METHOD, resp.method)
+            span.set_tag(ext_http.METHOD, self.method)
 
             for tag in {ext_http.URL, ext_http.STATUS_CODE, ext_http.METHOD}:
                 tags[tag] = span.get_tag(ext_http.URL)
 
         # after start, self.__wrapped__.content is set
-        self.__wrapped__.content = _WrappedFlowControlStreamReader(
-            self.__wrapped__.content, pin, self._self_parent_trace_id, self._self_parent_span_id, tags, span.resource)
+        wrapped.content = _WrappedFlowControlStreamReader(
+            wrapped.content, pin, self._self_parent_trace_id, self._self_parent_span_id, tags, span.resource)
 
-        return resp
+        return self
 
     async def __aenter__(self):
         result = await self.__wrapped__.__aenter__()
@@ -239,10 +240,9 @@ def _create_wrapped_request(method, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     if method == "REQUEST":
-        method = kwargs.get("method", args[0])
-        url = URL(kwargs.get("url", args[1]))
+        url = URL(kwargs.get("url") or args[1])
     else:
-        url = URL(kwargs.get("url", args[0]))
+        url = URL(kwargs.get("url") or args[0])
 
     if should_skip_request(pin, url):
         result = func(*args, **kwargs)
