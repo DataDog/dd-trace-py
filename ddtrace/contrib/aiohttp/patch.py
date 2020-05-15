@@ -328,6 +328,7 @@ def patch(enable_distributed=False, trace_headers=None, trace_context=False):
         wrapper = functools.partial(_wrap_clientsession_init, trace_headers)
         _w("aiohttp", "ClientSession.__init__", wrapper)
 
+        # The reason we wrap each method is so we can trace the context class that these methods return
         for method in _clientsession_wrap_methods:
             wrapper = functools.partial(_create_wrapped_request,
                                         method.upper(), enable_distributed,
