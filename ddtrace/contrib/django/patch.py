@@ -422,6 +422,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     elif isinstance(template, (list, tuple,)):
                         template_names = template
                     elif hasattr(template, "template"):
+                        # ^ checking by atttribute here because
+                        # django backend implementations don't have a common base
+                        # `.template` is also the most consistent across django versions
                         template_names = [template.template.name]
                     else:
                         template_names = None
