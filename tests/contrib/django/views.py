@@ -88,5 +88,5 @@ def template_view(request):
     """
     View that uses a template instance
     """
-    template = loader.select_template(['basic.html'])
+    template = loader.select_template(["basic.html"])
     return TemplateResponse(request, template)

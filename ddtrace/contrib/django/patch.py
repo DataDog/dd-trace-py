@@ -419,7 +419,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         template_names = [template]
                     if isinstance(template, (list, tuple,)):
                         template_names = template
-                    elif hasattr(template, 'template'):
+                    elif hasattr(template, "template"):
                         template_names = [template.template.name]
                     else:
                         template_names = None
