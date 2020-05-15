@@ -18,4 +18,6 @@ urlpatterns = [
     url(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
     url(r"^error-500/$", views.error_500, name="error-500"),
     url(r"^template-view/$", views.template_view, name="template-view"),
+    url(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
+    url(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
 ]

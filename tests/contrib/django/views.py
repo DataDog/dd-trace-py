@@ -90,3 +90,17 @@ def template_view(request):
     """
     template = loader.select_template(["basic.html"])
     return TemplateResponse(request, template)
+
+
+def template_simple_view(request):
+    """
+    Basic django templated view
+    """
+    return TemplateResponse(request, "basic.html")
+
+
+def template_list_view(request):
+    """
+    For testing resolving a list of templates
+    """
+    return TemplateResponse(request, ["doesntexist.html", "basic.html"])

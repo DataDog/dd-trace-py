@@ -11,7 +11,7 @@ import sys
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
-from ddtrace.vendor import debtcollector, wrapt
+from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
@@ -413,11 +413,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 if hasattr(response, "template_name"):
                     # template_name is a bit of a misnomer, as it could be any of:
                     # a list of strings, a tuple of strings, a single string, or an instance of Template
+                    # for more detail, see:
+                    # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
                     template = response.template_name
 
-                    if isinstance(template, str):
+                    if isinstance(template, six.string_types):
                         template_names = [template]
-                    if isinstance(template, (list, tuple,)):
+                    elif isinstance(template, (list, tuple,)):
                         template_names = template
                     elif hasattr(template, "template"):
                         template_names = [template.template.name]
