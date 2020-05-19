@@ -29,8 +29,16 @@ if "gevent" in sys.modules:
         from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     else:
         _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
+
+    # NOTE: bold assumption: this module is always imported by the MainThread.
+    # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
+    _main_thread_id = _thread_get_ident()
 else:
     from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
+    if six.PY2:
+        _main_thread_id = threading._MainThread().ident
+    else:
+        _main_thread_id = threading.main_thread().ident
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -209,6 +217,15 @@ IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
 
 
 cdef get_thread_name(thread_id):
+    # This is a special case for gevent:
+    # When monkey patching, gevent replaces all active threads by their greenlet equivalent.
+    # This means there's no chance to find the MainThread in the list of _active threads.
+    # Therefore we special case the MainThread that way.
+    # If native threads are started using gevent.threading, they will be inserted in threading._active
+    # so we will find them normally.
+    if thread_id == _main_thread_id:
+        return "MainThread"
+
     # Since we own the GIL, we can safely run this and assume no change will happen, without bothering to lock anything
     try:
         return threading._active[thread_id].name
