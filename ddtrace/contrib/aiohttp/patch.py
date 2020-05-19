@@ -84,16 +84,26 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
 
-class _WrappedFlowControlStreamReader(wrapt.ObjectProxy):
-    def __init__(self, obj, pin, parent_trace_id, parent_span_id, parent_tags, parent_resource):
+class _WrappedStreamReader(wrapt.ObjectProxy):
+    def __init__(self, obj, pin, parent_trace_id, parent_span_id, parent_resource):
         super().__init__(obj)
 
         pin.onto(self)
 
         self._self_parent_trace_id, self._self_parent_span_id = parent_trace_id, parent_span_id
-        self._self_parent_tags = parent_tags
         self._self_parent_resource = parent_resource
 
+    # These are needed so the correct "self" is associated with the calls
+    def iter_chunked(self, *args, **kwargs):
+        return self.__wrapped__.__class__.iter_chunked(self, *args, **kwargs)
+
+    def iter_any(self, *args, **kwargs):
+        return self.__wrapped__.__class__.iter_any(self, *args, **kwargs)
+
+    def iter_chunks(self, *args, **kwargs):
+        return self.__wrapped__.__class__.iter_chunks(self, *args, **kwargs)
+
+    # trace read related methods
     async def read(self, *args, **kwargs):
         return await self._read('read', *args, **kwargs)
 
@@ -118,7 +128,7 @@ class _WrappedFlowControlStreamReader(wrapt.ObjectProxy):
             if self._self_parent_span_id:
                 span.parent_id = self._self_parent_span_id
 
-            span.set_tags(self._self_parent_tags)
+            span.set_tags(pin.tags)
             span.resource = self._self_parent_resource
 
             result = await getattr(self.__wrapped__, method_name)(*args, **kwargs)
@@ -166,11 +176,12 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
             span.set_tag(ext_http.METHOD, self.method)
 
             for tag in {ext_http.URL, ext_http.STATUS_CODE, ext_http.METHOD}:
-                tags[tag] = span.get_tag(ext_http.URL)
+                tags[tag] = span.get_tag(tag)
 
         # after start, self.__wrapped__.content is set
-        wrapped.content = _WrappedFlowControlStreamReader(
-            wrapped.content, pin, self._self_parent_trace_id, self._self_parent_span_id, tags, span.resource)
+        pin = pin.clone(tags=tags)
+        wrapped.content = _WrappedStreamReader(
+            wrapped.content, pin, self._self_parent_trace_id, self._self_parent_span_id, span.resource)
 
         return self
 

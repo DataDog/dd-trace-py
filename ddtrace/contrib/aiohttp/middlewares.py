@@ -5,8 +5,11 @@ from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
+from ...pin import Pin
 from ...settings import config
 from ...context import Context
+from ...utils.wrappers import iswrapped
+from .patch import _WrappedStreamReader
 
 try:
     from aiohttp.web import middleware
@@ -17,6 +20,8 @@ except ImportError:
 
     def middleware(f):
         return f
+
+import aiohttp.streams
 
 
 CONFIG_KEY = "datadog_trace"
@@ -55,7 +60,10 @@ async def trace_middleware_2x(request, handler, app=None):
             tracer.context_provider.activate(Context())
 
     # trace the handler
-    request_span = tracer.trace("aiohttp.request", service=service, span_type=SpanTypes.WEB,)
+    request_span = tracer.trace("aiohttp.request", service=service, span_type=SpanTypes.WEB)
+    # Unset resource as we'll be setting this in all cases
+    request_span.resource = None
+
     request_span.set_tag(SPAN_MEASURED_KEY)
 
     # Configure trace search sample rate
@@ -68,6 +76,40 @@ async def trace_middleware_2x(request, handler, app=None):
     request[REQUEST_CONTEXT_KEY] = request_span.context
     request[REQUEST_SPAN_KEY] = request_span
     request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
+
+    if request.match_info.route.resource:
+        # collect the resource name based on http resource type
+        res_info = request.match_info.route.resource.get_info()
+
+        resource = None
+        if res_info.get("path"):
+            resource = res_info.get("path")
+        elif res_info.get("formatter"):
+            resource = res_info.get("formatter")
+        elif res_info.get("prefix"):
+            resource = res_info.get("prefix")
+
+        if resource:
+            # prefix the resource name by the http method
+            resource = "{} {}".format(request.method, resource)
+            request_span.resource = resource
+
+    request_span.set_tag(http.METHOD, request.method)
+    request_span.set_tag(http.URL, request.url.with_query(None))
+    trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
+    if trace_query_string is None:
+        trace_query_string = config._http.trace_query_string
+    if trace_query_string:
+        request_span.set_tag(http.QUERY_STRING, request.query_string)
+
+    if not iswrapped(request._payload) and isinstance(request._payload, aiohttp.streams.StreamReader):
+        tags = {tag: request_span.get_tag(tag) for tag in {http.URL, http.METHOD, http.QUERY_STRING}
+                if request_span.get_tag(tag)}
+
+        pin = Pin(service, tracer=tracer, tags=tags, _config=config.aiohttp_server)
+        request._payload = _WrappedStreamReader(request._payload, pin, request_span.trace_id, request_span.span_id,
+                                                request_span.resource)
+
     try:
         response = await handler(request)
         return response
@@ -102,34 +144,14 @@ async def on_prepare(request, response):
         return
 
     # default resource name
-    resource = stringify(response.status)
+    if not request_span.resource:
+        request_span.resource = stringify(response.status)
 
-    if request.match_info.route.resource:
-        # collect the resource name based on http resource type
-        res_info = request.match_info.route.resource.get_info()
-
-        if res_info.get("path"):
-            resource = res_info.get("path")
-        elif res_info.get("formatter"):
-            resource = res_info.get("formatter")
-        elif res_info.get("prefix"):
-            resource = res_info.get("prefix")
-
-        # prefix the resource name by the http method
-        resource = "{} {}".format(request.method, resource)
+    request_span.set_tag(http.STATUS_CODE, response.status)
 
     if 500 <= response.status < 600:
         request_span.error = 1
 
-    request_span.resource = resource
-    request_span.set_tag("http.method", request.method)
-    request_span.set_tag("http.status_code", response.status)
-    request_span.set_tag(http.URL, request.url.with_query(None))
-    trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
-    if trace_query_string is None:
-        trace_query_string = config._http.trace_query_string
-    if trace_query_string:
-        request_span.set_tag(http.QUERY_STRING, request.query_string)
     request_span.finish()
 
 

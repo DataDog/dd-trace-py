@@ -95,7 +95,7 @@ class AIOHttpTest(TraceTestCase):
 
             # client start span
             TestSpan(spans[-2]).assert_matches(
-                name="FlowControlStreamReader.read",
+                name="StreamReader.read",
                 service="aiohttp.client",
                 resource="/",
                 trace_id=spans[-6].trace_id,

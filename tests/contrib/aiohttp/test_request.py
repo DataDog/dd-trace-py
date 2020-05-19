@@ -104,7 +104,7 @@ class TestRequestTracing(TraceTestCase):
             assert len(traces[2]) == 1
             read_span = traces[2][0]
             TestSpan(read_span).assert_matches(
-                name="FlowControlStreamReader.read",
+            name="StreamReader.read",
                 service="aiohttp.client",
                 resource="/",
                 parent_id=root_span_id,
