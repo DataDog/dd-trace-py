@@ -20,15 +20,16 @@ cpdef get_thread_name(thread_id):
     try:
         return _periodic.PERIODIC_THREADS[thread_id].name
     except KeyError:
-        # Since we own the GIL, we can safely run this and assume no change will happen,
-        # without bothering to lock anything
+        # We don't want to bother to lock anything, especially with eventlet involved, so we do a best effort to get the
+        # without bothering to lock anything data; if we fail, it'll just be an anonymous thread because it's either
+        # starting or dying.
         try:
             return threading._active[thread_id].name
         except KeyError:
             try:
                 return threading._limbo[thread_id].name
             except KeyError:
-                return "Anonymous Thread %d" % thread_id
+                return None
 
 
 cpdef get_thread_native_id(thread_id):
