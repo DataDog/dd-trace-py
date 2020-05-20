@@ -56,10 +56,10 @@ RUN \
   && pyenv install 3.4.9 \
   && pyenv install 3.5.9 \
   && pyenv install 3.6.9 \
-  && pyenv install 3.7.6 \
+  && pyenv install 3.7.7 \
   && pyenv install 3.8.1 \
   && pyenv install 3.9-dev \
-  && pyenv global 2.7.17 3.4.9 3.5.9 3.6.9 3.7.6 3.8.1 3.9-dev \
+  && pyenv global 2.7.17 3.4.9 3.5.9 3.6.9 3.7.7 3.8.1 3.9-dev \
   && pip install --upgrade pip
 
 # Install Python dependencies
