@@ -183,7 +183,7 @@ class PeriodicService(_service.Service):
             self._worker.interval = value
 
     def start(self):
-        """Start collecting profiles."""
+        """Start the periodic service."""
         super(PeriodicService, self).start()
         periodic_thread_class = PeriodicRealThread if self._real_thread else PeriodicThread
         self._worker = periodic_thread_class(

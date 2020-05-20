@@ -4,6 +4,7 @@ import threading
 import pytest
 
 from ddtrace.profiling import _periodic
+from ddtrace.profiling import _service
 
 
 def test_periodic():
@@ -71,7 +72,7 @@ def test_periodic_real_thread_name():
 def test_periodic_service_start_stop():
     t = _periodic.PeriodicService(1)
     t.start()
-    with pytest.raises(RuntimeError):
+    with pytest.raises(_service.ServiceAlreadyRunning):
         t.start()
     t.stop()
     t.join()
