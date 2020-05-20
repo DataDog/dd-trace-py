@@ -4,6 +4,7 @@ import threading
 
 from ddtrace.profiling import _service
 from ddtrace.vendor import attr
+from ddtrace.vendor import six
 
 
 PERIODIC_THREAD_IDS = set()
@@ -88,7 +89,9 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def start(self):
         """Start the thread."""
-        from gevent._threading import start_new_thread
+        import gevent.monkey
+
+        start_new_thread = gevent.monkey.get_original(six.moves._thread.__name__, "start_new_thread")
 
         self.quit = False
         self.has_quit = False
