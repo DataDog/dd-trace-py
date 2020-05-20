@@ -29,11 +29,8 @@ RUN \
       libreadline-dev \
       libsasl2-dev \
       libsqlite3-dev \
-      # Needed to support Python 3.4
+      libssh-dev \
       libssl1.0-dev \
-      # Can be re-enabled once we drop 3.4
-      # libssh-dev \
-      # libssl-dev \
       patch \
       python-openssl\
       wget \
@@ -53,13 +50,12 @@ RUN git clone git://github.com/yyuu/pyenv.git "${PYENV_ROOT}"
 # Install all required python versions
 RUN \
   pyenv install 2.7.17 \
-  && pyenv install 3.4.9 \
   && pyenv install 3.5.9 \
   && pyenv install 3.6.9 \
-  && pyenv install 3.7.6 \
-  && pyenv install 3.8.1 \
+  && pyenv install 3.7.7 \
+  && pyenv install 3.8.3 \
   && pyenv install 3.9-dev \
-  && pyenv global 2.7.17 3.4.9 3.5.9 3.6.9 3.7.6 3.8.1 3.9-dev \
+  && pyenv global 2.7.17 3.5.9 3.6.9 3.7.7 3.8.3 3.9-dev \
   && pip install --upgrade pip
 
 # Install Python dependencies
