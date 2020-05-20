@@ -76,6 +76,11 @@ class _GeventPeriodicThread(PeriodicThread):
         import gevent.monkey
 
         self._sleep = gevent.monkey.get_original("time", "sleep")
+        try:
+            # Python ≥ 3.8
+            self._get_native_id = gevent.monkey.get_original("threading", "get_native_id")
+        except AttributeError:
+            self._get_native_id = None
         self._tident = None
 
     @property
@@ -95,6 +100,8 @@ class _GeventPeriodicThread(PeriodicThread):
             self._tident = start_new_thread(self.run, tuple())
         except Exception:
             del threading._limbo[self]
+        if self._get_native_id:
+            self._native_id = self._get_native_id()
         PERIODIC_THREAD_IDS.add(self._tident)
 
     def join(self, timeout=None):
@@ -176,7 +183,7 @@ class PeriodicService(_service.Service):
             self._worker.interval = value
 
     def start(self):
-        """Start collecting profiles."""
+        """Start the periodic service."""
         super(PeriodicService, self).start()
         periodic_thread_class = PeriodicRealThread if self._real_thread else PeriodicThread
         self._worker = periodic_thread_class(
