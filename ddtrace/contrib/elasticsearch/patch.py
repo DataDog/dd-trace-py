@@ -60,15 +60,17 @@ def _get_perform_request(elasticsearch):
                 return func(*args, **kwargs)
 
             method, url = args
-            params = kwargs.get('params')
+            params = kwargs.get('params') or {}
+            encoded_params = urlencode(params)
             body = kwargs.get('body')
 
             span.service = pin.service
             span.set_tag(metadata.METHOD, method)
             span.set_tag(metadata.URL, url)
-            span.set_tag(metadata.PARAMS, urlencode(params))
+            span.set_tag(metadata.PARAMS, encoded_params)
             if config.elasticsearch.trace_query_string:
-                span.set_tag(http.QUERY_STRING, urlencode(params))
+                span.set_tag(http.QUERY_STRING, encoded_params)
+
             if method == 'GET':
                 span.set_tag(metadata.BODY, instance.serializer.dumps(body))
             status = None
