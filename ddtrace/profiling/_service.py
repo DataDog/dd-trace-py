@@ -1,4 +1,5 @@
 import enum
+import threading
 
 from ddtrace.vendor import attr
 
@@ -10,11 +11,16 @@ class ServiceStatus(enum.Enum):
     RUNNING = "running"
 
 
+class ServiceAlreadyRunning(RuntimeError):
+    pass
+
+
 @attr.s
 class Service(object):
     """A service that can be started or stopped."""
 
     status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False)
+    _service_lock = attr.ib(factory=threading.Lock, repr=False, init=False)
 
     def __enter__(self):
         self.start()
@@ -25,9 +31,12 @@ class Service(object):
 
     def start(self):
         """Start the service."""
-        if self.status == ServiceStatus.RUNNING:
-            raise RuntimeError("%s is already running" % self.__class__.__name__)
-        self.status = ServiceStatus.RUNNING
+        # Use a lock so we're sure that if 2 threads try to start the service at the same time, one of them will raise
+        # an error.
+        with self._service_lock:
+            if self.status == ServiceStatus.RUNNING:
+                raise ServiceAlreadyRunning("%s is already running" % self.__class__.__name__)
+            self.status = ServiceStatus.RUNNING
 
     def stop(self):
         """Stop the service."""

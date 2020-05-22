@@ -123,10 +123,10 @@ class _PprofConverter(object):
 
         self._location_values[location_key]["uncaught-exceptions"] = len(events)
 
-    def convert_stack_event(self, thread_id, thread_name, frames, nframes, samples):
+    def convert_stack_event(self, thread_id, thread_native_id, thread_name, frames, nframes, samples):
         location_key = (
             self._to_locations(frames, nframes),
-            (("thread id", str(thread_id)), ("thread name", thread_name),),
+            (("thread id", str(thread_id)), ("thread native id", str(thread_native_id)), ("thread name", thread_name),),
         )
 
         self._location_values[location_key]["cpu-samples"] = len(samples)
@@ -155,10 +155,17 @@ class _PprofConverter(object):
             sum(e.locked_for_ns for e in events) / sampling_ratio
         )
 
-    def convert_stack_exception_event(self, thread_id, thread_name, frames, nframes, exc_type_name, events):
+    def convert_stack_exception_event(
+        self, thread_id, thread_native_id, thread_name, frames, nframes, exc_type_name, events
+    ):
         location_key = (
             self._to_locations(frames, nframes),
-            (("thread id", str(thread_id)), ("thread name", thread_name), ("exception type", exc_type_name),),
+            (
+                ("thread id", str(thread_id)),
+                ("thread native id", str(thread_native_id)),
+                ("thread name", thread_name),
+                ("exception type", exc_type_name),
+            ),
         )
 
         self._location_values[location_key]["exception-samples"] = len(events)
@@ -224,7 +231,7 @@ class PprofExporter(exporter.Exporter):
 
     @staticmethod
     def _stack_event_group_key(event):
-        return (event.thread_id, str(event.thread_name), tuple(event.frames), event.nframes)
+        return (event.thread_id, event.thread_native_id, str(event.thread_name), tuple(event.frames), event.nframes)
 
     def _group_stack_events(self, events):
         return itertools.groupby(sorted(events, key=self._stack_event_group_key), key=self._stack_event_group_key,)
@@ -235,6 +242,24 @@ class PprofExporter(exporter.Exporter):
 
     def _group_lock_events(self, events):
         return itertools.groupby(sorted(events, key=self._lock_event_group_key), key=self._lock_event_group_key,)
+
+    @staticmethod
+    def _stack_exception_group_key(event):
+        exc_type = event.exc_type
+        exc_type_name = exc_type.__module__ + "." + exc_type.__name__
+        return (
+            event.thread_id,
+            event.thread_native_id,
+            str(event.thread_name),
+            tuple(event.frames),
+            event.nframes,
+            exc_type_name,
+        )
+
+    def _group_stack_exception_events(self, events):
+        return itertools.groupby(
+            sorted(events, key=self._stack_exception_group_key), key=self._stack_exception_group_key,
+        )
 
     @staticmethod
     def _exception_group_key(event):
@@ -285,8 +310,10 @@ class PprofExporter(exporter.Exporter):
             sum_period += event.sampling_period
             nb_event += 1
 
-        for (thread_id, thread_name, frames, nframes), stack_events in self._group_stack_events(stack_events):
-            converter.convert_stack_event(thread_id, thread_name, frames, nframes, list(stack_events))
+        for (thread_id, thread_native_id, thread_name, frames, nframes), stack_events in self._group_stack_events(
+            stack_events
+        ):
+            converter.convert_stack_event(thread_id, thread_native_id, thread_name, frames, nframes, list(stack_events))
 
         # Handle Lock events
         for event_class, convert_fn in (
@@ -327,11 +354,12 @@ class PprofExporter(exporter.Exporter):
         if stack.FEATURES["stack-exceptions"]:
             sample_types += (("exception-samples", "count"),)
 
-            for (thread_id, thread_name, frames, nframes, exc_type_name), se_events in self._group_exception_events(
-                events.get(stack.StackExceptionSampleEvent, [])
-            ):
+            for (
+                (thread_id, thread_native_id, thread_name, frames, nframes, exc_type_name),
+                se_events,
+            ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
                 converter.convert_stack_exception_event(
-                    thread_id, thread_name, frames, nframes, exc_type_name, list(se_events)
+                    thread_id, thread_native_id, thread_name, frames, nframes, exc_type_name, list(se_events)
                 )
 
         if tracemalloc:
