@@ -80,13 +80,16 @@ IF UNAME_SYSNAME == "Linux":
             return int(tp.tv_nsec + tp.tv_sec * 10e8)
         PyErr_SetFromErrno(OSError)
 
-    class ThreadTime(object):
+    class _ThreadTime(object):
         def __init__(self):
+            # This uses a tuple of (thread unique id, pthread_id) as the key to identify the thread: you'd think using
+            # the pthread_t id would be enough, but the glibc reuses the id.
             self._last_thread_time = {}
 
         def __call__(self, thread_ids):
             threads_cpu_time = {}
-            for tid in thread_ids:
+            for pthread_id, thread_native_id in thread_ids.items():
+                key = (pthread_id, thread_native_id)
                 # TODO: Use QueryThreadCycleTime on Windows?
                 # ⚠ WARNING ⚠
                 # `pthread_getcpuclockid` can make Python segfault if the thread is does not exist anymore.
@@ -94,25 +97,29 @@ IF UNAME_SYSNAME == "Linux":
                 # This is why this whole file is compiled down to C: we make sure we never release the GIL between
                 # calling sys._current_frames() and pthread_getcpuclockid, making sure no thread disappeared.
                 try:
-                    clock_id = p_pthread_getcpuclockid(tid)
+                    clock_id = p_pthread_getcpuclockid(pthread_id)
                 except OSError:
-                    cpu_time = self._last_thread_time.get(tid, 0)
+                    cpu_time = self._last_thread_time.get(key, 0)
                 else:
                     try:
                         cpu_time = p_clock_gettime_ns(clock_id)
                     except OSError:
-                        cpu_time = self._last_thread_time.get(tid, 0)
-                threads_cpu_time[tid] = cpu_time - self._last_thread_time.get(tid, cpu_time)
-                self._last_thread_time[tid] = cpu_time
+                        cpu_time = self._last_thread_time.get(key, 0)
+                # Do a max(0, …) here just in case the result is < 0:
+                # This should never happen, but it can happen if the one chance in a billion happens:
+                # A new thread has been created and has the same native id and the same pthread_id.
+                threads_cpu_time[pthread_id] = max(0, cpu_time - self._last_thread_time.get(key, cpu_time))
+                self._last_thread_time[key] = cpu_time
 
             # Clear cache
-            for thread_id in list(self._last_thread_time.keys()):
-                if thread_id not in thread_ids:
-                    del self._last_thread_time[thread_id]
+            keys = list(thread_ids.items())
+            for key in list(self._last_thread_time.keys()):
+                if key not in keys:
+                    del self._last_thread_time[key]
 
             return threads_cpu_time
 ELSE:
-    class ThreadTime(object):
+    class _ThreadTime(object):
         def __init__(self):
             self._last_process_time = compat.process_time_ns()
 
@@ -138,6 +145,7 @@ ELSE:
 class StackBasedEvent(event.SampleEvent):
     thread_id = attr.ib(default=None)
     thread_name = attr.ib(default=None)
+    thread_native_id = attr.ib(default=None)
     frames = attr.ib(default=None)
     nframes = attr.ib(default=None)
     trace_ids = attr.ib(default=None)
@@ -284,7 +292,31 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     if ignore_profiler:
         running_thread_ids -= _periodic.PERIODIC_THREAD_IDS
 
-    cpu_time = thread_time(running_thread_ids)
+    # Build a dict of pthread_t id -> native thread id
+    # We need to use both as pthread_id can be reused for new thread, messing with the CPU time clock
+    thread_native_ids = {}
+
+    for thread_id in running_thread_ids:
+        try:
+            thread_obj = threading._active[thread_id]
+        except KeyError:
+            # This should not happen, unless somebody started a thread without
+            # using the `threading` module; in that case, ignore the thread altogether.
+            # In that case, well… just use the thread_id as native_id 🤞
+            native_id = thread_id
+        else:
+            # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
+            # for hashes since they are relative to the memory address which can easily be the same across different
+            # objects.
+            try:
+                native_id = thread_obj.native_id
+            except AttributeError:
+                # Python < 3.8
+                native_id = hash(thread_obj)
+
+        thread_native_ids[thread_id] = native_id
+
+    cpu_time = thread_time(thread_native_ids)
 
     stack_events = []
     for tid, frame in running_threads:
@@ -295,6 +327,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         stack_events.append(
             StackSampleEvent(
                 thread_id=tid,
+                thread_native_id=thread_native_ids.get(tid),
                 thread_name=get_thread_name(tid),
                 trace_ids=set(span.trace_id for span in spans),
                 nframes=nframes, frames=frames,
@@ -313,6 +346,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             StackExceptionSampleEvent(
                 thread_id=tid,
                 thread_name=get_thread_name(tid),
+                thread_native_id=thread_native_ids.get(tid),
                 nframes=nframes,
                 frames=frames,
                 sampling_period=int(interval * 1e9),
@@ -401,7 +435,7 @@ class StackCollector(collector.PeriodicCollector):
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
     def start(self):
-        self._thread_time = ThreadTime()
+        self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self.tracer.on_start_span(self._thread_span_links.link_span)
