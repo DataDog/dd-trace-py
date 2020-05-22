@@ -36,7 +36,6 @@ exclude = '''
       | consul
       | dbapi
       | dogpile_cache
-      | elasticsearch
       | falcon
       | flask
       | flask_cache
@@ -106,7 +105,6 @@ exclude = '''
       | config.py
       | consul
       | dbapi
-      | elasticsearch
       | falcon
       | flask
       | flask_autopatch
