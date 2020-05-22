@@ -391,6 +391,9 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans[0].service != "mysvc"
 
     def test_none_param(self):
-        self.es.transport.perform_request("GET", "/test-index", body="{}", params=None)
+        try:
+            self.es.transport.perform_request("GET", "/test-index", body="{}", params=None)
+        except elasticsearch.exceptions.NotFoundError:
+            pass
         spans = self.get_spans()
         assert len(spans) == 1
