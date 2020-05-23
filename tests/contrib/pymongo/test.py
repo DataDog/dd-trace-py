@@ -8,8 +8,8 @@ import pymongo
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import mongo as mongox
-from ddtrace.contrib.pymongo.client import trace_mongo_client, normalize_filter
-from ddtrace.contrib.pymongo.patch import patch, unpatch
+from ddtrace.contrib.pymongo.client import normalize_filter
+from ddtrace.contrib.pymongo.patch import patch, unpatch, trace_mongo_client
 
 # testing
 from tests.opentracer.utils import init_tracer
