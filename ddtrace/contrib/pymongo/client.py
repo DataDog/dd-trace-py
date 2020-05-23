@@ -20,6 +20,7 @@ _MongoClient = pymongo.MongoClient
 
 log = get_logger(__name__)
 
+
 class TracedMongoClient(ObjectProxy):
 
     def __init__(self, client=None, *args, **kwargs):
@@ -128,7 +129,7 @@ class TracedServer(ObjectProxy):
             )
 
             if result and result.address:
-                _set_address_tags(span, result.address)
+                set_address_tags(span, result.address)
             return result
         finally:
             span.finish()
@@ -151,7 +152,7 @@ class TracedServer(ObjectProxy):
             )
 
             if result and result.address:
-                _set_address_tags(span, result.address)
+                set_address_tags(span, result.address)
             return result
         finally:
             span.finish()
@@ -234,8 +235,9 @@ class TracedSocket(ObjectProxy):
         )
 
         if self.address:
-            _set_address_tags(s, self.address)
+            set_address_tags(s, self.address)
         return s
+
 
 def normalize_filter(f=None):
     if f is None:
@@ -265,7 +267,7 @@ def normalize_filter(f=None):
         return {}
 
 
-def _set_address_tags(span, address):
+def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
         span.set_tag(netx.TARGET_HOST, address[0])
