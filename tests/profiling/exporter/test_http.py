@@ -7,6 +7,8 @@ import socket
 import threading
 import time
 
+import mock
+
 import pytest
 
 from ddtrace import compat
@@ -20,7 +22,7 @@ from ddtrace.profiling.exporter import http
 from . import test_pprof
 
 
-_API_KEY = "my-api-key"
+_API_KEY = "myapikeyhastobe32charlongforsure"
 
 
 class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -137,9 +139,17 @@ def endpoint_test_reset_server():
         thread.join()
 
 
+def test_api_key_init():
+    with mock.patch("ddtrace.profiling.exporter.http._LOG") as log:
+        http.PprofHTTPExporter(api_key="invalid")
+        log.warning.assert_called_once()
+        http.PprofHTTPExporter(api_key="i" * 32)
+        log.warning.assert_called_once()
+
+
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
-    exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key", max_retry_delay=10)
+    exp = http.PprofHTTPExporter(_ENDPOINT, "x" * 32, max_retry_delay=10)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
         e = t.exception
@@ -187,30 +197,30 @@ def test_export_reset(endpoint_test_reset_server):
 
 
 def test_default_from_env(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_API_KEY", "123")
+    monkeypatch.setenv("DD_PROFILING_API_KEY", "a" * 32)
     exp = http.PprofHTTPExporter()
-    assert exp.api_key == "123"
+    assert exp.api_key == "a" * 32
     assert exp.endpoint == "https://intake.profile.datadoghq.com/v1/input"
 
-    monkeypatch.setenv("DD_PROFILING_API_URL", "foobar")
+    monkeypatch.setenv("DD_PROFILING_API_URL", "foob" * 8)
     exp = http.PprofHTTPExporter()
-    assert exp.endpoint == "foobar"
+    assert exp.endpoint == "foob" * 8
 
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     exp = http.PprofHTTPExporter()
-    assert exp.endpoint == "foobar"
+    assert exp.endpoint == "foob" * 8
 
     monkeypatch.delenv("DD_PROFILING_API_URL")
     exp = http.PprofHTTPExporter()
     assert exp.endpoint == "https://intake.profile.datadoghq.eu/v1/input"
 
-    monkeypatch.setenv("DD_API_KEY", "456")
+    monkeypatch.setenv("DD_API_KEY", "x" * 32)
     exp = http.PprofHTTPExporter()
-    assert exp.api_key == "123"
+    assert exp.api_key == "a" * 32
 
     monkeypatch.delenv("DD_PROFILING_API_KEY")
     exp = http.PprofHTTPExporter()
-    assert exp.api_key == "456"
+    assert exp.api_key == "x" * 32
 
     monkeypatch.setenv("DD_SERVICE", "myservice")
     exp = http.PprofHTTPExporter()
@@ -224,7 +234,7 @@ def _check_tags_types(tags):
 
 
 def test_get_tags():
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -238,7 +248,7 @@ def test_get_tags():
 
 def test_get_malformed(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "mytagfoobar")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -249,7 +259,7 @@ def test_get_malformed(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
     monkeypatch.setenv("DD_TAGS", "mytagfoobar,")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -260,7 +270,7 @@ def test_get_malformed(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
     monkeypatch.setenv("DD_TAGS", ",")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -271,7 +281,7 @@ def test_get_malformed(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
     monkeypatch.setenv("DD_TAGS", "foo:bar,")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == b"foobar"
@@ -285,7 +295,7 @@ def test_get_malformed(monkeypatch):
 
 def test_get_tags_override(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "mytag:foobar")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == b"foobar"
@@ -298,7 +308,7 @@ def test_get_tags_override(monkeypatch):
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "mytag:foobar,author:jd")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 9
     assert tags["service"] == b"foobar"
@@ -312,7 +322,7 @@ def test_get_tags_override(monkeypatch):
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -324,7 +334,7 @@ def test_get_tags_override(monkeypatch):
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:mycustomservice")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == b"mycustomservice"
@@ -337,7 +347,7 @@ def test_get_tags_override(monkeypatch):
     assert "version" not in tags
 
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:🤣")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == u"🤣".encode("utf-8")
@@ -350,7 +360,7 @@ def test_get_tags_override(monkeypatch):
     assert "version" not in tags
 
     monkeypatch.setenv("DD_VERSION", "123")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 9
     assert tags["service"] == u"🤣".encode("utf-8")
@@ -364,7 +374,7 @@ def test_get_tags_override(monkeypatch):
     assert "env" not in tags
 
     monkeypatch.setenv("DD_ENV", "prod")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 10
     assert tags["service"] == u"🤣".encode("utf-8")
@@ -380,14 +390,14 @@ def test_get_tags_override(monkeypatch):
 
 def test_get_tags_legacy(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:baz")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert tags["mytag"] == b"baz"
 
     # precedence
     monkeypatch.setenv("DD_TAGS", "mytag:val1,ddtag:hi")
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:val2,ddptag:lo")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(api_key=_API_KEY)._get_tags("foobar")
     _check_tags_types(tags)
     assert tags["mytag"] == b"val2"
     assert tags["ddtag"] == b"hi"

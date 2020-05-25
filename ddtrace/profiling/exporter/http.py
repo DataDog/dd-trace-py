@@ -2,13 +2,14 @@
 import binascii
 import datetime
 import gzip
+import logging
 import os
 import platform
 
 import tenacity
 
 from ddtrace.utils import deprecation
-from ddtrace.utils.formats import parse_tags_str
+from ddtrace.utils import formats
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
 from ddtrace.vendor.six.moves.urllib import error
@@ -22,6 +23,8 @@ from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 from ddtrace.profiling.exporter import pprof
 
+
+_LOG = logging.getLogger(__name__)
 
 HOSTNAME = platform.node()
 PYTHON_IMPLEMENTATION = platform.python_implementation().encode()
@@ -85,12 +88,17 @@ def _validate_enpoint(instance, attribute, value):
         raise InvalidEndpoint("Endpoint is empty")
 
 
+def _validate_api_key(instance, attribute, value):
+    if not formats.validate_api_key(value):
+        _LOG.warning("Invalid API Key")
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     endpoint = attr.ib(factory=_get_endpoint, type=str, validator=_validate_enpoint)
-    api_key = attr.ib(factory=_get_api_key, type=str)
+    api_key = attr.ib(factory=_get_api_key, type=str, validator=_validate_api_key)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service_name = attr.ib(factory=_get_service_name)
     max_retry_delay = attr.ib(default=None)
@@ -153,8 +161,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if env:
             tags["env"] = env.encode("utf-8")
 
-        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
-        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
+        user_tags = formats.parse_tags_str(os.environ.get("DD_TAGS", {}))
+        user_tags.update(formats.parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
         tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
