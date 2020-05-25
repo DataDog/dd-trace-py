@@ -204,6 +204,10 @@ exclude = '''
       test_settings.py
       | test_ext.py
       | utils/
+      (
+        test_http.py
+        | test_time.py
+      )
       | http/
     )
     | util.py

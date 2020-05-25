@@ -110,3 +110,19 @@ def parse_tags_str(tags_str):
             parsed_tags[key] = value
 
     return parsed_tags
+
+
+def validate_api_key(api_key):
+    """Validate a Datadog API key.
+
+    This only validates the format, not the actual validity of the key.
+
+    :param api_key: The API key to test.
+    :return: True or False
+    """
+    return (
+        len(api_key) == 32
+        # NOTE: if the key is only digits, islower() is False
+        and (api_key.islower() or api_key.isdigit())
+        and api_key.isalnum()
+    )
