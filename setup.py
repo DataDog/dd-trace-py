@@ -146,6 +146,7 @@ setup(
             "Programming Language :: Python :: 3.8",
         ],
         use_scm_version=True,
+        # setuptools_scm capped at 4.0 due to: https://github.com/pypa/setuptools_scm/issues/442
         setup_requires=["setuptools_scm<4.0", "cython"],
         ext_modules=cythonize(
             [
