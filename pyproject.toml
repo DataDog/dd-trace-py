@@ -82,6 +82,22 @@ exclude = '''
       | vertica
     )
     | ext/
+    (
+       cassandra.py
+       | consul.py
+       | db.py
+       | elasticsearch.py
+       | errors.py
+       | http.py
+       | kombu.py
+       | memcached.py
+       | mongo.py
+       | net.py
+       | priority.py
+       | redis.py
+       | sql.py
+       | system.py
+    )
     | http/
     | opentracer/
     | profiling/exporter/pprof_pb2.py$
@@ -184,9 +200,14 @@ exclude = '''
     | test_sampler.py
     | test_span.py
     | test_tracer.py
-    | test_utils.py
     | test_worker.py
-    | unit
+    | unit/
+    (
+      test_settings.py
+      | test_ext.py
+      | utils/
+      | http/
+    )
     | util.py
     | utils
     | vendor
