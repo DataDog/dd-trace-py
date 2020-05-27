@@ -69,7 +69,7 @@ class Tracer(opentracing.Tracer):
             invalid_keys = config_invalid_keys(self._config)
             if invalid_keys:
                 str_invalid_keys = ','.join(invalid_keys)
-                raise ConfigException('invalid key(s) given (%s)'.format(str_invalid_keys))
+                raise ConfigException('invalid key(s) given ({})'.format(str_invalid_keys))
 
         if not self._service_name:
             raise ConfigException(""" Cannot detect the \'service_name\'.
@@ -267,6 +267,25 @@ class Tracer(opentracing.Tracer):
                 otspan.set_tag(k, tags[k])
 
         return otspan
+
+    @property
+    def active_span(self):
+        """Retrieves the active span from the opentracing scope manager
+
+        Falls back to using the datadog active span if one is not found. This
+        allows opentracing users to use datadog instrumentation.
+        """
+        scope = self._scope_manager.active
+        if scope:
+            return scope.span
+        else:
+            dd_span = self._dd_tracer.current_span()
+            if dd_span:
+                ot_span = Span(self, None, dd_span.name)
+                ot_span._associate_dd_span(dd_span)
+            else:
+                ot_span = None
+            return ot_span
 
     def inject(self, span_context, format, carrier):  # noqa: A002
         """Injects a span context into a carrier.

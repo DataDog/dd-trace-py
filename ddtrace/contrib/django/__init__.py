@@ -37,7 +37,7 @@ Configuration
 
 .. py:data:: ddtrace.config.django['analytics_enabled']
 
-   Whether to generate APM events for Django in Trace Search & Analytics.
+   Whether to analyze spans for Django in App Analytics.
 
    Can also be enabled with the ``DD_DJANGO_ANALYTICS_ENABLED`` environment variable.
 
@@ -68,6 +68,14 @@ Configuration
    The database service name is the name of the database appended with 'db'.
 
    Default: ``''``
+
+.. py:data:: ddtrace.config.django['instrument_middleware']
+
+   Whether or not to instrument middleware.
+
+   Can also be enabled with the ``DD_DJANGO_INSTRUMENT_MIDDLEWARE`` environment variable.
+
+   Default: ``True``
 
 .. py:data:: ddtrace.config.django['instrument_databases']
 

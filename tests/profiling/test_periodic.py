@@ -4,6 +4,7 @@ import threading
 import pytest
 
 from ddtrace.profiling import _periodic
+from ddtrace.profiling import _service
 
 
 def test_periodic():
@@ -25,6 +26,8 @@ def test_periodic():
     assert x["OK"]
     assert x["DOWN"]
     assert t.ident not in _periodic.PERIODIC_THREAD_IDS
+    if hasattr(threading, "get_native_id"):
+        assert t.native_id is not None
 
 
 def test_periodic_error():
@@ -69,7 +72,7 @@ def test_periodic_real_thread_name():
 def test_periodic_service_start_stop():
     t = _periodic.PeriodicService(1)
     t.start()
-    with pytest.raises(RuntimeError):
+    with pytest.raises(_service.ServiceAlreadyRunning):
         t.start()
     t.stop()
     t.join()

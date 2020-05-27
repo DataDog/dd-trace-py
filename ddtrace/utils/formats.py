@@ -82,19 +82,6 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
-def flatten_dict(d, sep=".", prefix=""):
-    """
-    Returns a normalized dict of depth 1 with keys in order of embedding
-
-    """
-    # adapted from https://stackoverflow.com/a/19647596
-    return (
-        {prefix + sep + k if prefix else k: v for kk, vv in d.items() for k, v in flatten_dict(vv, sep, kk).items()}
-        if isinstance(d, dict)
-        else {prefix: d}
-    )
-
-
 def parse_tags_str(tags_str):
     """Parse a string of tags typically provided via environment variables.
 

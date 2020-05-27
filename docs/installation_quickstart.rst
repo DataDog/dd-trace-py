@@ -23,11 +23,6 @@ If you want to use the profiler, you'll need to specify the ``profiling`` flavor
 
   $ pip install ddtrace[profiling]
 
-
-.. note::
-
-   The profiler does not work on Alpine Linux.
-
 Quickstart
 ----------
 

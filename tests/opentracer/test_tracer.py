@@ -432,6 +432,11 @@ class TestTracer(object):
         assert spans[2].name == "ot_child_1" and spans[2].parent_id == spans[1].span_id
         assert spans[3].name == "ot_child_2" and spans[3].parent_id == spans[0].span_id
 
+    def test_active_span(self, ot_tracer, writer):
+        with ot_tracer._dd_tracer.trace("dd") as span:
+            assert ot_tracer.active_span is not None
+            assert ot_tracer.active_span._dd_span is span
+
 
 @pytest.fixture
 def nop_span_ctx():

@@ -18,7 +18,7 @@ from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.utils.formats import get_env
+from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
 from .compat import get_resolver, user_is_authenticated
@@ -35,6 +35,7 @@ config._add(
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
+        instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,
         instrument_caches=True,
         analytics_enabled=None,  # None allows the value to be overridden by the global config
@@ -515,7 +516,10 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if "django.core.handlers.base" not in sys.modules:
         import django.core.handlers.base
-    wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
+
+    if config.django.instrument_middleware:
+        wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
+
     wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
 
     # DEV: this check will be replaced with import hooks in the future

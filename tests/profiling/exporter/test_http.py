@@ -154,9 +154,8 @@ def test_export(endpoint_test_server):
 
 
 def test_export_no_endpoint(endpoint_test_server):
-    exp = http.PprofHTTPExporter(endpoint="")
     with pytest.raises(http.InvalidEndpoint):
-        exp.export(test_pprof.TEST_EVENTS, 0, 1)
+        http.PprofHTTPExporter(endpoint="")
 
 
 def test_export_server_down():
@@ -218,8 +217,15 @@ def test_default_from_env(monkeypatch):
     assert exp.service_name == "myservice"
 
 
+def _check_tags_types(tags):
+    for k, v in tags.items():
+        assert isinstance(k, str)
+        assert isinstance(v, bytes)
+
+
 def test_get_tags():
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -233,6 +239,7 @@ def test_get_tags():
 def test_get_malformed(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "mytagfoobar")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -243,6 +250,7 @@ def test_get_malformed(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", "mytagfoobar,")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -253,6 +261,7 @@ def test_get_malformed(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", ",")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -263,6 +272,7 @@ def test_get_malformed(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", "foo:bar,")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -276,6 +286,7 @@ def test_get_malformed(monkeypatch):
 def test_get_tags_override(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "mytag:foobar")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -288,6 +299,7 @@ def test_get_tags_override(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", "mytag:foobar,author:jd")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 9
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -301,6 +313,7 @@ def test_get_tags_override(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", "")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
@@ -312,6 +325,7 @@ def test_get_tags_override(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:mycustomservice")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == b"mycustomservice"
     assert len(tags["host"])
@@ -324,6 +338,7 @@ def test_get_tags_override(monkeypatch):
 
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:🤣")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 8
     assert tags["service"] == u"🤣".encode("utf-8")
     assert len(tags["host"])
@@ -336,6 +351,7 @@ def test_get_tags_override(monkeypatch):
 
     monkeypatch.setenv("DD_VERSION", "123")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 9
     assert tags["service"] == u"🤣".encode("utf-8")
     assert len(tags["host"])
@@ -344,11 +360,12 @@ def test_get_tags_override(monkeypatch):
     assert tags["runtime"] == b"CPython"
     assert tags["foobar"] == b"baz"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
-    assert tags["version"] == "123"
+    assert tags["version"] == b"123"
     assert "env" not in tags
 
     monkeypatch.setenv("DD_ENV", "prod")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert len(tags) == 10
     assert tags["service"] == u"🤣".encode("utf-8")
     assert len(tags["host"])
@@ -357,19 +374,21 @@ def test_get_tags_override(monkeypatch):
     assert tags["runtime"] == b"CPython"
     assert tags["foobar"] == b"baz"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
-    assert tags["version"] == "123"
-    assert tags["env"] == "prod"
+    assert tags["version"] == b"123"
+    assert tags["env"] == b"prod"
 
 
 def test_get_tags_legacy(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:baz")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert tags["mytag"] == b"baz"
 
     # precedence
     monkeypatch.setenv("DD_TAGS", "mytag:val1,ddtag:hi")
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:val2,ddptag:lo")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
+    _check_tags_types(tags)
     assert tags["mytag"] == b"val2"
     assert tags["ddtag"] == b"hi"
     assert tags["ddptag"] == b"lo"

@@ -2,6 +2,7 @@
 import itertools
 import os
 import random
+import threading
 import time
 import sys
 
@@ -112,6 +113,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if hasattr(time, "thread_time"):
             self._last_thread_time = time.thread_time()
         self._started = False
+        self._started_lock = threading.Lock()
 
     def recreate(self):
         """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
@@ -141,8 +143,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
         if self._started is False:
-            self.start()
-            self._started = True
+            with self._started_lock:
+                if self._started is False:
+                    self.start()
+                    self._started = True
         if spans:
             self._trace_queue.put(spans)
 
@@ -295,7 +299,7 @@ class Q(Queue):
             # check qsize value.
             with self.mutex:
                 qsize = self._qsize()
-                if qsize != 0:
+                if qsize >= self.maxsize:
                     idx = random.randrange(0, qsize)
                     self.queue[idx] = item
                     log.warning("Writer queue is full has more than %d traces, some traces will be lost", self.maxsize)
