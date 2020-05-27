@@ -440,6 +440,14 @@ class GrpcTestCase(BaseTracerTestCase):
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
 
+    def test_unknown_servicer(self):
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError) as exception_context:
+                stub.SayHelloUnknown(HelloRequest(name='unknown'))
+            rpc_error = exception_context.exception
+            assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
+
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_server_service_name(self):
         """
@@ -514,6 +522,9 @@ class _HelloServicer(HelloServicer):
         # response for dangling request
         if last_request is not None:
             yield HelloReply(message='{}'.format(last_request.name))
+
+    def SayHelloUnknown(self, request, context):
+        yield HelloReply(message='unknown')
 
 
 class _CustomException(Exception):

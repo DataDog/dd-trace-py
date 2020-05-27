@@ -18,7 +18,11 @@ def create_server_interceptor(pin):
             return continuation(handler_call_details)
 
         rpc_method_handler = continuation(handler_call_details)
-        return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+
+        if rpc_method_handler:
+            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+
+        return rpc_method_handler
 
     return _ServerInterceptor(interceptor_function)
 
