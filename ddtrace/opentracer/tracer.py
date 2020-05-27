@@ -78,7 +78,6 @@ class Tracer(opentracing.Tracer):
                                   """)
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
-
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
@@ -155,7 +154,6 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
-
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
