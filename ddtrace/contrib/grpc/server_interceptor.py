@@ -19,6 +19,10 @@ def create_server_interceptor(pin):
 
         rpc_method_handler = continuation(handler_call_details)
 
+        # continuation returns an RpcMethodHandler instance if the RPC is
+        # considered serviced, or None otherwise
+        # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
+
         if rpc_method_handler:
             return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
