@@ -10,12 +10,11 @@ from ...compat import urlencode
 from ...ext import SpanTypes, http, elasticsearch as metadata
 from ...settings import config
 
-DEFAULT_SERVICE = 'elasticsearch'
+DEFAULT_SERVICE = "elasticsearch"
 
 
-@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
+@deprecated(message="Use patching instead (see the docs).", version="1.0.0")
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
-
     class TracedTransport(elasticsearch.Transport):
         """ Extend elasticseach transport layer to allow Datadog
             tracer to catch any performed request.
@@ -25,12 +24,10 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def perform_request(self, method, url, params=None, body=None):
-            with self._datadog_tracer.trace('elasticsearch.query',
-                                            span_type=SpanTypes.ELASTICSEARCH) as s:
+            with self._datadog_tracer.trace("elasticsearch.query", span_type=SpanTypes.ELASTICSEARCH) as s:
                 # Don't instrument if the trace is not sampled
                 if not s.sampled:
-                    return super(TracedTransport, self).perform_request(
-                        method, url, params=params, body=body)
+                    return super(TracedTransport, self).perform_request(method, url, params=params, body=body)
 
                 s.set_tag(SPAN_MEASURED_KEY)
                 s.service = self._datadog_service
@@ -39,7 +36,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.set_tag(metadata.PARAMS, urlencode(params))
                 if config.elasticsearch.trace_query_string:
                     s.set_tag(http.QUERY_STRING, urlencode(params))
-                if method == 'GET':
+                if method == "GET":
                     s.set_tag(metadata.BODY, self.serializer.dumps(body))
                 s = quantize(s)
 
@@ -61,9 +58,10 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 if status:
                     s.set_tag(http.STATUS_CODE, status)
 
-                took = data.get('took')
+                took = data.get("took")
                 if took:
                     s.set_metric(metadata.TOOK, int(took))
 
                 return result
+
     return TracedTransport

@@ -8,7 +8,6 @@ import pytest
 
 import ddtrace
 from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
@@ -67,8 +66,7 @@ def test_collect_once():
     assert len(all_events) == 2
     e = all_events[0][0]
     assert e.thread_id > 0
-    # Thread name is None with gevent
-    assert isinstance(e.thread_name, (str, type(None)))
+    assert e.thread_name == "MainThread"
     assert len(e.frames) >= 1
     assert e.frames[0][0].endswith(".py")
     assert e.frames[0][1] > 0
@@ -214,10 +212,9 @@ def test_exception_collection():
     e = exception_events[0]
     assert e.timestamp > 0
     assert e.sampling_period > 0
-    if not TESTING_GEVENT:
-        assert e.thread_id == _thread.get_ident()
-        assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 209, "test_exception_collection")]
+    assert e.thread_id == stack._thread_get_ident()
+    assert e.thread_name == "MainThread"
+    assert e.frames == [(__file__, 207, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
