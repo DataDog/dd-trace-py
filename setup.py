@@ -172,6 +172,7 @@ setup(
                 "PY_MINOR_VERSION": sys.version_info.minor,
                 "PY_MICRO_VERSION": sys.version_info.micro,
             },
+            force=True,
         )
         + get_exts_for("wrapt")
         + get_exts_for("psutil"),
