@@ -361,21 +361,18 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 class _ThreadSpanLinks(object):
 
     _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(weakref.WeakSet), repr=False, init=False)
-
-    # We do not use a lock because:
-    # - When adding new items, it's not possible for a same thread to call `link_span` at different time
-    #   Since the WeakSet are per-thread, there's no chance of creating 2 WeakSet for the same thread
-    # - When reading the span WeakSet for a thread, the set is copied which means that if it was ever mutated during
-    #   our reading, we wouldn't care.
-    #   In practice, here, it won't even mutate during the reading since this only used by the stack collector which
-    #   already owns the GIL.
+    # WeakSet is not thread safe unfortunately
+    _lock = attr.ib(factory=threading.Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
 
         Track threads, tasks, etc.
         """
-        self._thread_id_to_spans[_thread_get_ident()].add(span)
+        # In _theory_, this should be thread-safe because it's entirely done in C.
+        # Since it's a CPython specific detail, we ignore that fact and play it self by locking.
+        with self._lock:
+            self._thread_id_to_spans[_thread_get_ident()].add(span)
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
@@ -384,10 +381,11 @@ class _ThreadSpanLinks(object):
 
         :param existing_thread_ids: A set of thread ids to keep.
         """
-        # Iterate over a copy of the list of keys in case it's mutated during our iteration.
-        for thread_id in list(self._thread_id_to_spans.keys()):
-            if thread_id not in existing_thread_ids:
-                del self._thread_id_to_spans[thread_id]
+        with self._lock:
+            # Iterate over a copy of the list of keys since it's mutated during our iteration.
+            for thread_id in list(self._thread_id_to_spans.keys()):
+                if thread_id not in existing_thread_ids:
+                    del self._thread_id_to_spans[thread_id]
 
     def get_active_leaf_spans_from_thread_id(self, thread_id):
         """Return the latest active spans for a thread.
@@ -398,9 +396,11 @@ class _ThreadSpanLinks(object):
         :param thread_id: The thread id.
         :return: A set with the active spans.
         """
-        spans = set(self._thread_id_to_spans.get(thread_id, ()))
+        with self._lock:
+            spans = set(self._thread_id_to_spans.get(thread_id, ()))
+
         # Iterate over a copy so we can modify the original
-        for span in set(spans):
+        for span in spans.copy():
             if not span.finished:
                 try:
                     spans.remove(span._parent)
