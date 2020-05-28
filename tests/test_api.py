@@ -59,6 +59,9 @@ def _make_uds_server(path, request_handler):
     # Set daemon just in case something fails
     t.daemon = True
     t.start()
+
+    # Wait for the server to start
+    time.sleep(0.2)
     return server, t
 
 
