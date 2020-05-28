@@ -28,7 +28,7 @@ PYTHON_IMPLEMENTATION = platform.python_implementation().encode()
 PYTHON_VERSION = platform.python_version().encode()
 
 
-class InvalidEndpoint(exporter.ExportError):
+class InvalidEndpoint(ValueError):
     pass
 
 
@@ -80,11 +80,16 @@ def _get_service_name():
             return service_name
 
 
+def _validate_enpoint(instance, attribute, value):
+    if not value:
+        raise InvalidEndpoint("Endpoint is empty")
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib(factory=_get_endpoint, type=str)
+    endpoint = attr.ib(factory=_get_endpoint, type=str, validator=_validate_enpoint)
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service_name = attr.ib(factory=_get_service_name)
@@ -160,9 +165,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         :param start_time_ns: The start time of recording.
         :param end_time_ns: The end time of recording.
         """
-        if not self.endpoint:
-            raise InvalidEndpoint("Endpoint is empty")
-
         common_headers = {
             "DD-API-KEY": self.api_key.encode(),
         }

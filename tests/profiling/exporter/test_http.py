@@ -154,9 +154,8 @@ def test_export(endpoint_test_server):
 
 
 def test_export_no_endpoint(endpoint_test_server):
-    exp = http.PprofHTTPExporter(endpoint="")
     with pytest.raises(http.InvalidEndpoint):
-        exp.export(test_pprof.TEST_EVENTS, 0, 1)
+        http.PprofHTTPExporter(endpoint="")
 
 
 def test_export_server_down():
