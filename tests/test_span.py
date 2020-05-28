@@ -504,3 +504,27 @@ def test_span_key(span_log):
     s.set_tag(None, "val")
     span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", None, "val")
     assert s.get_tag(123.32) is None
+
+
+@mock.patch("ddtrace.span.log")
+def test_span_finished(span_log):
+    span = Span(None, None)
+    assert span.finished is False
+    assert span.duration_ns is None
+
+    span.finished = True
+    assert span.finished is True
+    assert span.duration_ns is not None
+    duration = span.duration_ns
+
+    span.finished = True
+    assert span.finished is True
+    assert span.duration_ns == duration
+    span_log.warning.assert_called_once_with("Ignoring finish on already finished span.")
+
+    span.finished = False
+    assert span.finished is False
+
+    span.finished = True
+    assert span.finished is True
+    assert span.duration_ns != duration
