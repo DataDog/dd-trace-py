@@ -220,13 +220,14 @@ def _check_tags_types(tags):
 
 
 def test_get_tags():
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(env="foobar")._get_tags("foobar")
     _check_tags_types(tags)
-    assert len(tags) == 7
+    assert len(tags) == 8
     assert tags["service"] == b"foobar"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == b"python"
+    assert tags["env"] == b"foobar"
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
     assert "version" not in tags
@@ -359,8 +360,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["version"] == b"123"
     assert "env" not in tags
 
-    monkeypatch.setenv("DD_ENV", "prod")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(env="prod")._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 10
     assert tags["service"] == u"🤣".encode("utf-8")

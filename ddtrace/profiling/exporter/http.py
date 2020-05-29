@@ -86,6 +86,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service = attr.ib(default=None)
+    env = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -126,8 +127,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         return content_type, body
 
-    @staticmethod
-    def _get_tags(service):
+    def _get_tags(self, service):
         tags = {
             "service": service.encode("utf-8"),
             "host": HOSTNAME.encode("utf-8"),
@@ -142,9 +142,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if version:
             tags["version"] = version.encode("utf-8")
 
-        env = os.environ.get("DD_ENV")
-        if env:
-            tags["env"] = env.encode("utf-8")
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
 
         user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
         user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
