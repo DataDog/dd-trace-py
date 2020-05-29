@@ -46,3 +46,28 @@ def test_service_api(monkeypatch):
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
+
+
+def test_env_default(monkeypatch):
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    monkeypatch.setenv("DD_ENV", "staging")
+    prof = profiler.Profiler()
+    assert prof.env == "staging"
+    for exporter in prof.exporters:
+        if isinstance(exporter, http.PprofHTTPExporter):
+            assert exporter.env == "staging"
+            break
+    else:
+        pytest.fail("Unable to find HTTP exporter")
+
+
+def test_env_api(monkeypatch):
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    prof = profiler.Profiler(env="staging")
+    assert prof.env == "staging"
+    for exporter in prof.exporters:
+        if isinstance(exporter, http.PprofHTTPExporter):
+            assert exporter.env == "staging"
+            break
+    else:
+        pytest.fail("Unable to find HTTP exporter")
