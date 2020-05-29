@@ -10,8 +10,8 @@ from unittest import TestCase
 
 import pytest
 
-from ddtrace.api import API, Response
-from ddtrace.compat import iteritems, httplib, PY3
+from ddtrace.api import API, Response, UDSHTTPConnection
+from ddtrace.compat import iteritems, httplib, PY3, get_connection_response
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver
 
@@ -61,7 +61,16 @@ def _make_uds_server(path, request_handler):
     t.start()
 
     # Wait for the server to start
-    time.sleep(0.2)
+    resp = None
+    while resp != 200:
+        conn = UDSHTTPConnection(server.server_address, False, _HOST, 2019)
+        try:
+            conn.request("PUT", path)
+            resp = get_connection_response(conn).status
+        finally:
+            conn.close()
+        time.sleep(0.01)
+
     return server, t
 
 
