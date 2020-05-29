@@ -506,8 +506,7 @@ def test_span_key(span_log):
     assert s.get_tag(123.32) is None
 
 
-@mock.patch("ddtrace.span.log")
-def test_span_finished(span_log):
+def test_span_finished():
     span = Span(None, None)
     assert span.finished is False
     assert span.duration_ns is None
@@ -520,7 +519,6 @@ def test_span_finished(span_log):
     span.finished = True
     assert span.finished is True
     assert span.duration_ns == duration
-    span_log.warning.assert_called_once_with("Ignoring finish on already finished span.")
 
     span.finished = False
     assert span.finished is False

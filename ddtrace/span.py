@@ -118,11 +118,14 @@ class Span(object):
 
     @finished.setter
     def finished(self, value):
+        """Finishes the span if set to a truthy value.
+
+        If the span is already finished and a truthy value is provided
+        no action will occur.
+        """
         if value:
             if not self.finished:
                 self.duration_ns = time_ns() - self.start_ns
-            else:
-                log.warning("Ignoring finish on already finished span.")
         else:
             self.duration_ns = None
 
