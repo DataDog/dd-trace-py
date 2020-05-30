@@ -49,11 +49,17 @@ random.getrandbits               111.7341 (1.94)     224.2096 (1.48)     137.429
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 from libc.stdint cimport uint64_t
+import os
 
+from ddtrace.vendor.wrapt import wrap_function_wrapper
 from ddtrace import compat
 
 
 cdef uint64_t state
+
+
+cpdef _getstate():
+    return state
 
 
 cpdef seed():
@@ -68,4 +74,27 @@ cpdef rand64bits():
     state ^= state >> 4
     return <uint64_t>(state * <uint64_t>2685821657736338717)
 
+
+# Should be available in Python 3.7+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=seed)
+
+
+def patch_stdlib_seed():
+    """Patches random.seed() to also reseed our RNG.
+
+    This is done because many libraries when they fork will call random.seed()
+    to reseed the generator for the new process.
+    """
+
+    def patched_seed(func, instance, args, kwargs):
+        seed()
+        return func(*args, **kwargs)
+
+
+    wrap_function_wrapper("random", "seed", patched_seed)
+
+
 seed()
+
+patch_stdlib_seed()

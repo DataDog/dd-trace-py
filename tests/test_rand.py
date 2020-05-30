@@ -53,3 +53,11 @@ def test_tracer_usage_fork():
         # https://stackoverflow.com/a/21705694
         time.sleep(1)
         os._exit(0)
+
+
+def test_patching_random_seed():
+    import random
+
+    seed = _rand._getstate()
+    random.seed()
+    assert _rand._getstate() != seed
