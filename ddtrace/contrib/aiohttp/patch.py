@@ -98,6 +98,9 @@ class _WrappedStreamReader(wrapt.ObjectProxy):
         self._self_parent_resource = parent_resource
 
     # These are needed so the correct "self" is associated with the calls
+    def __aiter__(self):
+        return self.__wrapped__.__class__.__aiter__(self)
+
     def iter_chunked(self, *args, **kwargs):
         return self.__wrapped__.__class__.iter_chunked(self, *args, **kwargs)
 
