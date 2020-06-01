@@ -1,8 +1,8 @@
 from multiprocessing import Queue
 import os
-import time
 
 from ddtrace import tracer
+from ddtrace.compat import PYTHON_VERSION_INFO
 from ddtrace.internal import _rand
 
 
@@ -15,24 +15,35 @@ def test_random():
         m.add(n)
 
 
-def test_not_fork_safe():
+def test_fork():
     q = Queue()
     pid = os.fork()
     if pid > 0:
         # parent
-        rngs = {_rand.rand64bits() for i in range(100)}
+        rngs = {_rand.rand64bits() for _ in range(100)}
         child_rngs = q.get()
-        assert rngs == child_rngs
+        q.put(None)
+
+        if PYTHON_VERSION_INFO >= (3, 7):
+            # Python 3.7+ have fork hooks which should be used
+            # Hence we should not get any collisions
+            assert not rngs & child_rngs
+        else:
+            # Python < 3.7 we don't have any mechanism to
+            # reseed on so we expect there to be collisions.
+            assert rngs == child_rngs
+
     else:
         # child
-        rngs = {_rand.rand64bits() for i in range(100)}
-        q.put(rngs)
-
-        # Kill the process so it doesn't continue running the rest of the
-        # test suite in a separate process. Note we can't use sys.exit()
-        # https://stackoverflow.com/a/21705694
-        time.sleep(1)
-        os._exit(0)
+        try:
+            rngs = {_rand.rand64bits() for _ in range(100)}
+            q.put(rngs)
+            q.get()
+        finally:
+            # Kill the process so it doesn't continue running the rest of the
+            # test suite in a separate process. Note we can't use sys.exit()
+            # as it raises an exception that pytest will detect as an error.
+            os._exit(0)
 
 
 def test_tracer_usage_fork():
@@ -42,17 +53,19 @@ def test_tracer_usage_fork():
         # parent
         span = tracer.start_span("span")
         child_ids = q.get()
+        q.put(None)
         assert not {span.span_id, span.trace_id} & child_ids
     else:
         # child
-        s = tracer.start_span("span")
-        q.put({s.span_id, s.trace_id})
-
-        # Kill the process so it doesn't continue running the rest of the
-        # test suite in a separate process. Note we can't use sys.exit()
-        # https://stackoverflow.com/a/21705694
-        time.sleep(1)
-        os._exit(0)
+        try:
+            s = tracer.start_span("span")
+            q.put({s.span_id, s.trace_id})
+            q.get()
+        finally:
+            # Kill the process so it doesn't continue running the rest of the
+            # test suite in a separate process. Note we can't use sys.exit()
+            # as it raises an exception that pytest will detect as an error.
+            os._exit(0)
 
 
 def test_patching_random_seed():

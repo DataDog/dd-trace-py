@@ -64,7 +64,7 @@ cpdef _getstate():
 
 cpdef seed():
     global state
-    state = compat.getrandbits(64) ^ 4101842887655102017
+    state = <uint64_t>compat.getrandbits(64) ^ <uint64_t>4101842887655102017
 
 
 cpdef rand64bits():
@@ -83,7 +83,7 @@ if hasattr(os, "register_at_fork"):
 def patch_stdlib_seed():
     """Patches random.seed() to also reseed our RNG.
 
-    This is done because many libraries when they fork will call random.seed()
+    This is done because many libraries will call random.seed() after forking
     to reseed the generator for the new process.
     """
 
