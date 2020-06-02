@@ -59,24 +59,31 @@ def test_patching_random_seed():
     assert _rand._getstate() != seed
 
 
-def test_random_multiprocess():
-    num_procs = 10
-
+def test_multiprocess():
     q = mp.Queue()
 
     def target(q):
-        q.put(_rand.rand64bits())
+        q.put([_rand.rand64bits() for _ in range(100)])
 
-    for _ in range(num_procs):
-        p = mp.Process(target=target, args=(q,))
+    ps = [mp.Process(target=target, args=(q,)) for _ in range(10)]
+    for p in ps:
         p.start()
+
+    for p in ps:
         p.join()
 
-    nums = {_rand.rand64bits()}
+    ids_list = [_rand.rand64bits() for _ in range(10000)]
+    ids = set(ids_list)
+    assert len(ids_list) == len(ids), "Collisions found in ids"
+
     while not q.empty():
-        n = q.get()
-        assert n not in nums
-        nums.add(n)
+        child_ids_list = q.get()
+        child_ids = set(child_ids_list)
+
+        assert len(child_ids_list) == len(child_ids), "Collisions found in subprocess ids"
+
+        assert ids & child_ids == set()
+        ids = ids | child_ids  # accumulate the ids
 
 
 def test_tracer_usage_fork():
@@ -116,23 +123,34 @@ def test_tracer_usage_fork():
 
 
 def test_tracer_usage_multiprocess():
-    num_procs = 10
-
     q = mp.Queue()
 
-    def target(q):
-        s = tracer.start_span("span")
-        q.put(s.trace_id)
-        q.put(s.span_id)
+    # Similar to test_multiprocess(), ensures that no collisions are
+    # generated between parent and child processes while using
+    # multiprocessing.
 
-    for _ in range(num_procs):
-        p = mp.Process(target=target, args=(q,))
+    def target(q):
+        ids_list = list(
+            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)])
+        )
+        q.put(ids_list)
+
+    ps = [mp.Process(target=target, args=(q,)) for _ in range(10)]
+    for p in ps:
         p.start()
+
+    for p in ps:
         p.join()
 
-    s = tracer.start_span("span")
-    nums = {s.span_id, s.trace_id}
+    ids_list = list(chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)]))
+    ids = set(ids_list)
+    assert len(ids) == len(ids_list), "Collisions found in ids"
+
     while not q.empty():
-        n = q.get()
-        assert n not in nums
-        nums.add(n)
+        child_ids_list = q.get()
+        child_ids = set(child_ids_list)
+
+        assert len(child_ids) == len(child_ids_list), "Collisions found in subprocess ids"
+
+        assert ids & child_ids == set()
+        ids = ids | child_ids  # accumulate the ids
