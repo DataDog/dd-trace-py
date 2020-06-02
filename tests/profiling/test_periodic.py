@@ -7,23 +7,36 @@ from ddtrace.profiling import _periodic
 from ddtrace.profiling import _service
 
 
+if os.getenv("DD_PROFILE_TEST_GEVENT", False):
+    import gevent
+
+    # Event = gevent.monkey.get_original("threading", "Event")
+    Event = gevent.event.Event
+else:
+    # import gevent
+    Event = threading.Event
+
+
 def test_periodic():
     x = {"OK": False}
 
-    thread_started = threading.Event()
-    thread_continue = threading.Event()
+    # For some reason gevent requires an explicit timeout to be provided for Event.wait()
+    # events. Otherwise we get "gevent.exceptions.LoopExit: This operation would block forever"
+
+    thread_started = Event()
+    thread_continue = Event()
 
     def _run_periodic():
         thread_started.set()
         x["OK"] = True
-        thread_continue.wait()
+        thread_continue.wait(timeout=1)
 
     def _on_shutdown():
         x["DOWN"] = True
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
-    thread_started.wait()
+    thread_started.wait(timeout=1)
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
     thread_continue.set()
     t.stop()
@@ -43,7 +56,7 @@ def test_periodic_error():
 
     def _run_periodic():
         thread_started.set()
-        thread_continue.wait()
+        thread_continue.wait(timeout=1)
         raise ValueError
 
     def _on_shutdown():
@@ -51,7 +64,7 @@ def test_periodic_error():
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
-    thread_started.wait()
+    thread_started.wait(timeout=1)
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
     thread_continue.set()
     t.stop()
