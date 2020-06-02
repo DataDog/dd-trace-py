@@ -73,13 +73,6 @@ def _get_endpoint():
     return ENDPOINT_TEMPLATE.format(site)
 
 
-def _get_service_name():
-    for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
-        service_name = os.environ.get(service_name_var)
-        if service_name is not None:
-            return service_name
-
-
 def _validate_enpoint(instance, attribute, value):
     if not value:
         raise InvalidEndpoint("Endpoint is empty")
@@ -92,7 +85,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
     endpoint = attr.ib(factory=_get_endpoint, type=str, validator=_validate_enpoint)
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
-    service_name = attr.ib(factory=_get_service_name)
+    service = attr.ib(default=None)
+    env = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -133,8 +127,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         return content_type, body
 
-    @staticmethod
-    def _get_tags(service):
+    def _get_tags(self, service):
         tags = {
             "service": service.encode("utf-8"),
             "host": HOSTNAME.encode("utf-8"),
@@ -149,9 +142,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if version:
             tags["version"] = version.encode("utf-8")
 
-        env = os.environ.get("DD_ENV")
-        if env:
-            tags["env"] = env.encode("utf-8")
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
 
         user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
         user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
@@ -187,9 +179,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "chunk-data": s.getvalue(),
         }
 
-        service_name = self.service_name or os.path.basename(profile.string_table[profile.mapping[0].filename])
+        service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
-        content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service_name),)
+        content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service),)
         headers = common_headers.copy()
         headers["Content-Type"] = content_type
 
