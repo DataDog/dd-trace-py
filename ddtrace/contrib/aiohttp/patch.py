@@ -35,6 +35,8 @@ config._add("aiohttp_client", dict(
     service="aiohttp.client",
     trace_headers=[],
     trace_context=False,
+    trace_query_string=False,
+    redact_query_keys=set(),
 ))
 
 config._add("aiohttp_jinja", dict(
@@ -51,9 +53,22 @@ def _get_url_obj(obj):
     return url_obj
 
 
+def _redacted_query_value(key: str, value: str):
+    if key not in config.aiohttp_client.redact_query_keys:
+        return value
+
+    return '--redacted--'
+
+
 def _set_request_tags(span, url: URL, params=None):
-    if params:
-        url = url.with_query(**{**url.query, **params})
+    if config.aiohttp_client['trace_query_string']:
+        if params:
+            url = url.with_query(**{**url.query, **params})
+
+        if url.query and config.aiohttp_client.redact_query_keys:
+            url = url.with_query({k: _redacted_query_value(k, v) for k, v in url.query.items()})
+    else:
+        url = url.with_query(dict())
 
     span.set_tag(ext_http.URL, str(url))
     span.resource = url.path
