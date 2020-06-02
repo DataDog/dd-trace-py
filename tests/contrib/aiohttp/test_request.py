@@ -41,7 +41,7 @@ class TestRequestTracing(TraceTestCase):
     @mark_asyncio
     async def test_aiohttp_client_tracer(self):
         async with aiohttp.ClientSession() as session:
-            url = self.client.make_url('/')
+            url = self.client.make_url('/?foo=bar')
             async with session.get(url) as response:
                 await response.read()
             traces = self.tracer.writer.pop_traces()
@@ -58,6 +58,7 @@ class TestRequestTracing(TraceTestCase):
                 service="aiohttp.client",
                 parent_id=None,
                 resource="/",
+                meta={'http.url': str(url), 'http.method': 'GET', 'http.status_code': str(200)}
             )
             # TCPConnector.connect
             connector_connect_span = traces[1][1]
@@ -104,7 +105,7 @@ class TestRequestTracing(TraceTestCase):
             assert len(traces[2]) == 1
             read_span = traces[2][0]
             TestSpan(read_span).assert_matches(
-            name="StreamReader.read",
+                name="StreamReader.read",
                 service="aiohttp.client",
                 resource="/",
                 parent_id=root_span_id,
