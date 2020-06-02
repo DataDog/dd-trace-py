@@ -51,15 +51,11 @@ def _get_url_obj(obj):
     return url_obj
 
 
-def _set_request_tags(span, url):
-    if (url.scheme == 'http' and url.port == 80) or (url.scheme == 'https' and url.port == 443):
-        port = ''
-    else:
-        port = ':{}'.format(url.port)
+def _set_request_tags(span, url: URL, params=None):
+    if params:
+        url = url.with_query(**{**url.query, **params})
 
-    url_str = '{scheme}://{host}{port}{path}'.format(
-        scheme=url.scheme, host=url.host, port=port, path=url.path)
-    span.set_tag(ext_http.URL, url_str)
+    span.set_tag(ext_http.URL, str(url))
     span.resource = url.path
 
 
@@ -287,7 +283,7 @@ def _create_wrapped_request(method, enable_distributed, trace_headers, trace_con
         propagator.inject(span.context, headers)
         kwargs["headers"] = headers
 
-    _set_request_tags(span, url)
+    _set_request_tags(span, url, kwargs.get('params'))
     span.set_tag(ext_http.METHOD, method)
 
     obj = _WrappedRequestContext(func(*args, **kwargs), pin, span, trace_headers, trace_context)
