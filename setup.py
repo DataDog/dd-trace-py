@@ -100,9 +100,6 @@ def get_exts_for(name):
         return []
 
 
-_profiling_deps = ["protobuf>=3", "intervaltree", "tenacity>=5"]
-
-
 # Base `setup()` kwargs without any C-extension registering
 setup(
     **dict(
@@ -119,14 +116,18 @@ setup(
         # enum34 is an enum backport for earlier versions of python
         # funcsigs backport required for vendored debtcollector
         # encoding using msgpack
-        install_requires=["enum34; python_version<'3.4'", "funcsigs>=1.0.0; python_version=='2.7'", "msgpack>=0.5.0"],
+        install_requires=[
+            "enum34; python_version<'3.4'",
+            "funcsigs>=1.0.0; python_version=='2.7'",
+            "msgpack>=0.5.0",
+            "protobuf>=3",
+            "intervaltree",
+            "tenacity>=5",
+        ],
         extras_require={
             # users can include opentracing by having:
             # install_requires=['ddtrace[opentracing]', ...]
             "opentracing": ["opentracing>=2.0.0"],
-            # TODO: remove me when everything is updated to `profiling`
-            "profile": _profiling_deps,
-            "profiling": _profiling_deps,
         },
         # plugin tox
         tests_require=["tox", "flake8"],
@@ -172,6 +173,7 @@ setup(
                 "PY_MINOR_VERSION": sys.version_info.minor,
                 "PY_MICRO_VERSION": sys.version_info.micro,
             },
+            force=True,
         )
         + get_exts_for("wrapt")
         + get_exts_for("psutil"),

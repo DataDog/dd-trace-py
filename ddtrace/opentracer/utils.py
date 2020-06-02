@@ -19,4 +19,32 @@ def get_context_provider_for_scope_manager(scope_manager):
         from ddtrace.provider import DefaultContextProvider
         dd_context_provider = DefaultContextProvider()
 
+    _patch_scope_manager(scope_manager, dd_context_provider)
+
     return dd_context_provider
+
+
+def _patch_scope_manager(scope_manager, context_provider):
+    """
+    Patches a scope manager so that any time a span is activated
+    it'll also activate the underlying ddcontext with the underlying
+    datadog context provider.
+
+    This allows opentracing users to rely on ddtrace.contrib patches and
+    have them parent correctly.
+
+    :param scope_manager: Something that implements `opentracing.ScopeManager`
+    :param context_provider: Something that implements `datadog.provider.BaseContextProvider`
+    """
+    if getattr(scope_manager, '_datadog_patch', False):
+        return
+    setattr(scope_manager, '_datadog_patch', True)
+
+    old_method = scope_manager.activate
+
+    def _patched_activate(*args, **kwargs):
+        otspan = kwargs.get('span', args[0])
+        context_provider.activate(otspan._dd_context)
+        return old_method(*args, **kwargs)
+
+    scope_manager.activate = _patched_activate
