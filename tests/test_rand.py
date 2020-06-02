@@ -1,9 +1,10 @@
 from itertools import chain
 import multiprocessing as mp
 import os
+import threading
 
 from ddtrace import tracer
-from ddtrace.compat import PYTHON_VERSION_INFO
+from ddtrace.compat import PYTHON_VERSION_INFO, Queue
 from ddtrace.internal import _rand
 
 
@@ -84,6 +85,52 @@ def test_multiprocess():
 
         assert ids & child_ids == set()
         ids = ids | child_ids  # accumulate the ids
+
+
+def test_threadsafe():
+    # Check that the PRNG is thread-safe.
+    # This obviously won't guarantee thread safety, but it's something
+    # at least.
+    # To provide some validation of this method I wrote a slow, unsafe RNG:
+    #
+    # state = 4101842887655102017
+    #
+    # def bad_random():
+    #     global state
+    #     state ^= state >> 21
+    #     state ^= state << 35
+    #     state ^= state >> 4
+    #     return state * 2685821657736338717
+    #
+    # which consistently fails this test.
+
+    q = Queue()
+
+    def _target():
+        # Generate a bunch of numbers to try to maximize the chance that
+        # two threads will be calling rand64bits at the same time.
+        rngs = [_rand.rand64bits() for _ in range(200000)]
+        q.put(rngs)
+
+    ts = [threading.Thread(target=_target) for _ in range(5)]
+
+    for t in ts:
+        t.start()
+
+    for t in ts:
+        t.join()
+
+    ids = set()
+
+    while not q.empty():
+        new_ids_list = q.get()
+
+        new_ids = set(new_ids_list)
+        assert len(new_ids) == len(new_ids_list), "Collision found in ids"
+        assert ids & new_ids == set()
+        ids = ids | new_ids
+
+    assert len(ids) > 0
 
 
 def test_tracer_usage_fork():
