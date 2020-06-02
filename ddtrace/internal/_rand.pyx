@@ -88,9 +88,12 @@ def patch_stdlib_seed():
     """
 
     def patched_seed(func, instance, args, kwargs):
-        seed()
-        return func(*args, **kwargs)
-
+        try:
+            return func(*args, **kwargs)
+        finally:
+            # We need the random module to reseed before we do since we use
+            # it to seed ourselves.
+            seed()
 
     wrap_function_wrapper("random", "seed", patched_seed)
 
