@@ -5,6 +5,7 @@ import aiohttp_jinja2
 
 from urllib import request
 
+from ddtrace import config
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
@@ -34,14 +35,20 @@ class TestRequestTracing(TraceTestCase):
         Pin.override(aiohttp.ClientSession, tracer=self.tracer)
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
+        config.aiohttp_client.trace_query_string = True
+        config.aiohttp_client.redact_query_keys.add('baz')
+
     def disable_tracing(self):
         unpatch()
         config.aiohttp_client['distributed_tracing_enabled'] = False
+        config.aiohttp_client.trace_query_string = False
+        config.aiohttp_client.redact_query_keys.remove('baz')
 
     @mark_asyncio
     async def test_aiohttp_client_tracer(self):
         async with aiohttp.ClientSession() as session:
-            url = self.client.make_url('/?foo=bar')
+            url = self.client.make_url('/?foo=bar&baz=bif')
+            trace_url = url.with_query(foo='bar', baz='--redacted--')
             async with session.get(url) as response:
                 await response.read()
             traces = self.tracer.writer.pop_traces()
@@ -58,7 +65,7 @@ class TestRequestTracing(TraceTestCase):
                 service="aiohttp.client",
                 parent_id=None,
                 resource="/",
-                meta={'http.url': str(url), 'http.method': 'GET', 'http.status_code': str(200)}
+                meta={'http.url': str(trace_url), 'http.method': 'GET', 'http.status_code': str(200)}
             )
             # TCPConnector.connect
             connector_connect_span = traces[1][1]
@@ -114,9 +121,12 @@ class TestRequestTracing(TraceTestCase):
 
     @mark_asyncio
     async def test_full_request(self):
+        config.aiohttp_client.trace_query_string = False
+
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = await self.client.request("GET", "/template/")
+        trace_url = self.client.make_url('/template/')
+        request = await self.client.request("GET", '/template/?foo=bar')
         assert 200 == request.status
         await request.text()
         # the trace is created
@@ -131,6 +141,7 @@ class TestRequestTracing(TraceTestCase):
             name="aiohttp.request",
             service="aiohttp-web",
             resource="GET /template/",
+            meta={'http.url': str(trace_url), 'http.method': 'GET', 'http.status_code': str(200)}
         )
 
         # template
