@@ -13,6 +13,7 @@ from ddtrace import compat
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import http_client
+from ddtrace.vendor.six.moves.urllib import error
 
 import ddtrace
 from ddtrace.profiling.exporter import http
@@ -142,10 +143,10 @@ def test_wrong_api_key(endpoint_test_server):
     exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key", max_retry_delay=10)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-        e = t.exception
-        assert isinstance(e, http.RequestFailed)
-        assert e.response.status == 400
-        assert e.content == b"Wrong API Key\n"
+    e = t.value.exception
+    assert isinstance(e, error.HTTPError)
+    assert e.code == 400
+    assert e.reason == "Wrong API Key"
 
 
 def test_export(endpoint_test_server):
@@ -162,9 +163,10 @@ def test_export_server_down():
     exp = http.PprofHTTPExporter("http://localhost:2", _API_KEY, max_retry_delay=10)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-        e = t.exception
-        assert isinstance(e, (IOError, OSError))
-        assert e.errno == errno.ECONNREFUSED
+    e = t.value.exception
+    assert isinstance(e, error.URLError)
+    assert isinstance(e.reason, (IOError, OSError))
+    assert e.reason.errno in (errno.ECONNREFUSED, errno.EADDRNOTAVAIL)
 
 
 def test_export_timeout(endpoint_test_timeout_server):

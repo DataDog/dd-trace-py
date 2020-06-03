@@ -32,18 +32,6 @@ class InvalidEndpoint(ValueError):
     pass
 
 
-class RequestFailed(exporter.ExportError):
-    """Failed HTTP request."""
-
-    def __init__(self, response, content):
-        """Create a new failed request embedding response and content."""
-        self.response = response
-        self.content = content
-        super(RequestFailed, self).__init__(
-            "Error status code received from endpoint: %d: %s" % (response.status, content)
-        )
-
-
 class UploadFailed(exporter.ExportError):
     """Upload failure."""
 
