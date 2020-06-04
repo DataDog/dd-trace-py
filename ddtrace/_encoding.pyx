@@ -3,6 +3,8 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check, PyByteArray_CheckExact
 
+from ddtrace import Span
+
 cdef extern from "Python.h":
 
     int PyMemoryView_Check(object obj)
@@ -96,7 +98,6 @@ cdef class Packer(object):
     cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
-    cdef bint strict_types
     cdef bool use_float
     cdef bint autoreset
 
@@ -109,12 +110,10 @@ cdef class Packer(object):
         self.pk.length = 0
 
     def __init__(self, default=None, encoding=None, unicode_errors=None,
-                 bint use_single_float=False, bint autoreset=True, bint use_bin_type=False,
-                 bint strict_types=False):
+                 bint use_single_float=False, bint autoreset=True, bint use_bin_type=False):
         if encoding is not None:
             PyErr_WarnEx(DeprecationWarning, "encoding is deprecated.", 1)
         self.use_float = use_single_float
-        self.strict_types = strict_types
         self.autoreset = autoreset
         self.pk.use_bin_type = use_bin_type
         if default is not None:
@@ -152,7 +151,6 @@ cdef class Packer(object):
         cdef dict d
         cdef Py_ssize_t L
         cdef int default_used = 0
-        cdef bint strict_types = self.strict_types
         cdef Py_buffer view
 
         if nest_limit < 0:
@@ -161,12 +159,12 @@ cdef class Packer(object):
         while True:
             if o is None:
                 ret = msgpack_pack_nil(&self.pk)
-            elif PyBool_Check(o) if strict_types else isinstance(o, bool):
-                if o:
-                    ret = msgpack_pack_true(&self.pk)
-                else:
-                    ret = msgpack_pack_false(&self.pk)
-            elif PyLong_CheckExact(o) if strict_types else PyLong_Check(o):
+            # elif PyBool_Check(o) if strict_types else isinstance(o, bool):
+            #     if o:
+            #         ret = msgpack_pack_true(&self.pk)
+            #     else:
+            #         ret = msgpack_pack_false(&self.pk)
+            elif PyLong_CheckExact(o):
                 # PyInt_Check(long) is True for Python 3.
                 # So we should test long before int.
                 try:
@@ -183,17 +181,17 @@ cdef class Packer(object):
                         continue
                     else:
                         raise OverflowError("Integer value out of range")
-            elif PyInt_CheckExact(o) if strict_types else PyInt_Check(o):
+            elif PyInt_CheckExact(o):
                 longval = o
                 ret = msgpack_pack_long(&self.pk, longval)
-            elif PyFloat_CheckExact(o) if strict_types else PyFloat_Check(o):
+            elif PyFloat_CheckExact(o):
                 if self.use_float:
                    fval = o
                    ret = msgpack_pack_float(&self.pk, fval)
                 else:
                    dval = o
                    ret = msgpack_pack_double(&self.pk, dval)
-            elif PyBytesLike_CheckExact(o) if strict_types else PyBytesLike_Check(o):
+            elif PyBytesLike_CheckExact(o):
                 L = len(o)
                 if L > ITEM_LIMIT:
                     PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(o).tp_name)
@@ -201,7 +199,7 @@ cdef class Packer(object):
                 ret = msgpack_pack_bin(&self.pk, L)
                 if ret == 0:
                     ret = msgpack_pack_raw_body(&self.pk, rawval, L)
-            elif PyUnicode_CheckExact(o) if strict_types else PyUnicode_Check(o):
+            elif PyUnicode_CheckExact(o):  #  if strict_types else PyUnicode_Check(o):
                 if self.encoding == NULL and self.unicode_errors == NULL:
                     ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT);
                     if ret == -2:
@@ -227,18 +225,7 @@ cdef class Packer(object):
                         if ret != 0: break
                         ret = self._pack(v, nest_limit-1)
                         if ret != 0: break
-            elif not strict_types and PyDict_Check(o):
-                L = len(o)
-                if L > ITEM_LIMIT:
-                    raise ValueError("dict is too large")
-                ret = msgpack_pack_map(&self.pk, L)
-                if ret == 0:
-                    for k, v in o.items():
-                        ret = self._pack(k, nest_limit-1)
-                        if ret != 0: break
-                        ret = self._pack(v, nest_limit-1)
-                        if ret != 0: break
-            elif PyList_CheckExact(o) if strict_types else (PyTuple_Check(o) or PyList_Check(o)):
+            elif PyList_CheckExact(o):  # if strict_types else (PyTuple_Check(o) or PyList_Check(o)):
                 L = len(o)
                 if L > ITEM_LIMIT:
                     raise ValueError("list is too large")
@@ -247,24 +234,92 @@ cdef class Packer(object):
                     for v in o:
                         ret = self._pack(v, nest_limit-1)
                         if ret != 0: break
-            elif PyMemoryView_Check(o):
-                if PyObject_GetBuffer(o, &view, PyBUF_SIMPLE) != 0:
-                    raise ValueError("could not get buffer for memoryview")
-                L = view.len
-                if L > ITEM_LIMIT:
-                    PyBuffer_Release(&view);
-                    raise ValueError("memoryview is too large")
-                ret = msgpack_pack_bin(&self.pk, L)
-                if ret == 0:
-                    ret = msgpack_pack_raw_body(&self.pk, <char*>view.buf, L)
-                PyBuffer_Release(&view);
-            elif not default_used and self._default:
-                o = self._default(o)
-                default_used = 1
-                continue
+            # elif PyMemoryView_Check(o):
+            #     if PyObject_GetBuffer(o, &view, PyBUF_SIMPLE) != 0:
+            #         raise ValueError("could not get buffer for memoryview")
+            #     L = view.len
+            #     if L > ITEM_LIMIT:
+            #         PyBuffer_Release(&view);
+            #         raise ValueError("memoryview is too large")
+            #     ret = msgpack_pack_bin(&self.pk, L)
+            #     if ret == 0:
+            #         ret = msgpack_pack_raw_body(&self.pk, <char*>view.buf, L)
+            #     PyBuffer_Release(&view);
+            # elif not default_used and self._default:
+            #     o = self._default(o)
+            #     default_used = 1
+            #     continue
+            #elif type(o) is Span:
             else:
-                PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+                # TODO: check size of span map
+                ret = msgpack_pack_map(&self.pk, L)
+                if ret == 0:
+                    ret = self._pack(b"trace_id", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.trace_id, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"parent_id", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.parent_id, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"span_id", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.span_id, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"service", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.service, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"resource", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.resource, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"name", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.name, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"error", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(1 if o.error else 0, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"start", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.start_ns, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"duration", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.duration_ns, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"type", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.span_type, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"meta", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.meta, nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(b"metrics", nest_limit-1)
+                    if ret != 0: break
+                    ret = self._pack(o.metrics, nest_limit-1)
+                    if ret != 0: break
+            # else:
+            #     PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
             return ret
+
+    # cdef int _pack_str(self, str s):
+    #     if self.encoding == NULL and self.unicode_errors == NULL:
+    #         ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT);
+    #         if ret == -2:
+    #             raise ValueError("unicode string is too large")
+    #     else:
+    #         o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
+    #         L = len(o)
+    #         if L > ITEM_LIMIT:
+    #             raise ValueError("unicode string is too large")
+    #         ret = msgpack_pack_raw(&self.pk, L)
+    #         if ret == 0:
+    #             rawval = o
+    #             ret = msgpack_pack_raw_body(&self.pk, rawval, L)
 
     cpdef pack(self, object obj):
         cdef int ret
@@ -358,9 +413,7 @@ cpdef span_to_dict(span):
         b"name": span.name,
     }
 
-    # a common mistake is to set the error field to a boolean instead of an
-    # int. let's special case that here, because it's sure to happen in
-    # customer code.
+    # error has to be an int
     d[b"error"] = 1 if span.error else 0
 
     if span.start_ns:
@@ -389,10 +442,7 @@ cdef class TraceMsgPackEncoder(object):
 
     @staticmethod
     def encode_traces(traces):
-        d = []
-        for t in traces:
-            d.append([s.to_dict() for s in t])
-        return Packer().pack(d)
+        return Packer().pack(traces)
 
 '''
 

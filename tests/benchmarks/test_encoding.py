@@ -106,7 +106,7 @@ def test_encode_1000_span_trace_custom(benchmark):
     trace = gen_trace(nspans=1000)
     encoder = TraceMsgPackEncoder()
 
-    benchmark(encoder.encode_traces, [trace])
+    benchmark(encoder.encode_trace, trace)
 
 
 '''

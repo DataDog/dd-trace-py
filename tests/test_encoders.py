@@ -254,8 +254,6 @@ def test_tracermsgpack():
     import msgpack
     # ref_encoded = msgpack.packb(data)
     encoded = tencoder.encode_traces(data)
-    for t in data:
-        [s.to_dict_fast() for s in t]
 
     print(encoded)
     print(len(encoded))

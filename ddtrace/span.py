@@ -19,6 +19,8 @@ from .internal.logger import get_logger
 log = get_logger(__name__)
 
 
+# from . import _encoding
+
 class Span(object):
 
     __slots__ = [
@@ -310,6 +312,52 @@ class Span(object):
     def get_metric(self, key):
         return self.metrics.get(key)
 
+    TRACE_ID_KEY = b"trace_id"
+    PARENT_ID_KEY = b"parent_id"
+    SPAN_ID_KEY = b"span_id"
+    SERVICE_KEY = b"service"
+    RESOURCE_KEY = b"resource"
+    NAME_KEY = b"name"
+    ERROR_KEY = b"error"
+
+    def to_dict_fast2(self):
+        return _encoding.span_to_dict(self)
+
+    def to_dict_fast(self):
+        d = {
+            self.TRACE_ID_KEY: self.trace_id,
+            self.PARENT_ID_KEY: self.parent_id,
+            self.SPAN_ID_KEY: self.span_id,
+            self.SERVICE_KEY: self.service,
+            self.RESOURCE_KEY: self.resource,
+            self.NAME_KEY: self.name,
+            self.ERROR_KEY: self.error,
+        }
+
+        # a common mistake is to set the error field to a boolean instead of an
+        # int. let's special case that here, because it's sure to happen in
+        # customer code.
+        err = d.get("error")
+        if err and type(err) == bool:
+            d["error"] = 1
+
+        if self.start_ns:
+            d["start"] = self.start_ns
+
+        if self.duration_ns:
+            d["duration"] = self.duration_ns
+
+        if self.meta:
+            d["meta"] = self.meta
+
+        if self.metrics:
+            d["metrics"] = self.metrics
+
+        if self.span_type:
+            d["type"] = self.span_type
+
+        return d
+
     def to_dict(self):
         d = {
             "trace_id": self.trace_id,
@@ -401,6 +449,7 @@ class Span(object):
         ]
 
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
+        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.metrics.items()))
         return "\n".join("%10s %s" % line for line in lines)
 
     @property
