@@ -46,7 +46,6 @@ For example if you start your application with ``python app.py`` then run::
 
   $ pyddprofile python app.py
 
-To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
 
 Configuration
 ~~~~~~~~~~~~~
