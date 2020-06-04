@@ -253,22 +253,25 @@ cdef class Packer(object):
                 PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
             return ret
 
-    cdef int _pack_tags(self, tags):
+    cdef int _pack_tags(self, dict tags):
         cdef int ret
         cdef int i
         cdef Py_ssize_t L
         L = len(tags)
         ret = msgpack_pack_map(&self.pk, L)
-        for i in range(0, L):
-            ret = self._pack(tags[i])
-            if ret != 0:
-                break
+        # for k, v in tags.items():
+        #     pass
+        for k, v in tags.items():
+            ret = self._pack(k)
+            if ret != 0: break
+            ret = self._pack(v)
+            if ret != 0: break
         return ret
 
     cdef int _pack_span(self, o):
         cdef int ret
         cdef Py_ssize_t L
-        L = len(o.meta) + len(o.metrics) + 12
+        L = 12
         if L > ITEM_LIMIT:
             raise ValueError("list is too large")
 
@@ -278,47 +281,58 @@ cdef class Packer(object):
             if ret != 0: return ret
             ret = self._pack(o.trace_id)
             if ret != 0: return ret
+
             ret = self._pack(b"parent_id")
             if ret != 0: return ret
             ret = self._pack(o.parent_id)
             if ret != 0: return ret
+
             ret = self._pack(b"span_id")
             if ret != 0: return ret
             ret = self._pack(o.span_id)
             if ret != 0: return ret
+
             ret = self._pack(b"service")
             if ret != 0: return ret
             ret = self._pack(o.service)
             if ret != 0: return ret
+
             ret = self._pack(b"resource")
             if ret != 0: return ret
             ret = self._pack(o.resource)
             if ret != 0: return ret
+
             ret = self._pack(b"name")
             if ret != 0: return ret
             ret = self._pack(o.name)
             if ret != 0: return ret
+
             ret = self._pack(b"error")
             if ret != 0: return ret
             ret = self._pack(1 if o.error else 0)
             if ret != 0: return ret
+
             ret = self._pack(b"start")
             if ret != 0: return ret
             ret = self._pack(o.start_ns)
             if ret != 0: return ret
+
             ret = self._pack(b"duration")
             if ret != 0: return ret
             ret = self._pack(o.duration_ns)
             if ret != 0: return ret
+
             ret = self._pack(b"type")
             if ret != 0: return ret
             ret = self._pack(o.span_type)
             if ret != 0: return ret
+
             ret = self._pack(b"meta")
             if ret != 0: return ret
             ret = self._pack_tags(o.meta)
             # ret = self._pack(o.meta)
             if ret != 0: return ret
+
             ret = self._pack(b"metrics")
             if ret != 0: return ret
             ret = self._pack_tags(o.metrics)
@@ -326,20 +340,24 @@ cdef class Packer(object):
             if ret != 0: return ret
         return ret
 
-    # cdef int _pack_str(self, str s):
-    #     if self.encoding == NULL and self.unicode_errors == NULL:
-    #         ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT);
-    #         if ret == -2:
-    #             raise ValueError("unicode string is too large")
-    #     else:
-    #         o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
-    #         L = len(o)
-    #         if L > ITEM_LIMIT:
-    #             raise ValueError("unicode string is too large")
-    #         ret = msgpack_pack_raw(&self.pk, L)
-    #         if ret == 0:
-    #             rawval = o
-    #             ret = msgpack_pack_raw_body(&self.pk, rawval, L)
+    cdef int _pack_str(self, str o):
+        cdef int ret
+        cdef Py_ssize_t L
+        if self.encoding == NULL and self.unicode_errors == NULL:
+            ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
+            if ret == -2:
+                raise ValueError("unicode string is too large")
+        else:
+            o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
+            L = len(o)
+            if L > ITEM_LIMIT:
+                raise ValueError("unicode string is too large")
+            ret = msgpack_pack_raw(&self.pk, L)
+            if ret == 0:
+                rawval = o
+                ret = msgpack_pack_raw_body(&self.pk, rawval, L)
+
+        return ret
 
     cpdef pack(self, object obj):
         cdef int ret

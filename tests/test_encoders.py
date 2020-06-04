@@ -249,16 +249,19 @@ def test_tracermsgpack():
     # encoded = refencoder.encode_trace(large)
     # custom_encoded = tencoder.encode_trace(large)
     # data = [[2,3,4]]
-    data = [gen_trace(nspans=1, ntags=0, key_size=5, value_size=10, nmetrics=0)]
+    data = [gen_trace(nspans=1000)]
     ref_encoded = refencoder.encode_traces(data)
     import msgpack
     # ref_encoded = msgpack.packb(data)
     encoded = tencoder.encode_traces(data)
 
-    print(encoded)
     print(len(encoded))
+    print(len(ref_encoded))
 
-    assert encoded == ref_encoded
+    assert msgpack.unpackb(encoded, raw=True) == msgpack.unpackb(ref_encoded, raw=True)
+
+    # assert encoded == ref_encoded
+    assert 0
     # print(unencoded)
 
     # assert ref_encoded == encoded
