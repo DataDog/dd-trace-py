@@ -39,26 +39,27 @@ typedef struct msgpack_packer {
 
 typedef struct Packer Packer;
 
+
 static inline int msgpack_pack_write(msgpack_packer* pk, const char *data, size_t l)
 {
-    char* buf = pk->buf;
-    size_t bs = pk->buf_size;
-    size_t len = pk->length;
+    // char* buf = pk->buf;
+    // size_t bs = pk->buf_size;
+    // size_t len = pk->length;
 
-    if (len + l > bs) {
-        bs = (len + l) * 2;
-        buf = (char*)PyMem_Realloc(buf, bs);
-        if (!buf) {
-            PyErr_NoMemory();
-            return -1;
-        }
-    }
-    memcpy(buf + len, data, l);
-    len += l;
+    // if (len + l > bs) {
+    //     bs = (len + l) * 2;
+    //     buf = (char*)PyMem_Realloc(buf, bs);
+    //     if (!buf) {
+    //         PyErr_NoMemory();
+    //         return -1;
+    //     }
+    // }
+    memcpy(pk->buf + pk->length, data, l);
+    pk->length += l;
 
-    pk->buf = buf;
-    pk->buf_size = bs;
-    pk->length = len;
+    // pk->buf = buf;
+    // pk->buf_size = bs;
+    // pk->length = len;
     return 0;
 }
 

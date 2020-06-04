@@ -100,5 +100,3 @@ def test_span_id_rand64bits(benchmark):
     def f():
         _ = _rand.rand64bits()
         _ = _rand.rand64bits()
-
-

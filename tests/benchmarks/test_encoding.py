@@ -156,3 +156,17 @@ def test_encode_1000_span_trace_to_dict_fast2(benchmark):
             d.append([s.to_dict_fast2() for s in t])
 
 '''
+
+
+
+
+# import pstats, cProfile
+#
+# from ddtrace.encoding import TraceMsgPackEncoder
+# encoder = TraceMsgPackEncoder()
+# trace = gen_trace(nspans=10000)
+# traces = [trace]
+# cProfile.runctx("encoder.encode_traces(traces)", globals(), locals(), "Profile.prof")
+#
+# s = pstats.Stats("Profile.prof")
+# s.strip_dirs().sort_stats("time").print_stats()

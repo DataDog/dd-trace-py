@@ -4,7 +4,6 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check, PyByteArray_CheckExact
 
 cdef extern from "Python.h":
-
     int PyMemoryView_Check(object obj)
     char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
 
@@ -86,9 +85,6 @@ cdef class Packer(object):
 
     :param str unicode_errors:
         Error handler for encoding unicode. (default: 'strict')
-
-    :param str encoding:
-        (deprecated) Convert unicode to bytes with this encoding. (default: 'utf-8')
     """
     cdef msgpack_packer pk
     cdef object _default
@@ -99,7 +95,7 @@ cdef class Packer(object):
     cdef bint autoreset
 
     def __cinit__(self):
-        cdef int buf_size = 1024*1024
+        cdef int buf_size = 2**23 # 1024*1024
         self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
@@ -201,19 +197,19 @@ cdef class Packer(object):
                     if ret == 0:
                         rawval = o
                         ret = msgpack_pack_raw_body(&self.pk, rawval, L)
-            elif PyDict_CheckExact(o):
-                d = <dict>o
-                L = len(d)
-                if L > ITEM_LIMIT:
-                    raise ValueError("dict is too large")
-                ret = msgpack_pack_map(&self.pk, L)
-                if ret == 0:
-                    # items = [v for i in d.items() for v in i]
-                    for k, v in d.items():
-                       ret = self._pack(k)
-                       if ret != 0: break
-                       ret = self._pack(v)
-                       if ret != 0: break
+            # elif PyDict_CheckExact(o):
+            #     d = <dict>o
+            #     L = len(d)
+            #     if L > ITEM_LIMIT:
+            #         raise ValueError("dict is too large")
+            #     ret = msgpack_pack_map(&self.pk, L)
+            #     if ret == 0:
+            #         # items = [v for i in d.items() for v in i]
+            #         for k, v in d.items():
+            #            ret = self._pack(k)
+            #            if ret != 0: break
+            #            ret = self._pack(v)
+            #            if ret != 0: break
             elif PyList_CheckExact(o):  # if strict_types else (PyTuple_Check(o) or PyList_Check(o)):
                 # List of traces
                 L = len(o)
@@ -258,10 +254,7 @@ cdef class Packer(object):
         cdef int i
         cdef Py_ssize_t L
         L = len(tags)
-        ret = 0
         ret = msgpack_pack_map(&self.pk, L)
-        #for k, v in tags.items():
-        #    pass
         for k, v in tags.items():
             ret = self._pack_str(k)
             if ret != 0: break
@@ -274,7 +267,6 @@ cdef class Packer(object):
         cdef int i
         cdef Py_ssize_t L
         L = len(tags)
-        ret = 0
         ret = msgpack_pack_map(&self.pk, L)
         #for k, v in tags.items():
         #    pass
@@ -297,52 +289,61 @@ cdef class Packer(object):
             ret = self._pack_bytes(b"trace_id")
             if ret != 0: return ret
             ret = self._pack(o.trace_id)
+            # ret = self._pack(12312312131121233)
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"parent_id")
             if ret != 0: return ret
             ret = self._pack(o.parent_id)
+            # ret = self._pack(12312312131123)
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"span_id")
             if ret != 0: return ret
             ret = self._pack(o.span_id)
+            # ret = self._pack(12312312131123)
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"service")
             if ret != 0: return ret
             ret = self._pack_str(o.service)
+            # ret = self._pack_str("service")
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"resource")
             if ret != 0: return ret
             ret = self._pack_str(o.resource)
+            # ret = self._pack_str("resource")
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"name")
             if ret != 0: return ret
-            # ret = self._pack(o.name)
             ret = self._pack_str(o.name)
+            # ret = self._pack_str("name")
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"error")
             if ret != 0: return ret
             ret = self._pack(1 if o.error else 0)
+            # ret = self._pack(0)
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"start")
             if ret != 0: return ret
             ret = self._pack(o.start_ns)
+            # ret = self._pack(12312312321)
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"duration")
             if ret != 0: return ret
             ret = self._pack(o.duration_ns)
+            # ret = self._pack(12312312321)
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"type")
             if ret != 0: return ret
             ret = self._pack_str(o.span_type)
+            # ret = self._pack_str("flaskjfdaklj")
             if ret != 0: return ret
 
             ret = self._pack_bytes(b"meta")
@@ -374,6 +375,7 @@ cdef class Packer(object):
     cdef int _pack_str(self, str o):
         cdef int ret
         cdef Py_ssize_t L
+
         if self.encoding == NULL and self.unicode_errors == NULL:
             ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
             if ret == -2:
@@ -507,6 +509,7 @@ cpdef span_to_dict(span):
 cdef class TraceMsgPackEncoder(object):
     @staticmethod
     def encode_trace(trace):
+        # TODO this is broken atm
         return TraceMsgPackEncoder.encode_traces([trace])
 
     @staticmethod
@@ -646,14 +649,6 @@ cdef class TraceMsgPackEncoder(object):
 
 
                 memcpy(&pk.buf[map_len_offset], &nentries, 2)
-
-
-
-        print(pk.buf[1])
-        print(pk.buf[2])
-        print(pk.buf[3])
-        print(pk.buf[4])
-        print(pk.buf[5])
 
         # Note that this will result in a call to PyBytes_FromString to create a PyObject
         # to be returned. This results in the buffer being copied entirely.
