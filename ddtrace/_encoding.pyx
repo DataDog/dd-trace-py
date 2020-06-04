@@ -1,9 +1,7 @@
-# coding: utf-8
+# cython: boundscheck=False, wraparound=False, nonecheck=False
 
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check, PyByteArray_CheckExact
-
-from ddtrace import Span
 
 cdef extern from "Python.h":
 
@@ -94,7 +92,6 @@ cdef class Packer(object):
     """
     cdef msgpack_packer pk
     cdef object _default
-    cdef object _bencoding
     cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
@@ -109,10 +106,8 @@ cdef class Packer(object):
         self.pk.buf_size = buf_size
         self.pk.length = 0
 
-    def __init__(self, default=None, encoding=None, unicode_errors=None,
+    def __init__(self, default=None, unicode_errors=None,
                  bint use_single_float=False, bint autoreset=True, bint use_bin_type=False):
-        if encoding is not None:
-            PyErr_WarnEx(DeprecationWarning, "encoding is deprecated.", 1)
         self.use_float = use_single_float
         self.autoreset = autoreset
         self.pk.use_bin_type = use_bin_type
@@ -121,14 +116,10 @@ cdef class Packer(object):
                 raise TypeError("default must be a callable.")
         self._default = default
 
-        self._bencoding = encoding
-        if encoding is None:
-            if PY_MAJOR_VERSION < 3:
-                self.encoding = 'utf-8'
-            else:
-                self.encoding = NULL
+        if PY_MAJOR_VERSION < 3:
+            self.encoding = 'utf-8'
         else:
-            self.encoding = self._bencoding
+            self.encoding = NULL
 
         self._berrors = unicode_errors
         if unicode_errors is None:
@@ -140,7 +131,7 @@ cdef class Packer(object):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
 
-    cdef int _pack(self, object o, int nest_limit=DEFAULT_RECURSE_LIMIT) except -1:
+    cdef int _pack(self, object o) except -1:
         cdef long long llval
         cdef unsigned long long ullval
         cdef long longval
@@ -152,9 +143,6 @@ cdef class Packer(object):
         cdef Py_ssize_t L
         cdef int default_used = 0
         cdef Py_buffer view
-
-        if nest_limit < 0:
-            raise ValueError("recursion limit exceeded.")
 
         while True:
             if o is None:
@@ -220,20 +208,32 @@ cdef class Packer(object):
                     raise ValueError("dict is too large")
                 ret = msgpack_pack_map(&self.pk, L)
                 if ret == 0:
+                    # items = [v for i in d.items() for v in i]
                     for k, v in d.items():
-                        ret = self._pack(k, nest_limit-1)
-                        if ret != 0: break
-                        ret = self._pack(v, nest_limit-1)
-                        if ret != 0: break
+                       ret = self._pack(k)
+                       if ret != 0: break
+                       ret = self._pack(v)
+                       if ret != 0: break
             elif PyList_CheckExact(o):  # if strict_types else (PyTuple_Check(o) or PyList_Check(o)):
+                # List of traces
                 L = len(o)
                 if L > ITEM_LIMIT:
                     raise ValueError("list is too large")
+
                 ret = msgpack_pack_array(&self.pk, L)
-                if ret == 0:
-                    for v in o:
-                        ret = self._pack(v, nest_limit-1)
-                        if ret != 0: break
+                if ret != 0:
+                    break
+
+                for trace in o:
+                    L = len(trace)
+                    if L > ITEM_LIMIT:
+                        raise ValueError("list is too large")
+
+                    ret = msgpack_pack_array(&self.pk, L)
+                    if ret == 0:
+                        for span in trace:
+                            ret = self._pack_span(span)
+                            if ret != 0: break
             # elif PyMemoryView_Check(o):
             #     if PyObject_GetBuffer(o, &view, PyBUF_SIMPLE) != 0:
             #         raise ValueError("could not get buffer for memoryview")
@@ -249,62 +249,82 @@ cdef class Packer(object):
             #     o = self._default(o)
             #     default_used = 1
             #     continue
-            #elif type(o) is Span:
             else:
-                # TODO: check size of span map
-                ret = msgpack_pack_map(&self.pk, L)
-                if ret == 0:
-                    ret = self._pack(b"trace_id", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.trace_id, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"parent_id", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.parent_id, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"span_id", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.span_id, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"service", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.service, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"resource", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.resource, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"name", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.name, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"error", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(1 if o.error else 0, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"start", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.start_ns, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"duration", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.duration_ns, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"type", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.span_type, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"meta", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.meta, nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(b"metrics", nest_limit-1)
-                    if ret != 0: break
-                    ret = self._pack(o.metrics, nest_limit-1)
-                    if ret != 0: break
-            # else:
-            #     PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+                PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
             return ret
+
+    cdef int _pack_tags(self, tags):
+        cdef int ret
+        cdef int i
+        cdef Py_ssize_t L
+        L = len(tags)
+        ret = msgpack_pack_map(&self.pk, L)
+        for i in range(0, L):
+            ret = self._pack(tags[i])
+            if ret != 0:
+                break
+        return ret
+
+    cdef int _pack_span(self, o):
+        cdef int ret
+        cdef Py_ssize_t L
+        L = len(o.meta) + len(o.metrics) + 12
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
+
+        ret = msgpack_pack_map(&self.pk, L)
+        if ret == 0:
+            ret = self._pack(b"trace_id")
+            if ret != 0: return ret
+            ret = self._pack(o.trace_id)
+            if ret != 0: return ret
+            ret = self._pack(b"parent_id")
+            if ret != 0: return ret
+            ret = self._pack(o.parent_id)
+            if ret != 0: return ret
+            ret = self._pack(b"span_id")
+            if ret != 0: return ret
+            ret = self._pack(o.span_id)
+            if ret != 0: return ret
+            ret = self._pack(b"service")
+            if ret != 0: return ret
+            ret = self._pack(o.service)
+            if ret != 0: return ret
+            ret = self._pack(b"resource")
+            if ret != 0: return ret
+            ret = self._pack(o.resource)
+            if ret != 0: return ret
+            ret = self._pack(b"name")
+            if ret != 0: return ret
+            ret = self._pack(o.name)
+            if ret != 0: return ret
+            ret = self._pack(b"error")
+            if ret != 0: return ret
+            ret = self._pack(1 if o.error else 0)
+            if ret != 0: return ret
+            ret = self._pack(b"start")
+            if ret != 0: return ret
+            ret = self._pack(o.start_ns)
+            if ret != 0: return ret
+            ret = self._pack(b"duration")
+            if ret != 0: return ret
+            ret = self._pack(o.duration_ns)
+            if ret != 0: return ret
+            ret = self._pack(b"type")
+            if ret != 0: return ret
+            ret = self._pack(o.span_type)
+            if ret != 0: return ret
+            ret = self._pack(b"meta")
+            if ret != 0: return ret
+            ret = self._pack_tags(o.meta)
+            # ret = self._pack(o.meta)
+            if ret != 0: return ret
+            ret = self._pack(b"metrics")
+            if ret != 0: return ret
+            ret = self._pack_tags(o.metrics)
+            # ret = self._pack(o.metrics)
+            if ret != 0: return ret
+        return ret
 
     # cdef int _pack_str(self, str s):
     #     if self.encoding == NULL and self.unicode_errors == NULL:
@@ -324,7 +344,7 @@ cdef class Packer(object):
     cpdef pack(self, object obj):
         cdef int ret
         try:
-            ret = self._pack(obj, DEFAULT_RECURSE_LIMIT)
+            ret = self._pack(obj)
         except:
             self.pk.length = 0
             raise
