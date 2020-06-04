@@ -50,7 +50,7 @@ class UploadFailed(exporter.ExportError):
     def __init__(self, exception):
         """Create a failed upload error based on raised exceptions."""
         self.exception = exception
-        super(UploadFailed, self).__init__("Unable to upload: " + _traceback.format_exception(exception))
+        super(UploadFailed, self).__init__("Unable to upload profile: " + _traceback.format_exception(exception))
 
 
 def _get_api_key():
