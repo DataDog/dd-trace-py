@@ -87,6 +87,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service = attr.ib(default=None)
     env = attr.ib(default=None)
+    version = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -138,9 +139,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
 
-        version = os.environ.get("DD_VERSION")
-        if version:
-            tags["version"] = version.encode("utf-8")
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
 
         if self.env:
             tags["env"] = self.env.encode("utf-8")

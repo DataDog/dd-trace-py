@@ -346,8 +346,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
     assert "version" not in tags
 
-    monkeypatch.setenv("DD_VERSION", "123")
-    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    tags = http.PprofHTTPExporter(version="123")._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 9
     assert tags["service"] == u"🤣".encode("utf-8")
@@ -360,7 +359,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["version"] == b"123"
     assert "env" not in tags
 
-    tags = http.PprofHTTPExporter(env="prod")._get_tags("foobar")
+    tags = http.PprofHTTPExporter(version="123", env="prod")._get_tags("foobar")
     _check_tags_types(tags)
     assert len(tags) == 10
     assert tags["service"] == u"🤣".encode("utf-8")
