@@ -4,6 +4,7 @@ import struct
 import msgpack
 
 from .internal.logger import get_logger
+from ._encoding import TraceMsgPackEncoder
 
 
 log = get_logger(__name__)

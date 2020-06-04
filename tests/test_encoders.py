@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from ddtrace.span import Span
 from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import JSONEncoder, JSONEncoderV2, MsgpackEncoder
+from ddtrace.encoding import JSONEncoder, JSONEncoderV2, MsgpackEncoder, TraceMsgPackEncoder
 
 
 class TestEncoders(TestCase):
@@ -204,3 +204,66 @@ class TestEncoders(TestCase):
         for i in range(2):
             for j in range(2):
                 assert b'client.testing' == items[i][j][b'name']
+
+
+def p(s):
+    s = "{:,}".format(s).replace(",", " ")
+    print(s)
+
+
+def test_trace_msgpack_encoder():
+    from .benchmarks.test_encoding import gen_trace
+    tencoder = TraceMsgPackEncoder()
+    refencoder = MsgpackEncoder()
+
+    large = gen_trace(nspans=1000, ntags=20, key_size=10, value_size=20, nmetrics=10)
+    encoded = refencoder.encode_trace(large)
+
+    from pympler import asizeof
+
+    p(len(refencoder.encode(large[2].to_dict())))
+    p(asizeof.asizeof(refencoder.encode(large[2].to_dict())))
+    p(asizeof.asizeof(large[2]))
+    p(asizeof.asizeof(large))
+    p(len(encoded))
+    # print(large[0].pprint())
+    # p(1024*1024)
+    # print(encoded)
+    # print(asizeof.asizeof(large) < 1024*1024)
+    # print(len(encoded) < 1024*1024)
+    assert 0
+
+def test_overflow():
+    encoder = MsgpackEncoder()
+
+    encoder.encode("long" * (1024*1024*500000))
+
+
+
+def test_tracermsgpack():
+    from .benchmarks.test_encoding import gen_trace
+    tencoder = TraceMsgPackEncoder()
+    refencoder = MsgpackEncoder()
+
+    # large = gen_trace(nspans=1000, ntags=20, key_size=10, value_size=20, nmetrics=10)
+    # encoded = refencoder.encode_trace(large)
+    # custom_encoded = tencoder.encode_trace(large)
+    # data = [[2,3,4]]
+    data = [gen_trace(nspans=1, ntags=0, key_size=5, value_size=10, nmetrics=0)]
+    ref_encoded = refencoder.encode_traces(data)
+    import msgpack
+    # ref_encoded = msgpack.packb(data)
+    encoded = tencoder.encode_traces(data)
+    for t in data:
+        [s.to_dict_fast() for s in t]
+
+    print(encoded)
+    print(len(encoded))
+
+    assert encoded == ref_encoded
+    # print(unencoded)
+
+    # assert ref_encoded == encoded
+    # print(custom_encoded)
+    assert 0
+
