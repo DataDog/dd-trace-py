@@ -189,7 +189,7 @@ cdef class Packer(object):
                     ret = msgpack_pack_raw_body(&self.pk, rawval, L)
             elif PyUnicode_CheckExact(o):  #  if strict_types else PyUnicode_Check(o):
                 if self.encoding == NULL and self.unicode_errors == NULL:
-                    ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT);
+                    ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
                     if ret == -2:
                         raise ValueError("unicode string is too large")
                 else:
@@ -253,16 +253,33 @@ cdef class Packer(object):
                 PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
             return ret
 
+    cdef int _pack_str_tags(self, dict tags):
+        cdef int ret
+        cdef int i
+        cdef Py_ssize_t L
+        L = len(tags)
+        ret = 0
+        ret = msgpack_pack_map(&self.pk, L)
+        #for k, v in tags.items():
+        #    pass
+        for k, v in tags.items():
+            ret = self._pack_str(k)
+            if ret != 0: break
+            ret = self._pack_str(v)
+            if ret != 0: break
+        return ret
+
     cdef int _pack_tags(self, dict tags):
         cdef int ret
         cdef int i
         cdef Py_ssize_t L
         L = len(tags)
+        ret = 0
         ret = msgpack_pack_map(&self.pk, L)
-        # for k, v in tags.items():
-        #     pass
+        #for k, v in tags.items():
+        #    pass
         for k, v in tags.items():
-            ret = self._pack(k)
+            ret = self._pack_str(k)
             if ret != 0: break
             ret = self._pack(v)
             if ret != 0: break
@@ -277,67 +294,81 @@ cdef class Packer(object):
 
         ret = msgpack_pack_map(&self.pk, L)
         if ret == 0:
-            ret = self._pack(b"trace_id")
+            ret = self._pack_bytes(b"trace_id")
             if ret != 0: return ret
             ret = self._pack(o.trace_id)
             if ret != 0: return ret
 
-            ret = self._pack(b"parent_id")
+            ret = self._pack_bytes(b"parent_id")
             if ret != 0: return ret
             ret = self._pack(o.parent_id)
             if ret != 0: return ret
 
-            ret = self._pack(b"span_id")
+            ret = self._pack_bytes(b"span_id")
             if ret != 0: return ret
             ret = self._pack(o.span_id)
             if ret != 0: return ret
 
-            ret = self._pack(b"service")
+            ret = self._pack_bytes(b"service")
             if ret != 0: return ret
-            ret = self._pack(o.service)
-            if ret != 0: return ret
-
-            ret = self._pack(b"resource")
-            if ret != 0: return ret
-            ret = self._pack(o.resource)
+            ret = self._pack_str(o.service)
             if ret != 0: return ret
 
-            ret = self._pack(b"name")
+            ret = self._pack_bytes(b"resource")
             if ret != 0: return ret
-            ret = self._pack(o.name)
+            ret = self._pack_str(o.resource)
             if ret != 0: return ret
 
-            ret = self._pack(b"error")
+            ret = self._pack_bytes(b"name")
+            if ret != 0: return ret
+            # ret = self._pack(o.name)
+            ret = self._pack_str(o.name)
+            if ret != 0: return ret
+
+            ret = self._pack_bytes(b"error")
             if ret != 0: return ret
             ret = self._pack(1 if o.error else 0)
             if ret != 0: return ret
 
-            ret = self._pack(b"start")
+            ret = self._pack_bytes(b"start")
             if ret != 0: return ret
             ret = self._pack(o.start_ns)
             if ret != 0: return ret
 
-            ret = self._pack(b"duration")
+            ret = self._pack_bytes(b"duration")
             if ret != 0: return ret
             ret = self._pack(o.duration_ns)
             if ret != 0: return ret
 
-            ret = self._pack(b"type")
+            ret = self._pack_bytes(b"type")
             if ret != 0: return ret
-            ret = self._pack(o.span_type)
+            ret = self._pack_str(o.span_type)
             if ret != 0: return ret
 
-            ret = self._pack(b"meta")
+            ret = self._pack_bytes(b"meta")
             if ret != 0: return ret
-            ret = self._pack_tags(o.meta)
+            # ret = self._pack_tags(o.meta)
+            ret = self._pack_str_tags(o.meta)
             # ret = self._pack(o.meta)
             if ret != 0: return ret
 
-            ret = self._pack(b"metrics")
+            ret = self._pack_bytes(b"metrics")
             if ret != 0: return ret
             ret = self._pack_tags(o.metrics)
             # ret = self._pack(o.metrics)
             if ret != 0: return ret
+        return ret
+
+    cdef int _pack_bytes(self, char *rawval):
+        cdef int ret
+        cdef dict d
+        cdef Py_ssize_t L
+        L = len(rawval)
+        if L > ITEM_LIMIT:
+            PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(rawval).tp_name)
+        ret = msgpack_pack_bin(&self.pk, L)
+        if ret == 0:
+            ret = msgpack_pack_raw_body(&self.pk, rawval, L)
         return ret
 
     cdef int _pack_str(self, str o):

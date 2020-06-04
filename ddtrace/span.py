@@ -178,7 +178,6 @@ class Span(object):
         :param value: Value to assign for the tag
         :type value: ``stringify``-able value
         """
-
         if not isinstance(key, six.string_types):
             log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
             return
