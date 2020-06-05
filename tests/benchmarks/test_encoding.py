@@ -6,6 +6,39 @@ import pytest
 from ddtrace import Span, Tracer
 
 
+from ddtrace.encoding import _EncoderBase
+import msgpack
+from msgpack.fallback import Packer
+
+class PPMsgpackEncoder(_EncoderBase):
+    content_type = 'application/msgpack'
+
+    @staticmethod
+    def encode(obj):
+        return Packer().pack(obj)
+
+    @staticmethod
+    def decode(data):
+        if msgpack.version[:2] < (0, 6):
+            return msgpack.unpackb(data)
+        return msgpack.unpackb(data, raw=True)
+
+    @staticmethod
+    def join_encoded(objs):
+        """Join a list of encoded objects together as a msgpack array"""
+        buf = b''.join(objs)
+
+        # Prepend array header to buffer
+        # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
+        count = len(objs)
+        if count <= 0xf:
+            return struct.pack('B', 0x90 + count) + buf
+        elif count <= 0xffff:
+            return struct.pack('>BH', 0xdc, count) + buf
+        else:
+            return struct.pack('>BI', 0xdd, count) + buf
+
+
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
@@ -93,6 +126,15 @@ def test_encode_1000_span_2_traces(benchmark):
 trace = gen_trace(nspans=1000)
 trace_small = gen_trace(nspans=50, key_size=10, ntags=5, nmetrics=4)
 
+
+@pytest.mark.benchmark(group="encoding.join_encoded", min_time=0.005)
+def test_join_encoded(benchmark):
+    from ddtrace.encoding import MsgpackEncoder
+    encoder = MsgpackEncoder()
+
+    benchmark(encoder.join_encoded, [encoder.encode_trace(trace), encoder.encode_trace(trace_small)])
+
+
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace(benchmark):
     from ddtrace.encoding import MsgpackEncoder
@@ -101,7 +143,7 @@ def test_encode_1000_span_trace(benchmark):
     benchmark(encoder.encode_trace, trace)
 
 
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
+@pytest.mark.benchmark(group="encoding.small", min_time=0.005)
 def test_encode_trace_small(benchmark):
     from ddtrace.encoding import MsgpackEncoder
     encoder = MsgpackEncoder()
@@ -111,7 +153,6 @@ def test_encode_trace_small(benchmark):
 
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace_fallback(benchmark):
-    from ddtrace.encoding import PPMsgpackEncoder
     encoder = PPMsgpackEncoder()
 
     benchmark(encoder.encode_trace, trace)
@@ -125,12 +166,21 @@ def test_encode_1000_span_trace_custom(benchmark):
     benchmark(encoder.encode_trace, trace)
 
 
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
+@pytest.mark.benchmark(group="encoding.small", min_time=0.005)
 def test_encode_trace_small_custom(benchmark):
     from ddtrace.encoding import TraceMsgPackEncoder
     encoder = TraceMsgPackEncoder()
 
     benchmark(encoder.encode_trace, trace_small)
+
+
+@pytest.mark.benchmark(group="encoding.join_encoded", min_time=0.005)
+def test_join_encoded_custom(benchmark):
+    from ddtrace.encoding import TraceMsgPackEncoder
+    encoder = TraceMsgPackEncoder()
+
+    benchmark(encoder.join_encoded, [encoder.encode_trace(trace), encoder.encode_trace(trace_small)])
+
 
 '''
 

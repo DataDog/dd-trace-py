@@ -2,6 +2,7 @@
 
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_CheckExact
+import struct
 
 from ddtrace import Span
 
@@ -116,6 +117,7 @@ cdef class Packer(object):
         cdef Py_ssize_t L
         cdef int default_used = 0
         cdef Py_buffer view
+        cdef long i
 
         while True:
             if o is None:
@@ -181,8 +183,9 @@ cdef class Packer(object):
                        if ret != 0: break
                        ret = self._pack(v)
                        if ret != 0: break
-            elif PyList_CheckExact(o):  # if strict_types else (PyTuple_Check(o) or PyList_Check(o)):
-                # List of traces
+            elif PyList_CheckExact(o):
+                # Expect a list of traces or a list of spans
+
                 L = len(o)
                 if L > ITEM_LIMIT:
                     raise ValueError("list is too large")
@@ -191,17 +194,18 @@ cdef class Packer(object):
                 if ret != 0:
                     break
 
-                for trace in o:
-                    L = len(trace)
-                    if L > ITEM_LIMIT:
-                        raise ValueError("list is too large")
+                if L > 0 and PyList_CheckExact(o[0]):
+                    # List of traces
+                    for i in range(L):
+                        span = o[i]
+                        ret = self._pack(span)
+                        if ret != 0: break
+                else:
+                    # List of spans
+                    for i in range(L):
+                        ret = self._pack(o[i])
+                        if ret != 0: break
 
-                    ret = msgpack_pack_array(&self.pk, L)
-                    if ret == 0:
-                        for span in trace:
-                            # ret = self._pack_span(span)
-                            ret = self._pack(span)
-                            if ret != 0: break
             elif type(o) is Span:
                 L = 12
                 if L > ITEM_LIMIT:
@@ -285,27 +289,6 @@ cdef class Packer(object):
             ret = msgpack_pack_raw_body(&self.pk, rawval, L)
         return ret
 
-    cdef int _pack_str(self, o):
-        cdef int ret
-        cdef Py_ssize_t L
-        cdef char* rawval
-
-        if self.encoding == NULL:
-            ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
-            if ret == -2:
-                raise ValueError("unicode string is too large")
-        else:
-            o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
-            L = len(o)
-            if L > ITEM_LIMIT:
-                raise ValueError("unicode string is too large")
-            ret = msgpack_pack_raw(&self.pk, L)
-            if ret == 0:
-                rawval = o
-                ret = msgpack_pack_raw_body(&self.pk, rawval, L)
-
-        return ret
-
     cpdef pack(self, object obj):
         cdef int ret
         try:
@@ -349,7 +332,7 @@ cdef class Packer(object):
     def reset(self):
         """Reset internal buffer.
 
-        This method is usaful only when autoreset=False.
+        This method is useful only when autoreset=False.
         """
         self.pk.length = 0
 
@@ -365,9 +348,21 @@ cdef class Packer(object):
 cdef class TraceMsgPackEncoder(object):
     @staticmethod
     def encode_trace(trace):
-        # TODO this is broken atm
-        return TraceMsgPackEncoder.encode_traces([trace])
+        return Packer().pack(trace)
 
     @staticmethod
     def encode_traces(traces):
         return Packer().pack(traces)
+
+    @staticmethod
+    def join_encoded(objs):
+        """Join a list of encoded objects together as a msgpack array"""
+        buf = b''.join(objs)
+
+        count = len(objs)
+        if count <= 0xf:
+            return struct.pack("B", 0x90 + count) + buf
+        elif count <= 0xffff:
+            return struct.pack(">BH", 0xdc, count) + buf
+        else:
+            return struct.pack(">BI", 0xdd, count) + buf

@@ -305,8 +305,6 @@ static inline int msgpack_pack_int64(msgpack_packer* x, int64_t d)
 }
 
 
-//#ifdef msgpack_pack_inline_func_cint
-
 static inline int msgpack_pack_short(msgpack_packer* x, short d)
 {
 #if defined(SIZEOF_SHORT)
