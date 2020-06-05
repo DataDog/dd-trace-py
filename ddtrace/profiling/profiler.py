@@ -17,10 +17,10 @@ from ddtrace.profiling.exporter import http
 LOG = logging.getLogger(__name__)
 
 
-def _build_default_exporters(service, env):
+def _build_default_exporters(service, env, version):
     exporters = []
     if "DD_PROFILING_API_KEY" in os.environ or "DD_API_KEY" in os.environ:
-        exporters.append(http.PprofHTTPExporter(service=service, env=env))
+        exporters.append(http.PprofHTTPExporter(service=service, env=env, version=version))
 
     _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
     if _OUTPUT_PPROF:
@@ -78,6 +78,7 @@ class Profiler(object):
 
     service = attr.ib(factory=_get_service_name)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
+    version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     collectors = attr.ib(factory=_build_default_collectors)
     exporters = attr.ib(default=None)
     schedulers = attr.ib(init=False, factory=list)
@@ -85,7 +86,7 @@ class Profiler(object):
 
     def __attrs_post_init__(self):
         if self.exporters is None:
-            self.exporters = _build_default_exporters(self.service, self.env)
+            self.exporters = _build_default_exporters(self.service, self.env, self.version)
 
         if self.exporters:
             for rec in self.recorders:
