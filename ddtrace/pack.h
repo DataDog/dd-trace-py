@@ -54,6 +54,8 @@ static inline int msgpack_pack_write(msgpack_packer* pk, const char *data, size_
     //         return -1;
     //     }
     // }
+    // memcpy(buf + len, data, l);
+    // len += l;
     memcpy(pk->buf + pk->length, data, l);
     pk->length += l;
 
