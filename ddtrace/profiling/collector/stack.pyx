@@ -26,14 +26,17 @@ if "gevent" in sys.modules:
         import gevent.monkey
     except ImportError:
         _LOG.error("gevent loaded but unable to import gevent.monkey")
+        from threading import Lock as _threading_Lock
         from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     else:
+        _threading_Lock = gevent.monkey.get_original("threading", "Lock")
         _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
 
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
     _main_thread_id = _thread_get_ident()
 else:
+    from threading import Lock as _threading_Lock
     from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     if six.PY2:
         _main_thread_id = threading._MainThread().ident
@@ -366,7 +369,7 @@ class _ThreadSpanLinks(object):
 
     _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(weakref.WeakSet), repr=False, init=False)
     # WeakSet is not thread safe unfortunately
-    _lock = attr.ib(factory=threading.Lock, repr=False, init=False)
+    _lock = attr.ib(factory=_threading_Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.

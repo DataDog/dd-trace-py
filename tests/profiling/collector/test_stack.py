@@ -328,3 +328,28 @@ def test_collect_multiple_span_ids(tracer_and_collector):
             continue
         if child.trace_id in event.trace_ids:
             break
+
+
+def test_stress_trace_collection(tracer_and_collector):
+    tracer, collector = tracer_and_collector
+
+    def _trace():
+        for _ in range(5000):
+            with tracer.trace("hello"):
+                time.sleep(0.001)
+
+    NB_THREADS = 50
+
+    threads = []
+    for i in range(NB_THREADS):
+        t = threading.Thread(target=_trace)
+        threads.append(t)
+
+    for t in threads:
+        t.start()
+
+    for _ in range(10000):
+        collector.collect()
+
+    for t in threads:
+        t.join()
