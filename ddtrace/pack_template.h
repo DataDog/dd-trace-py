@@ -553,10 +553,6 @@ if(sizeof(unsigned long long) == 2) {
 #endif
 }
 
-//#undef msgpack_pack_inline_func_cint
-//#endif
-
-
 
 /*
  * Float
@@ -586,23 +582,6 @@ static inline int msgpack_pack_double(msgpack_packer* x, double d)
 static inline int msgpack_pack_nil(msgpack_packer* x)
 {
     static const unsigned char d = 0xc0;
-    msgpack_pack_append_buffer(x, &d, 1);
-}
-
-
-/*
- * Boolean
- */
-
-static inline int msgpack_pack_true(msgpack_packer* x)
-{
-    static const unsigned char d = 0xc3;
-    msgpack_pack_append_buffer(x, &d, 1);
-}
-
-static inline int msgpack_pack_false(msgpack_packer* x)
-{
-    static const unsigned char d = 0xc2;
     msgpack_pack_append_buffer(x, &d, 1);
 }
 

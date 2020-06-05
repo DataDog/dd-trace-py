@@ -6,9 +6,9 @@ import struct
 
 from ddtrace import Span
 
+
 cdef extern from "Python.h":
     char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
-
 
 cdef extern from "pack.h":
     struct msgpack_packer:
@@ -35,7 +35,6 @@ cdef extern from "buff_converter.h":
     object buff_to_buff(char *, Py_ssize_t)
 
 cdef long long ITEM_LIMIT = (2**32)-1
-
 
 cdef inline int PyBytesLike_CheckExact(object o):
     return PyBytes_CheckExact(o) or PyByteArray_CheckExact(o)
@@ -214,62 +213,62 @@ cdef class Packer(object):
                 ret = msgpack_pack_map(&self.pk, L)
 
                 if ret == 0:
-                    ret = self._pack_bytes(b"trace_id")
+                    ret = self._pack_bytes(<char *>b"trace_id")
                     if ret != 0: return ret
                     ret = self._pack(o.trace_id)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"parent_id")
+                    ret = self._pack_bytes(<char *>b"parent_id")
                     if ret != 0: return ret
                     ret = self._pack(o.parent_id)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"span_id")
+                    ret = self._pack_bytes(<char *>b"span_id")
                     if ret != 0: return ret
                     ret = self._pack(o.span_id)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"service")
+                    ret = self._pack_bytes(<char *>b"service")
                     if ret != 0: return ret
                     ret = self._pack(o.service)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"resource")
+                    ret = self._pack_bytes(<char *>b"resource")
                     if ret != 0: return ret
                     ret = self._pack(o.resource)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"name")
+                    ret = self._pack_bytes(<char *>b"name")
                     if ret != 0: return ret
                     ret = self._pack(o.name)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"error")
+                    ret = self._pack_bytes(<char *>b"error")
                     if ret != 0: return ret
                     ret = self._pack(1 if o.error else 0)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"start")
+                    ret = self._pack_bytes(<char *>b"start")
                     if ret != 0: return ret
                     ret = self._pack(o.start_ns)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"duration")
+                    ret = self._pack_bytes(<char *>b"duration")
                     if ret != 0: return ret
                     ret = self._pack(o.duration_ns)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"type")
+                    ret = self._pack_bytes(<char *>b"type")
                     if ret != 0: return ret
                     ret = self._pack(o.span_type)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"meta")
+                    ret = self._pack_bytes(<char *>b"meta")
                     if ret != 0: return ret
                     ret = self._pack(o.meta)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(b"metrics")
+                    ret = self._pack_bytes(<char *>b"metrics")
                     if ret != 0: return ret
                     ret = self._pack(o.metrics)
                     if ret != 0: return ret
