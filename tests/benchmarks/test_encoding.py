@@ -91,6 +91,7 @@ def test_encode_1000_span_2_traces(benchmark):
 '''
 
 trace = gen_trace(nspans=1000)
+trace_small = gen_trace(nspans=50, key_size=10, ntags=5, nmetrics=4)
 
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace(benchmark):
@@ -101,7 +102,15 @@ def test_encode_1000_span_trace(benchmark):
 
 
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_1000_span_trace_custom_fallback(benchmark):
+def test_encode_trace_small(benchmark):
+    from ddtrace.encoding import MsgpackEncoder
+    encoder = MsgpackEncoder()
+
+    benchmark(encoder.encode_trace, trace_small)
+
+
+@pytest.mark.benchmark(group="encoding", min_time=0.005)
+def test_encode_1000_span_trace_fallback(benchmark):
     from ddtrace.encoding import PPMsgpackEncoder
     encoder = PPMsgpackEncoder()
 
@@ -114,6 +123,14 @@ def test_encode_1000_span_trace_custom(benchmark):
     encoder = TraceMsgPackEncoder()
 
     benchmark(encoder.encode_trace, trace)
+
+
+@pytest.mark.benchmark(group="encoding", min_time=0.005)
+def test_encode_trace_small_custom(benchmark):
+    from ddtrace.encoding import TraceMsgPackEncoder
+    encoder = TraceMsgPackEncoder()
+
+    benchmark(encoder.encode_trace, trace_small)
 
 '''
 
