@@ -1,14 +1,12 @@
 import random
 import string
 
+import msgpack
+from msgpack.fallback import Packer
 import pytest
 
 from ddtrace import Span, Tracer
-
-
 from ddtrace.encoding import _EncoderBase, MsgpackEncoder, TraceMsgPackEncoder
-import msgpack
-from msgpack.fallback import Packer
 
 
 msgpack_encoder = MsgpackEncoder()
@@ -80,58 +78,21 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
     return trace
 
 
-"""
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_10000_span_trace(benchmark):
-    from ddtrace.encoding import MsgpackEncoder
-    trace = gen_trace(nspans=10000)
-    encoder = MsgpackEncoder()
-
-    benchmark(encoder.encode_trace, trace)
-
-
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_5000_span_trace(benchmark):
-    from ddtrace.encoding import MsgpackEncoder
-    trace = gen_trace(nspans=5000)
-    encoder = MsgpackEncoder()
-
-    benchmark(encoder.encode_trace, trace)
-
-
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_2000_span_trace(benchmark):
-    from ddtrace.encoding import MsgpackEncoder
-    trace = gen_trace(nspans=2000)
-    encoder = MsgpackEncoder()
-
-    benchmark(encoder.encode_trace, trace)
-
- 
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_1000_span_2_traces(benchmark):
-    from ddtrace.encoding import MsgpackEncoder
-    trace = gen_trace(nspans=1000)
-    trace2 = gen_trace(nspans=1000)
-    encoder = MsgpackEncoder()
-
-    benchmark(encoder.encode_traces, [trace, trace2])
-"""
-
-trace = gen_trace(nspans=1000)
+trace_large = gen_trace(nspans=1000)
 trace_small = gen_trace(nspans=50, key_size=10, ntags=5, nmetrics=4)
 
 
 @pytest.mark.benchmark(group="encoding.join_encoded", min_time=0.005)
 def test_join_encoded(benchmark):
     benchmark(
-        msgpack_encoder.join_encoded, [msgpack_encoder.encode_trace(trace), msgpack_encoder.encode_trace(trace_small)]
+        msgpack_encoder.join_encoded,
+        [msgpack_encoder.encode_trace(trace_large), msgpack_encoder.encode_trace(trace_small)],
     )
 
 
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace(benchmark):
-    benchmark(msgpack_encoder.encode_trace, trace)
+    benchmark(msgpack_encoder.encode_trace, trace_large)
 
 
 @pytest.mark.benchmark(group="encoding.small", min_time=0.005)
@@ -147,12 +108,12 @@ def test_encode_trace_small_multi(benchmark):
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace_fallback(benchmark):
     encoder = PPMsgpackEncoder()
-    benchmark(encoder.encode_trace, trace)
+    benchmark(encoder.encode_trace, trace_large)
 
 
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace_custom(benchmark):
-    benchmark(trace_encoder.encode_trace, trace)
+    benchmark(trace_encoder.encode_trace, trace_large)
 
 
 @pytest.mark.benchmark(group="encoding.small", min_time=0.005)
@@ -167,50 +128,9 @@ def test_encode_trace_small_multi_custom(benchmark):
 
 @pytest.mark.benchmark(group="encoding.join_encoded", min_time=0.005)
 def test_join_encoded_custom(benchmark):
-    benchmark(trace_encoder.join_encoded, [trace_encoder.encode_trace(trace), trace_encoder.encode_trace(trace_small)])
-
-
-"""
-
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_1000_span_trace_to_dict(benchmark):
-    from ddtrace.encoding import TraceMsgPackEncoder
-    traces = [gen_trace(nspans=1000)]
-    encoder = TraceMsgPackEncoder()
-
-    @benchmark
-    def fn():
-        d = []
-        for t in traces:
-            d.append([s.to_dict() for s in t])
-
-
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_1000_span_trace_to_dict_fast(benchmark):
-    from ddtrace.encoding import TraceMsgPackEncoder
-    traces = [gen_trace(nspans=1000)]
-    encoder = TraceMsgPackEncoder()
-
-    @benchmark
-    def fn():
-        d = []
-        for t in traces:
-            d.append([s.to_dict_fast() for s in t])
-
-
-@pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_1000_span_trace_to_dict_fast2(benchmark):
-    from ddtrace.encoding import TraceMsgPackEncoder
-    traces = [gen_trace(nspans=1000)]
-    encoder = TraceMsgPackEncoder()
-
-    @benchmark
-    def fn():
-        d = []
-        for t in traces:
-            d.append([s.to_dict_fast2() for s in t])
-
-"""
+    benchmark(
+        trace_encoder.join_encoded, [trace_encoder.encode_trace(trace_large), trace_encoder.encode_trace(trace_small)]
+    )
 
 
 # import pstats, cProfile

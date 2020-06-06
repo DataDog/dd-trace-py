@@ -196,6 +196,10 @@ class TestEncoders(TestCase):
                 assert b"client.testing" == items[i][j][b"name"]
 
 
+def decode(obj):
+    return msgpack.unpackb(obj, raw=True)
+
+
 def test_tracermsgpack():
     tencoder = TraceMsgPackEncoder()
     mencoder = MsgpackEncoder()
@@ -204,10 +208,10 @@ def test_tracermsgpack():
     ref_encoded = mencoder.encode_traces([data, data])
     encoded = tencoder.encode_traces([data, data])
 
-    assert msgpack.unpackb(mencoder.encode_trace(data), raw=True) == msgpack.unpackb(
-        tencoder.encode_trace(data), raw=True
-    )
-    assert msgpack.unpackb(encoded, raw=True) == msgpack.unpackb(ref_encoded, raw=True)
+    # Note that we assert on the decoded versions because the encoded
+    # can vary due to non-deterministic map key/value positioning
+    assert decode(mencoder.encode_trace(data)) == decode(tencoder.encode_trace(data))
+    assert decode(encoded) == decode(ref_encoded)
 
 
 def test_custom_msgpack_join_encoded():
@@ -215,9 +219,6 @@ def test_custom_msgpack_join_encoded():
     mencoder = MsgpackEncoder()
 
     trace = gen_trace(nspans=50)
-    ref = [mencoder.encode_trace(trace) for _ in range(10)]
-    custom = [tencoder.encode_trace(trace) for _ in range(10)]
-
-    ref = [mencoder.encode_trace(gen_trace(nspans=1, ntags=0, nmetrics=0))]
-    assert mencoder.join_encoded(ref) == tencoder.join_encoded(ref)
-
+    ref = mencoder.join_encoded([mencoder.encode_trace(trace) for _ in range(10)])
+    custom = tencoder.join_encoded([tencoder.encode_trace(trace) for _ in range(10)])
+    assert decode(ref) == decode(custom)

@@ -154,7 +154,7 @@ setup(
                 #     "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
                 # ),
                 Cython.Distutils.Extension(
-                    "ddtrace._encoding", sources=["ddtrace/_encoding.pyx"], language="c",
+                    "ddtrace.internal._encoding", sources=["ddtrace/internal/_encoding.pyx"], language="c",
                 ),
                 # Cython.Distutils.Extension(
                 #     "ddtrace.profiling.collector.stack",

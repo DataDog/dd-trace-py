@@ -4,7 +4,7 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_CheckExact
 import struct
 
-from ddtrace import Span
+from ..span import Span
 
 
 cdef extern from "Python.h":
@@ -96,7 +96,7 @@ cdef class Packer(object):
         self._default = default
 
         if PY_MAJOR_VERSION < 3:
-            self.encoding = 'utf-8'
+            self.encoding = "utf-8"
         else:
             self.encoding = NULL
 
@@ -298,32 +298,6 @@ cdef class Packer(object):
         if ret:  # should not happen.
             raise RuntimeError("internal error")
 
-        if self.autoreset:
-            buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-            self.pk.length = 0
-            return buf
-
-    def pack_array_header(self, long long size):
-        if size > ITEM_LIMIT:
-            raise ValueError
-        cdef int ret = msgpack_pack_array(&self.pk, size)
-        if ret == -1:
-            raise MemoryError
-        elif ret:  # should not happen
-            raise TypeError
-        if self.autoreset:
-            buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-            self.pk.length = 0
-            return buf
-
-    def pack_map_header(self, long long size):
-        if size > ITEM_LIMIT:
-            raise ValueError
-        cdef int ret = msgpack_pack_map(&self.pk, size)
-        if ret == -1:
-            raise MemoryError
-        elif ret:  # should not happen
-            raise TypeError
         if self.autoreset:
             buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
             self.pk.length = 0
