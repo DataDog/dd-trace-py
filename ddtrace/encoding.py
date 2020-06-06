@@ -144,4 +144,4 @@ class MsgpackEncoder(_EncoderBase):
             return struct.pack('>BI', 0xdd, count) + buf
 
 
-Encoder = MsgpackEncoder
+Encoder = TraceMsgPackEncoder

@@ -200,18 +200,28 @@ def decode(obj):
     return msgpack.unpackb(obj, raw=True)
 
 
-def test_tracermsgpack():
+def test_custom_msgpack_encode():
     tencoder = TraceMsgPackEncoder()
     mencoder = MsgpackEncoder()
 
-    data = gen_trace(nspans=50)
-    ref_encoded = mencoder.encode_traces([data, data])
-    encoded = tencoder.encode_traces([data, data])
+    trace = gen_trace(nspans=50)
 
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
-    assert decode(mencoder.encode_trace(data)) == decode(tencoder.encode_trace(data))
+    assert decode(mencoder.encode_trace(trace)) == decode(tencoder.encode_trace(trace))
+
+    ref_encoded = mencoder.encode_traces([trace, trace])
+    encoded = tencoder.encode_traces([trace, trace])
     assert decode(encoded) == decode(ref_encoded)
+
+    # Empty trace (not that this should be done in practice)
+    assert decode(mencoder.encode_trace([])) == decode(tencoder.encode_trace([]))
+
+    s = Span(None, None)
+    # Need to .finish() to have a duration since the old implementation will not encode
+    # duration_ns, the new one will encode as None
+    s.finish()
+    assert decode(mencoder.encode_trace([s])) == decode(tencoder.encode_trace([s]))
 
 
 def test_custom_msgpack_join_encoded():
@@ -219,6 +229,11 @@ def test_custom_msgpack_join_encoded():
     mencoder = MsgpackEncoder()
 
     trace = gen_trace(nspans=50)
+
     ref = mencoder.join_encoded([mencoder.encode_trace(trace) for _ in range(10)])
     custom = tencoder.join_encoded([tencoder.encode_trace(trace) for _ in range(10)])
+    assert decode(ref) == decode(custom)
+
+    ref = mencoder.join_encoded([mencoder.encode_trace(trace) for _ in range(1)])
+    custom = tencoder.join_encoded([tencoder.encode_trace(trace) for _ in range(1)])
     assert decode(ref) == decode(custom)

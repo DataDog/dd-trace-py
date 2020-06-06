@@ -210,6 +210,12 @@ cdef class Packer(object):
                 if L > ITEM_LIMIT:
                     raise ValueError("list is too large")
 
+                has_span_type = <bint>(o.span_type is not None)
+                has_meta = <bint>(len(o.meta) > 0)
+                has_metrics = <bint>(len(o.metrics) > 0)
+
+                L = L - (1 - has_span_type) - (1 - has_meta) - (1 - has_metrics)
+
                 ret = msgpack_pack_map(&self.pk, L)
 
                 if ret == 0:
@@ -258,20 +264,23 @@ cdef class Packer(object):
                     ret = self._pack(o.duration_ns)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"type")
-                    if ret != 0: return ret
-                    ret = self._pack(o.span_type)
-                    if ret != 0: return ret
+                    if has_span_type:
+                        ret = self._pack_bytes(<char *>b"type")
+                        if ret != 0: return ret
+                        ret = self._pack(o.span_type)
+                        if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"meta")
-                    if ret != 0: return ret
-                    ret = self._pack(o.meta)
-                    if ret != 0: return ret
+                    if has_meta:
+                        ret = self._pack_bytes(<char *>b"meta")
+                        if ret != 0: return ret
+                        ret = self._pack(o.meta)
+                        if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"metrics")
-                    if ret != 0: return ret
-                    ret = self._pack(o.metrics)
-                    if ret != 0: return ret
+                    if has_metrics:
+                        ret = self._pack_bytes(<char *>b"metrics")
+                        if ret != 0: return ret
+                        ret = self._pack(o.metrics)
+                        if ret != 0: return ret
             else:
                 PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
             return ret
@@ -320,6 +329,8 @@ cdef class Packer(object):
 
 
 cdef class TraceMsgPackEncoder(object):
+    content_type = "application/msgpack"
+
     cpdef encode_trace(self, trace):
         return Packer().pack(trace)
 

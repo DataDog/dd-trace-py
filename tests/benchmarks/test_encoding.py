@@ -62,10 +62,13 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",
             parent_id=parent_id,
-            span_type="web",
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
+
+            # only apply a span type to the root span
+            if not root:
+                span.span_type = "web"
 
             for _ in range(0, nmetrics):
                 span.set_tag(rands(key_size), random.randint(0, 2 ** 16))
