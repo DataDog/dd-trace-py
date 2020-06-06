@@ -297,6 +297,7 @@ cdef class Packer(object):
             raise
         if ret:  # should not happen.
             raise RuntimeError("internal error")
+
         if self.autoreset:
             buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
             self.pk.length = 0
@@ -345,17 +346,15 @@ cdef class Packer(object):
 
 
 cdef class TraceMsgPackEncoder(object):
-    @staticmethod
-    def encode_trace(trace):
+    cpdef encode_trace(self, trace):
         return Packer().pack(trace)
 
-    @staticmethod
-    def encode_traces(traces):
+    cpdef encode_traces(self, traces):
         return Packer().pack(traces)
 
-    @staticmethod
-    def join_encoded(objs):
+    cpdef join_encoded(self, objs):
         """Join a list of encoded objects together as a msgpack array"""
+        cdef Py_ssize_t count
         buf = b''.join(objs)
 
         count = len(objs)

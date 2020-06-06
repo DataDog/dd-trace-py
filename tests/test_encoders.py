@@ -1,27 +1,29 @@
 import json
-
 from unittest import TestCase
+
+import msgpack
 
 from ddtrace.span import Span
 from ddtrace.compat import msgpack_type, string_type
 from ddtrace.encoding import JSONEncoder, JSONEncoderV2, MsgpackEncoder, TraceMsgPackEncoder
+
+from .benchmarks.test_encoding import gen_trace
 
 
 class TestEncoders(TestCase):
     """
     Ensures that Encoders serialize the payload as expected.
     """
+
     def test_encode_traces_json(self):
         # test encoding for JSON format
         traces = []
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
 
         encoder = JSONEncoder()
         spans = encoder.encode_traces(traces)
@@ -35,27 +37,22 @@ class TestEncoders(TestCase):
         assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                assert 'client.testing' == items[i][j]['name']
+                assert "client.testing" == items[i][j]["name"]
 
     def test_join_encoded_json(self):
         # test encoding for JSON format
         traces = []
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
 
         encoder = JSONEncoder()
 
         # Encode each trace on it's own
-        encoded_traces = [
-            encoder.encode_trace(trace)
-            for trace in traces
-        ]
+        encoded_traces = [encoder.encode_trace(trace) for trace in traces]
 
         # Join the encoded traces together
         data = encoder.join_encoded(encoded_traces)
@@ -71,7 +68,7 @@ class TestEncoders(TestCase):
         assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                assert 'client.testing' == items[i][j]['name']
+                assert "client.testing" == items[i][j]["name"]
 
     def test_encode_traces_json_v2(self):
         # test encoding for JSON format
@@ -147,14 +144,12 @@ class TestEncoders(TestCase):
     def test_encode_traces_msgpack(self):
         # test encoding for MsgPack format
         traces = []
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
 
         encoder = MsgpackEncoder()
         spans = encoder.encode_traces(traces)
@@ -168,27 +163,22 @@ class TestEncoders(TestCase):
         assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                assert b'client.testing' == items[i][j][b'name']
+                assert b"client.testing" == items[i][j][b"name"]
 
     def test_join_encoded_msgpack(self):
         # test encoding for MsgPack format
         traces = []
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
-        traces.append([
-            Span(name='client.testing', tracer=None),
-            Span(name='client.testing', tracer=None),
-        ])
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
+        traces.append(
+            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+        )
 
         encoder = MsgpackEncoder()
 
         # Encode each individual trace on it's own
-        encoded_traces = [
-            encoder.encode_trace(trace)
-            for trace in traces
-        ]
+        encoded_traces = [encoder.encode_trace(trace) for trace in traces]
         # Join the encoded traces together
         data = encoder.join_encoded(encoded_traces)
 
@@ -203,68 +193,31 @@ class TestEncoders(TestCase):
         assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                assert b'client.testing' == items[i][j][b'name']
-
-
-def p(s):
-    s = "{:,}".format(s).replace(",", " ")
-    print(s)
-
-
-def test_trace_msgpack_encoder():
-    from .benchmarks.test_encoding import gen_trace
-    tencoder = TraceMsgPackEncoder()
-    refencoder = MsgpackEncoder()
-
-    large = gen_trace(nspans=1000, ntags=20, key_size=10, value_size=20, nmetrics=10)
-    encoded = refencoder.encode_trace(large)
-
-    from pympler import asizeof
-
-    p(len(refencoder.encode(large[2].to_dict())))
-    p(asizeof.asizeof(refencoder.encode(large[2].to_dict())))
-    p(asizeof.asizeof(large[2]))
-    p(asizeof.asizeof(large))
-    p(len(encoded))
-    # print(large[0].pprint())
-    # p(1024*1024)
-    # print(encoded)
-    # print(asizeof.asizeof(large) < 1024*1024)
-    # print(len(encoded) < 1024*1024)
-    assert 0
-
-def test_overflow():
-    encoder = MsgpackEncoder()
-
-    encoder.encode("long" * (1024*1024*500000))
-
+                assert b"client.testing" == items[i][j][b"name"]
 
 
 def test_tracermsgpack():
-    from .benchmarks.test_encoding import gen_trace
     tencoder = TraceMsgPackEncoder()
-    refencoder = MsgpackEncoder()
+    mencoder = MsgpackEncoder()
 
-    # large = gen_trace(nspans=1000, ntags=20, key_size=10, value_size=20, nmetrics=10)
-    # encoded = refencoder.encode_trace(large)
-    # custom_encoded = tencoder.encode_trace(large)
-    # data = [[2,3,4]]
-    data = [gen_trace(nspans=1000)]
-    ref_encoded = refencoder.encode_traces(data)
-    import msgpack
-    # ref_encoded = msgpack.packb(data)
-    encoded = tencoder.encode_traces(data)
+    data = gen_trace(nspans=50)
+    ref_encoded = mencoder.encode_traces([data, data])
+    encoded = tencoder.encode_traces([data, data])
 
-    print(len(encoded))
-    print(len(ref_encoded))
-
+    assert msgpack.unpackb(mencoder.encode_trace(data), raw=True) == msgpack.unpackb(
+        tencoder.encode_trace(data), raw=True
+    )
     assert msgpack.unpackb(encoded, raw=True) == msgpack.unpackb(ref_encoded, raw=True)
 
-    # assert encoded == ref_encoded
-    assert 0
-    # print(unencoded)
 
-    # assert ref_encoded == encoded
-    # print(custom_encoded)
-    assert 0
+def test_custom_msgpack_join_encoded():
+    tencoder = TraceMsgPackEncoder()
+    mencoder = MsgpackEncoder()
+
+    trace = gen_trace(nspans=50)
+    ref = [mencoder.encode_trace(trace) for _ in range(10)]
+    custom = [tencoder.encode_trace(trace) for _ in range(10)]
+
+    ref = [mencoder.encode_trace(gen_trace(nspans=1, ntags=0, nmetrics=0))]
+    assert mencoder.join_encoded(ref) == tencoder.join_encoded(ref)
 
