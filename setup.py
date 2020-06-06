@@ -150,26 +150,26 @@ setup(
         setup_requires=["setuptools_scm", "cython"],
         ext_modules=cythonize(
             [
-                # Cython.Distutils.Extension(
-                #     "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
-                # ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
+                ),
                 Cython.Distutils.Extension(
                     "ddtrace.internal._encoding", sources=["ddtrace/internal/_encoding.pyx"], language="c",
                 ),
-                # Cython.Distutils.Extension(
-                #     "ddtrace.profiling.collector.stack",
-                #     sources=["ddtrace/profiling/collector/stack.pyx"],
-                #     language="c",
-                #     extra_compile_args=["-DPy_BUILD_CORE"],
-                # ),
-                # Cython.Distutils.Extension(
-                #     "ddtrace.profiling.collector._traceback",
-                #     sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                #     language="c",
-                # ),
-                # Cython.Distutils.Extension(
-                #     "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
-                # ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector.stack",
+                    sources=["ddtrace/profiling/collector/stack.pyx"],
+                    language="c",
+                    extra_compile_args=["-DPy_BUILD_CORE"],
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._traceback",
+                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
+                ),
             ],
             compile_time_env={
                 "PY_MAJOR_VERSION": sys.version_info.major,
@@ -178,7 +178,7 @@ setup(
             },
             force=True,
         )
-        # + get_exts_for("wrapt")
-        # + get_exts_for("psutil"),
+        + get_exts_for("wrapt")
+        + get_exts_for("psutil"),
     )
 )
