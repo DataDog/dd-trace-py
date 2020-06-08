@@ -19,9 +19,10 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 try:
     from gevent import monkey
 except ImportError:
-    sleep = time.sleep
+    real_sleep = time.sleep
 else:
-    sleep = monkey.get_original("time", "sleep")
+    real_sleep = monkey.get_original("time", "sleep")
+    real_Thread = monkey.get_original("threading", "Thread")
 
 
 def func1():
@@ -41,7 +42,7 @@ def func4():
 
 
 def func5():
-    return sleep(1)
+    return real_sleep(1)
 
 
 def test_collect_truncate():
@@ -146,15 +147,14 @@ exec(
     try:
       raise ValueError('test')
     except Exception:
-      sleep(2)""".format(
+      time.sleep(2)""".format(
         MAX_FN_NUM=MAX_FN_NUM
     )
 )
 
 
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 def test_stress_threads():
-    NB_THREADS = 20
+    NB_THREADS = 10
 
     threads = []
     for i in range(NB_THREADS):
@@ -163,9 +163,12 @@ def test_stress_threads():
         threads.append(t)
 
     s = stack.StackCollector(recorder=recorder.Recorder())
-    number = 10000
+    # Make sure that the collector thread does not interfere with the test
+    s.MIN_INTERVAL_TIME = 60
+    number = 20000
     with s:
         exectime = timeit.timeit(s.collect, number=number)
+    # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
     print("%.3f ms per call" % (1000.0 * exectime / number))
     for t in threads:
         t.join()
@@ -204,7 +207,7 @@ def test_exception_collection():
     try:
         raise ValueError("hello")
     except Exception:
-        sleep(1)
+        real_sleep(1)
     c.stop()
 
     exception_events = r.events[stack.StackExceptionSampleEvent]
@@ -214,7 +217,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == stack._thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 207, "test_exception_collection")]
+    assert e.frames == [(__file__, 210, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
