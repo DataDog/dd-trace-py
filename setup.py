@@ -115,11 +115,9 @@ setup(
         python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
         # enum34 is an enum backport for earlier versions of python
         # funcsigs backport required for vendored debtcollector
-        # encoding using msgpack
         install_requires=[
             "enum34; python_version<'3.4'",
             "funcsigs>=1.0.0; python_version=='2.7'",
-            "msgpack>=0.5.0",
             "protobuf>=3",
             "intervaltree",
             "tenacity>=5",

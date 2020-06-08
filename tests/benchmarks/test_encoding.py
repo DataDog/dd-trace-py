@@ -6,11 +6,11 @@ from msgpack.fallback import Packer
 import pytest
 
 from ddtrace import Span, Tracer
-from ddtrace.encoding import _EncoderBase, MsgpackEncoder, TraceMsgPackEncoder
+from ddtrace.encoding import _EncoderBase, MsgpackEncoder, TraceMsgpackEncoder
 
 
 msgpack_encoder = MsgpackEncoder()
-trace_encoder = TraceMsgPackEncoder()
+trace_encoder = TraceMsgpackEncoder()
 
 
 class PPMsgpackEncoder(_EncoderBase):

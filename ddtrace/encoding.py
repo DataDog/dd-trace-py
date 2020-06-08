@@ -1,10 +1,13 @@
 import json
 import struct
 
-import msgpack
+try:
+    import msgpack
+except ImportError:
+    pass
 
 from .internal.logger import get_logger
-from .internal._encoding import TraceMsgPackEncoder
+from .internal._encoding import TraceMsgpackEncoder
 
 
 log = get_logger(__name__)
@@ -144,4 +147,4 @@ class MsgpackEncoder(_EncoderBase):
             return struct.pack('>BI', 0xdd, count) + buf
 
 
-Encoder = TraceMsgPackEncoder
+Encoder = TraceMsgpackEncoder

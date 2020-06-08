@@ -5,7 +5,7 @@ import msgpack
 
 from ddtrace.span import Span
 from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import JSONEncoder, JSONEncoderV2, MsgpackEncoder, TraceMsgPackEncoder
+from ddtrace.encoding import JSONEncoder, JSONEncoderV2, MsgpackEncoder, TraceMsgpackEncoder
 
 from .benchmarks.test_encoding import gen_trace
 
@@ -201,7 +201,7 @@ def decode(obj):
 
 
 def test_custom_msgpack_encode():
-    tencoder = TraceMsgPackEncoder()
+    tencoder = TraceMsgpackEncoder()
     mencoder = MsgpackEncoder()
 
     trace = gen_trace(nspans=50)
@@ -225,7 +225,7 @@ def test_custom_msgpack_encode():
 
 
 def test_custom_msgpack_join_encoded():
-    tencoder = TraceMsgPackEncoder()
+    tencoder = TraceMsgpackEncoder()
     mencoder = MsgpackEncoder()
 
     trace = gen_trace(nspans=50)

@@ -328,8 +328,14 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
-cdef class TraceMsgPackEncoder(object):
+cdef class TraceMsgpackEncoder(object):
     content_type = "application/msgpack"
+
+    cpdef decode(self, data):
+        import msgpack
+        if msgpack.version[:2] < (0, 6):
+            return msgpack.unpackb(data)
+        return msgpack.unpackb(data, raw=True)
 
     cpdef encode_trace(self, trace):
         return Packer().pack(trace)
