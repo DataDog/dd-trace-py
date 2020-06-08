@@ -2,7 +2,6 @@
 import logging
 import os
 
-import ddtrace
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.vendor import attr
@@ -39,16 +38,6 @@ def _get_service_name():
             return service_name
 
 
-def _build_default_collectors():
-    r = recorder.Recorder()
-    return [
-        stack.StackCollector(r, tracer=ddtrace.tracer),
-        memory.MemoryCollector(r),
-        exceptions.UncaughtExceptionCollector(r),
-        threading.LockCollector(r),
-    ]
-
-
 # This ought to use `enum.Enum`, but since it's not available in Python 2, we just use a dumb class.
 @attr.s(repr=False)
 class ProfilerStatus(object):
@@ -79,12 +68,26 @@ class Profiler(object):
     service = attr.ib(factory=_get_service_name)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    collectors = attr.ib(factory=_build_default_collectors)
+    tracer = attr.ib(default=None)
+    collectors = attr.ib(default=None)
     exporters = attr.ib(default=None)
     schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
+    @staticmethod
+    def _build_default_collectors(tracer):
+        r = recorder.Recorder()
+        return [
+            stack.StackCollector(r, tracer=tracer),
+            memory.MemoryCollector(r),
+            exceptions.UncaughtExceptionCollector(r),
+            threading.LockCollector(r),
+        ]
+
     def __attrs_post_init__(self):
+        if self.collectors is None:
+            self.collectors = self._build_default_collectors(self.tracer)
+
         if self.exporters is None:
             self.exporters = _build_default_exporters(self.service, self.env, self.version)
 

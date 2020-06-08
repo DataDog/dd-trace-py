@@ -287,7 +287,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     running_thread_ids = {t[0] for t in running_threads}
 
-    thread_span_links.clear_threads(running_thread_ids)
+    if thread_span_links:
+        thread_span_links.clear_threads(running_thread_ids)
 
     if ignore_profiler:
         running_thread_ids -= _periodic.PERIODIC_THREAD_IDS
@@ -322,7 +323,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     for tid, frame in running_threads:
         if ignore_profiler and tid in _periodic.PERIODIC_THREAD_IDS:
             continue
-        spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
+        if thread_span_links:
+            spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
+        else:
+            spans = set()
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
         stack_events.append(
             StackSampleEvent(
@@ -427,7 +431,7 @@ class StackCollector(collector.PeriodicCollector):
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False)
     _last_wall_time = attr.ib(init=False, repr=False)
-    _thread_span_links = attr.ib(factory=_ThreadSpanLinks, init=False, repr=False)
+    _thread_span_links = attr.ib(default=None, init=False, repr=False)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -438,6 +442,7 @@ class StackCollector(collector.PeriodicCollector):
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
+            self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
         super(StackCollector, self).start()
 
