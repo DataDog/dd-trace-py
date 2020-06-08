@@ -1,4 +1,8 @@
+import pytest
+
+import ddtrace
 from ddtrace.profiling import profiler
+from ddtrace.profiling.collector import stack
 
 
 def test_status():
@@ -16,3 +20,15 @@ def test_restart():
     p.stop()
     p.start()
     p.stop()
+
+
+def test_tracer_api(monkeypatch):
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    prof = profiler.Profiler(tracer=ddtrace.tracer)
+    assert prof.tracer == ddtrace.tracer
+    for collector in prof.collectors:
+        if isinstance(collector, stack.StackCollector):
+            assert collector.tracer == ddtrace.tracer
+            break
+    else:
+        pytest.fail("Unable to find stack collector")
