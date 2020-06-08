@@ -27,6 +27,9 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         class CelerySubClass(CelerySuperClass):
             pass
 
+        # disable eager mode
+        self.app.conf.CELERY_ALWAYS_EAGER = False
+
         t = CelerySubClass()
         res = t.apply()
 
@@ -34,6 +37,7 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         run_span = traces[0][0]
+        apply_span = traces[0][1]
         assert run_span.error == 0
         assert run_span.name == "celery.run"
         assert run_span.resource == "tests.contrib.celery.test_old_style_task.CelerySubClass"
@@ -41,7 +45,6 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         assert run_span.get_tag("celery.id") == res.task_id
         assert run_span.get_tag("celery.action") == "run"
         assert run_span.get_tag("celery.state") == "SUCCESS"
-        apply_span = traces[0][1]
         assert apply_span.error == 0
         assert apply_span.name == "celery.apply"
         assert apply_span.resource == "tests.contrib.celery.test_old_style_task.CelerySubClass"
