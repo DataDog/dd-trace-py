@@ -333,7 +333,7 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
-cdef class TraceMsgpackEncoder(object):
+cdef class MsgpackEncoder(object):
     content_type = "application/msgpack"
 
     cpdef decode(self, data):

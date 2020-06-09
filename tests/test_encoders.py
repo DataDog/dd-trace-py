@@ -1,13 +1,94 @@
 import json
+import random
+import string
+import struct
 from unittest import TestCase
 
 import msgpack
 
+from ddtrace.tracer import Tracer
 from ddtrace.span import Span
 from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import JSONEncoder, JSONEncoderV2, MsgpackEncoder, TraceMsgpackEncoder
+from ddtrace.encoding import _EncoderBase, JSONEncoder, JSONEncoderV2, MsgpackEncoder
 
-from .benchmarks.test_encoding import gen_trace
+
+def rands(size=6, chars=string.ascii_uppercase + string.digits):
+    return "".join(random.choice(chars) for _ in range(size))
+
+
+def gen_span(length=None, **span_attrs):
+    # Helper to generate spans
+    name = span_attrs.pop("name", None)
+    if name is None:
+        name = "a" * length
+
+    span = Span(None, **span_attrs)
+
+    for attr in span_attrs:
+        if hasattr(span, attr):
+            setattr(span, attr, attr)
+        else:
+            pass
+
+    if length is not None:
+        pass
+
+
+def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
+    t = Tracer()
+
+    root = None
+    trace = []
+    for i in range(0, nspans):
+        parent_id = root.span_id if root else None
+        with Span(
+            t, "span_name", resource="/fsdlajfdlaj/afdasd%s" % i, service="myservice", parent_id=parent_id,
+        ) as span:
+            span._parent = root
+            span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
+
+            # only apply a span type to the root span
+            if not root:
+                span.span_type = "web"
+
+            for _ in range(0, nmetrics):
+                span.set_tag(rands(key_size), random.randint(0, 2 ** 16))
+
+            trace.append(span)
+
+            if not root:
+                root = span
+
+    return trace
+
+
+class RefMsgpackEncoder(_EncoderBase):
+    content_type = "application/msgpack"
+
+    @staticmethod
+    def encode(obj):
+        return msgpack.packb(obj)
+
+    @staticmethod
+    def decode(data):
+        if msgpack.version[:2] < (0, 6):
+            return msgpack.unpackb(data)
+        return msgpack.unpackb(data, raw=True)
+
+    @staticmethod
+    def join_encoded(objs):
+        """Join a list of encoded objects together as a msgpack array"""
+        buf = b"".join(objs)
+
+        # Prepend array header to buffer
+        # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
+        count = len(objs)
+        if count <= 0xF:
+            return struct.pack("B", 0x90 + count) + buf
+        elif count <= 0xFFFF:
+            return struct.pack(">BH", 0xDC, count) + buf
+        else:
+            return struct.pack(">BI", 0xDD, count) + buf
 
 
 class TestEncoders(TestCase):
@@ -197,43 +278,45 @@ class TestEncoders(TestCase):
 
 
 def decode(obj):
+    if msgpack.version[:2] < (0, 6):
+        return msgpack.unpackb(obj)
     return msgpack.unpackb(obj, raw=True)
 
 
 def test_custom_msgpack_encode():
-    tencoder = TraceMsgpackEncoder()
-    mencoder = MsgpackEncoder()
+    encoder = MsgpackEncoder()
+    refencoder = RefMsgpackEncoder()
 
     trace = gen_trace(nspans=50)
 
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
-    assert decode(mencoder.encode_trace(trace)) == decode(tencoder.encode_trace(trace))
+    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
 
-    ref_encoded = mencoder.encode_traces([trace, trace])
-    encoded = tencoder.encode_traces([trace, trace])
+    ref_encoded = refencoder.encode_traces([trace, trace])
+    encoded = encoder.encode_traces([trace, trace])
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
-    assert decode(mencoder.encode_trace([])) == decode(tencoder.encode_trace([]))
+    assert decode(refencoder.encode_trace([])) == decode(encoder.encode_trace([]))
 
     s = Span(None, None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
-    assert decode(mencoder.encode_trace([s])) == decode(tencoder.encode_trace([s]))
+    assert decode(refencoder.encode_trace([s])) == decode(encoder.encode_trace([s]))
 
 
 def test_custom_msgpack_join_encoded():
-    tencoder = TraceMsgpackEncoder()
-    mencoder = MsgpackEncoder()
+    encoder = MsgpackEncoder()
+    refencoder = RefMsgpackEncoder()
 
     trace = gen_trace(nspans=50)
 
-    ref = mencoder.join_encoded([mencoder.encode_trace(trace) for _ in range(10)])
-    custom = tencoder.join_encoded([tencoder.encode_trace(trace) for _ in range(10)])
+    ref = refencoder.join_encoded([refencoder.encode_trace(trace) for _ in range(10)])
+    custom = encoder.join_encoded([encoder.encode_trace(trace) for _ in range(10)])
     assert decode(ref) == decode(custom)
 
-    ref = mencoder.join_encoded([mencoder.encode_trace(trace) for _ in range(1)])
-    custom = tencoder.join_encoded([tencoder.encode_trace(trace) for _ in range(1)])
+    ref = refencoder.join_encoded([refencoder.encode_trace(trace) for _ in range(1)])
+    custom = encoder.join_encoded([encoder.encode_trace(trace) for _ in range(1)])
     assert decode(ref) == decode(custom)

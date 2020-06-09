@@ -1,13 +1,7 @@
 import json
-import struct
-
-try:
-    import msgpack
-except ImportError:
-    pass
 
 from .internal.logger import get_logger
-from .internal._encoding import TraceMsgpackEncoder
+from .internal._encoding import MsgpackEncoder
 
 
 log = get_logger(__name__)
@@ -118,33 +112,4 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-class MsgpackEncoder(_EncoderBase):
-    content_type = 'application/msgpack'
-
-    @staticmethod
-    def encode(obj):
-        return msgpack.packb(obj)
-
-    @staticmethod
-    def decode(data):
-        if msgpack.version[:2] < (0, 6):
-            return msgpack.unpackb(data)
-        return msgpack.unpackb(data, raw=True)
-
-    @staticmethod
-    def join_encoded(objs):
-        """Join a list of encoded objects together as a msgpack array"""
-        buf = b''.join(objs)
-
-        # Prepend array header to buffer
-        # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
-        count = len(objs)
-        if count <= 0xf:
-            return struct.pack('B', 0x90 + count) + buf
-        elif count <= 0xffff:
-            return struct.pack('>BH', 0xdc, count) + buf
-        else:
-            return struct.pack('>BI', 0xdd, count) + buf
-
-
-Encoder = TraceMsgpackEncoder
+Encoder = MsgpackEncoder

@@ -1,4 +1,4 @@
-from ddtrace.encoding import JSONEncoder, TraceMsgpackEncoder
+from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.tracer import Tracer
 
@@ -15,7 +15,7 @@ class DummyWriter(AgentWriter):
         self.traces = []
         self.services = {}
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = TraceMsgpackEncoder()
+        self.msgpack_encoder = MsgpackEncoder()
 
     def write(self, spans=None, services=None):
         if spans:
