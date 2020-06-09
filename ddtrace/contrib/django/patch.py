@@ -11,7 +11,7 @@ import sys
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
-from ddtrace.vendor import debtcollector, wrapt
+from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
@@ -424,7 +424,25 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     span.error = 1
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
-                    utils.set_tag_array(span, "django.response.template", response.template_name)
+                    # template_name is a bit of a misnomer, as it could be any of:
+                    # a list of strings, a tuple of strings, a single string, or an instance of Template
+                    # for more detail, see:
+                    # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+                    template = response.template_name
+
+                    if isinstance(template, six.string_types):
+                        template_names = [template]
+                    elif isinstance(template, (list, tuple,)):
+                        template_names = template
+                    elif hasattr(template, "template"):
+                        # ^ checking by attribute here because
+                        # django backend implementations don't have a common base
+                        # `.template` is also the most consistent across django versions
+                        template_names = [template.template.name]
+                    else:
+                        template_names = None
+
+                    utils.set_tag_array(span, "django.response.template", template_names)
 
                 headers = dict(response.items())
                 store_response_headers(headers, span, config.django)
