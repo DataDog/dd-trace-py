@@ -10,7 +10,28 @@ from ddtrace.profiling import _service
 if os.getenv("DD_PROFILE_TEST_GEVENT", False):
     import gevent
 
-    Event = gevent.event.Event
+    class Event(object):
+        """
+        We can't use gevent Events here[0], nor can we use native threading
+        events (because gevent is not multi-threaded).
+
+        So for gevent, since it's not multi-threaded and will not run greenlets
+        in parallel (for our usage here, anyway) we can write a dummy Event
+        class which just does a simple busy wait on a shared variable.
+
+        [0] https://github.com/gevent/gevent/issues/891
+        """
+
+        state = False
+
+        def wait(self):
+            while not self.state:
+                gevent.sleep(0.001)
+
+        def set(self):
+            self.state = True
+
+
 else:
     Event = threading.Event
 
@@ -24,16 +45,14 @@ def test_periodic():
     def _run_periodic():
         thread_started.set()
         x["OK"] = True
-        # For some reason gevent requires an explicit timeout to be provided for Event.wait()
-        # events. Otherwise we get "gevent.exceptions.LoopExit: This operation would block forever"
-        thread_continue.wait(timeout=10)
+        thread_continue.wait()
 
     def _on_shutdown():
         x["DOWN"] = True
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
-    thread_started.wait(timeout=10)
+    thread_started.wait()
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
     thread_continue.set()
     t.stop()
@@ -48,12 +67,12 @@ def test_periodic():
 def test_periodic_error():
     x = {"OK": False}
 
-    thread_started = threading.Event()
-    thread_continue = threading.Event()
+    thread_started = Event()
+    thread_continue = Event()
 
     def _run_periodic():
         thread_started.set()
-        thread_continue.wait(timeout=10)
+        thread_continue.wait()
         raise ValueError
 
     def _on_shutdown():
@@ -61,7 +80,7 @@ def test_periodic_error():
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
-    thread_started.wait(timeout=10)
+    thread_started.wait()
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
     thread_continue.set()
     t.stop()
