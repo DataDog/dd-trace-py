@@ -3,6 +3,7 @@ from django.test import modify_settings, override_settings
 import os
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
@@ -127,6 +128,39 @@ def test_disallowed_host(client, test_spans):
     root_span = test_spans.get_root_span()
     assert root_span.get_tag("http.status_code") == "400"
     assert root_span.get_tag("http.url") == "http://testserver/"
+
+
+def test_http_header_tracing_disabled(client, test_spans):
+    headers = {
+        get_wsgi_header("my-header"): "my_value",
+    }
+    resp = client.get("/", **headers)
+
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+
+    root = test_spans.get_root_span()
+
+    assert root.get_tag("http.request.headers.my-header") is None
+    assert root.get_tag("http.response.headers.my-response-header") is None
+
+
+def test_http_header_tracing_enabled(client, test_spans):
+    with BaseTestCase.override_config("django", {}):
+        config.django.http.trace_headers(["my-header", "my-response-header"])
+
+        headers = {
+            get_wsgi_header("my-header"): "my_value",
+        }
+        resp = client.get("/", **headers)
+
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+
+    root = test_spans.get_root_span()
+
+    assert root.get_tag("http.request.headers.my-header") == "my_value"
+    assert root.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
 
 """
