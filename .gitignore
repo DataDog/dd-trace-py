@@ -7,6 +7,7 @@ __pycache__/
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
 ddtrace/profiling/_build.c
+ddtrace/internal/_rand.c
 *.so
 
 # Distribution / packaging

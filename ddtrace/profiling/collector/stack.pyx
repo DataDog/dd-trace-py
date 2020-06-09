@@ -26,11 +26,22 @@ if "gevent" in sys.modules:
         import gevent.monkey
     except ImportError:
         _LOG.error("gevent loaded but unable to import gevent.monkey")
+        from threading import Lock as _threading_Lock
         from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     else:
+        _threading_Lock = gevent.monkey.get_original("threading", "Lock")
         _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
+
+    # NOTE: bold assumption: this module is always imported by the MainThread.
+    # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
+    _main_thread_id = _thread_get_ident()
 else:
+    from threading import Lock as _threading_Lock
     from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
+    if six.PY2:
+        _main_thread_id = threading._MainThread().ident
+    else:
+        _main_thread_id = threading.main_thread().ident
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -217,6 +228,15 @@ IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
 
 
 cdef get_thread_name(thread_id):
+    # This is a special case for gevent:
+    # When monkey patching, gevent replaces all active threads by their greenlet equivalent.
+    # This means there's no chance to find the MainThread in the list of _active threads.
+    # Therefore we special case the MainThread that way.
+    # If native threads are started using gevent.threading, they will be inserted in threading._active
+    # so we will find them normally.
+    if thread_id == _main_thread_id:
+        return "MainThread"
+
     # Since we own the GIL, we can safely run this and assume no change will happen, without bothering to lock anything
     try:
         return threading._active[thread_id].name
@@ -270,7 +290,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     running_thread_ids = {t[0] for t in running_threads}
 
-    thread_span_links.clear_threads(running_thread_ids)
+    if thread_span_links:
+        thread_span_links.clear_threads(running_thread_ids)
 
     if ignore_profiler:
         running_thread_ids -= _periodic.PERIODIC_THREAD_IDS
@@ -305,7 +326,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     for tid, frame in running_threads:
         if ignore_profiler and tid in _periodic.PERIODIC_THREAD_IDS:
             continue
-        spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
+        if thread_span_links:
+            spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
+        else:
+            spans = set()
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
         stack_events.append(
             StackSampleEvent(
@@ -343,22 +367,19 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 @attr.s(slots=True, eq=False)
 class _ThreadSpanLinks(object):
 
-    _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(weakref.WeakSet), repr=False, init=False)
-
-    # We do not use a lock because:
-    # - When adding new items, it's not possible for a same thread to call `link_span` at different time
-    #   Since the WeakSet are per-thread, there's no chance of creating 2 WeakSet for the same thread
-    # - When reading the span WeakSet for a thread, the set is copied which means that if it was ever mutated during
-    #   our reading, we wouldn't care.
-    #   In practice, here, it won't even mutate during the reading since this only used by the stack collector which
-    #   already owns the GIL.
+    # Keys is a thread_id
+    # Value is a set of weakrefs to spans
+    _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
+    _lock = attr.ib(factory=_threading_Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
 
         Track threads, tasks, etc.
         """
-        self._thread_id_to_spans[_thread_get_ident()].add(span)
+        # Since we're going to iterate over the set, make sure it's locked
+        with self._lock:
+            self._thread_id_to_spans[_thread_get_ident()].add(weakref.ref(span))
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
@@ -367,10 +388,11 @@ class _ThreadSpanLinks(object):
 
         :param existing_thread_ids: A set of thread ids to keep.
         """
-        # Iterate over a copy of the list of keys in case it's mutated during our iteration.
-        for thread_id in list(self._thread_id_to_spans.keys()):
-            if thread_id not in existing_thread_ids:
-                del self._thread_id_to_spans[thread_id]
+        with self._lock:
+            # Iterate over a copy of the list of keys since it's mutated during our iteration.
+            for thread_id in list(self._thread_id_to_spans.keys()):
+                if thread_id not in existing_thread_ids:
+                    del self._thread_id_to_spans[thread_id]
 
     def get_active_leaf_spans_from_thread_id(self, thread_id):
         """Return the latest active spans for a thread.
@@ -381,16 +403,31 @@ class _ThreadSpanLinks(object):
         :param thread_id: The thread id.
         :return: A set with the active spans.
         """
-        spans = set(self._thread_id_to_spans.get(thread_id, ()))
+        alive_spans = set()
+
+        with self._lock:
+            span_list = self._thread_id_to_spans.get(thread_id, ())
+            dead_spans = set()
+            for span_ref in span_list:
+                span = span_ref()
+                if span is None:
+                    dead_spans.add(span_ref)
+                else:
+                    alive_spans.add(span)
+
+            # Clean the set from the dead spans
+            for dead_span in dead_spans:
+                span_list.remove(dead_span)
+
         # Iterate over a copy so we can modify the original
-        for span in set(spans):
+        for span in alive_spans.copy():
             if not span.finished:
                 try:
-                    spans.remove(span._parent)
+                    alive_spans.remove(span._parent)
                 except KeyError:
                     pass
 
-        return {span for span in spans if not span.finished}
+        return {span for span in alive_spans if not span.finished}
 
 
 @attr.s(slots=True)
@@ -410,7 +447,7 @@ class StackCollector(collector.PeriodicCollector):
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False)
     _last_wall_time = attr.ib(init=False, repr=False)
-    _thread_span_links = attr.ib(factory=_ThreadSpanLinks, init=False, repr=False)
+    _thread_span_links = attr.ib(default=None, init=False, repr=False)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -421,6 +458,7 @@ class StackCollector(collector.PeriodicCollector):
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
+            self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
         super(StackCollector, self).start()
 

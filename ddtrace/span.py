@@ -3,7 +3,7 @@ import sys
 import traceback
 
 from .vendor import six
-from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
+from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer, getrandbits
 from .constants import (
     NUMERIC_TAGS,
     MANUAL_DROP_KEY,
@@ -15,7 +15,6 @@ from .constants import (
 )
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
-from .internal import _rand
 
 log = get_logger(__name__)
 
@@ -41,7 +40,6 @@ class Span(object):
         "sampled",
         # Internal attributes
         "_context",
-        "finished",
         "_parent",
         "__weakref__",
     ]
@@ -93,8 +91,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits()
-        self.span_id = span_id or _rand.rand64bits()
+        self.trace_id = trace_id or getrandbits(64)
+        self.span_id = span_id or getrandbits(64)
         self.parent_id = parent_id
         self.tracer = tracer
 
@@ -104,9 +102,6 @@ class Span(object):
         self._context = context
         self._parent = None
 
-        # state
-        self.finished = False
-
     @property
     def start(self):
         """The start timestamp in Unix epoch seconds."""
@@ -115,6 +110,23 @@ class Span(object):
     @start.setter
     def start(self, value):
         self.start_ns = int(value * 1e9)
+
+    @property
+    def finished(self):
+        return self.duration_ns is not None
+
+    @finished.setter
+    def finished(self, value):
+        """Finishes the span if set to a truthy value.
+
+        If the span is already finished and a truthy value is provided
+        no action will occur.
+        """
+        if value:
+            if not self.finished:
+                self.duration_ns = time_ns() - self.start_ns
+        else:
+            self.duration_ns = None
 
     @property
     def duration(self):
@@ -135,7 +147,6 @@ class Span(object):
         """
         if self.finished:
             return
-        self.finished = True
 
         if self.duration_ns is None:
             ft = time_ns() if finish_time is None else int(finish_time * 1e9)

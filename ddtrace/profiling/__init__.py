@@ -9,7 +9,7 @@ def _not_compatible_abi():
     raise ImportError(
         "Python ABI is not compatible, you need to recompile this module.\n"
         "Reinstall it with the following command:\n"
-        "  pip install --no-binary ddtrace ddtrace[profiling]"
+        "  pip install --no-binary ddtrace ddtrace"
     )
 
 
