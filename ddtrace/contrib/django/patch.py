@@ -16,8 +16,10 @@ from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
+from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
@@ -117,9 +119,20 @@ def instrument_dbs(django):
         patch_conn(django, django.db.connection)
 
 
-def _set_request_tags(span, request):
+def _set_request_tags(django, span, request):
     span.set_tag("django.request.class", func_name(request))
     span.set_tag(http.METHOD, request.method)
+
+    if django.VERSION >= (2, 2, 0):
+        headers = request.headers
+    else:
+        headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                headers[name] = value
+
+    store_request_headers(headers, span, config.django)
 
     user = getattr(request, "user", None)
     if user is not None:
@@ -403,7 +416,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Note: this call must be done after the function call because
             # some attributes (like `user`) are added to the request through
             # the middleware chain
-            _set_request_tags(span, request)
+            _set_request_tags(django, span, request)
 
             if response:
                 span.set_tag(http.STATUS_CODE, response.status_code)
@@ -412,6 +425,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
                     utils.set_tag_array(span, "django.response.template", response.template_name)
+
+                headers = dict(response.items())
+                store_response_headers(headers, span, config.django)
+
             return response
 
 

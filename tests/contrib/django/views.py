@@ -81,4 +81,6 @@ lambda_view = lambda request: function_view(request)  # NOQA
 
 
 def index(request):
-    return HttpResponse("Hello, test app.")
+    response = HttpResponse("Hello, test app.")
+    response["my-response-header"] = "my_response_value"
+    return response
