@@ -1,16 +1,35 @@
 # -*- encoding: utf-8 -*-
 import collections
 
-from ddtrace.profiling import _attr
 from ddtrace.vendor import attr
+
+
+class _defaultdictkey(dict):
+    """A variant of defaultdict that calls default_factory with the missing key as argument."""
+
+    def __init__(self, default_factory=None):
+        self.default_factory = default_factory
+
+    def __missing__(self, key):
+        if self.default_factory:
+            v = self[key] = self.default_factory(key)
+            return v
+        raise KeyError(key)
 
 
 @attr.s(slots=True, eq=False)
 class Recorder(object):
     """An object that records program activity."""
 
+    _DEFAULT_MAX_EVENTS = 32768
+
+    default_max_events = attr.ib(default=_DEFAULT_MAX_EVENTS)
+    """The maximum number of events for an event type if one is not specified."""
+
+    max_events = attr.ib(factory=dict)
+    """A dict of {event_type_class: max events} to limit the number of events to record."""
+
     events = attr.ib(init=False, repr=False)
-    max_size = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_EVENTS", 49152, int))
 
     def __attrs_post_init__(self):
         self._reset_events()
@@ -35,8 +54,11 @@ class Recorder(object):
             q = self.events[event_type]
             q.extend(events)
 
+    def _get_deque_for_event_type(self, event_type):
+        return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
+
     def _reset_events(self):
-        self.events = collections.defaultdict(lambda: collections.deque(maxlen=self.max_size))
+        self.events = _defaultdictkey(self._get_deque_for_event_type)
 
     def reset(self):
         """Reset the recorder.
