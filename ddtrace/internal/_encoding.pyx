@@ -40,6 +40,15 @@ cdef inline int PyBytesLike_CheckExact(object o):
     return PyBytes_CheckExact(o) or PyByteArray_CheckExact(o)
 
 
+cdef inline int pack_bytes(msgpack_packer *pk, char *bytes, Py_ssize_t l):
+    cdef int ret
+    cdef dict d
+    ret = msgpack_pack_bin(pk, l)
+    if ret == 0:
+        ret = msgpack_pack_raw_body(pk, bytes, l)
+    return ret
+
+
 cdef class Packer(object):
     """
     MessagePack Packer
@@ -206,78 +215,74 @@ cdef class Packer(object):
                         if ret != 0: break
 
             elif type(o) is Span:
-                L = 12
-                if L > ITEM_LIMIT:
-                    raise ValueError("list is too large")
-
                 has_span_type = <bint>(o.span_type is not None)
                 has_meta = <bint>(len(o.meta) > 0)
                 has_metrics = <bint>(len(o.metrics) > 0)
 
-                L = L - (1 - has_span_type) - (1 - has_meta) - (1 - has_metrics)
+                L = 12 - (1 - has_span_type) - (1 - has_meta) - (1 - has_metrics)
 
                 ret = msgpack_pack_map(&self.pk, L)
 
                 if ret == 0:
-                    ret = self._pack_bytes(<char *>b"trace_id")
+                    ret = pack_bytes(&self.pk, <char *>b"trace_id", 8)
                     if ret != 0: return ret
                     ret = self._pack(o.trace_id)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"parent_id")
+                    ret = pack_bytes(&self.pk, <char *>b"parent_id", 9)
                     if ret != 0: return ret
                     ret = self._pack(o.parent_id)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"span_id")
+                    ret = pack_bytes(&self.pk, <char *>b"span_id", 7)
                     if ret != 0: return ret
                     ret = self._pack(o.span_id)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"service")
+                    ret = pack_bytes(&self.pk, <char *>b"service", 7)
                     if ret != 0: return ret
                     ret = self._pack(o.service)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"resource")
+                    ret = pack_bytes(&self.pk, <char *>b"resource", 8)
                     if ret != 0: return ret
                     ret = self._pack(o.resource)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"name")
+                    ret = pack_bytes(&self.pk, <char *>b"name", 4)
                     if ret != 0: return ret
                     ret = self._pack(o.name)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"error")
+                    ret = pack_bytes(&self.pk, <char *>b"error", 5)
                     if ret != 0: return ret
                     ret = self._pack(1 if o.error else 0)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"start")
+                    ret = pack_bytes(&self.pk, <char *>b"start", 5)
                     if ret != 0: return ret
                     ret = self._pack(o.start_ns)
                     if ret != 0: return ret
 
-                    ret = self._pack_bytes(<char *>b"duration")
+                    ret = pack_bytes(&self.pk, <char *>b"duration", 8)
                     if ret != 0: return ret
                     ret = self._pack(o.duration_ns)
                     if ret != 0: return ret
 
                     if has_span_type:
-                        ret = self._pack_bytes(<char *>b"type")
+                        ret = pack_bytes(&self.pk, <char *>b"type", 4)
                         if ret != 0: return ret
                         ret = self._pack(o.span_type)
                         if ret != 0: return ret
 
                     if has_meta:
-                        ret = self._pack_bytes(<char *>b"meta")
+                        ret = pack_bytes(&self.pk, <char *>b"meta", 4)
                         if ret != 0: return ret
                         ret = self._pack(o.meta)
                         if ret != 0: return ret
 
                     if has_metrics:
-                        ret = self._pack_bytes(<char *>b"metrics")
+                        ret = pack_bytes(&self.pk, <char *>b"metrics", 7)
                         if ret != 0: return ret
                         ret = self._pack(o.metrics)
                         if ret != 0: return ret
@@ -337,7 +342,7 @@ cdef class TraceMsgpackEncoder(object):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
-    cpdef encode_trace(self, trace):
+    cpdef encode_trace(self, list trace):
         return Packer().pack(trace)
 
     cpdef encode_traces(self, traces):
