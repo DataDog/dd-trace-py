@@ -71,8 +71,6 @@ class RefMsgpackEncoder(_EncoderBase):
 
     @staticmethod
     def decode(data):
-        if msgpack.version[:2] < (0, 6):
-            return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
     @staticmethod
