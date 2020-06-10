@@ -4,12 +4,12 @@ Class based views used for Django tests.
 
 from functools import partial
 
-from django.http import HttpResponse
-
-from django.views.generic import ListView, TemplateView, View
-
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
+from django.http import HttpResponse
+from django.template import loader
+from django.template.response import TemplateResponse
+from django.views.generic import ListView, TemplateView, View
 
 
 class UserList(ListView):
@@ -81,4 +81,28 @@ lambda_view = lambda request: function_view(request)  # NOQA
 
 
 def index(request):
-    return HttpResponse("Hello, test app.")
+    response = HttpResponse("Hello, test app.")
+    response["my-response-header"] = "my_response_value"
+    return response
+
+
+def template_view(request):
+    """
+    View that uses a template instance
+    """
+    template = loader.select_template(["basic.html"])
+    return TemplateResponse(request, template)
+
+
+def template_simple_view(request):
+    """
+    Basic django templated view
+    """
+    return TemplateResponse(request, "basic.html")
+
+
+def template_list_view(request):
+    """
+    For testing resolving a list of templates
+    """
+    return TemplateResponse(request, ["doesntexist.html", "basic.html"])
