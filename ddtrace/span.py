@@ -58,6 +58,7 @@ class Span(object):
         parent_id=None,
         start=None,
         context=None,
+        check_pid=True,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -93,8 +94,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits()
-        self.span_id = span_id or _rand.rand64bits()
+        self.trace_id = trace_id or _rand.rand64bits(check_pid=check_pid)
+        self.span_id = span_id or _rand.rand64bits(check_pid=check_pid)
         self.parent_id = parent_id
         self.tracer = tracer
 

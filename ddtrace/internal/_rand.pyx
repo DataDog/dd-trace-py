@@ -56,6 +56,7 @@ from ddtrace import compat
 
 
 cdef uint64_t state
+cdef object pid = None
 
 
 cpdef _getstate():
@@ -67,7 +68,16 @@ cpdef seed():
     state = <uint64_t>compat.getrandbits(64) ^ <uint64_t>4101842887655102017
 
 
-cpdef rand64bits():
+cpdef rand64bits(check_pid=True):
+    if check_pid:
+        global pid
+        _pid = os.getpid()
+
+        if _pid != pid:
+            seed()
+
+        pid = _pid
+
     global state
     state ^= state >> 21
     state ^= state << 35
