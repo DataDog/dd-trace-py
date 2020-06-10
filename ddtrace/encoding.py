@@ -3,6 +3,7 @@ import struct
 
 import msgpack
 
+from ddtrace.vendor import debtcollector
 from .internal.logger import get_logger
 
 
@@ -43,6 +44,7 @@ class _EncoderBase(object):
         """
         raise NotImplementedError
 
+    @debtcollector.removals.remove(version="0.39.0", removal_version="0.40.0")
     @staticmethod
     def decode(data):
         """
@@ -64,6 +66,7 @@ class JSONEncoder(_EncoderBase):
     def encode(obj):
         return json.dumps(obj)
 
+    @debtcollector.removals.remove(version="0.39.0", removal_version="0.40.0")
     @staticmethod
     def decode(data):
         return json.loads(data)
@@ -121,6 +124,7 @@ class MsgpackEncoder(_EncoderBase):
     def encode(obj):
         return msgpack.packb(obj)
 
+    @debtcollector.removals.remove(version="0.39.0", removal_version="0.40.0")
     @staticmethod
     def decode(data):
         if msgpack.version[:2] < (0, 6):
