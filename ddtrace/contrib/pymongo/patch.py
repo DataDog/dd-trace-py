@@ -17,7 +17,7 @@ _MongoClient = pymongo.MongoClient
 def patch():
     patch_pymongo_module()
     # We should progressively get rid of TracedMongoClient. We now try to
-    # wrap methods individually. cf issue #_
+    # wrap methods individually. cf #1501
     setattr(pymongo, 'MongoClient', TracedMongoClient)
 
 
