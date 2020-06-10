@@ -17,7 +17,7 @@ def test_random():
         m.add(n)
 
 
-def test_fork():
+def test_fork_no_pid_check():
     q = mp.Queue()
     pid = os.fork()
 
@@ -26,23 +26,58 @@ def test_fork():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rngs = {_rand.rand64bits() for _ in range(10000)}
-        child_rngs = q.get()
+        rns = {_rand.rand64bits(check_pid=False) for _ in range(10000)}
+        child_rns = q.get()
         q.put(None)
 
         if PYTHON_VERSION_INFO >= (3, 7):
             # Python 3.7+ have fork hooks which should be used
             # Hence we should not get any collisions
-            assert rngs & child_rngs == set()
+            assert rns & child_rns == set()
         else:
-            # Python < 3.7 we don't have any mechanism to
-            # reseed on so we expect there to be collisions.
-            assert rngs == child_rngs
+            # Python < 3.7 we don't have any mechanism (other than the pid
+            # check) to reseed on so we expect there to be collisions.
+            assert rns == child_rns
 
     else:
         # child
         try:
-            rngs = {_rand.rand64bits() for _ in range(10000)}
+            rngs = {_rand.rand64bits(check_pid=False) for _ in range(10000)}
+            q.put(rngs)
+            q.get()
+        finally:
+            # Kill the process so it doesn't continue running the rest of the
+            # test suite in a separate process. Note we can't use sys.exit()
+            # as it raises an exception that pytest will detect as an error.
+            os._exit(0)
+
+
+def test_fork_pid_check():
+    q = mp.Queue()
+    pid = os.fork()
+
+    # Generate random numbers in the parent and child processes after forking.
+    # The child sends back their numbers to the parent where we check to see
+    # if we get collisions or not.
+    if pid > 0:
+        # parent
+        rns = {_rand.rand64bits(check_pid=True) for _ in range(10000)}
+        child_rns = q.get()
+        q.put(None)
+
+        if PYTHON_VERSION_INFO >= (3, 7):
+            # Python 3.7+ have fork hooks which should be used
+            # Hence we should not get any collisions
+            assert rns & child_rns == set()
+        else:
+            # Python < 3.7 we have the pid check so there also
+            # should not be any collisions.
+            assert rns & child_rns == set()
+
+    else:
+        # child
+        try:
+            rngs = {_rand.rand64bits(check_pid=True) for _ in range(10000)}
             q.put(rngs)
             q.get()
         finally:
