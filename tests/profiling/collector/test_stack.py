@@ -65,13 +65,17 @@ def test_collect_once():
     with s:
         all_events = s.collect()
     assert len(all_events) == 2
-    e = all_events[0][0]
-    assert e.thread_id > 0
-    assert e.thread_name == "MainThread"
-    assert len(e.frames) >= 1
-    assert e.frames[0][0].endswith(".py")
-    assert e.frames[0][1] > 0
-    assert isinstance(e.frames[0][2], str)
+    stack_events = all_events[0]
+    for e in stack_events:
+        if e.thread_name == "MainThread":
+            assert e.thread_id > 0
+            assert len(e.frames) >= 1
+            assert e.frames[0][0].endswith(".py")
+            assert e.frames[0][1] > 0
+            assert isinstance(e.frames[0][2], str)
+            break
+    else:
+        pytest.fail("Unable to find MainThread")
 
 
 def test_max_time_usage():
@@ -217,7 +221,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == stack._thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 210, "test_exception_collection")]
+    assert e.frames == [(__file__, 214, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
