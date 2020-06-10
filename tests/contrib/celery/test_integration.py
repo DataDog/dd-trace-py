@@ -708,3 +708,34 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         traces = self.tracer.writer.pop_traces()
         span = traces[0][0]
         assert span.trace_id == 12345
+
+    def test_distributed_tracing_propagation_async(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # This header manipulation is copying the work that should be done
+        # by the before_publish signal. Rip it out if Celery ever fixes their bug.
+        current_context = Pin.get_from(self.app).tracer.context_provider.active()
+        headers = {}
+        HTTPPropagator().inject(current_context, headers)
+
+        with self.override_config("celery", dict(distributed_tracing=True)):
+            result = fn_task.apply_async(headers=headers)
+            assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
+
+        traces = self.tracer.writer.pop_traces()
+
+        if self.ASYNC_USE_CELERY_FIXTURES:
+            assert 2 == len(traces)
+            assert 1 == len(traces[0])
+            assert 1 == len(traces[1])
+            async_span = traces[0][0]
+            run_span = traces[1][0]
+            assert async_span.trace_id == 12345
+        else:
+            assert 1 == len(traces)
+            assert 1 == len(traces[0])
+            run_span = traces[0][0]
+
+        assert run_span.trace_id == 12345
