@@ -1,6 +1,8 @@
 import os
 import uuid
 
+from ddtrace import compat
+
 from .runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
@@ -23,13 +25,13 @@ def _generate_runtime_id():
 _RUNTIME_ID = _generate_runtime_id()
 
 
-if hasattr(os, "register_at_fork"):
+if hasattr(compat, "register_at_fork"):
 
     def _set_runtime_id():
         global _RUNTIME_ID
         _RUNTIME_ID = _generate_runtime_id()
 
-    os.register_at_fork(after_in_child=_set_runtime_id)
+    compat.register_at_fork(after_in_child=_set_runtime_id)
 
     def get_runtime_id():
         return _RUNTIME_ID

@@ -1,8 +1,8 @@
 # -*- encoding: utf-8 -*-
 """Bootstrapping code that is run when using the `pyddprofile`."""
 import atexit
-import os
 
+from ddtrace import compat
 from ddtrace.profiling import bootstrap
 from ddtrace.profiling import profiler
 from ddtrace.vendor import six
@@ -24,5 +24,5 @@ def start_profiler():
 start_profiler()
 # When forking, all threads are stop in the child.
 # Restart a new profiler.
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=start_profiler)
+if hasattr(compat, "register_at_fork"):
+    compat.register_at_fork(after_in_child=start_profiler)

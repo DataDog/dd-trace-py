@@ -10,7 +10,7 @@ import os
 import threading
 
 from ddtrace import tracer, Span
-from ddtrace.compat import PYTHON_VERSION_INFO, Queue
+from ddtrace.compat import Queue
 from ddtrace.internal import _rand
 
 
@@ -35,15 +35,7 @@ def test_fork_no_pid_check():
         rns = {_rand.rand64bits(check_pid=False) for _ in range(100)}
         child_rns = q.get()
 
-        if PYTHON_VERSION_INFO >= (3, 7):
-            # Python 3.7+ have fork hooks which should be used
-            # Hence we should not get any collisions
-            assert rns & child_rns == set()
-        else:
-            # Python < 3.7 we don't have any mechanism (other than the pid
-            # check) to reseed on so we expect there to be collisions.
-            assert rns == child_rns
-
+        assert rns & child_rns == set()
     else:
         # child
         try:
@@ -68,15 +60,7 @@ def test_fork_pid_check():
         rns = {_rand.rand64bits(check_pid=True) for _ in range(100)}
         child_rns = q.get()
 
-        if PYTHON_VERSION_INFO >= (3, 7):
-            # Python 3.7+ have fork hooks which should be used
-            # Hence we should not get any collisions
-            assert rns & child_rns == set()
-        else:
-            # Python < 3.7 we have the pid check so there also
-            # should not be any collisions.
-            assert rns & child_rns == set()
-
+        assert rns & child_rns == set()
     else:
         # child
         try:

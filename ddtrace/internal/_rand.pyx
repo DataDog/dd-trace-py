@@ -87,9 +87,9 @@ cpdef rand64bits(check_pid=True):
     return <uint64_t>(state * <uint64_t>2685821657736338717)
 
 
-# Should be available in Python 3.7+
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=seed)
+# Should be available on POSIX platforms
+if hasattr(compat, "register_at_fork"):
+    compat.register_at_fork(after_in_child=seed)
 
 
 seed()
