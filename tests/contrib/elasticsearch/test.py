@@ -1,4 +1,5 @@
 import datetime
+import json
 
 # project
 from ddtrace import Pin
@@ -397,3 +398,64 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
             pass
         spans = self.get_spans()
         assert len(spans) == 1
+
+
+class ElasticsearchComplianceTest(BaseTracerTestCase):
+
+    def test_scrub_body_values(self):
+        body = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match_phrase_prefix": {"some_field": "Test"}},
+                        {"match_phrase_prefix": {"another_field": "Test"}},
+                        {"match": {"building.floor": "Test"}},
+                    ],
+                    "must": [{"terms": {"friends.id": [-1]}}],
+                    "minimum_should_match": 1,
+                }
+            },
+            "size": 20,
+            "from": 0,
+        }
+        num_test = json.dumps(body).count("Test")
+        scrubbed_body = scrub_es_data(body)
+        scrubbed_str = json.dumps(scrubbed_body)
+        self.assertNotIn("Test", scrubbed_str)
+        self.assertEqual(num_test, scrubbed_str.count("?") - 4)
+        self.assertEqual(scrubbed_body["size"], "?")
+        self.assertEqual(scrubbed_body["from"], "?")
+        self.assertEqual(scrubbed_body["query"]["bool"]["must"][0]["terms"]["friends.id"][0], "?")
+        self.assertEqual(scrubbed_body["query"]["bool"]["minimum_should_match"], "?")
+
+    def test_search_body_is_scrubbed(self):
+        es = self.es
+        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+        self.reset()
+        es_body_dict = {
+            "query": {
+                "range": {
+                    "created": {
+                        "lt": datetime.datetime.now().isoformat()
+                    }
+                }
+            }
+        }
+        with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
+            with self.override_config("elasticsearch", dict(scrub_query=True)):
+                result = es.search(sort=["name:desc"], size=100, body=es_body_dict, **args)
+                assert len(result["hits"]["hits"]) == 0, result
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[-1]
+        BaseTracerTestCase.assert_is_measured(span)
+        assert span.resource == "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
+        assert span.get_tag("elasticsearch.method") == "GET"
+        assert span.get_tag("elasticsearch.url") == "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
+        assert span.get_tag("elasticsearch.body") == json.dumps(scrub_body_values(es_body_dict))
+        body_string_spaces = '{"query":{"range":{"created": {"lt": "?"}}}}'
+        assert span.get_tag("elasticsearch.body").replace(" ", "") == body_string_spaces
+        assert set(span.get_tag("elasticsearch.params").split("&")) == \
+               {"sort=name%3Adesc", "size=100"}
+        assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}

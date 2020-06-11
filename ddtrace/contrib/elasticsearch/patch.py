@@ -72,7 +72,10 @@ def _get_perform_request(elasticsearch):
                 span.set_tag(http.QUERY_STRING, encoded_params)
 
             if method == "GET":
-                span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+                if getattr(config.elasticsearch, "scrub_query", False):
+                    body = scrub_body_values(body)
+                serialized_body = instance.serializer.dumps(body)
+                span.set_tag(metadata.BODY, serialized_body)
             status = None
 
             # set analytics sample rate
@@ -108,6 +111,28 @@ def _get_perform_request(elasticsearch):
             return result
 
     return _perform_request
+
+
+def scrub_body_values(query):
+    """
+    Takes a [elastic search] query body and changes all terminal values to "?" for compliance.
+    :param query:
+    :return:
+    """
+    if isinstance(query, dict):
+        for k, v in query.items():
+            if isinstance(v, dict):
+                query[k] = scrub_body_values(v)
+            else:
+                query[k] = scrub_body_values(v)
+        return query
+
+    elif isinstance(query, list):
+        for idx, elem in enumerate(query):
+            query[idx] = scrub_body_values(elem)
+        return query
+    else:
+        return "?"
 
 
 # Backwards compatibility for anyone who decided to import `ddtrace.contrib.elasticsearch.patch._perform_request`
