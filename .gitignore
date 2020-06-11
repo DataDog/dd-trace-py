@@ -8,6 +8,7 @@ ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
 ddtrace/profiling/_build.c
 ddtrace/internal/_rand.c
+ddtrace/compat/_os.c
 *.so
 
 # Distribution / packaging

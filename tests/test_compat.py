@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-# Define source file encoding to support raw unicode characters in Python 2
+import os
 import sys
 
-# Third party
 import pytest
 
-# Project
+from ddtrace import compat
 from ddtrace.compat import to_unicode, PY3, reraise, get_connection_response, is_integer
 
 
@@ -114,3 +113,104 @@ class TestPy2Py3Compat(object):
 ])
 def test_is_integer(obj, expected):
     assert is_integer(obj) is expected
+
+
+@pytest.mark.skipif(not getattr(compat, "register_at_fork"), reason="register_at_fork not supported on this platform")
+def test_register_at_fork_before():
+    check = {"called": 0}
+
+    def before1():
+        check["called"] += 10
+
+    def before2():
+        check["called"] /= 2
+
+    compat.register_at_fork(before=before2)
+    compat.register_at_fork(before=before1)
+
+    child = os.fork()
+
+    if child == 0:
+        assert check['called'] == 5
+        os._exit(42)
+
+    pid, status = os.waitpid(child, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
+
+    assert check['called'] == 5
+
+
+@pytest.mark.skipif(not getattr(compat, "register_at_fork"), reason="register_at_fork not supported on this platform")
+def test_register_at_fork_before_error():
+    check = {"called": 0}
+
+    def before():
+        check["called"] += 1
+        raise RuntimeError
+
+    compat.register_at_fork(before=before)
+
+    child = os.fork()
+
+    if child == 0:
+        assert check['called'] == 1
+        os._exit(42)
+
+    pid, status = os.waitpid(child, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
+
+    assert check['called'] == 1
+
+
+@pytest.mark.skipif(not getattr(compat, "register_at_fork"), reason="register_at_fork not supported on this platform")
+def test_register_at_fork_after_in_child():
+    check = {"called": 0}
+
+    def after1():
+        check["called"] += 10
+
+    def after2():
+        check["called"] /= 2
+
+    compat.register_at_fork(after_in_child=after1)
+    compat.register_at_fork(after_in_child=after2)
+
+    child = os.fork()
+
+    if child == 0:
+        assert check['called'] == 5
+        os._exit(42)
+
+    pid, status = os.waitpid(child, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
+
+    assert check['called'] == 0
+
+
+@pytest.mark.skipif(not getattr(compat, "register_at_fork"), reason="register_at_fork not supported on this platform")
+def test_register_at_fork_after_in_parent():
+    check = {"called": 0}
+
+    def after1():
+        check["called"] += 10
+
+    def after2():
+        check["called"] /= 2
+
+    compat.register_at_fork(after_in_parent=after1)
+    compat.register_at_fork(after_in_parent=after2)
+
+    child = os.fork()
+
+    if child == 0:
+        assert check['called'] == 0
+        os._exit(42)
+
+    pid, status = os.waitpid(child, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
+
+    assert check['called'] == 5

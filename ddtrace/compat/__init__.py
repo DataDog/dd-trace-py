@@ -1,6 +1,7 @@
 import platform
 import random
 import re
+import os
 import sys
 import textwrap
 
@@ -17,6 +18,16 @@ __all__ = [
     "parse",
     "reraise",
 ]
+
+
+if hasattr(os, "register_at_fork"):
+    register_at_fork = os.register_at_fork
+else:
+    from . import _os
+
+    if hasattr(_os, "register_at_fork"):
+        register_at_fork = _os.register_at_fork
+
 
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
@@ -74,7 +85,7 @@ except ImportError:
 try:
     from time import monotonic
 except ImportError:
-    from .vendor.monotonic import monotonic
+    from ..vendor.monotonic import monotonic
 
 
 try:
