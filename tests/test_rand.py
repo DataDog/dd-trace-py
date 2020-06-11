@@ -1,9 +1,15 @@
 from itertools import chain
 import multiprocessing as mp
+
+try:
+    from multiprocessing import SimpleQueue as MPQueue
+except ImportError:
+    from multiprocessing.queues import SimpleQueue as MPQueue
+
 import os
 import threading
 
-from ddtrace import tracer
+from ddtrace import tracer, Span
 from ddtrace.compat import PYTHON_VERSION_INFO, Queue
 from ddtrace.internal import _rand
 
@@ -18,7 +24,7 @@ def test_random():
 
 
 def test_fork_no_pid_check():
-    q = mp.Queue()
+    q = MPQueue()
     pid = os.fork()
 
     # Generate random numbers in the parent and child processes after forking.
@@ -26,9 +32,8 @@ def test_fork_no_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=False) for _ in range(10000)}
+        rns = {_rand.rand64bits(check_pid=False) for _ in range(100)}
         child_rns = q.get()
-        q.put(None)
 
         if PYTHON_VERSION_INFO >= (3, 7):
             # Python 3.7+ have fork hooks which should be used
@@ -42,9 +47,8 @@ def test_fork_no_pid_check():
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=False) for _ in range(10000)}
+            rngs = {_rand.rand64bits(check_pid=False) for _ in range(100)}
             q.put(rngs)
-            q.get()
         finally:
             # Kill the process so it doesn't continue running the rest of the
             # test suite in a separate process. Note we can't use sys.exit()
@@ -53,7 +57,7 @@ def test_fork_no_pid_check():
 
 
 def test_fork_pid_check():
-    q = mp.Queue()
+    q = MPQueue()
     pid = os.fork()
 
     # Generate random numbers in the parent and child processes after forking.
@@ -61,9 +65,8 @@ def test_fork_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=True) for _ in range(10000)}
+        rns = {_rand.rand64bits(check_pid=True) for _ in range(100)}
         child_rns = q.get()
-        q.put(None)
 
         if PYTHON_VERSION_INFO >= (3, 7):
             # Python 3.7+ have fork hooks which should be used
@@ -77,9 +80,8 @@ def test_fork_pid_check():
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=True) for _ in range(10000)}
+            rngs = {_rand.rand64bits(check_pid=True) for _ in range(100)}
             q.put(rngs)
-            q.get()
         finally:
             # Kill the process so it doesn't continue running the rest of the
             # test suite in a separate process. Note we can't use sys.exit()
@@ -88,19 +90,19 @@ def test_fork_pid_check():
 
 
 def test_multiprocess():
-    q = mp.Queue()
+    q = MPQueue()
 
     def target(q):
         q.put([_rand.rand64bits() for _ in range(100)])
 
-    ps = [mp.Process(target=target, args=(q,)) for _ in range(10)]
+    ps = [mp.Process(target=target, args=(q,)) for _ in range(30)]
     for p in ps:
         p.start()
 
     for p in ps:
         p.join()
 
-    ids_list = [_rand.rand64bits() for _ in range(10000)]
+    ids_list = [_rand.rand64bits() for _ in range(1000)]
     ids = set(ids_list)
     assert len(ids_list) == len(ids), "Collisions found in ids"
 
@@ -161,7 +163,7 @@ def test_threadsafe():
 
 
 def test_tracer_usage_fork():
-    q = mp.Queue()
+    q = MPQueue()
     pid = os.fork()
 
     # Similar test to test_fork() above except we use the tracer API.
@@ -169,26 +171,24 @@ def test_tracer_usage_fork():
     if pid > 0:
         # parent
         parent_ids_list = list(
-            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(1000)])
+            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)])
         )
         parent_ids = set(parent_ids_list)
-        assert len(parent_ids) == len(parent_ids_list), "Collisions found in parent ids"
+        assert len(parent_ids) == len(parent_ids_list), "Collisions found in parent process ids"
 
         child_ids_list = q.get()
-        q.put(None)
 
         child_ids = set(child_ids_list)
 
-        assert len(child_ids) == len(child_ids_list), "Collisions found in child ids"
+        assert len(child_ids) == len(child_ids_list), "Collisions found in child process ids"
         assert parent_ids & child_ids == set()
     else:
         # child
         try:
             child_ids = list(
-                chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(1000)])
+                chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)])
             )
             q.put(child_ids)
-            q.get()
         finally:
             # Kill the process so it doesn't continue running the rest of the
             # test suite in a separate process. Note we can't use sys.exit()
@@ -197,7 +197,7 @@ def test_tracer_usage_fork():
 
 
 def test_tracer_usage_multiprocess():
-    q = mp.Queue()
+    q = MPQueue()
 
     # Similar to test_multiprocess(), ensures that no collisions are
     # generated between parent and child processes while using
@@ -205,11 +205,11 @@ def test_tracer_usage_multiprocess():
 
     def target(q):
         ids_list = list(
-            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(100)])
+            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(10)])
         )
         q.put(ids_list)
 
-    ps = [mp.Process(target=target, args=(q,)) for _ in range(10)]
+    ps = [mp.Process(target=target, args=(q,)) for _ in range(30)]
     for p in ps:
         p.start()
 
@@ -228,3 +228,32 @@ def test_tracer_usage_multiprocess():
 
         assert ids & child_ids == set()
         ids = ids | child_ids  # accumulate the ids
+
+
+def test_span_api_fork():
+    q = MPQueue()
+    pid = os.fork()
+
+    if pid > 0:
+        # parent
+        parent_ids_list = list(
+            chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None, None) for _ in range(100)])
+        )
+        parent_ids = set(parent_ids_list)
+        assert len(parent_ids) == len(parent_ids_list), "Collisions found in parent process ids"
+
+        child_ids_list = q.get()
+
+        child_ids = set(child_ids_list)
+
+        assert len(child_ids) == len(child_ids_list), "Collisions found in child process ids"
+        assert parent_ids & child_ids == set()
+    else:
+        # child
+        try:
+            child_ids = list(
+                chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None, None) for _ in range(100)])
+            )
+            q.put(child_ids)
+        finally:
+            os._exit(0)
