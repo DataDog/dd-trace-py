@@ -346,7 +346,7 @@ def test_stress_trace_collection(tracer_and_collector):
             with tracer.trace("hello"):
                 time.sleep(0.001)
 
-    NB_THREADS = 50
+    NB_THREADS = 30
 
     threads = []
     for i in range(NB_THREADS):
@@ -355,9 +355,6 @@ def test_stress_trace_collection(tracer_and_collector):
 
     for t in threads:
         t.start()
-
-    for _ in range(10000):
-        collector.collect()
 
     for t in threads:
         t.join()
