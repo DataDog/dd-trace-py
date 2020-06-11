@@ -8,30 +8,9 @@ from ddtrace.profiling import _service
 
 
 if os.getenv("DD_PROFILE_TEST_GEVENT", False):
-    import gevent
+    import gevent.monkey
 
-    class Event(object):
-        """
-        We can't use gevent Events here[0], nor can we use native threading
-        events (because gevent is not multi-threaded).
-
-        So for gevent, since it's not multi-threaded and will not run greenlets
-        in parallel (for our usage here, anyway) we can write a dummy Event
-        class which just does a simple busy wait on a shared variable.
-
-        [0] https://github.com/gevent/gevent/issues/891
-        """
-
-        state = False
-
-        def wait(self):
-            while not self.state:
-                gevent.sleep(0.001)
-
-        def set(self):
-            self.state = True
-
-
+    Event = gevent.monkey.get_original("threading", "Event")
 else:
     Event = threading.Event
 
