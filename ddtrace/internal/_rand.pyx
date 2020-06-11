@@ -73,12 +73,12 @@ cpdef seed():
 cpdef rand64bits(check_pid=True):
     if check_pid:
         global pid
-        _pid = os.getpid()
+        current_pid = os.getpid()
 
-        if _pid != pid:
+        if current_pid != pid:
             seed()
 
-        pid = _pid
+        pid = current_pid
 
     global state
     state ^= state >> 21

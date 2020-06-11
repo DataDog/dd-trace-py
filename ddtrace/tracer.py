@@ -400,7 +400,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
-                check_pid=False,
+                _check_pid=False,
             )
 
             # Extra attributes when from a local parent
@@ -416,7 +416,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
-                check_pid=False,
+                _check_pid=False,
             )
 
             span.sampled = self.sampler.sample(span)
