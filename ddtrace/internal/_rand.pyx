@@ -51,7 +51,6 @@ random.getrandbits               111.7341 (1.94)     224.2096 (1.48)     137.429
 from libc.stdint cimport uint64_t
 import os
 
-from ddtrace.vendor.wrapt import wrap_function_wrapper
 from ddtrace import compat
 
 
@@ -90,27 +89,4 @@ if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=seed)
 
 
-def patch_stdlib_seed():
-    """Patches random.seed() to also reseed our RNG.
-
-    This is done because many libraries[0,1] call random.seed() after forking
-    to reseed the generator for the new process.
-
-    [0]: gunicorn: https://github.com/benoitc/gunicorn/blob/5425af8941e1d43c57b5b2fb3fbd7f728688ce01/gunicorn/workers/base.py#L100-L101
-    [1]: uWSGI: https://github.com/unbit/uwsgi/blob/3d17bf5115a300d722776a78bf0ef01764556cba/plugins/python/python_plugin.c#L444
-    """
-
-    def patched_seed(func, instance, args, kwargs):
-        try:
-            return func(*args, **kwargs)
-        finally:
-            # We need the random module to reseed before we do since we use
-            # it to seed ourselves.
-            seed()
-
-    wrap_function_wrapper("random", "seed", patched_seed)
-
-
 seed()
-
-patch_stdlib_seed()

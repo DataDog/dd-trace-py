@@ -87,14 +87,6 @@ def test_fork_pid_check():
             os._exit(0)
 
 
-def test_patching_random_seed():
-    import random
-
-    seed = _rand._getstate()
-    random.seed()
-    assert _rand._getstate() != seed
-
-
 def test_multiprocess():
     q = mp.Queue()
 
