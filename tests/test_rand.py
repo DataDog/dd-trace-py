@@ -203,6 +203,9 @@ def test_tracer_usage_multiprocess():
     # generated between parent and child processes while using
     # multiprocessing.
 
+    # Note that we have to be wary of the size of the underlying
+    # pipe in the queue: https://bugs.python.org/msg143081
+
     def target(q):
         ids_list = list(
             chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(10)])
