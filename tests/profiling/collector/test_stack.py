@@ -53,9 +53,13 @@ def test_collect_truncate():
     while not r.events[stack.StackSampleEvent]:
         pass
     c.stop()
-    e = r.events[stack.StackSampleEvent][0]
-    assert e.nframes > c.nframes
-    assert len(e.frames) == c.nframes
+    for e in r.events[stack.StackSampleEvent]:
+        if e.thread_name == "MainThread":
+            assert e.nframes > c.nframes
+            assert len(e.frames) == c.nframes
+            break
+    else:
+        pytest.fail("Unable to find the main thread")
 
 
 def test_collect_once():
@@ -221,7 +225,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == stack._thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 214, "test_exception_collection")]
+    assert e.frames == [(__file__, 218, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
