@@ -1,7 +1,99 @@
 # Changelog
 
+## 0.39 (11/06/2020)
+
+### Deprecations
+
+- The `decode()` method on our encoders located in `ddtrace.encoders` is scheduled to be removed in 0.40.
+
+### Integrations
+
+#### Django
+
+- Add headers tracing configuration. This will enable headers on requests to be attached as tags on request spans. This can be done by using the `ddtrace.config` API like so: `config.django.http.trace_headers(["my-header-i-want-to-trace"])`. Thanks to @JoseKilo for contributing this feature!
+- Fix for a bug where we didn't handle all cases for a template name. Thanks @sibsibsib!
+
+#### Elasticsearch
+
+- Fix for a bug that causes the tracer to crash if params is `None`.
+
+#### grpc
+
+- Fix handling `None` RpcMethodHandlers
+
+### Tracer
+
+- core: deprecate encoder decode()
+
+### Profiling
+
+- Now included by default with the tracing package
+- Support for the `DD_ENV` and `DD_VERSION` environment variable configuration.
+- A bunch of gevent fixes. See below for the details.
+
+### OpenTracing
+
+- Support for tracer interleaving between the Datadog tracer (used in integrations) and the OpenTracing tracer provided in the library.
+
+
+## Full Change set
+
+### Deprecations
+
+- core: deprecate encoder decode() (#1496)
+
+### Features
+
+- docs: add changelog from github (#1503)
+- feat(profiling): disable trace tracking in tracer by default (#1488)
+- feat(profiling): allow to pass version to Profiler (#1478)
+- feat(profiling): allow to pass env to Profiler (#1473)
+- feat(profiling): install the profiling extra by default (#1463)
+- feat(profiling): raise an error on start if endpoint is empty (#1460)
+- feat(profiling): validate API key format (#1459)
+- feat(profiling): track gevent greenlets (#1456)
+- feat(profiling/pprof): export trace id as stack labels (#1454)
+- feat(django): Implement headers tracing (#1443 -- thanks @JoseKilo)
+- feat(profiling): allow to pass service_name to the Profiler object (#1440)
+- feat(opentracing): support for tracer interleaving (#1394)
+
+### Fixes
+
+- fix(profiling): multi-threading/gevent issues with ThreadLinkSpan (#1485)
+- refactor(profiling/recorder): remove filtering mechanism (#1482)
+- fix(profiling/stack): lock _WeakSet in ThreadSpanLinks (#1469)
+- span: changed finished attribute implementation (#1467)
+- fix(grpc): RpcMethodHandler can be None (#1465)
+- fix(elasticsearch): ensure params is a dict before urlencoding (#1449, #1451)
+- fix(profiling): identify Python main thread properly with gevent (#1445)
+- fix(django) handle different template view name types (#1441 -- thanks @sibsibsib)
+- fix(profiling/periodic): make sure that a service cannot be started twice (#1439)
+- fix(profiling): use gevent.monkey rather than private _threading module (#1438)
+- fix(profiling): fix negative CPU time (#1437)
+- fix(profiling/periodic): PERIODIC_THREAD_IDS race condition (#1435)
+
+### Tests
+
+- test: show 10 slowest tests (#1504)
+- test(profiling): fix stress test (#1500)
+- test(profiling): fix test_truncate random failure (#1498)
+- test(profiling): fix test_collect_once random failure (#1497)
+- test(profiling/http): fix fail cases (#1493)
+- test(profiling): enable verbose + no capture (#1490)
+- test(profiling): increase error tolerance (#1489)
+- test(profiling): make stack stress test gevent compatible (#1486)
+- tests: wait for uds server to start before using it (#1472)
+- ci: update Python versions (#1446)
+
+https://github.com/DataDog/dd-trace-py/compare/v0.38.2...v0.39.0
+
+https://github.com/DataDog/dd-trace-py/milestone/57?closed=1
+
+---
+
 ## 0.38.2 (11/06/2020)
 This patch release disables span linkage by default in the profiler which was causing some threading lock up issues in gevent. See #1488 and #1485 for the details.
+
 ---
 
 ## 0.38.1 (28/05/2020)
