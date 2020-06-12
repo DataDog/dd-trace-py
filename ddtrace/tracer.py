@@ -10,6 +10,7 @@ from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
+from .internal import _rand
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
@@ -399,6 +400,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
+                _check_pid=False,
             )
 
             # Extra attributes when from a local parent
@@ -414,6 +416,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
+                _check_pid=False,
             )
 
             span.sampled = self.sampler.sample(span)
@@ -509,6 +512,10 @@ class Tracer(object):
             return
 
         self._pid = pid
+
+        # We have to reseed the RNG or we will get collisions between the processes as
+        # they will share the seed and generate the same random numbers.
+        _rand.seed()
 
         ctx = self.get_call_context()
         # The spans remaining in the context can not and will not be finished
