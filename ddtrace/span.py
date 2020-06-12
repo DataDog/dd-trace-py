@@ -41,7 +41,6 @@ class Span(object):
         "sampled",
         # Internal attributes
         "_context",
-        "finished",
         "_parent",
         "__weakref__",
     ]
@@ -105,9 +104,6 @@ class Span(object):
         self._context = context
         self._parent = None
 
-        # state
-        self.finished = False
-
     @property
     def start(self):
         """The start timestamp in Unix epoch seconds."""
@@ -116,6 +112,23 @@ class Span(object):
     @start.setter
     def start(self, value):
         self.start_ns = int(value * 1e9)
+
+    @property
+    def finished(self):
+        return self.duration_ns is not None
+
+    @finished.setter
+    def finished(self, value):
+        """Finishes the span if set to a truthy value.
+
+        If the span is already finished and a truthy value is provided
+        no action will occur.
+        """
+        if value:
+            if not self.finished:
+                self.duration_ns = time_ns() - self.start_ns
+        else:
+            self.duration_ns = None
 
     @property
     def duration(self):
@@ -136,7 +149,6 @@ class Span(object):
         """
         if self.finished:
             return
-        self.finished = True
 
         if self.duration_ns is None:
             ft = time_ns() if finish_time is None else int(finish_time * 1e9)

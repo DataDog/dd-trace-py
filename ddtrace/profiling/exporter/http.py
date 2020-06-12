@@ -32,25 +32,13 @@ class InvalidEndpoint(ValueError):
     pass
 
 
-class RequestFailed(exporter.ExportError):
-    """Failed HTTP request."""
-
-    def __init__(self, response, content):
-        """Create a new failed request embedding response and content."""
-        self.response = response
-        self.content = content
-        super(RequestFailed, self).__init__(
-            "Error status code received from endpoint: %d: %s" % (response.status, content)
-        )
-
-
 class UploadFailed(exporter.ExportError):
     """Upload failure."""
 
     def __init__(self, exception):
         """Create a failed upload error based on raised exceptions."""
         self.exception = exception
-        super(UploadFailed, self).__init__("Unable to upload: " + _traceback.format_exception(exception))
+        super(UploadFailed, self).__init__("Unable to upload profile: " + _traceback.format_exception(exception))
 
 
 def _get_api_key():
@@ -87,6 +75,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
     service = attr.ib(default=None)
     env = attr.ib(default=None)
+    version = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -138,9 +127,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
 
-        version = os.environ.get("DD_VERSION")
-        if version:
-            tags["version"] = version.encode("utf-8")
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
 
         if self.env:
             tags["env"] = self.env.encode("utf-8")

@@ -52,9 +52,9 @@ def spend_cpu_3():
         pass
 
 
-# We allow 2% error:
+# We allow 3% error:
 # The profiler might not be precise, but time.sleep is not either.
-TOLERANCE = 0.02
+TOLERANCE = 0.03
 # Use 5% accuracy for CPU usage, it's way less precise
 CPU_TOLERANCE = 0.05
 

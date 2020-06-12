@@ -39,14 +39,16 @@ class Scheduler(_periodic.PeriodicService):
             events = self.recorder.reset()
             start = self._last_export
             self._last_export = compat.time_ns()
-            total_events = sum(len(v) for v in events.values())
             for exp in self.exporters:
                 try:
                     exp.export(events, start, self._last_export)
                 except exporter.ExportError as e:
-                    LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
+                    LOG.error("%s. Ignoring.", _traceback.format_exception(e))
                 except Exception:
-                    LOG.exception("Error while exporting %d events", total_events)
+                    LOG.exception(
+                        "Unexpected error while exporting events. "
+                        "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
+                    )
 
     def periodic(self):
         start_time = compat.monotonic()

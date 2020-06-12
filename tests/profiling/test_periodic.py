@@ -7,20 +7,54 @@ from ddtrace.profiling import _periodic
 from ddtrace.profiling import _service
 
 
+if os.getenv("DD_PROFILE_TEST_GEVENT", False):
+    import gevent
+
+    class Event(object):
+        """
+        We can't use gevent Events here[0], nor can we use native threading
+        events (because gevent is not multi-threaded).
+
+        So for gevent, since it's not multi-threaded and will not run greenlets
+        in parallel (for our usage here, anyway) we can write a dummy Event
+        class which just does a simple busy wait on a shared variable.
+
+        [0] https://github.com/gevent/gevent/issues/891
+        """
+
+        state = False
+
+        def wait(self):
+            while not self.state:
+                gevent.sleep(0.001)
+
+        def set(self):
+            self.state = True
+
+
+else:
+    Event = threading.Event
+
+
 def test_periodic():
     x = {"OK": False}
 
+    thread_started = Event()
+    thread_continue = Event()
+
     def _run_periodic():
+        thread_started.set()
         x["OK"] = True
+        thread_continue.wait()
 
     def _on_shutdown():
         x["DOWN"] = True
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
+    thread_started.wait()
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
-    while not x["OK"]:
-        pass
+    thread_continue.set()
     t.stop()
     t.join()
     assert x["OK"]
@@ -33,8 +67,12 @@ def test_periodic():
 def test_periodic_error():
     x = {"OK": False}
 
+    thread_started = Event()
+    thread_continue = Event()
+
     def _run_periodic():
-        x["OK"] = True
+        thread_started.set()
+        thread_continue.wait()
         raise ValueError
 
     def _on_shutdown():
@@ -42,9 +80,9 @@ def test_periodic_error():
 
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
+    thread_started.wait()
     assert t.ident in _periodic.PERIODIC_THREAD_IDS
-    while not x["OK"]:
-        pass
+    thread_continue.set()
     t.stop()
     t.join()
     assert "DOWN" not in x

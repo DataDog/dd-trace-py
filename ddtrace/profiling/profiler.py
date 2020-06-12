@@ -2,7 +2,6 @@
 import logging
 import os
 
-import ddtrace
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.vendor import attr
@@ -17,10 +16,10 @@ from ddtrace.profiling.exporter import http
 LOG = logging.getLogger(__name__)
 
 
-def _build_default_exporters(service, env):
+def _build_default_exporters(service, env, version):
     exporters = []
     if "DD_PROFILING_API_KEY" in os.environ or "DD_API_KEY" in os.environ:
-        exporters.append(http.PprofHTTPExporter(service=service, env=env))
+        exporters.append(http.PprofHTTPExporter(service=service, env=env, version=version))
 
     _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
     if _OUTPUT_PPROF:
@@ -37,16 +36,6 @@ def _get_service_name():
         service_name = os.environ.get(service_name_var)
         if service_name is not None:
             return service_name
-
-
-def _build_default_collectors():
-    r = recorder.Recorder()
-    return [
-        stack.StackCollector(r, tracer=ddtrace.tracer),
-        memory.MemoryCollector(r),
-        exceptions.UncaughtExceptionCollector(r),
-        threading.LockCollector(r),
-    ]
 
 
 # This ought to use `enum.Enum`, but since it's not available in Python 2, we just use a dumb class.
@@ -78,14 +67,39 @@ class Profiler(object):
 
     service = attr.ib(factory=_get_service_name)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
-    collectors = attr.ib(factory=_build_default_collectors)
+    version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
+    tracer = attr.ib(default=None)
+    collectors = attr.ib(default=None)
     exporters = attr.ib(default=None)
     schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
+    @staticmethod
+    def _build_default_collectors(tracer):
+        r = recorder.Recorder(
+            max_events={
+                # Allow to store up to 10 threads for 60 seconds at 100 Hz
+                stack.StackSampleEvent: 10 * 60 * 100,
+                stack.StackExceptionSampleEvent: 10 * 60 * 100,
+                # This can generate one event every 0.1s if 100% are taken — though we take 5% by default.
+                # = (60 seconds / 0.1 seconds)
+                memory.MemorySampleEvent: int(60 / 0.1),
+            },
+            default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
+        )
+        return [
+            stack.StackCollector(r, tracer=tracer),
+            memory.MemoryCollector(r),
+            exceptions.UncaughtExceptionCollector(r),
+            threading.LockCollector(r),
+        ]
+
     def __attrs_post_init__(self):
+        if self.collectors is None:
+            self.collectors = self._build_default_collectors(self.tracer)
+
         if self.exporters is None:
-            self.exporters = _build_default_exporters(self.service, self.env)
+            self.exporters = _build_default_exporters(self.service, self.env, self.version)
 
         if self.exporters:
             for rec in self.recorders:
