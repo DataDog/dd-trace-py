@@ -55,7 +55,7 @@ RUN \
   && pyenv install 3.7.7 \
   && pyenv install 3.8.3 \
   && pyenv install 3.9-dev \
-  && pyenv global 2.7.17 3.5.9 3.6.9 3.7.7 3.8.3 3.9-dev \
+  && pyenv global 3.8.3 \
   && pip install --upgrade pip
 
 # Install Python dependencies
