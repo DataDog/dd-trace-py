@@ -14,7 +14,10 @@ def start_profiler():
         # Python 2 does not have unregister so we can't use it all the time
         if six.PY3:
             atexit.unregister(bootstrap.profiler.stop)
-        bootstrap.profiler.stop()
+        # Do not flush the profiler since we don't care about the events from our parents
+        # This also prevents deadlocking on Python < 3.7 since our version of register_at_fork do not unlock the
+        # `threading.Lock` of our parent and prevents us of join()ing the profiler threads.
+        bootstrap.profiler.stop(flush=False)
     # Export the profiler so we can introspect it if needed
     bootstrap.profiler = profiler.Profiler()
     bootstrap.profiler.start()
