@@ -81,7 +81,7 @@ commands:
       # We should be doing `pip install tox`
       # But since ddtrace_py image has already tox, we need to force the
       # upgrade here
-      # FIXME: remove tox from the base image
+      # FIXME: remove -U as soon as the CI Docker image is rebuilt
       - run: pip install -U tox virtualenv
 
   restore_tox_cache:
