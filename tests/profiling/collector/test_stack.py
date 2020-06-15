@@ -53,9 +53,13 @@ def test_collect_truncate():
     while not r.events[stack.StackSampleEvent]:
         pass
     c.stop()
-    e = r.events[stack.StackSampleEvent][0]
-    assert e.nframes > c.nframes
-    assert len(e.frames) == c.nframes
+    for e in r.events[stack.StackSampleEvent]:
+        if e.thread_name == "MainThread":
+            assert e.nframes > c.nframes
+            assert len(e.frames) == c.nframes
+            break
+    else:
+        pytest.fail("Unable to find the main thread")
 
 
 def test_collect_once():
@@ -65,13 +69,17 @@ def test_collect_once():
     with s:
         all_events = s.collect()
     assert len(all_events) == 2
-    e = all_events[0][0]
-    assert e.thread_id > 0
-    assert e.thread_name == "MainThread"
-    assert len(e.frames) >= 1
-    assert e.frames[0][0].endswith(".py")
-    assert e.frames[0][1] > 0
-    assert isinstance(e.frames[0][2], str)
+    stack_events = all_events[0]
+    for e in stack_events:
+        if e.thread_name == "MainThread":
+            assert e.thread_id > 0
+            assert len(e.frames) >= 1
+            assert e.frames[0][0].endswith(".py")
+            assert e.frames[0][1] > 0
+            assert isinstance(e.frames[0][2], str)
+            break
+    else:
+        pytest.fail("Unable to find MainThread")
 
 
 def test_max_time_usage():
@@ -112,7 +120,7 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(max_size=49152), max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), max_time_usage_pct=2.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
@@ -217,7 +225,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == stack._thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 210, "test_exception_collection")]
+    assert e.frames == [(__file__, 218, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -328,3 +336,25 @@ def test_collect_multiple_span_ids(tracer_and_collector):
             continue
         if child.trace_id in event.trace_ids:
             break
+
+
+def test_stress_trace_collection(tracer_and_collector):
+    tracer, collector = tracer_and_collector
+
+    def _trace():
+        for _ in range(5000):
+            with tracer.trace("hello"):
+                time.sleep(0.001)
+
+    NB_THREADS = 30
+
+    threads = []
+    for i in range(NB_THREADS):
+        t = threading.Thread(target=_trace)
+        threads.append(t)
+
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
