@@ -58,9 +58,4 @@ RUN \
   && pyenv global 3.8.3 \
   && pip install --upgrade pip
 
-# Install Python dependencies
-# DEV: `tox==3.7` introduced parallel execution mode
-#      https://tox.readthedocs.io/en/3.7.0/example/basic.html#parallel-mode
-RUN pip install "tox>=3.7,<4.0"
-
 CMD ["/bin/bash"]
