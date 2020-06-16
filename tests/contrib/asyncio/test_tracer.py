@@ -396,6 +396,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # if multiple coroutines have nested tracing, they must belong
         # to the same trace
         ot_tracer = init_tracer('asyncio_svc', self.tracer)
+
         @asyncio.coroutine
         def coro():
             # another traced coroutine

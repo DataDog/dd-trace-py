@@ -9,7 +9,6 @@ from ddtrace import config
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
-from ddtrace.settings import config
 
 from .utils import TraceTestCase
 from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
