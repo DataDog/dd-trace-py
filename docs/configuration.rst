@@ -113,10 +113,6 @@ below:
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
-   * - ``DD_PROFILING_MAX_EVENTS``
-     - Integer
-     - 49152
-     - The maximum number of total events captured that are stored in memory.
    * - ``DD_PROFILING_UPLOAD_INTERVAL``
      - Float
      - 60

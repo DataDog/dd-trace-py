@@ -22,6 +22,7 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=1,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
             exc_type=TypeError,
@@ -31,6 +32,7 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=2,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
             sampling_period=1000000,
@@ -40,6 +42,7 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=3,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
             sampling_period=1000000,
@@ -49,6 +52,7 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=4,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
             sampling_period=1000000,
@@ -58,6 +62,7 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=5,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
             sampling_period=1000000,
@@ -67,6 +72,7 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=6,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
             sampling_period=1000000,
@@ -76,6 +82,8 @@ TEST_EVENTS = {
         stack.StackExceptionSampleEvent(
             timestamp=7,
             thread_id=67892304,
+            thread_native_id=123987,
+            trace_ids=set([1322219321, 343332]),
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
             sampling_period=1000000,
@@ -145,7 +153,9 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=1,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
+            trace_ids=set([1322219321]),
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
             wall_time_ns=1324,
             cpu_time_ns=1321,
@@ -155,7 +165,9 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=2,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
+            trace_ids=set([1322219321]),
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
             wall_time_ns=13244,
             cpu_time_ns=1312,
@@ -165,7 +177,9 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=3,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
+            trace_ids=set([1322219321]),
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
             wall_time_ns=1324,
             cpu_time_ns=29121,
@@ -175,6 +189,7 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=4,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
             wall_time_ns=213244,
@@ -185,7 +200,9 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=5,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
+            trace_ids=set([1322219321]),
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
             wall_time_ns=132444,
             cpu_time_ns=9042,
@@ -195,6 +212,7 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=6,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
             wall_time_ns=18244,
@@ -205,6 +223,7 @@ TEST_EVENTS = {
         stack.StackSampleEvent(
             timestamp=7,
             thread_id=67892304,
+            thread_native_id=123987,
             thread_name="MainThread",
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
             wall_time_ns=13244,

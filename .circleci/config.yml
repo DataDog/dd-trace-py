@@ -5,7 +5,6 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-busybox_image: &busybox_image busybox:latest
 cimg_base_image: &cimg_base_image cimg/base:2020.01
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
@@ -13,7 +12,7 @@ python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
-ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
@@ -82,7 +81,7 @@ commands:
       # We should be doing `pip install tox`
       # But since ddtrace_py image has already tox, we need to force the
       # upgrade here
-      # FIXME: remove tox from the base image
+      # FIXME: remove -U as soon as the CI Docker image is rebuilt
       - run: pip install -U tox virtualenv
 
   restore_tox_cache:
