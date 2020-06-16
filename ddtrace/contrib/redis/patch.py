@@ -4,11 +4,21 @@ from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import config
+from ddtrace.utils.formats import get_env
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
 from ...ext import SpanTypes, redis as redisx
 from ...utils.wrappers import unwrap
+from ... import utils
 from .util import format_command_args, _extract_conn_tags
+
+
+config._add(
+    "redis",
+    dict(
+        service=get_env("redis", "service") or redisx.DEFAULT_SERVICE,
+    )
+)
 
 
 def patch():
@@ -34,7 +44,7 @@ def patch():
         _w('redis', 'Redis.pipeline', traced_pipeline)
         _w('redis.client', 'Pipeline.execute', traced_execute_pipeline)
         _w('redis.client', 'Pipeline.immediate_execute_command', traced_execute_command)
-    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(redis.StrictRedis)
+    Pin(service=None, app=redisx.APP).onto(redis.StrictRedis)
 
 
 def unpatch():
@@ -62,7 +72,7 @@ def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(redisx.CMD, service=pin.service, span_type=SpanTypes.REDIS) as s:
+    with pin.tracer.trace(redisx.CMD, service=utils.external_service(config.redis, pin), span_type=SpanTypes.REDIS) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         query = format_command_args(args)
         s.resource = query
@@ -97,7 +107,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = '\n'.join(cmds)
     tracer = pin.tracer
-    with tracer.trace(redisx.CMD, resource=resource, service=pin.service, span_type=SpanTypes.REDIS) as s:
+    with tracer.trace(redisx.CMD, resource=resource, service=utils.external_service(config.redis, pin), span_type=SpanTypes.REDIS) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag(redisx.RAWCMD, resource)
         s.set_tags(_get_tags(instance))

@@ -26,7 +26,6 @@ def test_redis_legacy():
 
 class TestRedisPatch(BaseTracerTestCase):
 
-    TEST_SERVICE = 'redis-patch'
     TEST_PORT = REDIS_CONFIG['port']
 
     def setUp(self):
@@ -34,7 +33,7 @@ class TestRedisPatch(BaseTracerTestCase):
         patch()
         r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
-        Pin.override(r, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin.override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -49,7 +48,7 @@ class TestRedisPatch(BaseTracerTestCase):
         span = spans[0]
 
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "redis"
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
         assert span.error == 0
@@ -75,7 +74,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "redis"
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
         assert span.error == 0
@@ -121,7 +120,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "redis"
         assert span.name == 'redis.command'
         assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
         assert span.span_type == 'redis'
@@ -143,7 +142,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert len(spans) == 2
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "redis"
         assert span.name == 'redis.command'
         assert span.resource == u'SET a 1'
         assert span.span_type == 'redis'
@@ -161,7 +160,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "redis"
         assert 'cheese' in span.meta and span.meta['cheese'] == 'camembert'
 
     def test_patch_unpatch(self):
@@ -220,7 +219,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert ot_span.service == 'redis_svc'
 
         assert_is_measured(dd_span)
-        assert dd_span.service == self.TEST_SERVICE
+        assert dd_span.service == "redis"
         assert dd_span.name == 'redis.command'
         assert dd_span.span_type == 'redis'
         assert dd_span.error == 0
@@ -232,16 +231,47 @@ class TestRedisPatch(BaseTracerTestCase):
 
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
-        """
-        When a user specifies a service for the app
-            The redis integration should not use it.
-        """
-        # Ensure that the service name was configured
         from ddtrace import config
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.service != "mysvc"
+        span = self.get_spans()[0]
+        assert span.service == "redis"
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
+    def test_env_user_specified_redis_service(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myredis", span.service
+
+        self.reset()
+
+        # Global config
+        with self.override_config("redis", dict(service="cfg-redis")):
+            from ddtrace import config
+            print(config.redis.service)
+            self.r.get("cheese")
+            span = self.get_spans()[0]
+            assert span.service == "cfg-redis", span.service
+
+        self.reset()
+
+        # Manual override
+        Pin.override(self.r, service="mysvc", tracer=self.tracer)
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "mysvc", span.service
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
+    def test_service_precedence(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "env-redis", span.service
+
+        self.reset()
+
+        # Do a manual override
+        Pin.override(self.r, service="override-redis", tracer=self.tracer)
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "override-redis", span.service
