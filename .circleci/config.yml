@@ -12,7 +12,7 @@ python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
-ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
