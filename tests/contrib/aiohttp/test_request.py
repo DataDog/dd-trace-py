@@ -64,7 +64,7 @@ class TestRequestTracing(TraceTestCase):
                 service="aiohttp.client",
                 parent_id=None,
                 resource="/",
-                meta={'http.url': str(trace_url), 'http.method': 'GET', 'http.status_code': str(200)}
+                meta={'http.url': str(url.with_query(dict())), 'http.method': 'GET', 'http.status_code': str(200), 'http.query.string': trace_url.query_string}
             )
             # TCPConnector.connect
             connector_connect_span = traces[1][1]
