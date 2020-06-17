@@ -1,20 +1,35 @@
-"""Instrument redis to report Redis queries.
+"""
+Traces redis client queries.
 
-``patch_all`` will automatically patch your Redis client to make it work.
-::
+If you are not autoinstrumenting with ``ddtrace-run`` then install the redis
+instrumentation with::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    patch(redis=True)
+
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.redis["service"]
+
+   The service name reported by default for your redis instances.
+
+   Default: ``"redis"``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+    from ddtrace import Pin
     import redis
 
-    # If not patched yet, you can patch redis specifically
-    patch(redis=True)
+    # Override service name for this instance
+    Pin.override(client, service="redis-queue")
 
     # This will report a span with the default settings
     client = redis.StrictRedis(host="localhost", port=6379)
     client.get("my-key")
-
-    # Use a pin to specify metadata related to this client
-    Pin.override(client, service='redis-queue')
 """
 
 from ...utils.importlib import require_modules
