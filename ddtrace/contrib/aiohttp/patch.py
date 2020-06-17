@@ -67,10 +67,11 @@ def _set_request_tags(span, url: URL, params=None):
 
         if url.query and config.aiohttp_client.redact_query_keys:
             url = url.with_query({k: _redacted_query_value(k, v) for k, v in url.query.items()})
-    else:
-        url = url.with_query(dict())
 
-    span.set_tag(ext_http.URL, str(url))
+        span.set_tag(ext_http.QUERY_STRING, url.query_string)
+
+    sanitized_url = url.with_query(dict())
+    span.set_tag(ext_http.URL, str(sanitized_url))
     span.resource = url.path
 
 
