@@ -25,3 +25,13 @@ class removed_classproperty(property):
             "Usage of ddtrace.ext.AppTypes is not longer supported, please use ddtrace.ext.SpanTypes"
         )
         return classmethod(self.fget).__get__(None, owner)()
+
+
+def external_service(config, pin):
+    if pin.service:
+        return pin.service
+    elif config.service:
+        return config.service
+    elif config.service_name:
+        return config.service_name
+    return None
