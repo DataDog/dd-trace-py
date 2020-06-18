@@ -27,11 +27,23 @@ class removed_classproperty(property):
         return classmethod(self.fget).__get__(None, owner)()
 
 
-def integration_service(config, pin):
+def integration_service(config, pin, global_service_fallback=False):
+    """Compute the service name that should be used for an integration
+    based off the given config and pin instances.
+    """
     if pin.service:
         return pin.service
-    elif config.service:
+
+    # Integrations unfortuantely use both service and service_name in their
+    # configs :/
+    elif "service" in config:
         return config.service
-    elif config.service_name:
+    elif "service_name" in config:
         return config.service_name
-    return None
+    elif global_service_fallback:
+        return config.global_config._get_service()
+    else:
+        return None
+
+
+

@@ -449,7 +449,7 @@ class GrpcTestCase(BaseTracerTestCase):
             assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
 
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_server_service_name(self):
+    def test_server_app_service_name(self):
         """
         When a service name is specified by the user
             It should be used for grpc server spans
@@ -459,7 +459,7 @@ class GrpcTestCase(BaseTracerTestCase):
         from ddtrace import config
         assert config.service == "mysvc"
 
-        channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
+        channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
         stub1 = HelloStub(channel1)
         stub1.SayHello(HelloRequest(name="test"))
         channel1.close()
@@ -469,6 +469,43 @@ class GrpcTestCase(BaseTracerTestCase):
 
         self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_server_service_name_config_override(self):
+        """
+        When a service name is specified by the user in config.grpc{_server}
+            It should be used in grpc client spans
+            It should be used in grpc server spans
+        """
+        with self.override_config("grpc", dict(service_name="myclientsvc")):
+            with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                stub1 = HelloStub(channel1)
+                stub1.SayHello(HelloRequest(name="test"))
+                channel1.close()
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+
+        self._check_server_span(spans[0], "myserversvc", "SayHello", "unary")
+        self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
+    def test_server_service_name_config_env_override(self):
+        """
+        When a service name is specified by the user in the DD_GRPC_SERVICE env var
+            It should be used in grpc client spans
+            It should be used in grpc server spans
+        """
+        channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+        stub1 = HelloStub(channel1)
+        stub1.SayHello(HelloRequest(name="test"))
+        channel1.close()
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+
+        self._check_server_span(spans[0], "myserversvc", "SayHello", "unary")
+        self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
+
 
 
 class _HelloServicer(HelloServicer):

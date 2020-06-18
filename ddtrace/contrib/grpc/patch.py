@@ -1,8 +1,11 @@
+import os
+
 import grpc
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
 
+from ...utils.formats import asbool
 from ...utils.wrappers import unwrap as _u
 
 from . import constants
@@ -15,10 +18,17 @@ config._add('grpc_server', dict(
     distributed_tracing_enabled=True,
 ))
 
+use_global_service = asbool(os.getenv("DD_GRPC_USE_DD_SERVICE") or False)
+
+
 # TODO[tbutt]: keeping name for client config unchanged to maintain backwards
 # compatibility but should change in future
 config._add('grpc', dict(
-    service_name='{}-{}'.format(
+    # Precedence for the service name:
+    # 1) If DD_GRPC_USE_DD_SERVICE is true then the globally set service; or
+    # 2) For compatibility, the globally set service + "-grpc-client"; or
+    # 3) The fall-back "grpc-client"
+    service_name= "{}-{}".format(
         config._get_service(), constants.GRPC_SERVICE_CLIENT
     ) if config._get_service() else constants.GRPC_SERVICE_CLIENT,
     distributed_tracing_enabled=True,
@@ -40,7 +50,7 @@ def _patch_client():
         return
     setattr(constants.GRPC_PIN_MODULE_CLIENT, '__datadog_patch', True)
 
-    Pin(service=config.grpc.service_name).onto(constants.GRPC_PIN_MODULE_CLIENT)
+    Pin().onto(constants.GRPC_PIN_MODULE_CLIENT)
 
     _w('grpc', 'insecure_channel', _client_channel_interceptor)
     _w('grpc', 'secure_channel', _client_channel_interceptor)
@@ -65,7 +75,7 @@ def _patch_server():
         return
     setattr(constants.GRPC_PIN_MODULE_SERVER, '__datadog_patch', True)
 
-    Pin(service=config.grpc_server.service_name).onto(constants.GRPC_PIN_MODULE_SERVER)
+    Pin().onto(constants.GRPC_PIN_MODULE_SERVER)
 
     _w('grpc', 'server', _server_constructor_interceptor)
 
