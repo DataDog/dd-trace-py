@@ -68,7 +68,7 @@ def traced_execute_command(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        redisx.CMD, service=utils.external_service(config.redis, pin), span_type=SpanTypes.REDIS
+        redisx.CMD, service=utils.integration_service(config.redis, pin), span_type=SpanTypes.REDIS
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         query = format_command_args(args)
@@ -102,7 +102,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     resource = "\n".join(cmds)
     tracer = pin.tracer
     with tracer.trace(
-        redisx.CMD, resource=resource, service=utils.external_service(config.redis, pin), span_type=SpanTypes.REDIS
+        redisx.CMD, resource=resource, service=utils.integration_service(config.redis, pin), span_type=SpanTypes.REDIS
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag(redisx.RAWCMD, resource)
