@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import atexit
 import logging
 import os
 
@@ -109,8 +110,11 @@ class Profiler(object):
     def recorders(self):
         return set(c.recorder for c in self.collectors)
 
-    def start(self):
-        """Start the profiler."""
+    def start(self, stop_on_exit=True):
+        """Start the profiler.
+
+        :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
+        """
         for col in self.collectors:
             try:
                 col.start()
@@ -122,6 +126,9 @@ class Profiler(object):
             s.start()
 
         self.status = ProfilerStatus.RUNNING
+
+        if stop_on_exit:
+            atexit.register(self.stop)
 
     def stop(self, flush=True):
         """Stop the profiler.
@@ -144,3 +151,8 @@ class Profiler(object):
                 s.join()
 
         self.status = ProfilerStatus.STOPPED
+
+        # Python 2 does not have unregister
+        if hasattr(atexit, "unregister"):
+            # You can unregister a method that was not registered, so no need to do any other check
+            atexit.unregister(self.stop)

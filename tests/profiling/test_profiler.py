@@ -23,6 +23,18 @@ def test_restart():
     p.stop()
 
 
+def test_multiple_stop():
+    """Check that the profiler can be stopped twice.
+
+    This is useful since the atexit.unregister call might not exist on Python 2,
+    therefore the profiler can be stopped twice (once per the user, once at exit).
+    """
+    p = profiler.Profiler()
+    p.start()
+    p.stop()
+    p.stop()
+
+
 @pytest.mark.parametrize(
     "service_name_var", ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"),
 )
