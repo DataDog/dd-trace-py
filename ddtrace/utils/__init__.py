@@ -27,7 +27,7 @@ class removed_classproperty(property):
         return classmethod(self.fget).__get__(None, owner)()
 
 
-def external_service(config, pin):
+def integration_service(config, pin):
     if pin.service:
         return pin.service
     elif config.service:
