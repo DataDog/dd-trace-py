@@ -98,7 +98,7 @@ class Profiler(object):
     tracer = attr.ib(default=None)
     collectors = attr.ib(default=None)
     exporters = attr.ib(default=None)
-    schedulers = attr.ib(init=False, factory=list)
+    _schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
@@ -130,7 +130,7 @@ class Profiler(object):
 
         if self.exporters:
             for rec in self.recorders:
-                self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
+                self._schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
 
     @property
     def recorders(self):
@@ -145,15 +145,13 @@ class Profiler(object):
                 # `tracemalloc` is unavailable?
                 pass
 
-        for s in self.schedulers:
+        for s in self._schedulers:
             s.start()
 
         self.status = ProfilerStatus.RUNNING
 
     def stop(self, flush=True):
         """Stop the profiler.
-
-        This stops all the collectors and schedulers, waiting for them to finish their operations.
 
         :param flush: Wait for the flush of the remaining events before stopping.
         """
@@ -163,11 +161,11 @@ class Profiler(object):
         for col in reversed(self.collectors):
             col.join()
 
-        for s in reversed(self.schedulers):
+        for s in reversed(self._schedulers):
             s.stop()
 
         if flush:
-            for s in reversed(self.schedulers):
+            for s in reversed(self._schedulers):
                 s.join()
 
         self.status = ProfilerStatus.STOPPED
