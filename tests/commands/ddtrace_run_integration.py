@@ -13,8 +13,6 @@ if __name__ == '__main__':
     r = redis.Redis(port=REDIS_CONFIG['port'])
     pin = Pin.get_from(r)
     assert pin
-    assert pin.app == 'redis'
-    assert pin.service == 'redis'
 
     pin.tracer.writer = DummyWriter()
     r.flushall()
