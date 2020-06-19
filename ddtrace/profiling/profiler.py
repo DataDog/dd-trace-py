@@ -4,6 +4,7 @@ import os
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
+from ddtrace.utils import deprecation
 from ddtrace.vendor import attr
 from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memory
@@ -16,19 +17,45 @@ from ddtrace.profiling.exporter import http
 LOG = logging.getLogger(__name__)
 
 
-def _build_default_exporters(service, env, version):
-    exporters = []
-    if "DD_PROFILING_API_KEY" in os.environ or "DD_API_KEY" in os.environ:
-        exporters.append(http.PprofHTTPExporter(service=service, env=env, version=version))
+ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
 
+
+def _get_endpoint():
+    legacy = os.environ.get("DD_PROFILING_API_URL")
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
+        return legacy
+    site = os.environ.get("DD_SITE", "datadoghq.com")
+    return ENDPOINT_TEMPLATE.format(site)
+
+
+def _get_api_key():
+    legacy = os.environ.get("DD_PROFILING_API_KEY")
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_KEY", "Use DD_API_KEY")
+        return legacy
+    return os.environ.get("DD_API_KEY")
+
+
+def _build_default_exporters(service, env, version):
     _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
     if _OUTPUT_PPROF:
-        exporters.append(file.PprofFileExporter(_OUTPUT_PPROF))
+        return [
+            file.PprofFileExporter(_OUTPUT_PPROF),
+        ]
 
-    if not exporters:
-        LOG.warning("No exporters are configured, no profile will be output")
+    api_key = _get_api_key()
+    if api_key:
+        # Agentless mode
+        endpoint = _get_endpoint()
+    else:
+        hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
+        port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
+        endpoint = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
 
-    return exporters
+    return [
+        http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
+    ]
 
 
 def _get_service_name():
@@ -71,7 +98,7 @@ class Profiler(object):
     tracer = attr.ib(default=None)
     collectors = attr.ib(default=None)
     exporters = attr.ib(default=None)
-    schedulers = attr.ib(init=False, factory=list)
+    _schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
@@ -103,7 +130,7 @@ class Profiler(object):
 
         if self.exporters:
             for rec in self.recorders:
-                self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
+                self._schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
 
     @property
     def recorders(self):
@@ -118,15 +145,13 @@ class Profiler(object):
                 # `tracemalloc` is unavailable?
                 pass
 
-        for s in self.schedulers:
+        for s in self._schedulers:
             s.start()
 
         self.status = ProfilerStatus.RUNNING
 
     def stop(self, flush=True):
         """Stop the profiler.
-
-        This stops all the collectors and schedulers, waiting for them to finish their operations.
 
         :param flush: Wait for the flush of the remaining events before stopping.
         """
@@ -136,11 +161,11 @@ class Profiler(object):
         for col in reversed(self.collectors):
             col.join()
 
-        for s in reversed(self.schedulers):
+        for s in reversed(self._schedulers):
             s.stop()
 
         if flush:
-            for s in reversed(self.schedulers):
+            for s in reversed(self._schedulers):
                 s.join()
 
         self.status = ProfilerStatus.STOPPED
