@@ -5,7 +5,6 @@ import grpc
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
 
-from ...utils.formats import asbool
 from ...utils.wrappers import unwrap as _u
 
 from . import constants
@@ -18,19 +17,23 @@ config._add('grpc_server', dict(
     distributed_tracing_enabled=True,
 ))
 
-use_global_service = asbool(os.getenv("DD_GRPC_USE_DD_SERVICE") or False)
+
+# Precedence for the service name:
+# 1) DD_GRPC_SERVICE if defined; or
+# 2) For compatibility, the globally set service + "-grpc-client"; or
+# 3) The fall-back "grpc-client"
+if "DD_GRPC_SERVICE" in os.environ:
+    service = os.getenv("DD_GRPC_SERVICE")
+elif config._get_service():
+    service = "{}-{}".format(config._get_service(), constants.GRPC_SERVICE_CLIENT)
+else:
+    service = constants.GRPC_SERVICE_CLIENT
 
 
 # TODO[tbutt]: keeping name for client config unchanged to maintain backwards
 # compatibility but should change in future
 config._add('grpc', dict(
-    # Precedence for the service name:
-    # 1) If DD_GRPC_USE_DD_SERVICE is true then the globally set service; or
-    # 2) For compatibility, the globally set service + "-grpc-client"; or
-    # 3) The fall-back "grpc-client"
-    service_name= "{}-{}".format(
-        config._get_service(), constants.GRPC_SERVICE_CLIENT
-    ) if config._get_service() else constants.GRPC_SERVICE_CLIENT,
+    service_name=service,
     distributed_tracing_enabled=True,
 ))
 

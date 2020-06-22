@@ -34,7 +34,7 @@ def integration_service(config, pin, global_service_fallback=False):
     if pin.service:
         return pin.service
 
-    # Integrations unfortuantely use both service and service_name in their
+    # Integrations unfortunately use both service and service_name in their
     # configs :/
     elif "service" in config:
         return config.service
@@ -44,6 +44,3 @@ def integration_service(config, pin, global_service_fallback=False):
         return config.global_config._get_service()
     else:
         return None
-
-
-
