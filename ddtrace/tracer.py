@@ -8,6 +8,7 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
+from .internal import runtime
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .internal import _rand
@@ -470,8 +471,8 @@ class Tracer(object):
                 span.set_tag(VERSION_KEY, config.version)
 
         if not span._parent:
-            span.set_tag(system.PID, getpid())
-            span.set_tag("runtime-id", get_runtime_id())
+            span.set_tag(system.PID, self._pid)
+            span.set_tag("runtime-id", get_runtime_id(self._pid))
 
         # add it to the current context
         context.add_span(span)
@@ -513,9 +514,14 @@ class Tracer(object):
 
         self._pid = pid
 
-        # We have to reseed the RNG or we will get collisions between the processes as
-        # they will share the seed and generate the same random numbers.
-        _rand.seed()
+        # We have to reseed the RNG or we will get collisions between the
+        # processes as they will share the seed and generate the same random
+        # numbers.
+        # This is done automatically when we have fork hooks available in
+        # ddtrace_at_fork() which is installed in internal.runtime.__init__
+        # but must invoked manually if the hook is not available.
+        if not runtime.AT_FORK_INSTALLED:
+            _rand.seed()
 
         ctx = self.get_call_context()
         # The spans remaining in the context can not and will not be finished

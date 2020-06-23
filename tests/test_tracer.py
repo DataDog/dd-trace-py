@@ -3,6 +3,7 @@ tests for Tracer and utilities.
 """
 import contextlib
 import multiprocessing
+import os
 from os import getpid
 import warnings
 
@@ -15,6 +16,7 @@ import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
+from ddtrace.vendor import six
 
 from tests.subprocesstest import run_in_subprocess
 from .base import BaseTracerTestCase
@@ -1012,3 +1014,49 @@ def test_deregister_start_span_hooks():
     t.start_span("hello")
 
     assert result == {}
+
+
+def test_runtime_id_parent_only():
+    tracer = ddtrace.Tracer()
+
+    # Parent spans should have runtime-id
+    s = tracer.trace("test")
+    rtid = s.get_tag("runtime-id")
+    assert isinstance(rtid, six.string_types)
+
+    # Child spans should not
+    s2 = tracer.trace("test2")
+    assert s2.get_tag("runtime-id") is None
+    s2.finish()
+    s.finish()
+
+    # Parent spans should have runtime-id
+    s = tracer.trace("test")
+    rtid = s.get_tag("runtime-id")
+    assert isinstance(rtid, six.string_types)
+
+
+def test_runtime_id_fork():
+    tracer = ddtrace.Tracer()
+
+    s = tracer.trace("test")
+    s.finish()
+
+    rtid = s.get_tag("runtime-id")
+    assert isinstance(rtid, six.string_types)
+
+    pid = os.fork()
+
+    if pid == 0:
+        # child
+        s = tracer.trace("test")
+        s.finish()
+
+        rtid_child = s.get_tag("runtime-id")
+        assert isinstance(rtid_child, six.string_types)
+        assert rtid != rtid_child
+        os._exit(12)
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
