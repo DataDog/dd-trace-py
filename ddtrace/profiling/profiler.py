@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import atexit
 import logging
 import os
 
@@ -98,7 +99,7 @@ class Profiler(object):
     tracer = attr.ib(default=None)
     collectors = attr.ib(default=None)
     exporters = attr.ib(default=None)
-    schedulers = attr.ib(init=False, factory=list)
+    _schedulers = attr.ib(init=False, factory=list)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
@@ -130,14 +131,17 @@ class Profiler(object):
 
         if self.exporters:
             for rec in self.recorders:
-                self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
+                self._schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
 
     @property
     def recorders(self):
         return set(c.recorder for c in self.collectors)
 
-    def start(self):
-        """Start the profiler."""
+    def start(self, stop_on_exit=True):
+        """Start the profiler.
+
+        :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
+        """
         for col in self.collectors:
             try:
                 col.start()
@@ -145,15 +149,16 @@ class Profiler(object):
                 # `tracemalloc` is unavailable?
                 pass
 
-        for s in self.schedulers:
+        for s in self._schedulers:
             s.start()
 
         self.status = ProfilerStatus.RUNNING
 
+        if stop_on_exit:
+            atexit.register(self.stop)
+
     def stop(self, flush=True):
         """Stop the profiler.
-
-        This stops all the collectors and schedulers, waiting for them to finish their operations.
 
         :param flush: Wait for the flush of the remaining events before stopping.
         """
@@ -163,11 +168,16 @@ class Profiler(object):
         for col in reversed(self.collectors):
             col.join()
 
-        for s in reversed(self.schedulers):
+        for s in reversed(self._schedulers):
             s.stop()
 
         if flush:
-            for s in reversed(self.schedulers):
+            for s in reversed(self._schedulers):
                 s.join()
 
         self.status = ProfilerStatus.STOPPED
+
+        # Python 2 does not have unregister
+        if hasattr(atexit, "unregister"):
+            # You can unregister a method that was not registered, so no need to do any other check
+            atexit.unregister(self.stop)
