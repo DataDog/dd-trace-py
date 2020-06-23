@@ -29,7 +29,7 @@ class Scheduler(_periodic.PeriodicService):
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
         super(Scheduler, self).start()
-        self._last_export = compat.time_ns()
+        self._last_export = compat.monotonic_ns()
         LOG.debug("Scheduler started")
 
     def flush(self):
@@ -38,7 +38,7 @@ class Scheduler(_periodic.PeriodicService):
         if self.exporters:
             events = self.recorder.reset()
             start = self._last_export
-            self._last_export = compat.time_ns()
+            self._last_export = compat.monotonic_ns()
             for exp in self.exporters:
                 try:
                     exp.export(events, start, self._last_export)

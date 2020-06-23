@@ -168,7 +168,7 @@ def test_wrong_api_key(endpoint_test_server):
 
 def test_export(endpoint_test_server):
     exp = http.PprofHTTPExporter(_ENDPOINT, _API_KEY)
-    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.monotonic_ns())
 
 
 def test_export_server_down():
