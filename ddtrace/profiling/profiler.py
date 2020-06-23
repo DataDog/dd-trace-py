@@ -133,6 +133,12 @@ class Profiler(object):
         if exporters:
             self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)
 
+    def copy(self):
+        return self.__class__(service=self.service,
+                              env=self.env,
+                              version=self.version,
+                              tracer=self.tracer)
+
     @property
     def recorders(self):
         return set(c.recorder for c in self._collectors)

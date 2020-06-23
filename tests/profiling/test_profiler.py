@@ -155,3 +155,12 @@ def test_env_endpoint_url_no_agent(monkeypatch):
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
+
+
+def test_copy():
+    p = profiler.Profiler(env="123", version="dwq", service="foobar")
+    c = p.copy()
+    assert p.env == c.env
+    assert p.version == c.version
+    assert p.service == c.service
+    assert p.tracer == c.tracer
