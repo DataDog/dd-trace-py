@@ -650,6 +650,8 @@ API
 
 .. autofunction:: ddtrace.monkey.patch_all
 
+.. _patch:
+
 ``patch``
 ^^^^^^^^^
 .. autofunction:: ddtrace.monkey.patch
