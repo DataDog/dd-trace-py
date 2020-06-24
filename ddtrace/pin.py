@@ -29,7 +29,7 @@ class Pin(object):
     __slots__ = ['app', 'tags', 'tracer', '_target', '_config', '_initialized']
 
     @debtcollector.removals.removed_kwarg("app_type")
-    def __init__(self, service, app=None, app_type=None, tags=None, tracer=None, _config=None):
+    def __init__(self, service=None, app=None, app_type=None, tags=None, tracer=None, _config=None):
         tracer = tracer or ddtrace.tracer
         self.app = app
         self.tags = tags

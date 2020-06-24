@@ -64,7 +64,6 @@ exclude = '''
       | pymongo
       | pymysql
       | pyramid
-      | redis
       | rediscluster
       | requests/
       (
@@ -93,7 +92,6 @@ exclude = '''
        | mongo.py
        | net.py
        | priority.py
-       | redis.py
        | sql.py
        | system.py
     )
@@ -150,7 +148,6 @@ exclude = '''
         | test_pyramid.py
         | test_pyramid_autopatch.py
       )
-      | redis
       | rediscluster
       | requests
       | requests_gevent

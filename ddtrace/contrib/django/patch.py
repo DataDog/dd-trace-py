@@ -11,13 +11,15 @@ import sys
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
-from ddtrace.vendor import debtcollector, wrapt
+from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
+from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
@@ -117,9 +119,20 @@ def instrument_dbs(django):
         patch_conn(django, django.db.connection)
 
 
-def _set_request_tags(span, request):
+def _set_request_tags(django, span, request):
     span.set_tag("django.request.class", func_name(request))
     span.set_tag(http.METHOD, request.method)
+
+    if django.VERSION >= (2, 2, 0):
+        headers = request.headers
+    else:
+        headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                headers[name] = value
+
+    store_request_headers(headers, span, config.django)
 
     user = getattr(request, "user", None)
     if user is not None:
@@ -403,7 +416,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Note: this call must be done after the function call because
             # some attributes (like `user`) are added to the request through
             # the middleware chain
-            _set_request_tags(span, request)
+            _set_request_tags(django, span, request)
 
             if response:
                 span.set_tag(http.STATUS_CODE, response.status_code)
@@ -411,7 +424,29 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     span.error = 1
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
-                    utils.set_tag_array(span, "django.response.template", response.template_name)
+                    # template_name is a bit of a misnomer, as it could be any of:
+                    # a list of strings, a tuple of strings, a single string, or an instance of Template
+                    # for more detail, see:
+                    # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+                    template = response.template_name
+
+                    if isinstance(template, six.string_types):
+                        template_names = [template]
+                    elif isinstance(template, (list, tuple,)):
+                        template_names = template
+                    elif hasattr(template, "template"):
+                        # ^ checking by attribute here because
+                        # django backend implementations don't have a common base
+                        # `.template` is also the most consistent across django versions
+                        template_names = [template.template.name]
+                    else:
+                        template_names = None
+
+                    utils.set_tag_array(span, "django.response.template", template_names)
+
+                headers = dict(response.items())
+                store_response_headers(headers, span, config.django)
+
             return response
 
 

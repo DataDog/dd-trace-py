@@ -52,9 +52,9 @@ def spend_cpu_3():
         pass
 
 
-# We allow 2% error:
+# We allow 3% error:
 # The profiler might not be precise, but time.sleep is not either.
-TOLERANCE = 0.02
+TOLERANCE = 0.03
 # Use 5% accuracy for CPU usage, it's way less precise
 CPU_TOLERANCE = 0.05
 
@@ -72,7 +72,7 @@ def total_time(time_data, funcname):
 def test_accuracy(monkeypatch):
     # Set this to 100 so we don't sleep too often and mess with the precision.
     monkeypatch.setenv("DD_PROFILING_MAX_TIME_USAGE_PCT", "100")
-    p = profiler.Profiler()
+    p = profiler.Profiler(exporters=[])
     p.start()
     spend_16()
     p.stop()

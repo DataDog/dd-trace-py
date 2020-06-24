@@ -224,6 +224,8 @@ After::
    patch_all()
    Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
 
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
 from ...utils.importlib import require_modules

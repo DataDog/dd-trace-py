@@ -37,7 +37,8 @@ def test_repr():
     test_collector._test_repr(
         memory.MemoryCollector,
         "MemoryCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(max_size=49152), capture_pct=5.0, nframes=64, ignore_profiler=True)",
+        "recorder=Recorder(default_max_events=32768, max_events={}), "
+        "capture_pct=5.0, nframes=64, ignore_profiler=True)",
     )
 
 

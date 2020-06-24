@@ -26,14 +26,17 @@ if "gevent" in sys.modules:
         import gevent.monkey
     except ImportError:
         _LOG.error("gevent loaded but unable to import gevent.monkey")
+        from threading import Lock as _threading_Lock
         from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     else:
+        _threading_Lock = gevent.monkey.get_original("threading", "Lock")
         _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
 
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
     _main_thread_id = _thread_get_ident()
 else:
+    from threading import Lock as _threading_Lock
     from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     if six.PY2:
         _main_thread_id = threading._MainThread().ident
@@ -287,7 +290,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     running_thread_ids = {t[0] for t in running_threads}
 
-    thread_span_links.clear_threads(running_thread_ids)
+    if thread_span_links:
+        thread_span_links.clear_threads(running_thread_ids)
 
     if ignore_profiler:
         running_thread_ids -= _periodic.PERIODIC_THREAD_IDS
@@ -322,7 +326,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     for tid, frame in running_threads:
         if ignore_profiler and tid in _periodic.PERIODIC_THREAD_IDS:
             continue
-        spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
+        if thread_span_links:
+            spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
+        else:
+            spans = set()
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
         stack_events.append(
             StackSampleEvent(
@@ -360,19 +367,19 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 @attr.s(slots=True, eq=False)
 class _ThreadSpanLinks(object):
 
-    _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(weakref.WeakSet), repr=False, init=False)
-    # WeakSet is not thread safe unfortunately
-    _lock = attr.ib(factory=threading.Lock, repr=False, init=False)
+    # Keys is a thread_id
+    # Value is a set of weakrefs to spans
+    _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
+    _lock = attr.ib(factory=_threading_Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
 
         Track threads, tasks, etc.
         """
-        # In _theory_, this should be thread-safe because it's entirely done in C.
-        # Since it's a CPython specific detail, we ignore that fact and play it self by locking.
+        # Since we're going to iterate over the set, make sure it's locked
         with self._lock:
-            self._thread_id_to_spans[_thread_get_ident()].add(span)
+            self._thread_id_to_spans[_thread_get_ident()].add(weakref.ref(span))
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
@@ -396,18 +403,31 @@ class _ThreadSpanLinks(object):
         :param thread_id: The thread id.
         :return: A set with the active spans.
         """
+        alive_spans = set()
+
         with self._lock:
-            spans = set(self._thread_id_to_spans.get(thread_id, ()))
+            span_list = self._thread_id_to_spans.get(thread_id, ())
+            dead_spans = set()
+            for span_ref in span_list:
+                span = span_ref()
+                if span is None:
+                    dead_spans.add(span_ref)
+                else:
+                    alive_spans.add(span)
+
+            # Clean the set from the dead spans
+            for dead_span in dead_spans:
+                span_list.remove(dead_span)
 
         # Iterate over a copy so we can modify the original
-        for span in spans.copy():
+        for span in alive_spans.copy():
             if not span.finished:
                 try:
-                    spans.remove(span._parent)
+                    alive_spans.remove(span._parent)
                 except KeyError:
                     pass
 
-        return {span for span in spans if not span.finished}
+        return {span for span in alive_spans if not span.finished}
 
 
 @attr.s(slots=True)
@@ -427,7 +447,7 @@ class StackCollector(collector.PeriodicCollector):
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False)
     _last_wall_time = attr.ib(init=False, repr=False)
-    _thread_span_links = attr.ib(factory=_ThreadSpanLinks, init=False, repr=False)
+    _thread_span_links = attr.ib(default=None, init=False, repr=False)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -438,6 +458,7 @@ class StackCollector(collector.PeriodicCollector):
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
+            self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
         super(StackCollector, self).start()
 

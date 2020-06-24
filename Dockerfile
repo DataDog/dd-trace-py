@@ -55,12 +55,8 @@ RUN \
   && pyenv install 3.7.7 \
   && pyenv install 3.8.3 \
   && pyenv install 3.9-dev \
-  && pyenv global 2.7.17 3.5.9 3.6.9 3.7.7 3.8.3 3.9-dev \
+  # Order matters: first version is the global one
+  && pyenv global 3.8.3 2.7.17 3.5.9 3.6.9 3.7.7 3.9-dev \
   && pip install --upgrade pip
-
-# Install Python dependencies
-# DEV: `tox==3.7` introduced parallel execution mode
-#      https://tox.readthedocs.io/en/3.7.0/example/basic.html#parallel-mode
-RUN pip install "tox>=3.7,<4.0"
 
 CMD ["/bin/bash"]
