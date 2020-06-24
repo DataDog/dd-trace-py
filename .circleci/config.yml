@@ -28,6 +28,9 @@ httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
+orbs:
+  win: circleci/windows@2.2.0
+
 machine_executor: &machine_executor
   machine:
     image: ubuntu-1604:201903-01
@@ -276,6 +279,41 @@ jobs:
     executor: python27
     steps:
       - test_build
+  test_build_win_py38:
+    executor:
+      name: win/default
+      size: *resource_class
+    environment:
+      PYTHON_VERSION: 3.8.3
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: install python version
+          command: |
+            nuget install python -Version $env:PYTHON_VERSION -ExcludeVersion -OutputDirectory .
+            .\python\tools\python.exe --version
+            .\python\tools\python.exe -m pip install virtualenv
+            .\python\tools\python.exe -m virtualenv env
+      - run:
+          name: install dependencies
+          command: |
+            env\Scripts\activate.ps1
+            python --version
+            pip install twine readme_renderer[md] pyopenssl wheel cython
+      - run:
+          name: clean
+          shell: bash.exe
+          command: rm -rf build/ dist/
+      - run:
+          name: build extensions
+          command: |
+            env\Scripts\activate.ps1
+            python setup.py build_ext --inplace
+            python setup.py sdist
+            env\Scripts\activate.ps1
+            python setup.py bdist_wheel
+            twine check dist/*
 
   tracer:
     executor: ddtrace_dev
@@ -820,6 +858,7 @@ workflows:
       - test_build_py36: *requires_pre_test
       - test_build_py35: *requires_pre_test
       - test_build_py27: *requires_pre_test
+      - test_build_win_py38: *requires_pre_test
       - build_wheels: *requires_pre_test
 
       # Integration test suites
