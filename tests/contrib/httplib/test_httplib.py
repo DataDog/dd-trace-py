@@ -353,7 +353,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
             self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), None)
 
         # Enabled when configured
-        with self.override_config('hhtplib', {}):
+        with self.override_config('httplib', {}):
             from ddtrace.settings import IntegrationConfig
             integration_config = config.httplib  # type: IntegrationConfig
             integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
