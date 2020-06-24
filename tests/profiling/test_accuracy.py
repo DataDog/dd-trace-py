@@ -78,11 +78,10 @@ def test_accuracy(monkeypatch):
     p.start()
     spend_16()
     p.stop()
-    recorder = list(p.recorders)[0]
     # First index is the stack position, second is the function name
     time_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
     cpu_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
-    for event in recorder.events[stack.StackSampleEvent]:
+    for event in p._recorder.events[stack.StackSampleEvent]:
         for idx, frame in enumerate(reversed(event.frames)):
             time_spent_ns[idx][frame[2]] += event.wall_time_ns
             cpu_spent_ns[idx][frame[2]] += event.cpu_time_ns

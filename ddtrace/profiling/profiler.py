@@ -76,6 +76,7 @@ class Profiler(object):
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
+    _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
@@ -102,7 +103,7 @@ class Profiler(object):
         ]
 
     def __attrs_post_init__(self):
-        r = recorder.Recorder(
+        r = self._recorder = recorder.Recorder(
             max_events={
                 # Allow to store up to 10 threads for 60 seconds at 100 Hz
                 stack.StackSampleEvent: 10 * 60 * 100,
@@ -138,10 +139,6 @@ class Profiler(object):
                               env=self.env,
                               version=self.version,
                               tracer=self.tracer)
-
-    @property
-    def recorders(self):
-        return set(c.recorder for c in self._collectors)
 
     def start(self, stop_on_exit=True):
         """Start the profiler.
