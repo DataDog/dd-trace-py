@@ -74,14 +74,14 @@ def test_accuracy(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_MAX_TIME_USAGE_PCT", "100")
     p = profiler.Profiler()
     # don't export data
-    p._scheduler = None
+    p._profiler._scheduler = None
     p.start()
     spend_16()
     p.stop()
     # First index is the stack position, second is the function name
     time_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
     cpu_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
-    for event in p._recorder.events[stack.StackSampleEvent]:
+    for event in p._profiler._recorder.events[stack.StackSampleEvent]:
         for idx, frame in enumerate(reversed(event.frames)):
             time_spent_ns[idx][frame[2]] += event.wall_time_ns
             cpu_spent_ns[idx][frame[2]] += event.cpu_time_ns
