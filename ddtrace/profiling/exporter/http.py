@@ -7,6 +7,7 @@ import platform
 
 import tenacity
 
+from ddtrace.internal.runtime import container
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
@@ -48,6 +49,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     env = attr.ib(default=None)
     version = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
+    _container_info = attr.ib(factory=container.get_container_info, repr=False)
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
@@ -128,6 +130,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
             }
         else:
             headers = {}
+
+        if self._container_info and self._container_info.container_id:
+            headers["Datadog-Container-Id"] = self._container_info.container_id
 
         profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         s = six.BytesIO()
