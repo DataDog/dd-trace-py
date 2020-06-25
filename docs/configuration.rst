@@ -85,6 +85,10 @@ below:
      - Integer
      -
      - Deprecated: use ``DD_TRACE_AGENT_URL``
+   * - ``DD_PROFILING_ENABLED``
+     - Boolean
+     - False
+     - Enable Datadog profiling when using ``ddtrace-run``.
    * - ``DD_PROFILING_API_TIMEOUT``
      - Float
      - 10

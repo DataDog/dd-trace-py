@@ -307,3 +307,18 @@ class DdtraceRunTest(BaseTestCase):
                 ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_logs_injection.py']
             )
             assert out.startswith(b'Test success')
+
+
+def test_env_profiling_enabled(monkeypatch):
+    """DD_PROFILING_ENABLED allows enabling the global profiler."""
+    # Off by default
+    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"NO PROFILER"
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "true")
+    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"RUNNING"
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
+    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"NO PROFILER"
