@@ -172,7 +172,7 @@ class StackExceptionSampleEvent(StackBasedEvent):
 
 
 # The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
-IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
     FEATURES['stack-exceptions'] = True
 
     from cpython cimport PyInterpreterState
@@ -250,7 +250,7 @@ cdef get_thread_name(thread_id):
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
     current_exceptions = []
 
-    IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+    IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
         cdef PyInterpreterState* interp
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
