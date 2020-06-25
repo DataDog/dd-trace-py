@@ -454,12 +454,16 @@ class StackCollector(collector.PeriodicCollector):
         if value <= 0 or value > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
-    def start(self):
+    def _init(self):
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
+
+    def start(self):
+        # This is split in its own function to ease testing
+        self._init()
         super(StackCollector, self).start()
 
     def stop(self):
