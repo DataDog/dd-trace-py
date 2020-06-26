@@ -190,6 +190,13 @@ executors:
     docker:
       - image: *ddtrace_dev_image
     resource_class: *resource_class
+  ddtrace_dev_agent:
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *test_agent
+      environment:
+        - SNAPSHOT_DIR=tests/snapshots
+    resource_class: *resource_class
 
 # Common configuration blocks as YAML anchors
 # See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
@@ -630,14 +637,14 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   redis:
-    executor: ddtrace_dev
+    executor: ddtrace_dev_agent
+    # working_directory: ~/
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
-      - image: *test_agent
-        environment:
-          - SNAPSHOT_DIR=tests/snapshots
-    working_directory: ~/
+        # - image: *test_agent
+        #   environment:
+        #     - SNAPSHOT_DIR=tests/snapshots
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
