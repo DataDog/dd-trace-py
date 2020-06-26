@@ -19,7 +19,8 @@ will produce tracing data. To trace your Celery application, call the patch meth
         def run(self):
             pass
 
-Distributed tracing is disabled by default. To enable it:
+Distributed tracing is disabled by default. To enable it, set the environment
+variable ``DD_CELERY_DISTRIBUTED_TRACING=true`` or use the config API::
 
     from ddtrace import config
 
