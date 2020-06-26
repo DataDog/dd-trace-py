@@ -194,8 +194,6 @@ executors:
     docker:
       - image: *ddtrace_dev_image
       - image: *test_agent
-      environment:
-        - SNAPSHOT_DIR=tests/snapshots
     resource_class: *resource_class
 
 # Common configuration blocks as YAML anchors
