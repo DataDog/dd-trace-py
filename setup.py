@@ -1,4 +1,5 @@
 import os
+import platform
 import sys
 
 from setuptools import setup, find_packages
@@ -100,6 +101,12 @@ def get_exts_for(name):
         return []
 
 
+if platform.uname()[0] != "Windows":
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+else:
+    extra_compile_args = []
+
+
 # Base `setup()` kwargs without any C-extension registering
 setup(
     **dict(
@@ -157,7 +164,7 @@ setup(
                     "ddtrace.profiling.collector.stack",
                     sources=["ddtrace/profiling/collector/stack.pyx"],
                     language="c",
-                    extra_compile_args=["-DPy_BUILD_CORE"],
+                    extra_compile_args=extra_compile_args,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._traceback",
