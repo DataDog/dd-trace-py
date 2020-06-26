@@ -28,10 +28,6 @@ httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
-scripts_test_build: &scripts_test_build
-  name: Run build 
-  command: .circleci/scripts/test_build.sh
-
 orbs:
   win: circleci/windows@2.2.0
 
@@ -145,7 +141,8 @@ commands:
     steps:
       - checkout
       - run:
-          <<: *scripts_test_build
+          name: Run test build
+          command: .circleci/scripts/test_build.sh
 
 executors:
   cimg_base:
