@@ -7,7 +7,7 @@ if [[ "$OSTYPE" == "msys" ]]; then
     ./python/tools/python.exe --version
     ./python/tools/python.exe -m pip install virtualenv
     ./python/tools/python.exe -m virtualenv env
-    # When running script under Windows executor we need to activat the venv
+    # When running script under Windows executor we need to activate the venv
     # created for the specific Python version
     source env/Scripts/activate
 fi
