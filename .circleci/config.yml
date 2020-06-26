@@ -631,7 +631,7 @@ jobs:
 
   redis:
     # executor: ddtrace_dev_agent
-    working_directory: ~/
+    # working_directory: ~/
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
