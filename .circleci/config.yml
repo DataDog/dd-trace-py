@@ -15,7 +15,7 @@ python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
-test_agent: &test_agent kyleverhoog/dd-trace-test-agent:latest
+test_agent_image: &test_agent_image kyleverhoog/dd-trace-test-agent:latest
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image spotify/cassandra:latest
@@ -189,11 +189,6 @@ executors:
   ddtrace_dev:
     docker:
       - image: *ddtrace_dev_image
-    resource_class: *resource_class
-  ddtrace_dev_agent:
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *test_agent
     resource_class: *resource_class
 
 # Common configuration blocks as YAML anchors
@@ -635,14 +630,14 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   redis:
-    executor: ddtrace_dev_agent
-    # working_directory: ~/
+    # executor: ddtrace_dev_agent
+    working_directory: ~/
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
-        # - image: *test_agent
-        #   environment:
-        #     - SNAPSHOT_DIR=tests/snapshots
+      - image: *test_agent_image
+        environment:
+          - SNAPSHOT_DIR=tests/snapshots
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
