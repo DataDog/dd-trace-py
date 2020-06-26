@@ -279,7 +279,7 @@ jobs:
     executor: python27
     steps:
       - test_build
-  test_build_win_py38:
+  test_build_win_py38: &test_build_win
     executor:
       name: win/default
       size: *resource_class
@@ -306,14 +306,26 @@ jobs:
           shell: bash.exe
           command: rm -rf build/ dist/
       - run:
-          name: build extensions
+          name: build and check
           command: |
             env\Scripts\activate.ps1
-            python setup.py build_ext --inplace
+            python setup.py build_ext --force
             python setup.py sdist
             env\Scripts\activate.ps1
             python setup.py bdist_wheel
             twine check dist/*
+  test_build_win_py37:
+    <<: *test_build_win
+    environment:
+      PYTHON_VERSION: 3.7.7
+  test_build_win_py36:
+    <<: *test_build_win
+    environment:
+      PYTHON_VERSION: 3.6.8
+  test_build_win_py35:
+    <<: *test_build_win
+    environment:
+      PYTHON_VERSION: 3.5.4
 
   tracer:
     executor: ddtrace_dev
@@ -859,6 +871,9 @@ workflows:
       - test_build_py35: *requires_pre_test
       - test_build_py27: *requires_pre_test
       - test_build_win_py38: *requires_pre_test
+      - test_build_win_py37: *requires_pre_test
+      - test_build_win_py36: *requires_pre_test
+      - test_build_win_py35: *requires_pre_test
       - build_wheels: *requires_pre_test
 
       # Integration test suites
