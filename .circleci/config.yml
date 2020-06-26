@@ -637,7 +637,7 @@ jobs:
       - image: *redis_image
       - image: *test_agent_image
         environment:
-          - SNAPSHOT_DIR=tests/snapshots
+          - SNAPSHOT_DIR=$CIRCLE_WORKING_DIRECTORY/tests/snapshots
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
