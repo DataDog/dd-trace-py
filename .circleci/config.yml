@@ -635,12 +635,14 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
-      - image: *test_agent_image
-        environment:
-          - SNAPSHOT_DIR=/snaps
-        volumes:
-          - "/root/project:/snaps"
+        # - image: *test_agent_image
+        #environment:
+        #  - SNAPSHOT_DIR=/snaps
     steps:
+      - run:
+        name: Test Agent
+        command: docker pull kyleverhoog/dd-trace-test-agent && docker run --rm -p 8126:8126 -e SNAPSHOT_DIR=/snaps -v /root/project/tests/snapshots:/snaps kyleverhoog/dd-trace-test-agent:latest
+        background: true
       - run_tox_scenario:
           pattern: '^redis_contrib-'
 
