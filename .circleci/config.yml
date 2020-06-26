@@ -28,6 +28,10 @@ httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
+scripts_test_build: &scripts_test_build
+  name: Run build 
+  command: .circleci/scripts/test_build.sh
+
 orbs:
   win: circleci/windows@2.2.0
 
@@ -140,24 +144,8 @@ commands:
     description: "Build the package extensions and wheel to validate builds work"
     steps:
       - checkout
-
-      # Install required dependencies
-      # DEV: `pyopenssl` needed until the following PR is released
-      #      https://github.com/pypa/twine/pull/447
-      # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel cython
-      # Ensure we didn't cache from previous runs
-      - run: rm -rf build/ dist/
-      # Manually build any extensions to ensure they succeed
-      - run: python setup.py build_ext --force
-      # Ensure source package will build
-      - run: python setup.py sdist
-      # Ensure wheel will build
-      - run: python setup.py bdist_wheel
-      # Ensure package long description is valid and will render
-      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
-      - run: twine check dist/*
-
+      - run:
+          <<: *scripts_test_build
 
 executors:
   cimg_base:
@@ -257,7 +245,7 @@ jobs:
   test_build_alpine:
     executor: python38-alpine
     steps:
-      - run: apk add git gcc musl-dev libffi-dev openssl-dev
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
       - test_build
   test_build_py38:
     executor: python38
@@ -289,30 +277,7 @@ jobs:
     working_directory: ~/repo
     steps:
       - checkout
-      - run:
-          name: install python version
-          command: |
-            nuget install python -Version $PYTHON_VERSION -ExcludeVersion -OutputDirectory .
-            ./python/tools/python.exe --version
-            ./python/tools/python.exe -m pip install virtualenv
-            ./python/tools/python.exe -m virtualenv env
-      - run:
-          name: install dependencies
-          command: |
-            source env/Scripts/activate
-            python --version
-            pip install twine readme_renderer[md] pyopenssl wheel cython
-      - run:
-          name: clean
-          command: rm -rf build/ dist/
-      - run:
-          name: build and check
-          command: |
-            source env/Scripts/activate
-            python setup.py build_ext --force
-            python setup.py sdist
-            python setup.py bdist_wheel
-            twine check dist/*
+      - test_build
   test_build_win_py37:
     <<: *test_build_win
     environment:
