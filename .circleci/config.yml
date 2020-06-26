@@ -283,6 +283,7 @@ jobs:
     executor:
       name: win/default
       size: *resource_class
+      shell: bash.exe
     environment:
       PYTHON_VERSION: 3.8.3
     working_directory: ~/repo
@@ -291,27 +292,25 @@ jobs:
       - run:
           name: install python version
           command: |
-            nuget install python -Version $env:PYTHON_VERSION -ExcludeVersion -OutputDirectory .
-            .\python\tools\python.exe --version
-            .\python\tools\python.exe -m pip install virtualenv
-            .\python\tools\python.exe -m virtualenv env
+            nuget install python -Version $PYTHON_VERSION -ExcludeVersion -OutputDirectory .
+            ./python/tools/python.exe --version
+            ./python/tools/python.exe -m pip install virtualenv
+            ./python/tools/python.exe -m virtualenv env
       - run:
           name: install dependencies
           command: |
-            env\Scripts\activate.ps1
+            source env/Scripts/activate
             python --version
             pip install twine readme_renderer[md] pyopenssl wheel cython
       - run:
           name: clean
-          shell: bash.exe
           command: rm -rf build/ dist/
       - run:
           name: build and check
           command: |
-            env\Scripts\activate.ps1
+            source env/Scripts/activate
             python setup.py build_ext --force
             python setup.py sdist
-            env\Scripts\activate.ps1
             python setup.py bdist_wheel
             twine check dist/*
   test_build_win_py37:
