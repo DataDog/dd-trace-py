@@ -119,6 +119,9 @@ commands:
         default: ""
     steps:
       - checkout
+      - run:
+          name: "Copy snapshots"
+          command: docker cp tests/snapshots kyleverhoog/dd-trace-test-agent:/snaps
       - setup_tox
       - restore_tox_cache
       - when:
@@ -631,18 +634,13 @@ jobs:
 
   redis:
     # executor: ddtrace_dev_agent
-    # working_directory: ~/
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
-        # - image: *test_agent_image
-        #environment:
-        #  - SNAPSHOT_DIR=/snaps
+      - image: *test_agent_image
+        environment:
+          - SNAPSHOT_DIR=/snaps
     steps:
-      - run:
-          name: Test Agent
-          command: docker pull kyleverhoog/dd-trace-test-agent && docker run --rm -p 8126:8126 -e SNAPSHOT_DIR=/snaps -v /root/project/tests/snapshots:/snaps kyleverhoog/dd-trace-test-agent:latest
-          background: true
       - run_tox_scenario:
           pattern: '^redis_contrib-'
 
