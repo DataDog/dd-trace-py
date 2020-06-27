@@ -637,7 +637,7 @@ jobs:
       - image: *test_agent_image
         environment:
           - SNAPSHOT_DIR=dd-trace-py/tests/snapshots
-        command: /bin/bash -c "apt update; apt install -y git; git clone https://github.com/datadog/dd-trace-py/; cd dd-trace-py; git checkout $CIRCLE_BRANCH; cd ..; java -jar app-standalone.jar"
+        command: /bin/bash -c "apt update; apt install -y git; git clone https://github.com/datadog/dd-trace-py/; cd dd-trace-py; git checkout << pipeline.git.branch >>; cd ..; java -jar app-standalone.jar"
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
