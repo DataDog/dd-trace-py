@@ -119,9 +119,6 @@ commands:
         default: ""
     steps:
       - checkout
-      - run:
-          name: "Copy snapshots"
-          command: docker cp tests/snapshots kyleverhoog/dd-trace-test-agent:/snaps
       - setup_tox
       - restore_tox_cache
       - when:
@@ -640,7 +637,7 @@ jobs:
       - image: *test_agent_image
         environment:
           - SNAPSHOT_DIR=tests/snapshots
-        command: /bin/bash -c "apt update; apt install -y git; git clone https://github.com/datadog/dd-trace-py/ && git checkout {{ .Environment.CIRCLE_BRANCH }} && cd dd-trace-py && java -jar agent-standalone.jar"
+        command: /bin/bash -c "apt update; apt install -y git; git clone https://github.com/datadog/dd-trace-py/ && git checkout $CIRCLE_BRANCH && cd dd-trace-py && java -jar agent-standalone.jar"
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
