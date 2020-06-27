@@ -636,8 +636,8 @@ jobs:
       - image: *redis_image
       - image: *test_agent_image
         environment:
-          - SNAPSHOT_DIR=tests/snapshots
-        command: /bin/bash -c "apt update; apt install -y git; git clone https://github.com/datadog/dd-trace-py/ && git checkout $CIRCLE_BRANCH && cd dd-trace-py && java -jar agent-standalone.jar"
+          - SNAPSHOT_DIR=dd-trace-py/tests/snapshots
+        command: /bin/bash -c "apt update; apt install -y git; git clone https://github.com/datadog/dd-trace-py/ && git checkout $CIRCLE_BRANCH && java -jar agent-standalone.jar"
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
