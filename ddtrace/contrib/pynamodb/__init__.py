@@ -5,10 +5,13 @@ library.
 This integration is automatically patched when using ``patch_all()``::
 
     import pynamodb
-    from ddtrace import patch
+    from ddtrace import patch, config
 
-    # If not patched yet, you can patch botocore specifically
+    # If not patched yet, you can patch pynamodb specifically
     patch(pynamodb=True)
+
+    # To change the service name
+    config.pynamodb['service_name'] = 'differentname'
 
 """
 

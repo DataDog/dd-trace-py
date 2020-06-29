@@ -10,12 +10,15 @@ import pynamodb.connection.base
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
 from ...ext import SpanTypes, http
-from ...utils.formats import deep_getattr
+from ...utils.formats import deep_getattr, get_env
 from ...utils.wrappers import unwrap
 
 # Pynamodb connection class
 _PynamoDB_client = pynamodb.connection.base.Connection
 
+config._add('pynamodb', {
+    'service_name': get_env("pynamodb", "service_name") or 'pynamodb',
+})
 
 def patch():
     if getattr(pynamodb.connection.base, '_datadog_patch', False):
@@ -23,7 +26,7 @@ def patch():
     setattr(pynamodb.connection.base, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('pynamodb.connection.base', 'Connection._make_api_call', patched_api_call)
-    Pin(service='aws', app='aws').onto(pynamodb.connection.base.Connection)
+    Pin(service=None, app='aws').onto(pynamodb.connection.base.Connection)
 
 
 def unpatch():
@@ -33,6 +36,7 @@ def unpatch():
 
 
 def patched_api_call(original_func, instance, args, kwargs):
+    
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
@@ -40,8 +44,9 @@ def patched_api_call(original_func, instance, args, kwargs):
     endpoint_name = deep_getattr(instance, 'client._endpoint._endpoint_prefix')
 
     with pin.tracer.trace('pynamodb.command',
-                          service='{}.{}'.format(pin.service, endpoint_name),
+                          service=config.pynamodb['service_name'],
                           span_type=SpanTypes.HTTP) as span:
+    
         span.set_tag(SPAN_MEASURED_KEY)
 
         operation = None

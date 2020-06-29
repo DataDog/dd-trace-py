@@ -1,7 +1,6 @@
 import pynamodb.connection.base
 from pynamodb.connection.base import Connection
-from moto import mock_dynamodb, mock_dynamodb2
-# from .test import Test
+from moto import mock_dynamodb
 
 # project
 from ddtrace import Pin
@@ -15,7 +14,7 @@ from moto.dynamodb import dynamodb_backend
 
 class PynamodbTest(BaseTracerTestCase):
 
-  TEST_SERVICE = 'pynamodb-test'
+  TEST_SERVICE = 'pynamodb'
 
   def setUp(self):
     patch()
@@ -40,7 +39,7 @@ class PynamodbTest(BaseTracerTestCase):
     span = spans[0]
 
     assert span.name == "pynamodb.command"
-    assert span.service == "pynamodb-test.dynamodb"
+    assert span.service == "pynamodb"
     assert span.resource == "dynamodb.listtables"
     assert len(spans) == 1
     assert span.span_type == "http"
@@ -63,7 +62,7 @@ class PynamodbTest(BaseTracerTestCase):
     span = spans[0]
 
     assert span.name == "pynamodb.command"
-    assert span.service == "pynamodb-test.dynamodb"
+    assert span.service == "pynamodb"
     assert span.resource == "dynamodb.deletetable"
     assert len(spans) == 1
     assert span.span_type == "http"
@@ -86,7 +85,7 @@ class PynamodbTest(BaseTracerTestCase):
     span = spans[0]
 
     assert span.name == "pynamodb.command"
-    assert span.service == "pynamodb-test.dynamodb"
+    assert span.service == "pynamodb"
     assert span.resource == "dynamodb.scan"
     assert len(spans) == 1
     assert span.span_type == "http"
@@ -107,7 +106,7 @@ class PynamodbTest(BaseTracerTestCase):
       assert spans
       span = spans[0]
       assert span.name == "pynamodb.command"
-      assert span.service == "pynamodb-test.dynamodb"
+      assert span.service == "pynamodb"
       assert span.resource == "dynamodb.scan"
       assert len(spans) == 1
       assert span.span_type == "http"
@@ -117,28 +116,3 @@ class PynamodbTest(BaseTracerTestCase):
       assert span.duration >= 0
       assert span.error == 1
       assert span.meta['error.type'] != ""
-
-  # def test_query_table_not_exist(self):
-  #   dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-
-  #   Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
-  #   pdb.set_trace()
-  #   self.conn.query('Test', 'a')
-
-  #   spans = self.get_spans()
-    
-  #   assert spans
-  #   span = spans[0]
-
-  #   assert span.name == "pynamodb.command"
-  #   assert span.service == "pynamodb-test.dynamodb"
-  #   assert span.resource == "dynamodb.scan"
-  #   assert len(spans) == 1
-  #   assert span.span_type == "http"
-  #   assert span.get_tag("aws.operation") == "Scan"
-  #   assert span.get_tag("aws.region") == "us-east-1"
-  #   assert span.get_tag("aws.agent") == "pynamodb"
-  #   assert span.duration >= 0
-  #   assert span.error == 0    
-
-
