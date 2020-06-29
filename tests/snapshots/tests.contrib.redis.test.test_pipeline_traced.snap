@@ -1,22 +1,20 @@
-([{"resource" "SET blah 32\nRPUSH foo éé\nHGETALL xxx",
-   "error" 0,
-   "span_id" 11830566987077363637,
-   "name" "redis.command",
-   "trace_id" 2148353474275702389,
-   "start" 1593201751326408000,
-   "duration" 2147000,
-   "type" "redis",
-   "meta"
-   {"runtime-id" "772284f9cc4b42f088e39efc1516aef7",
-    "redis.raw_command" "SET blah 32\nRPUSH foo éé\nHGETALL xxx",
-    "out.host" "localhost"},
-   "parent_id" nil,
-   "service" "redis",
-   "metrics"
-   {"_dd.agent_psr" 1.0,
-    "system.pid" 31952,
-    "_dd.measured" 1,
-    "out.port" 6379,
-    "out.redis_db" 0,
-    "redis.pipeline_length" 3,
-    "_sampling_priority_v1" 1}}])
+[[{"name" "redis.command"
+   "service" "redis"
+   "resource" "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+   "type" "redis"
+   "error" 0
+   "span_id" 8844859210137652502
+   "trace_id" 1460316586382067271
+   "parent_id" nil
+   "start" 1593466878522013000
+   "duration" 3263000
+   "meta" {"runtime-id" "ac3007d8951a48b890318b022e776e6c"
+           "redis.raw_command" "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+           "out.host" "localhost"}
+   "metrics" {"_dd.measured" 1
+              "_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 84132
+              "out.port" 6379
+              "out.redis_db" 0
+              "redis.pipeline_length" 3}}]]
