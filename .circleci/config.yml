@@ -15,7 +15,8 @@ python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
-test_agent: &test_agent
+test_agent:
+  &test_agent_image
   - image: kyleverhoog/dd-trace-test-agent:latest
     environment:
       - SNAPSHOT_DIR=dd-trace-py/tests/snapshots
@@ -641,7 +642,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
-      - *test_agent
+      <<: *test_agent
     steps:
       - run_tox_scenario:
           pattern: '^redis_contrib-'
