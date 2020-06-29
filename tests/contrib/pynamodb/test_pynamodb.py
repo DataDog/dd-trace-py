@@ -8,7 +8,6 @@ from ddtrace.contrib.pynamodb.patch import patch, unpatch
 
 # testing
 from ...base import BaseTracerTestCase
-import pdb
 from moto.dynamodb import dynamodb_backend
 
 
