@@ -64,6 +64,7 @@ PATCH_MODULES = {
     "pyramid": False,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "pynamodb": True,
 }
 
 _LOCK = threading.Lock()
