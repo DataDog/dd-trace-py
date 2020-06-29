@@ -3,7 +3,6 @@ import redis
 
 import ddtrace
 from ddtrace import Pin, compat
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
 
@@ -12,7 +11,6 @@ from tests.util import snapshot
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
 
 
 def test_redis_legacy():
@@ -48,16 +46,18 @@ class TestRedisPatch(BaseTracerTestCase):
     @snapshot()
     def test_basics(self):
         us = self.r.get("cheese")
-
+        assert us is None
 
     def test_analytics_without_rate(self):
         with self.override_config("redis", dict(analytics_enabled=True)):
             us = self.r.get("cheese")
+            assert us is None
 
     @snapshot()
     def test_analytics_with_rate(self):
         with self.override_config("redis", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             us = self.r.get("cheese")
+            assert us is None
 
     @snapshot()
     def test_pipeline_traced(self):
@@ -128,15 +128,17 @@ class TestRedisPatch(BaseTracerTestCase):
             us = self.r.get("cheese")
             assert us is None
 
-    @snapshot()
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @snapshot()
     def test_user_specified_service(self):
         from ddtrace import config
 
+        assert config.service == "mysvc"
+
         self.r.get("cheese")
 
-    @snapshot()
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
+    @snapshot()
     def test_env_user_specified_redis_service(self):
         self.r.get("cheese")
 

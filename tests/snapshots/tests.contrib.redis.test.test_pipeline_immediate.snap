@@ -3,18 +3,18 @@
    "resource" "SET a 1"
    "type" "redis"
    "error" 0
-   "span_id" 7623503934579284038
-   "trace_id" 13671993378975321002
+   "span_id" 5783329363089260769
+   "trace_id" 18169029159026491514
    "parent_id" nil
-   "start" 1593466878476321000
-   "duration" 4190000
-   "meta" {"runtime-id" "ac3007d8951a48b890318b022e776e6c"
+   "start" 1593469830536175000
+   "duration" 5250000
+   "meta" {"runtime-id" "94fa84bc641842ceaa01bbbc48d6c4d8"
            "redis.raw_command" "SET a 1"
            "out.host" "localhost"}
    "metrics" {"_dd.measured" 1
               "_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 84132
+              "system.pid" 88401
               "out.port" 6379
               "out.redis_db" 0
               "redis.args_length" 3}}]
@@ -23,18 +23,18 @@
    "resource" "SET a 1"
    "type" "redis"
    "error" 0
-   "span_id" 9289249102042310542
-   "trace_id" 9484276701458039335
+   "span_id" 17926227860374557648
+   "trace_id" 7285071667449864255
    "parent_id" nil
-   "start" 1593466878480625000
-   "duration" 2155000
-   "meta" {"runtime-id" "ac3007d8951a48b890318b022e776e6c"
+   "start" 1593469830541586000
+   "duration" 1527000
+   "meta" {"runtime-id" "94fa84bc641842ceaa01bbbc48d6c4d8"
            "redis.raw_command" "SET a 1"
            "out.host" "localhost"}
    "metrics" {"_dd.measured" 1
               "_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 84132
+              "system.pid" 88401
               "out.port" 6379
               "out.redis_db" 0
               "redis.pipeline_length" 1}}]]

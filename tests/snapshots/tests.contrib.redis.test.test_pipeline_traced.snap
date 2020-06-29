@@ -3,18 +3,18 @@
    "resource" "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
    "type" "redis"
    "error" 0
-   "span_id" 8844859210137652502
-   "trace_id" 1460316586382067271
+   "span_id" 3531146979474479611
+   "trace_id" 6550918295639551946
    "parent_id" nil
-   "start" 1593466878522013000
-   "duration" 3263000
-   "meta" {"runtime-id" "ac3007d8951a48b890318b022e776e6c"
+   "start" 1593469830582019000
+   "duration" 3598000
+   "meta" {"runtime-id" "94fa84bc641842ceaa01bbbc48d6c4d8"
            "redis.raw_command" "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
            "out.host" "localhost"}
    "metrics" {"_dd.measured" 1
               "_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 84132
+              "system.pid" 88401
               "out.port" 6379
               "out.redis_db" 0
               "redis.pipeline_length" 3}}]]

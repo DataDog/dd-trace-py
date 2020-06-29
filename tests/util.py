@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import inspect
+import functools
 import pytest
 
 import ddtrace
@@ -24,11 +25,16 @@ def override_global_tracer(tracer):
     ddtrace.tracer = original_tracer
 
 
+class SnapshotFailed(Exception):
+    pass
+
+
 def snapshot(ignores=None, file=None, dir=None, tracer=ddtrace.tracer):
     ignores = ignores or []
 
     def dec(f):
 
+        @functools.wraps(f)
         def wrapper(*args, **kwargs):
             if len(args) > 1:
                 self = args[0]
@@ -44,7 +50,7 @@ def snapshot(ignores=None, file=None, dir=None, tracer=ddtrace.tracer):
                 conn.request("GET", "/test/start?token=%s" % token)
                 r = conn.getresponse()
                 if r.status != 200:
-                    raise ValueError("", r.read().decode())
+                    raise SnapshotFailed("", r.read().decode())
 
                 ret = f(*args, **kwargs)
                 tracer.writer.flush_queue()
@@ -54,9 +60,9 @@ def snapshot(ignores=None, file=None, dir=None, tracer=ddtrace.tracer):
                 conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (ignoresqs, token))
                 r = conn.getresponse()
                 if r.status != 200:
-                    raise ValueError("", r.read().decode())
+                    raise SnapshotFailed("", r.read().decode())
                 return ret
-            except ValueError as e:
+            except SnapshotFailed as e:
                 pytest.fail(e.args[1], pytrace=False)
             finally:
                 conn.close()

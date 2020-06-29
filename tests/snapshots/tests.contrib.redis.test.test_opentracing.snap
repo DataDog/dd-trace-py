@@ -2,25 +2,25 @@
    "service" "redis_svc"
    "resource" "redis_get"
    "error" 0
-   "span_id" 15116798083296439916
-   "trace_id" 3625898713336765471
+   "span_id" 10693934602312179340
+   "trace_id" 10842586937662827514
    "parent_id" nil
-   "start" 1593466878415412992
-   "duration" 4448008
-   "meta" {"runtime-id" "ac3007d8951a48b890318b022e776e6c"}
+   "start" 1593469830466403072
+   "duration" 4646928
+   "meta" {"runtime-id" "94fa84bc641842ceaa01bbbc48d6c4d8"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 84132}}
+              "system.pid" 88401}}
     {"name" "redis.command"
      "service" "redis"
      "resource" "GET cheese"
      "type" "redis"
      "error" 0
-     "span_id" 15728256916031850784
-     "trace_id" 3625898713336765471
-     "parent_id" 15116798083296439916
-     "start" 1593466878415682000
-     "duration" 4155000
+     "span_id" 12475430205555032926
+     "trace_id" 10842586937662827514
+     "parent_id" 10693934602312179340
+     "start" 1593469830466886000
+     "duration" 4131000
      "meta" {"redis.raw_command" "GET cheese"
              "out.host" "localhost"}
      "metrics" {"_dd.measured" 1
