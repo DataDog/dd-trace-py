@@ -29,7 +29,7 @@ class SnapshotFailed(Exception):
     pass
 
 
-def snapshot(ignores=None, file=None, dir=None, tracer=ddtrace.tracer):
+def snapshot(ignores=None, filename=None, snapshot_dir=None, tracer=ddtrace.tracer):
     ignores = ignores or []
 
     def dec(f):
