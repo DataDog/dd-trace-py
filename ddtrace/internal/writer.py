@@ -13,6 +13,7 @@ from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..encoding import JSONEncoderV2
+from ..payload import PayloadFull
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
 log = get_logger(__name__)
@@ -202,8 +203,15 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._histogram_with_total("datadog.tracer.api.requests", len(traces_responses))
 
             self._histogram_with_total(
-                "datadog.tracer.api.errors", len(list(t for t in traces_responses if isinstance(t, Exception)))
+                "datadog.tracer.api.errors",
+                len(list(t for t in traces_responses if isinstance(t, Exception) and not isinstance(t, PayloadFull))),
             )
+
+            self._histogram_with_total(
+                "datadog.tracer.api.traces_payloadfull",
+                len(list(t for t in traces_responses if isinstance(t, PayloadFull))),
+            )
+
             for status, grouped_responses in itertools.groupby(
                 sorted((t for t in traces_responses if not isinstance(t, Exception)), key=lambda r: r.status),
                 key=lambda r: r.status,
