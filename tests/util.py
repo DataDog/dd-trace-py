@@ -29,7 +29,17 @@ class SnapshotFailed(Exception):
     pass
 
 
-def snapshot(ignores=None, filename=None, snapshot_dir=None, tracer=ddtrace.tracer):
+def snapshot(ignores=None, tracer=ddtrace.tracer):
+    """Performs a snapshot integration test with the testing agent.
+
+    All traces sent to the agent will be recorded and compared to a snapshot
+    created for the test case.
+
+    :param ignores: A list of keys to ignore when comparing snapshots. To refer
+                    to keys in the meta or metrics maps use "meta.key" and
+                    "metrics.key"
+    :param tracer: A tracer providing the agent connection information to use.
+    """
     ignores = ignores or []
 
     def dec(f):
@@ -43,27 +53,41 @@ def snapshot(ignores=None, filename=None, snapshot_dir=None, tracer=ddtrace.trac
                 clsname = ""
 
             module = inspect.getmodule(f)
+
+            # Use the fully qualified function name as a unique test token to
+            # identify the snapshot.
             token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, f.__name__)
 
+            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
             try:
-                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
-                conn.request("GET", "/test/start?token=%s" % token)
+                # Signal the start of this test case to the test agent.
+                try:
+                    conn.request("GET", "/test/start?token=%s" % token)
+                except Exception as e:
+                    pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
+
                 r = conn.getresponse()
                 if r.status != 200:
-                    raise SnapshotFailed("", r.read().decode())
+                    # The test agent returns nice error messages we can forward to the user.
+                    raise SnapshotFailed(r.read().decode())
 
+                # Run the test.
                 ret = f(*args, **kwargs)
+
+                # Flush out any remnant traces.
                 tracer.writer.flush_queue()
 
-                ignoresqs = ",".join(ignores)
+                # Query for the results of the test.
                 conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
-                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (ignoresqs, token))
+                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
                 r = conn.getresponse()
                 if r.status != 200:
-                    raise SnapshotFailed("", r.read().decode())
+                    raise SnapshotFailed(r.read().decode())
                 return ret
             except SnapshotFailed as e:
-                pytest.fail(e.args[1], pytrace=False)
+                # Fail the test if a failure has occurred and print out the
+                # message we got from the test agent.
+                pytest.fail(str(e), pytrace=False)
             finally:
                 conn.close()
         return wrapper

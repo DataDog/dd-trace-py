@@ -154,8 +154,8 @@ class TestRedisPatch(BaseTracerTestCase):
         Pin.override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
 
-    @snapshot()
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
+    @snapshot()
     def test_service_precedence(self):
         self.r.get("cheese")
 

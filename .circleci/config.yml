@@ -17,7 +17,9 @@ datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 test_agent: &test_agent
   - image: kyleverhoog/dd-trace-test-agent:latest
     environment:
+      # Use the cloned snapshot directory (see below)
       - SNAPSHOT_DIR=dd-trace-py/tests/snapshots
+      # Enable CI mode for the test agent
       - SNAPSHOT_CI=1
     # CircleCI does not provide a way to mount a volume between containers or a
     # way to bake the snapshots into a custom image...
