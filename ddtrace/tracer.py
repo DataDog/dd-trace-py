@@ -7,6 +7,7 @@ from ddtrace.vendor import debtcollector
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
+from .internal import flare
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
@@ -330,6 +331,10 @@ class Tracer(object):
 
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
+
+        if self.log.level <= logging.INFO:
+            f = flare.jsonflare(self)
+            self.log.info("DD_TRACE_STARTUP_LOGS - %s", f)
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
