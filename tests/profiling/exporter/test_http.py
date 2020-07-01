@@ -164,6 +164,7 @@ def test_wrong_api_key(endpoint_test_server):
     assert isinstance(e, error.HTTPError)
     assert e.code == 400
     assert e.reason == "Wrong API Key"
+    assert str(t.value) == "Unable to upload profile: Server returned 400, check your API key"
 
 
 def test_export(endpoint_test_server):

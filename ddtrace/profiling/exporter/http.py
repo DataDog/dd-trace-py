@@ -173,7 +173,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         except tenacity.RetryError as e:
             raise UploadFailed(e.last_attempt.exception())
         except error.HTTPError as e:
-            if e.code == 404 and not self.api_key:
+            if e.code == 400:
+                msg = "Server returned 400, check your API key"
+            elif e.code == 404 and not self.api_key:
                 msg = (
                     "Datadog Agent is not accepting profiles. "
                     "Agent-based profiling deployments require Datadog Agent >= 7.20"
