@@ -65,9 +65,8 @@ def test_collect_truncate():
 def test_collect_once():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
-    # Start the collector as we need to have a start time set
-    with s:
-        all_events = s.collect()
+    s._init()
+    all_events = s.collect()
     assert len(all_events) == 2
     stack_events = all_events[0]
     for e in stack_events:
@@ -174,8 +173,8 @@ def test_stress_threads():
     # Make sure that the collector thread does not interfere with the test
     s.MIN_INTERVAL_TIME = 60
     number = 20000
-    with s:
-        exectime = timeit.timeit(s.collect, number=number)
+    s._init()
+    exectime = timeit.timeit(s.collect, number=number)
     # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
     print("%.3f ms per call" % (1000.0 * exectime / number))
     for t in threads:
@@ -225,7 +224,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == stack._thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 218, "test_exception_collection")]
+    assert e.frames == [(__file__, 217, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 

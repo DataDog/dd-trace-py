@@ -172,7 +172,7 @@ class StackExceptionSampleEvent(StackBasedEvent):
 
 
 # The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
-IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
     FEATURES['stack-exceptions'] = True
 
     from cpython cimport PyInterpreterState
@@ -250,7 +250,7 @@ cdef get_thread_name(thread_id):
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
     current_exceptions = []
 
-    IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+    IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
         cdef PyInterpreterState* interp
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
@@ -454,12 +454,16 @@ class StackCollector(collector.PeriodicCollector):
         if value <= 0 or value > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
-    def start(self):
+    def _init(self):
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
+
+    def start(self):
+        # This is split in its own function to ease testing
+        self._init()
         super(StackCollector, self).start()
 
     def stop(self):

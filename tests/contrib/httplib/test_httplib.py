@@ -76,7 +76,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
             we patch the correct module/methods
         """
         self.assertIsInstance(httplib.HTTPConnection.__init__, wrapt.BoundFunctionWrapper)
-        self.assertIsInstance(httplib.HTTPConnection.putrequest, wrapt.BoundFunctionWrapper)
+        self.assertIsInstance(httplib.HTTPConnection.request, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(httplib.HTTPConnection.getresponse, wrapt.BoundFunctionWrapper)
 
     def test_unpatch(self):
@@ -85,12 +85,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
             we restore the correct module/methods
         """
         original_init = httplib.HTTPConnection.__init__.__wrapped__
-        original_putrequest = httplib.HTTPConnection.putrequest.__wrapped__
+        original_request = httplib.HTTPConnection.request.__wrapped__
         original_getresponse = httplib.HTTPConnection.getresponse.__wrapped__
         unpatch()
 
         self.assertEqual(httplib.HTTPConnection.__init__, original_init)
-        self.assertEqual(httplib.HTTPConnection.putrequest, original_putrequest)
+        self.assertEqual(httplib.HTTPConnection.request, original_request)
         self.assertEqual(httplib.HTTPConnection.getresponse, original_getresponse)
 
     def test_should_skip_request(self):
@@ -353,7 +353,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
             self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), None)
 
         # Enabled when configured
-        with self.override_config('hhtplib', {}):
+        with self.override_config('httplib', {}):
             from ddtrace.settings import IntegrationConfig
             integration_config = config.httplib  # type: IntegrationConfig
             integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
