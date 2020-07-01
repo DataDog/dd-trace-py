@@ -681,8 +681,8 @@ def test_tracer_fork():
                 assert t.writer._trace_queue != original_writer._trace_queue
 
         # Assert the trace got written into the correct queue
-        assert original_writer._trace_queue.empty()
-        assert t.writer._trace_queue.qsize() == 1
+        assert len(original_writer._trace_queue) == 0
+        assert len(t.writer._trace_queue) == 1
         assert [[span]] == list(t.writer._trace_queue.get())
 
     # Assert tracer in a new process correctly recreates the writer
@@ -702,8 +702,8 @@ def test_tracer_fork():
         assert t.writer._trace_queue == original_writer._trace_queue
 
     # Assert the trace got written into the correct queue
-    assert original_writer._trace_queue.qsize() == 1
-    assert t.writer._trace_queue.qsize() == 1
+    assert len(original_writer._trace_queue) == 1
+    assert len(t.writer._trace_queue) == 1
     assert [[span]] == list(t.writer._trace_queue.get())
 
 
