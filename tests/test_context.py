@@ -58,7 +58,7 @@ class TestTracingContext(BaseTestCase):
     current execution flow.
     """
     @contextlib.contextmanager
-    def override_partial_flush(self, ctx, enabled, min_spans):
+    def override_partial_flush(self, ctx, min_spans, enabled=True):
         original_enabled = ctx._partial_flush_enabled
         original_min_spans = ctx._partial_flush_min_spans
 
@@ -213,6 +213,43 @@ class TestTracingContext(BaseTestCase):
         assert trace[0].get_tag(HOSTNAME_KEY) is None
         assert span.get_tag(HOSTNAME_KEY) is None
 
+    def test_partial_flush_disabled(self):
+        """
+        When calling `Context.get`
+        When partial flushing is disabled
+        When we have just enough finished spans to flush
+        We return the finished spans only when all finished
+        """
+        tracer = get_dummy_tracer()
+        ctx = Context()
+
+        # Create a root span with 5 children, all of the children are finished, the root is not
+        root = Span(tracer=tracer, name='root')
+        ctx.add_span(root)
+        for i in range(5):
+            child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
+            child._parent = root
+            child.finished = True
+            ctx.add_span(child)
+            ctx.close_span(child)
+
+        with self.override_partial_flush(ctx, enabled=False, min_spans=5):
+            trace, sampled = ctx.get()
+            self.assertIsNone(trace)
+            self.assertIsNone(sampled)
+
+            # finish root span and then check result of get
+            ctx.close_span(root)
+            trace, sampled = ctx.get()
+
+            self.assertIsNotNone(trace)
+            self.assertIsNotNone(sampled)
+            self.assertEqual(len(trace), 6)
+            self.assertEqual(
+                set(['root', 'child_0', 'child_1', 'child_2', 'child_3', 'child_4']),
+                set([span.name for span in trace])
+            )
+
     def test_partial_flush(self):
         """
         When calling `Context.get`
@@ -233,7 +270,7 @@ class TestTracingContext(BaseTestCase):
             ctx.add_span(child)
             ctx.close_span(child)
 
-        with self.override_partial_flush(ctx, enabled=True, min_spans=5):
+        with self.override_partial_flush(ctx, min_spans=5):
             trace, sampled = ctx.get()
 
         self.assertIsNotNone(trace)
@@ -247,7 +284,7 @@ class TestTracingContext(BaseTestCase):
 
         # Ensure we clear/reset internal stats as expected
         self.assertEqual(ctx._trace, [root])
-        with self.override_partial_flush(ctx, enabled=True, min_spans=5):
+        with self.override_partial_flush(ctx, min_spans=5):
             trace, sampled = ctx.get()
             self.assertIsNone(trace)
             self.assertIsNone(sampled)
@@ -272,7 +309,7 @@ class TestTracingContext(BaseTestCase):
             ctx.add_span(child)
             ctx.close_span(child)
 
-        with self.override_partial_flush(ctx, enabled=True, min_spans=1):
+        with self.override_partial_flush(ctx, min_spans=1):
             trace, sampled = ctx.get()
 
         self.assertIsNotNone(trace)
@@ -286,7 +323,7 @@ class TestTracingContext(BaseTestCase):
 
         # Ensure we clear/reset internal stats as expected
         self.assertEqual(ctx._trace, [root])
-        with self.override_partial_flush(ctx, enabled=True, min_spans=5):
+        with self.override_partial_flush(ctx, min_spans=5):
             trace, sampled = ctx.get()
             self.assertIsNone(trace)
             self.assertIsNone(sampled)
@@ -312,7 +349,7 @@ class TestTracingContext(BaseTestCase):
             ctx.close_span(child)
 
         # Test with having 1 too few spans for partial flush
-        with self.override_partial_flush(ctx, enabled=True, min_spans=6):
+        with self.override_partial_flush(ctx, min_spans=6):
             trace, sampled = ctx.get()
 
         self.assertIsNone(trace)
@@ -347,7 +384,7 @@ class TestTracingContext(BaseTestCase):
                 child.finished = True
                 ctx.close_span(child)
 
-        with self.override_partial_flush(ctx, enabled=True, min_spans=5):
+        with self.override_partial_flush(ctx, min_spans=5):
             trace, sampled = ctx.get()
 
         # Assert partially flushed spans

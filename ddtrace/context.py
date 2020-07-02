@@ -25,8 +25,8 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=False))
-    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=500))
+    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=True))
+    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=5000))
 
     def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
         """
