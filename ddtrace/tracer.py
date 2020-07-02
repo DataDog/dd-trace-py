@@ -332,7 +332,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        if self.log.level <= logging.INFO:
+        if self.log.level <= logging.INFO and environ.get("DD_TRACE_STARTUP_LOGS") != "0":
             f = flare.jsonflare(self)
             self.log.info("DD_TRACE_STARTUP_LOGS - %s", f)
 
