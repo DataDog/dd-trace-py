@@ -44,7 +44,7 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        parent_resource_format=get_env("django", "parent_resource_format", default=None),
+        use_legacy_resource_format=get_env("django", "use_legacy_resource_format", default=False),
     ),
 )
 
@@ -360,20 +360,22 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             handler, _, _ = resolver_match
             handler = func_name(handler)
             urlpattern = ""
-            resource_format = config.django.parent_resource_format
+            resource_format = None
 
-            # In Django >= 2.2.0 we can access the original route or regex pattern
-            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-            if django.VERSION >= (2, 2, 0):
-                route = utils.get_django_2_route(resolver, resolver_match)
-                if resource_format is None:
-                    resource_format = "{method} {urlpattern}"
-
-            if resource_format is None:
+            if config.django.use_legacy_resource_format:
                 resource_format = "{method} {handler}"
+            else:
+                # In Django >= 2.2.0 we can access the original route or regex pattern
+                # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+                if django.VERSION >= (2, 2, 0):
+                    route = utils.get_django_2_route(resolver, resolver_match)
+                    resource_format = "{method} {urlpattern}"
+                else:
+                    resource_format = "{method} {handler}"
 
-            if route is not None:
-                urlpattern = route
+                if route is not None:
+                    urlpattern = route
+
             resource = resource_format.format(method=request.method, urlpattern=urlpattern, handler=handler)
 
         except error_type_404:
