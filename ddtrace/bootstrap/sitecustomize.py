@@ -72,6 +72,10 @@ try:
     hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME"))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
+    profiling = asbool(os.environ.get("DD_PROFILING_ENABLED", False))
+
+    if profiling:
+        import ddtrace.profiling.auto  # noqa: F401
 
     opts = {}
 

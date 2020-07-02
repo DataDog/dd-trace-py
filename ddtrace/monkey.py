@@ -131,7 +131,8 @@ def patch(raise_errors=True, **patch_modules):
                 when_imported(module)(_on_import_factory(module, raise_errors))
 
                 # manually add module to patched modules
-                _PATCHED_MODULES.add(module)
+                with _LOCK:
+                    _PATCHED_MODULES.add(module)
         else:
             patch_module(module, raise_errors=raise_errors)
 
