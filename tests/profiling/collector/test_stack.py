@@ -20,9 +20,12 @@ try:
     from gevent import monkey
 except ImportError:
     real_sleep = time.sleep
+    real_Thread = threading.Thread
+    real_Lock = threading.Lock
 else:
     real_sleep = monkey.get_original("time", "sleep")
     real_Thread = monkey.get_original("threading", "Thread")
+    real_Lock = monkey.get_original("threading", "Lock")
 
 
 def func1():
@@ -65,9 +68,8 @@ def test_collect_truncate():
 def test_collect_once():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
-    # Start the collector as we need to have a start time set
-    with s:
-        all_events = s.collect()
+    s._init()
+    all_events = s.collect()
     assert len(all_events) == 2
     stack_events = all_events[0]
     for e in stack_events:
@@ -162,7 +164,7 @@ exec(
 
 
 def test_stress_threads():
-    NB_THREADS = 10
+    NB_THREADS = 40
 
     threads = []
     for i in range(NB_THREADS):
@@ -171,13 +173,21 @@ def test_stress_threads():
         threads.append(t)
 
     s = stack.StackCollector(recorder=recorder.Recorder())
-    # Make sure that the collector thread does not interfere with the test
-    s.MIN_INTERVAL_TIME = 60
     number = 20000
-    with s:
-        exectime = timeit.timeit(s.collect, number=number)
+    s._init()
+    exectime = timeit.timeit(s.collect, number=number)
     # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
-    print("%.3f ms per call" % (1000.0 * exectime / number))
+    exectime_per_collect = exectime / number
+    print("%.3f ms per call" % (1000.0 * exectime_per_collect))
+    print(
+        "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
+        % (
+            NB_THREADS,
+            MAX_FN_NUM,
+            1 / stack.StackCollector.MIN_INTERVAL_TIME,
+            100 * exectime_per_collect / stack.StackCollector.MIN_INTERVAL_TIME,
+        )
+    )
     for t in threads:
         t.join()
 
@@ -225,7 +235,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == stack._thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 218, "test_exception_collection")]
+    assert e.frames == [(__file__, 228, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -358,3 +368,51 @@ def test_stress_trace_collection(tracer_and_collector):
 
     for t in threads:
         t.join()
+
+
+@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
+def test_thread_time_cache():
+    tt = stack._ThreadTime()
+
+    lock = real_Lock()
+    lock.acquire()
+
+    t = real_Thread(target=lock.acquire)
+    t.start()
+
+    main_thread_id = threading.current_thread().ident
+
+    threads = [
+        main_thread_id,
+        t.ident,
+    ]
+
+    cpu_time = tt(threads)
+
+    assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id, t.ident])
+    assert all(t >= 0 for t in cpu_time.values())
+
+    cpu_time = tt(threads)
+
+    assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id, t.ident])
+    assert all(t >= 0 for t in cpu_time.values())
+
+    if stack.FEATURES["cpu-time"]:
+        assert set(tt._get_last_thread_time().keys()) == set(
+            (pthread_id, stack.get_thread_native_id(pthread_id)) for pthread_id in threads
+        )
+
+    lock.release()
+
+    threads = {
+        main_thread_id: stack.get_thread_native_id(main_thread_id),
+    }
+
+    cpu_time = tt(threads)
+    assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id])
+    assert all(t >= 0 for t in cpu_time.values())
+
+    if stack.FEATURES["cpu-time"]:
+        assert set(tt._get_last_thread_time().keys()) == set(
+            (pthread_id, stack.get_thread_native_id(pthread_id)) for pthread_id in threads
+        )
