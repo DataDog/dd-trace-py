@@ -1,3 +1,7 @@
+"""
+TODO:
+  - different encoding support
+"""
 import argparse
 import itertools
 import logging
@@ -11,16 +15,10 @@ import sys
 logger = logging.getLogger(__name__)
 
 
-class Dict(dict):
+class AttrDict(dict):
     def __init__(self, *args, **kwargs):
-        super(Dict, self).__init__(*args, **kwargs)
+        super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
-
-
-def rmchars(chars, s):
-    for c in chars:
-        s = s.replace(c, "")
-    return s
 
 
 global_deps = [
@@ -30,24 +28,60 @@ global_deps = [
     "pytest-benchmark",
 ]
 
-global_env = Dict(PYTEST_ADDOPTS="--color=yes",)
-
+global_env = AttrDict(PYTEST_ADDOPTS="--color=yes",)
 
 all_groups = [
-    Dict(
+    AttrDict(
         name="redis",
-        pys=[2.7, 3.7,],
-        # pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-        # pys=[3.7,],
-        # deps=[("redis", ">=2.10,<2.11")],
-        deps=[("redis", ">=2.10,<2.11 >=3.0,<3.1 >=3.2,<3.3 >=3.4,<3.5 >=3.5,<3.6")],
+        pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
+        deps=[("redis", ">=2.10,<2.11")],
+        # deps=[("redis", ">=2.10,<2.11 >=3.0,<3.1 >=3.2,<3.3 >=3.4,<3.5 >=3.5,<3.6")],
         command="pytest tests/contrib/redis/",
         env=dict(),
     ),
 ]
 
 
-def venv_command(venv, cmd):
+def rmchars(chars, s):
+    for c in chars:
+        s = s.replace(c, "")
+    return s
+
+
+def get_base_venv(pyversion):
+    """Given a python version return the base virtual environment path relative
+    to the current directory.
+    """
+    return ".venv_py%s" % str(pyversion).replace(".", "")
+
+
+def create_base_venv(pyversion, path=None):
+    """Attempts to create a virtual environment for `pyversion`.
+
+    :param pyversion: string or int representing the major.minor Python
+                      version. eg. 3.7, "3.8".
+
+    Returns the CompletedProcess instance of the `virtualenv` subprocess.
+    """
+    path = path or get_base_venv(pyversion)
+    py_ex = "python%s" % pyversion
+    py_ex = shutil.which(py_ex)
+
+    if not py_ex:
+        logger.debug("%s interpreter not found", py_ex)
+        raise FileNotFoundError
+    else:
+        logger.info("Found Python interpreter '%s'.", py_ex)
+
+    logger.info("Creating virtualenv '%s' with Python '%s'.", path, py_ex)
+    r = subprocess.run(["virtualenv", "--python=%s" % py_ex, path], stdout=subprocess.PIPE, encoding="utf-8")
+
+    return r
+
+
+def get_venv_command(venv, cmd):
+    """Return the command string used to execute `cmd` in virtual env `venv`.
+    """
     return "source %s/bin/activate && %s" % (venv, cmd)
 
 
@@ -55,10 +89,10 @@ def run_in_venv(venv, cmd, out=False, env=None):
     env = env or {}
 
     env_str = " ".join("%s=%s" % (k, v) for k, v in env.items())
-    cmd = venv_command(venv, cmd)
+    cmd = get_venv_command(venv, cmd)
 
     logger.info("Executing command '%s' with environment '%s'", cmd, env_str)
-    r = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, env=env)
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, env=env, encoding="utf-8")
     if out:
         print(r.stdout.decode("ascii"))
     return r
@@ -87,7 +121,7 @@ def groups_iter(groups, py=None, pattern=".*"):
     pattern = re.compile(pattern)
     for g in groups:
         if not pattern.match(g.name):
-            log.debug("Skipping group '%s' due to mismatch.", g.name)
+            logger.debug("Skipping group '%s' due to mismatch.", g.name)
             continue
         for gpy in g.pys:
             if py and gpy != py:
@@ -96,14 +130,15 @@ def groups_iter(groups, py=None, pattern=".*"):
                 yield g, gpy, deps
 
 
+class CmdFailure(Exception):
+    def __init__(self, msg, code):
+        self.msg = msg
+        self.code = code
+        super().__init__(self, msg)
+
+
 def run_groups(
-    groups,
-    matcher=".*",
-    skip_global_deps_install=False,
-    skip_base_install=False,
-    out=sys.stdout,
-    encoding="utf-8",
-    pass_env=False,
+    groups, matcher=".*", skip_global_deps_install=False, skip_base_install=False, out=sys.stdout, pass_env=False,
 ):
     """Runs the command for each group in `groups` in a unique virtual
     environment.
@@ -113,28 +148,21 @@ def run_groups(
 
     for group in groups:
         if not pattern.match(group.name):
-            log.debug("Skipping group '%s' due to mismatch.", group.name)
+            logger.debug("Skipping group '%s' due to mismatch.", group.name)
             continue
 
         for py in group.pys:
-            venv_base = ".venv_py%s" % str(py).replace(".", "")
-            py_ex = "python%s" % py
-            py_ex = shutil.which(py_ex)
+            base_venv = get_base_venv(py)
 
-            if not py_ex:
-                print("%s interpreter not found" % py_ex)
-                sys.exit(1)
-            else:
-                logger.info("Found Python interpreter '%s'.", py_ex)
-
-            if not os.path.isdir(venv_base):
+            if not os.path.isdir(base_venv):
                 # Create the base venv.
-                logger.info("Creating virtualenv '%s' with Python '%s'.", venv_base, py_ex)
-                r = subprocess.run(
-                    ["virtualenv", "--python=%s" % py_ex, venv_base], stdout=subprocess.PIPE, encoding=encoding
-                )
-                if r.returncode:
-                    print(r.stdout, file=out)
+                try:
+                    r = create_base_venv(py, base_venv)
+                    if r.returncode != 0:
+                        print("Failed to create virtual environment '%s', aborting!\n%s" % r.stdout, file=out)
+                        sys.exit(1)
+                except FileNotFoundError as e:
+                    print("Failed to find Python executable 'python%s'." % py, file=out)
                     sys.exit(1)
 
                 # Override skipping the base install since we just had to
@@ -142,66 +170,85 @@ def run_groups(
                 if skip_base_install:
                     logger.warning(
                         "Overriding option to skip base install since a new base virtual env '%s' was created.",
-                        venv_base,
+                        base_venv,
                     )
                 skip_base_install = False
 
             if not skip_base_install:
                 # Install the global dependencies into the base venv.
                 global_deps_str = " ".join(["'%s'" % dep for dep in global_deps])
-                logger.info("Installing global dependencies into virtualenv '%s'.", global_deps_str)
-                r = run_in_venv(venv_base, "pip install %s" % global_deps_str)
+                logger.info("Installing base dependencies into virtualenv '%s'.", global_deps_str)
+                r = run_in_venv(base_venv, "pip install %s" % global_deps_str)
+                if r.returncode != 0:
+                    print("Base dependencies failed to install, aborting!\n%s" % r.stdout, file=out)
+                    sys.exit(1)
 
                 # Install the dev package into the base venv.
                 logger.info("Installing dev package.")
-                r = run_in_venv(venv_base, "pip install -e .")
+                r = run_in_venv(base_venv, "pip install -e .")
+                if r.returncode != 0:
+                    print("Dev install failed, aborting!\n%s" % r.stdout, file=out)
+                    sys.exit(1)
             else:
                 logger.info("Skipping base install.")
 
             # Loop over each dependency configuration within the group.
             for deps in group_iter(group):
-                # Strip special characters for the directory name.
+                # Strip special characters for the venv directory name.
                 venv = "_".join(["%s%s" % (lib, rmchars("<=>.,", vers)) for lib, vers in deps])
-                venv = "%s_%s" % (venv_base, venv)
-
-                # Copy the base venv to use for this group.
-                logger.info("Copying base virtualenv '%s' into group virtual env '%s'.", venv_base, venv)
-                r = subprocess.run(["cp", "-r", venv_base, venv], stdout=subprocess.PIPE)
-
-                # Install the group dependencies.
+                venv = "%s_%s" % (base_venv, venv)
                 dep_str = " ".join(["'%s%s'" % (lib, version) for lib, version in deps])
-                logger.info("Installing group dependencies %s.", dep_str)
-                r = run_in_venv(venv, "pip install %s" % dep_str)
-                if r.returncode != 0:
-                    print(r.stdout, file=out)
-                    continue
 
-                if pass_env:
-                    env = os.environ.copy()
+                result = AttrDict(name=group.name, venv=venv, depstr=dep_str)
+
+                try:
+                    # Copy the base venv to use for this group.
+                    logger.info("Copying base virtualenv '%s' into group virtual env '%s'.", base_venv, venv)
+                    r = subprocess.run(["cp", "-r", base_venv, venv], stdout=subprocess.PIPE)
+                    if r.returncode != 0:
+                        raise CmdFailure("Failed to create group virtual env '%s'\n%s" % (venv, r.stdout), r)
+
+                    # Install the group dependencies.
+                    logger.info("Installing group dependencies %s.", dep_str)
+                    r = run_in_venv(venv, "pip install %s" % dep_str)
+                    if r.returncode != 0:
+                        raise CmdFailure("Failed to install group dependencies %s\n%s" % (dep_str, r.stdout), r)
+
+                    if pass_env:
+                        env = os.environ.copy()
+                    else:
+                        env = {}
+                    env.update(global_env)
+                    env.update(group.env)
+
+                    # Run the test in the venv.
+                    cmd = get_venv_command(venv, group.command)
+                    env_str = " ".join("%s=%s" % (k, v) for k, v in env.items())
+                    logger.info("Running group command '%s' with environment '%s'.", group.command, env_str)
+                    # Pipe the command output directly to `out` since we
+                    # don't need to store it.
+                    r = subprocess.run(cmd, stdout=out, shell=True, env=env)
+                    if r.returncode != 0:
+                        raise CmdFailure("Test failed with exit code %s" % r.returncode, r)
+                except CmdFailure as e:
+                    result.code = e.code
+                    print(e.msg, file=out)
+                except Exception as e:
+                    logger.error("Test runner failed: %s", e, exc_info=True)
+                    sys.exit(1)
                 else:
-                    env = {}
-                env.update(global_env)
-                env.update(group.env)
+                    result.code = 0
+                finally:
+                    results.append(result)
 
-                # Run the test in the venv.
-                cmd = venv_command(venv, group.command)
-                env_str = " ".join("%s=%s" % (k, v) for k, v in env.items())
-                logger.info("Running group command '%s' with environment '%s'.", group.command, env_str)
-                # Pipe the command output directly to `out` since we
-                # don't need to store it.
-                r = subprocess.run(cmd, stdout=out, shell=True, env=env)
-                results.append(
-                    Dict(name=group.name, depstr=dep_str, venv=venv, returncode=r.returncode, stdout=r.stdout)
-                )
-
-        print("\n\n-------------------summary-------------------", file=out)
+        print("\n-------------------summary-------------------", file=out)
         for r in results:
-            failed = r.returncode != 0
+            failed = r.code != 0
             status_char = "❌" if failed else "✅"
             s = "%s %s: %s" % (status_char, r.name, r.depstr)
             print(s, file=out)
 
-        if any(True for r in results if r.returncode != 0):
+        if any(True for r in results if r.code != 0):
             sys.exit(1)
 
 
@@ -222,9 +269,22 @@ def generate_base_venvs(groups):
     This is useful for CI where we can pre-compute all the venvs and
     distribute them to group-specific runners.
     """
-    # Find all the
-    required_pythons = set([py for g in groups for py in g.pys])
-    print(required_pythons)
+    # Find all the python versions used.
+    required_pys = set([py for g in groups for py in g.pys])
+
+    logger.info("Generating virtual environments for python versions %s", " ".join(str(s) for s in required_pys))
+
+    # TODO: add force flag to overwrite if already exists, else skip
+
+    for py in required_pys:
+        try:
+            r = create_base_venv(py)
+            if r.returncode != 0:
+                logger.error("Failed to install virtual environment.\n%s", r.stdout)
+        except FileNotFoundError:
+            logger.error("Python version '%s' not found", py)
+
+        # TODO: install global deps + package
 
 
 if __name__ == "__main__":
@@ -234,7 +294,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("-l", "--list", action="store_true", help="List the groups.")
     parser.add_argument(
-        "-g", "--generate-base-venvs", action="store_true", help="Generates the base virtual environments."
+        "-g",
+        "--generate-base-venvs",
+        action="store_true",
+        help="Generates the base virtual environments containing the dev package.",
     )
     parser.add_argument(
         "--pass-env", default=os.getenv("PASS_ENV"), help="Pass the current environment to the test cases."
