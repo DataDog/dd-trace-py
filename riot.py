@@ -1,5 +1,6 @@
 """
 TODO:
+  - timing results
   - different encoding support
 """
 import argparse
@@ -32,19 +33,34 @@ global_env = AttrDict(PYTEST_ADDOPTS="--color=yes",)
 
 all_groups = [
     AttrDict(
+        name="tracer",
+        # pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
+        pys=[2.7, 3.7,],
+        deps=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0"])],
+        command="pytest tests/test_tracer.py",
+        env=dict(),
+    ),
+    AttrDict(
         name="redis",
         pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-        deps=[("redis", ">=2.10,<2.11")],
-        # deps=[("redis", ">=2.10,<2.11 >=3.0,<3.1 >=3.2,<3.3 >=3.4,<3.5 >=3.5,<3.6")],
+        deps=[("redis", [">=2.10,<2.11",  ">=3.0,<3.1", ">=3.2,<3.3",  ">=3.4,<3.5", ">=3.5,<3.6"])],
         command="pytest tests/contrib/redis/",
+        env=dict(),
+    ),
+    AttrDict(
+        name="profiling",
+        pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
+        deps=[("gevent", [None, "==1.1.0", "==1.4.0"])],
+        command="python -m tests.profiling.run pytest --capture=no --verbose tests/profiling",
         env=dict(),
     ),
 ]
 
 
 def rmchars(chars, s):
-    for c in chars:
-        s = s.replace(c, "")
+    if s:
+        for c in chars:
+            s = s.replace(c, "")
     return s
 
 
@@ -105,7 +121,7 @@ def group_iter(group):
     """
     all_deps = []
     for lib, deps in group.deps:
-        all_deps.append([(lib, v) for v in deps.split(" ")])
+        all_deps.append([(lib, v) for v in deps])
 
     all_deps = itertools.product(*all_deps)
     for deps in all_deps:
@@ -197,9 +213,9 @@ def run_groups(
                 # Strip special characters for the venv directory name.
                 venv = "_".join(["%s%s" % (lib, rmchars("<=>.,", vers)) for lib, vers in deps])
                 venv = "%s_%s" % (base_venv, venv)
-                dep_str = " ".join(["'%s%s'" % (lib, version) for lib, version in deps])
+                dep_str = " ".join(["'%s%s'" % (lib, version) for lib, version in deps if version])
 
-                result = AttrDict(name=group.name, venv=venv, depstr=dep_str)
+                result = AttrDict(name=group.name, venv=venv, depstr=dep_str, py=py)
 
                 try:
                     # Copy the base venv to use for this group.
@@ -208,11 +224,12 @@ def run_groups(
                     if r.returncode != 0:
                         raise CmdFailure("Failed to create group virtual env '%s'\n%s" % (venv, r.stdout), r)
 
-                    # Install the group dependencies.
-                    logger.info("Installing group dependencies %s.", dep_str)
-                    r = run_in_venv(venv, "pip install %s" % dep_str)
-                    if r.returncode != 0:
-                        raise CmdFailure("Failed to install group dependencies %s\n%s" % (dep_str, r.stdout), r)
+                    # Install the group dependencies if there are any.
+                    if dep_str:
+                        logger.info("Installing group dependencies %s.", dep_str)
+                        r = run_in_venv(venv, "pip install %s" % dep_str)
+                        if r.returncode != 0:
+                            raise CmdFailure("Failed to install group dependencies %s\n%s" % (dep_str, r.stdout), r)
 
                     if pass_env:
                         env = os.environ.copy()
@@ -245,7 +262,7 @@ def run_groups(
         for r in results:
             failed = r.code != 0
             status_char = "❌" if failed else "✅"
-            s = "%s %s: %s" % (status_char, r.name, r.depstr)
+            s = "%s %s: Python%s %s" % (status_char, r.name, r.py, r.depstr)
             print(s, file=out)
 
         if any(True for r in results if r.code != 0):
