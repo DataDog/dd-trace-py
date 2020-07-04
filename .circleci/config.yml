@@ -111,6 +111,18 @@ commands:
           paths:
             - "*.results"
 
+  run_test:
+    description: "Run tests matching a pattern"
+    parameters:
+      pattern:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - run: pip3 install virtualenv  # TODO: this can be baked into the image
+      # TODO: for some reason the path doesn't contain the pyenv additions
+      - run: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH python3 riot.py -v '<< parameters.pattern >>'"
+
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
     parameters:
@@ -645,8 +657,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
     steps:
-      - run_tox_scenario:
-          pattern: '^redis_contrib-'
+      - run_test:
+          pattern: "redis"
 
   rediscluster:
     executor: ddtrace_dev
@@ -820,156 +832,156 @@ workflows:
   test:
     jobs:
       # Jobs that should run before individual integration test suites
-      - build_docs
-      - black
-      - flake8
+      # - build_docs
+      # - black
+      # - flake8
 
       # Test building the package
-      - test_build_alpine: *requires_pre_test
-      - test_build_py38: *requires_pre_test
-      - test_build_py37: *requires_pre_test
-      - test_build_py36: *requires_pre_test
-      - test_build_py35: *requires_pre_test
-      - test_build_py27: *requires_pre_test
-      - test_build_win_py38: *requires_pre_test
-      - test_build_win_py37: *requires_pre_test
-      - test_build_win_py36: *requires_pre_test
-      - test_build_win_py35: *requires_pre_test
-      - build_wheels: *requires_pre_test
+      # - test_build_alpine: *requires_pre_test
+      # - test_build_py38: *requires_pre_test
+      # - test_build_py37: *requires_pre_test
+      # - test_build_py36: *requires_pre_test
+      # - test_build_py35: *requires_pre_test
+      # - test_build_py27: *requires_pre_test
+      # - test_build_win_py38: *requires_pre_test
+      # - test_build_win_py37: *requires_pre_test
+      # - test_build_win_py36: *requires_pre_test
+      # - test_build_win_py35: *requires_pre_test
+      # - build_wheels: *requires_pre_test
 
       # Integration test suites
-      - aiobotocore: *requires_pre_test
-      - aiohttp: *requires_pre_test
-      - aiopg: *requires_pre_test
-      - asyncio: *requires_pre_test
-      - algoliasearch: *requires_pre_test
-      - benchmarks: *requires_pre_test
-      - boto: *requires_pre_test
-      - bottle: *requires_pre_test
-      - cassandra: *requires_pre_test
-      - celery: *requires_pre_test
-      - consul: *requires_pre_test
-      - dbapi: *requires_pre_test
-      - ddtracerun: *requires_pre_test
-      - django: *requires_pre_test
-      - djangorestframework: *requires_pre_test
-      - dogpile_cache: *requires_pre_test
-      - elasticsearch: *requires_pre_test
-      - falcon: *requires_pre_test
-      - flask: *requires_pre_test
-      - futures: *requires_pre_test
-      - gevent: *requires_pre_test
-      - grpc: *requires_pre_test
-      - httplib: *requires_pre_test
-      - integration: *requires_pre_test
-      - internal: *requires_pre_test
-      - profile: *requires_pre_test
-      - jinja2: *requires_pre_test
-      - kombu: *requires_pre_test
-      - mako: *requires_pre_test
-      - molten: *requires_pre_test
-      - mongoengine: *requires_pre_test
-      - mysqlconnector: *requires_pre_test
-      - mysqldb: *requires_pre_test
-      - mysqlpython: *requires_pre_test
-      - opentracer: *requires_pre_test
-      - psycopg: *requires_pre_test
-      - pylibmc: *requires_pre_test
-      - pylons: *requires_pre_test
-      - pymemcache: *requires_pre_test
-      - pymongo: *requires_pre_test
-      - pymysql: *requires_pre_test
-      - pyramid: *requires_pre_test
-      - redis: *requires_pre_test
-      - rediscluster: *requires_pre_test
-      - requests: *requires_pre_test
-      - requestsgevent: *requires_pre_test
-      - sqlalchemy: *requires_pre_test
-      - sqlite3: *requires_pre_test
-      - test_utils: *requires_pre_test
-      - test_logging: *requires_pre_test
-      - tornado: *requires_pre_test
+      # - aiobotocore: *requires_pre_test
+      # - aiohttp: *requires_pre_test
+      # - aiopg: *requires_pre_test
+      # - asyncio: *requires_pre_test
+      # - algoliasearch: *requires_pre_test
+      # - benchmarks: *requires_pre_test
+        # - boto: *requires_pre_test
+        # - bottle: *requires_pre_test
+        # - cassandra: *requires_pre_test
+        # - celery: *requires_pre_test
+        # - consul: *requires_pre_test
+        # - dbapi: *requires_pre_test
+        # - ddtracerun: *requires_pre_test
+        # - django: *requires_pre_test
+        # - djangorestframework: *requires_pre_test
+        # - dogpile_cache: *requires_pre_test
+        # - elasticsearch: *requires_pre_test
+        # - falcon: *requires_pre_test
+        # - flask: *requires_pre_test
+        # - futures: *requires_pre_test
+        # - gevent: *requires_pre_test
+        # - grpc: *requires_pre_test
+        # - httplib: *requires_pre_test
+        # - integration: *requires_pre_test
+        # - internal: *requires_pre_test
+        # - profile: *requires_pre_test
+        # - jinja2: *requires_pre_test
+        # - kombu: *requires_pre_test
+        # - mako: *requires_pre_test
+        # - molten: *requires_pre_test
+        # - mongoengine: *requires_pre_test
+        # - mysqlconnector: *requires_pre_test
+        # - mysqldb: *requires_pre_test
+        # - mysqlpython: *requires_pre_test
+        # - opentracer: *requires_pre_test
+        # - psycopg: *requires_pre_test
+        # - pylibmc: *requires_pre_test
+        # - pylons: *requires_pre_test
+        # - pymemcache: *requires_pre_test
+        # - pymongo: *requires_pre_test
+        # - pymysql: *requires_pre_test
+        # - pyramid: *requires_pre_test
+      - redis
+        # - rediscluster: *requires_pre_test
+        # - requests: *requires_pre_test
+        # - requestsgevent: *requires_pre_test
+        # - sqlalchemy: *requires_pre_test
+        # - sqlite3: *requires_pre_test
+        # - test_utils: *requires_pre_test
+        # - test_logging: *requires_pre_test
+        # - tornado: *requires_pre_test
       # tracer
-      - tracer: *requires_pre_test
-      - unit_tests: *requires_pre_test
-      - vertica: *requires_pre_test
-      - build-docker-ci-image: *requires_pre_test
-      - verify_all_tests_ran:
-          requires:
-            # Individual tests do not need this to start running
-            - build_docs
+      # - tracer: *requires_pre_test
+      # - unit_tests: *requires_pre_test
+      # - vertica: *requires_pre_test
+        # - build-docker-ci-image: *requires_pre_test
+        # - verify_all_tests_ran:
+        #     requires:
+        #       # Individual tests do not need this to start running
+        #       - build_docs
 
-            # flake8 dependent jobs
-            - aiobotocore
-            - aiohttp
-            - aiopg
-            - asyncio
-            - algoliasearch
-            - benchmarks
-            - boto
-            - bottle
-            - cassandra
-            - celery
-            - consul
-            - dbapi
-            - ddtracerun
-            - dogpile_cache
-            - django
-            - djangorestframework
-            - elasticsearch
-            - falcon
-            - flask
-            - futures
-            - gevent
-            - grpc
-            - httplib
-            - integration
-            - internal
-            - profile
-            - jinja2
-            - kombu
-            - mako
-            - molten
-            - mongoengine
-            - mysqlconnector
-            - mysqldb
-            - mysqlpython
-            - opentracer
-            - psycopg
-            - pylibmc
-            - pylons
-            - pymemcache
-            - pymongo
-            - pymysql
-            - pyramid
-            - redis
-            - rediscluster
-            - requests
-            - requestsgevent
-            - sqlalchemy
-            - sqlite3
-            - test_build_alpine
-            - test_build_py38
-            - test_build_py37
-            - test_build_py36
-            - test_build_py35
-            - test_build_py27
-            - test_utils
-            - test_logging
-            - tracer
-            - tornado
-            - unit_tests
-            - vertica
-            - build-docker-ci-image
-      - deploy_master:
-          requires:
-            - verify_all_tests_ran
-          filters:
-            branches:
-              only: master
-      - deploy_staging:
-          requires:
-            - verify_all_tests_ran
-          filters:
-            branches:
-              only: staging
+        #       # flake8 dependent jobs
+        #       - aiobotocore
+        #       - aiohttp
+        #       - aiopg
+        #       - asyncio
+        #       - algoliasearch
+        #       - benchmarks
+        #       - boto
+        #       - bottle
+        #       - cassandra
+        #       - celery
+        #       - consul
+        #       - dbapi
+        #       - ddtracerun
+        #       - dogpile_cache
+        #       - django
+        #       - djangorestframework
+        #       - elasticsearch
+        #       - falcon
+        #       - flask
+        #       - futures
+        #       - gevent
+        #       - grpc
+        #       - httplib
+        #       - integration
+        #       - internal
+        #       - profile
+        #       - jinja2
+        #       - kombu
+        #       - mako
+        #       - molten
+        #       - mongoengine
+        #       - mysqlconnector
+        #       - mysqldb
+        #       - mysqlpython
+        #       - opentracer
+        #       - psycopg
+        #       - pylibmc
+        #       - pylons
+        #       - pymemcache
+        #       - pymongo
+        #       - pymysql
+        #       - pyramid
+        #       - redis
+        #       - rediscluster
+        #       - requests
+        #       - requestsgevent
+        #       - sqlalchemy
+        #       - sqlite3
+        #       - test_build_alpine
+        #       - test_build_py38
+        #       - test_build_py37
+        #       - test_build_py36
+        #       - test_build_py35
+        #       - test_build_py27
+        #       - test_utils
+        #       - test_logging
+        #       - tracer
+        #       - tornado
+        #       - unit_tests
+        #       - vertica
+        #       - build-docker-ci-image
+        # - deploy_master:
+        #     requires:
+        #       - verify_all_tests_ran
+        #     filters:
+        #       branches:
+        #         only: master
+        # - deploy_staging:
+        #     requires:
+        #       - verify_all_tests_ran
+        #     filters:
+        #       branches:
+        #         only: staging

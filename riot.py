@@ -16,6 +16,10 @@ import sys
 logger = logging.getLogger(__name__)
 
 
+SHELL = "/bin/bash"
+ENCODING = "utf-8"
+
+
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
@@ -90,7 +94,7 @@ def create_base_venv(pyversion, path=None):
         logger.info("Found Python interpreter '%s'.", py_ex)
 
     logger.info("Creating virtualenv '%s' with Python '%s'.", path, py_ex)
-    r = subprocess.run(["virtualenv", "--python=%s" % py_ex, path], stdout=subprocess.PIPE, encoding="utf-8")
+    r = subprocess.run(["virtualenv", "--python=%s" % py_ex, path], stdout=subprocess.PIPE, encoding=ENCODING)
 
     return r
 
@@ -108,7 +112,7 @@ def run_in_venv(venv, cmd, out=False, env=None):
     cmd = get_venv_command(venv, cmd)
 
     logger.info("Executing command '%s' with environment '%s'", cmd, env_str)
-    r = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, env=env, encoding="utf-8")
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, executable=SHELL, env=env, encoding=ENCODING)
     if out:
         print(r.stdout.decode("ascii"))
     return r
@@ -244,7 +248,7 @@ def run_groups(
                     logger.info("Running group command '%s' with environment '%s'.", group.command, env_str)
                     # Pipe the command output directly to `out` since we
                     # don't need to store it.
-                    r = subprocess.run(cmd, stdout=out, shell=True, env=env)
+                    r = subprocess.run(cmd, stdout=out, shell=True, executable=SHELL, env=env)
                     if r.returncode != 0:
                         raise CmdFailure("Test failed with exit code %s" % r.returncode, r)
                 except CmdFailure as e:
