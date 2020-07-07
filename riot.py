@@ -1,3 +1,20 @@
+"""
+TODO
+- json report for verify_all_tests
+- timing metadata (how long it takes to setup and run a suite, case, etc)
+- format/naming convention for cases
+- parallelize virtualenv creation - there's no reason to not to
+- intermediate venv building eg. if cases share deps X, Y, Z, generate an env
+  for these and copy it
+- does specifying encoding="utf-8" affect the locale of the test cases?
+- reporting to datadog (stats, traces)
+- typing
+- clean up into classes w/ methods?
+- better log formatter / output
+- better handling of CmdFailure in run_suites
+- add command to run pytest (or any command) in a venv
+  eg: python riot.py --suite tracer --python 3.7 --command pytest -k test_tracer_fork
+"""
 import argparse
 import itertools
 import logging
@@ -41,9 +58,7 @@ global_deps = [
     "pytest-django",
 ]
 
-global_env = [
-    ("PYTEST_ADDOPTS", "--color=yes")
-]
+global_env = [("PYTEST_ADDOPTS", "--color=yes")]
 
 all_suites = [
     Suite(
@@ -71,8 +86,11 @@ all_suites = [
         cases=[
             Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("gevent", [None, ""])],),
             # Min reqs tests
-            Case(pys=[2.7], pkgs=[("gevent", ["==1.1.0"])]),
-            Case(pys=[3.5, 3.6, 3.7, 3.8], pkgs=[("gevent", ["==1.4.0"])]),
+            Case(pys=[2.7], pkgs=[("gevent", ["==1.1.0"]), ("protobuf", ["==3.0.0"]), ("tenacity", ["==5.0.1"]),]),
+            Case(
+                pys=[3.5, 3.6, 3.7, 3.8],
+                pkgs=[("gevent", ["==1.4.0"]), ("protobuf", ["==3.0.0"]), ("tenacity", ["==5.0.1"]),],
+            ),
         ],
     ),
     Suite(
@@ -101,7 +119,7 @@ all_suites = [
                     ("django", [">=2.0,<2.1", ">=2.1,<2.2"]),
                 ],
             ),
-            Suite(
+            Case(
                 env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
                 pys=[3.6, 3.7, 3.8],
                 pkgs=[
@@ -128,8 +146,6 @@ def get_pep_dep(libname: str, version: str):
 
     ref: https://www.python.org/dev/peps/pep-0508/
     """
-    if version is None:
-        return ""
     return "%s%s" % (libname, version)
 
 
@@ -145,6 +161,7 @@ def get_base_venv_path(pyversion):
 
 
 def run_cmd(*args, **kwargs):
+    # Provide our own defaults.
     if "shell" in kwargs and "executable" not in kwargs:
         kwargs["executable"] = SHELL
     if "encoding" not in kwargs:
@@ -194,14 +211,13 @@ def get_venv_command(venv_path, cmd):
     return "source %s/bin/activate && %s" % (venv_path, cmd)
 
 
-def run_cmd_venv(venv, cmd, env=None, **kwargs):
-    env = env or {}
-
+def run_cmd_venv(venv, cmd, **kwargs):
+    env = kwargs.get("env") or {}
     env_str = " ".join("%s=%s" % (k, v) for k, v in env.items())
     cmd = get_venv_command(venv, cmd)
 
     logger.debug("Executing command '%s' with environment '%s'", cmd, env_str)
-    r = run_cmd(cmd, shell=True, env=env, **kwargs)
+    r = run_cmd(cmd, shell=True, **kwargs)
     return r
 
 
@@ -213,8 +229,7 @@ def expand_specs(specs):
     """
     all_vals = []
 
-    for spec in specs:
-        name, vals = spec
+    for name, vals in specs:
         all_vals.append([(name, val) for val in vals])
 
     all_vals = itertools.product(*all_vals)
@@ -265,17 +280,20 @@ def run_suites(
     results = []
 
     # Generate the base virtual envs required for the test suites.
+    # TODO: errors currently go unhandled
     generate_base_venvs(suites, pattern, recreate=recreate_venvs, skip_deps=skip_base_install)
 
     for case in suites_iter(suites, pattern=pattern):
         base_venv = get_base_venv_path(case.py)
 
-        pkgs: t.Dict[str, str] = { name: version for name, version in case.pkgs if version is not None }
+        # Resolve the packages required for this case.
+        pkgs: t.Dict[str, str] = {name: version for name, version in case.pkgs if version is not None}
 
         # Strip special characters for the venv directory name.
         venv = "_".join(["%s%s" % (n, rmchars("<=>.,", v)) for n, v in pkgs.items()])
         venv = "%s_%s" % (base_venv, venv)
         pkg_str = " ".join(["'%s'" % get_pep_dep(lib, version) for lib, version in pkgs.items()])
+        # Case result which will contain metadata about the test execution.
         result = AttrDict(case=case, venv=venv, pkgstr=pkg_str)
 
         try:
@@ -292,11 +310,11 @@ def run_suites(
                 try:
                     run_cmd_venv(venv, "pip install %s" % pkg_str)
                 except CmdFailure as e:
-                    raise CmdFailure("Failed to install case dependencies %s\n%s" % (pkg_str, r.stdout), r)
+                    raise CmdFailure("Failed to install case dependencies %s\n%s" % (pkg_str, e.proc.stdout), e.proc)
 
             # Generate the environment for the test case.
             env = os.environ.copy() if pass_env else {}
-            env.update({k:v for k,v in global_env})
+            env.update({k: v for k, v in global_env})
 
             # Add in the suite env vars.
             for k, v in case.suite.env if "env" in case.suite else []:
@@ -372,14 +390,11 @@ def generate_base_venvs(suites, pattern, recreate, skip_deps):
 
     for py in required_pys:
         try:
-            try:
-                venv_path = create_base_venv(py, recreate=recreate)
-            except CmdFailure as e:
-                logger.error("Failed to create virtual environment.\n%s", e.proc.stdout)
-                continue
+            venv_path = create_base_venv(py, recreate=recreate)
+        except CmdFailure as e:
+            logger.error("Failed to create virtual environment.\n%s", e.proc.stdout)
         except FileNotFoundError:
             logger.error("Python version '%s' not found.", py)
-            continue
         else:
             if skip_deps:
                 logger.info("Skipping global deps install.")
@@ -453,8 +468,8 @@ if __name__ == "__main__":
             generate_base_venvs(all_suites, pattern)
         else:
             run_suites(
-                all_suites,
-                pattern,
+                suites=all_suites,
+                pattern=pattern,
                 recreate_venvs=args.recreate_venvs,
                 skip_base_install=args.skip_base_install,
                 pass_env=args.pass_env,
