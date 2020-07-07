@@ -2,13 +2,13 @@ from datetime import datetime
 import sys
 
 import ddtrace
-from ddtrace.internal import flare
+from ddtrace.internal import debug
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 
 
 def test_standard_tags():
-    f = flare.flare(ddtrace.tracer)
+    f = debug.collect(ddtrace.tracer)
 
     date = f.get("date")
     assert isinstance(date, str)
@@ -61,7 +61,8 @@ def test_standard_tags():
     assert agent_error is None
 
     assert f.get("env") == ""
-    assert f.get("enabled") is True
+    assert f.get("is_global_tracer") is True
+    assert f.get("tracer_enabled") is True
     assert f.get("service") == ""
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
@@ -79,16 +80,19 @@ def test_standard_tags():
     assert icfg["flask"] == "N/A"
 
 
-def test_flare_post_configure():
+def test_debug_post_configure():
     tracer = ddtrace.Tracer()
     tracer.configure(
         hostname="0.0.0.0", port=1234, priority_sampling=True,
     )
 
-    f = flare.flare(tracer)
+    f = debug.collect(tracer)
 
     agent_url = f.get("agent_url")
     assert agent_url == "http://0.0.0.0:1234"
+
+    assert f.get("is_global_tracer") is False
+    assert f.get("tracer_enabled") is True
 
     agent_error = f.get("agent_error")
     assert agent_error == "Exception raised: [Errno 61] Connection refused"
@@ -100,7 +104,7 @@ def test_flare_post_configure():
     tracer = ddtrace.Tracer()
     tracer.configure(uds_path="/file.sock")
 
-    f = flare.flare(tracer)
+    f = debug.collect(tracer)
 
     agent_url = f.get("agent_url")
     assert agent_url == "uds:///file.sock"
@@ -124,7 +128,7 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_env_config(self):
-        f = flare.flare(ddtrace.tracer)
+        f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:4321"
         assert f.get("analytics_enabled") is True
         assert f.get("health_metrics_enabled") is True
@@ -135,6 +139,7 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("service") == "service"
         assert f.get("global_tags") == "k1:v1,k2:v2"
         assert f.get("tracer_tags") == "k1:v1,k2:v2"
+        assert f.get("tracer_enabled") == True
 
         icfg = f.get("integrations")
         assert icfg["django"] == "N/A"

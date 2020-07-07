@@ -1,11 +1,13 @@
 import datetime
 import json
+import logging
 import os
 import pkg_resources
 import platform
 import sys
 
 import ddtrace
+from ddtrace.internal import writer
 from ddtrace.utils import formats
 
 from .logger import get_logger
@@ -50,7 +52,7 @@ def tags_to_str(tags):
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def flare(tracer):
+def collect(tracer):
     """Collect system and library information
     """
 
@@ -59,15 +61,20 @@ def flare(tracer):
     # Note that the tracer DOES have hostname and port attributes that it
     # sets to the defaults and ignores.
     if tracer.writer:
-        hostname = tracer.writer.api.hostname
-        port = tracer.writer.api.port
-        uds_path = tracer.writer.api.uds_path
-
-        # If all specified, uds_path will take precedence
-        if uds_path:
-            agent_url = "uds://%s" % uds_path
+        if isinstance(tracer.writer, writer.LogWriter):
+            agent_url = "agentless"
         else:
-            agent_url = "http://%s:%s" % (hostname, port)
+            hostname = tracer.writer.api.hostname
+            port = tracer.writer.api.port
+            uds_path = tracer.writer.api.uds_path
+            https = tracer.writer.api.https
+
+            # If all specified, uds_path will take precedence
+            if uds_path:
+                agent_url = "uds://%s" % uds_path
+            else:
+                proto = "https" if https else "http"
+                agent_url = "%s://%s:%s" % (proto, hostname, port)
     else:
         # Else if we can't infer anything from the tracer, rely on the defaults.
         hostname = ddtrace.Tracer.DEFAULT_HOSTNAME
@@ -89,11 +96,10 @@ def flare(tracer):
 
     packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
     integration_configs = {}
-    for module in ddtrace.monkey.PATCH_MODULES:
+    for module, enabled in ddtrace.monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
         module_available = module in packages_available
-        enabled = ddtrace.monkey.PATCH_MODULES[module]
         module_instrumented = module in ddtrace.monkey._PATCHED_MODULES
         module_imported = module in sys.modules
 
@@ -118,7 +124,7 @@ def flare(tracer):
             # config dictionary for a module that isn't available.
             integration_configs[module] = "N/A"
 
-    pip_version = packages_available.get("pip", "pip not available")
+    pip_version = packages_available.get("pip", "N/A")
 
     return dict(
         # Timestamp UTC ISO 8601
@@ -138,9 +144,11 @@ def flare(tracer):
         agent_url=agent_url,
         agent_error=agent_error,
         env=ddtrace.config.env or "",
-        enabled=formats.asbool(os.getenv("DATADOG_TRACE_ENABLED") or "true"),
+        is_global_tracer=tracer==ddtrace.tracer,
+        enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
+        tracer_enabled=tracer.enabled,
         service=ddtrace.config.service or "",
-        debug=formats.asbool(os.getenv("DATADOG_TRACE_DEBUG")),
+        debug=tracer.log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         analytics_enabled=ddtrace.config.analytics_enabled,
         log_injection_enabled=ddtrace.config.logs_injection,
@@ -154,5 +162,5 @@ def flare(tracer):
     )
 
 
-def jsonflare(tracer):
-    return json.dumps(flare(tracer))
+def to_json(debug_info):
+    return json.dumps(debug_info)
