@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import sys
 
 import ddtrace
@@ -143,3 +144,10 @@ class TestGlobalConfig(SubprocessTestCase):
 
         icfg = f.get("integrations")
         assert icfg["django"] == "N/A"
+
+
+def test_to_json():
+    info = debug.collect(ddtrace.tracer)
+    js = debug.to_json(info)
+
+    assert json.loads(js) == info
