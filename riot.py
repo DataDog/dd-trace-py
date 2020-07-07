@@ -1,19 +1,7 @@
 """
 TODO
-- json report for verify_all_tests
-- timing metadata (how long it takes to setup and run a suite, case, etc)
 - format/naming convention for cases
-- parallelize virtualenv creation - there's no reason to not to
-- intermediate venv building eg. if cases share deps X, Y, Z, generate an env
-  for these and copy it
 - does specifying encoding="utf-8" affect the locale of the test cases?
-- reporting to datadog (stats, traces)
-- typing
-- clean up into classes w/ methods?
-- better log formatter / output
-- better handling of CmdFailure in run_suites
-- add command to run pytest (or any command) in a venv
-  eg: python riot.py --suite tracer --python 3.7 --command pytest -k test_tracer_fork
 """
 import argparse
 import itertools
@@ -66,7 +54,9 @@ all_suites = [
         command="pytest tests/test_tracer.py",
         env=dict(),
         cases=[
-            Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0"])],),
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0", ""])],
+            ),
         ],
     ),
     Suite(
@@ -75,7 +65,7 @@ all_suites = [
         cases=[
             Case(
                 pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-                pkgs=[("redis", [">=2.10,<2.11", ">=3.0,<3.1", ">=3.2,<3.3", ">=3.4,<3.5", ">=3.5,<3.6"])],
+                pkgs=[("redis", [">=2.10,<2.11", ">=3.0,<3.1", ">=3.2,<3.3", ">=3.4,<3.5", ">=3.5,<3.6", ""])],
             ),
         ],
     ),
@@ -127,7 +117,7 @@ all_suites = [
                     ("django-redis", [">=4.5,<4.6"]),
                     ("pylibmc", [""]),
                     ("python-memcached", [""]),
-                    ("django", [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1"]),
+                    ("django", [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", ""]),
                 ],
             ),
         ],
