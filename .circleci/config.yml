@@ -121,7 +121,9 @@ commands:
       - checkout
       - run: pip3 install virtualenv  # TODO: this can be baked into the image
       # TODO: for some reason the path doesn't contain the pyenv additions
-      - run: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH python3 riot.py -v '<< parameters.pattern >>'"
+      - run:
+          name: "Running tests matching '<< parameters.pattern >>'"
+          command: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH python3 riot.py -v '<< parameters.pattern >>'"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -303,8 +305,8 @@ jobs:
   tracer:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-tracer'
+      - run_test:
+          pattern: "^tracer$"
 
   internal:
     executor: ddtrace_dev
@@ -321,8 +323,8 @@ jobs:
   profile:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-profile'
+      - run_test:
+          pattern: "profiling"
 
   integration:
     executor: ddtrace_dev
@@ -460,8 +462,8 @@ jobs:
       - image: *memcached_image
       - *datadog_agent
     steps:
-      - run_tox_scenario:
-          pattern: '^django_contrib'
+      - run_test:
+          pattern: "django"
 
   djangorestframework:
     executor: ddtrace_dev
@@ -863,7 +865,7 @@ workflows:
         # - consul: *requires_pre_test
         # - dbapi: *requires_pre_test
         # - ddtracerun: *requires_pre_test
-        # - django: *requires_pre_test
+      - django
         # - djangorestframework: *requires_pre_test
         # - dogpile_cache: *requires_pre_test
         # - elasticsearch: *requires_pre_test
@@ -875,7 +877,7 @@ workflows:
         # - httplib: *requires_pre_test
         # - integration: *requires_pre_test
         # - internal: *requires_pre_test
-        # - profile: *requires_pre_test
+      - profile
         # - jinja2: *requires_pre_test
         # - kombu: *requires_pre_test
         # - mako: *requires_pre_test
@@ -902,7 +904,7 @@ workflows:
         # - test_logging: *requires_pre_test
         # - tornado: *requires_pre_test
       # tracer
-      # - tracer: *requires_pre_test
+      - tracer
       # - unit_tests: *requires_pre_test
       # - vertica: *requires_pre_test
         # - build-docker-ci-image: *requires_pre_test
