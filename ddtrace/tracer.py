@@ -1,6 +1,7 @@
 import functools
 import logging
 from os import environ, getpid
+import sys
 
 from ddtrace.vendor import debtcollector
 
@@ -338,7 +339,11 @@ class Tracer(object):
 
         agent_error = info.get("agent_error")
         if agent_error:
-            self.log.error("- DATADOG TRACER DIAGNOSTICS - %s", agent_error)
+            msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
+            if self.log.handlers:
+                self.log.error(msg)
+            else:
+                sys.stderr.write("%s\n" % msg)
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """

@@ -94,7 +94,7 @@ def collect(tracer):
                 agent_error = "HTTP code %s, reason %s, message %s" % (resp.status, resp.reason, resp.msg)
         else:
             # There was an exception
-            agent_error = "Exception raised: %s" % str(resp)
+            agent_error = "Agent not reachable. Exception raised: %s" % str(resp)
     else:
         # Serverless case
         agent_error = None

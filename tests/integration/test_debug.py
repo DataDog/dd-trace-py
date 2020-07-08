@@ -104,7 +104,7 @@ def test_debug_post_configure():
 
     agent_error = f.get("agent_error")
     # Error code can differ between Python version
-    assert re.match("^Exception raised.*Connection refused", agent_error)
+    assert re.match("^Agent not reachable.*Connection refused", agent_error)
 
     # DEV: Tracer doesn't support re-configure()-ing with a UDS after an
     # initial configure with normal http settings.
@@ -119,7 +119,7 @@ def test_debug_post_configure():
     assert agent_url == "uds:///file.sock"
 
     agent_error = f.get("agent_error")
-    assert re.match("^Exception raised.*No such file or directory", agent_error)
+    assert re.match("^Agent not reachable.*No such file or directory", agent_error)
 
 
 class TestGlobalConfig(SubprocessTestCase):
@@ -147,7 +147,7 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
         assert f.get("global_tags") == "k1:v1,k2:v2"
-        assert f.get("tracer_tags") == "k1:v1,k2:v2"
+        assert f.get("tracer_tags") in ["k1:v1,k2:v2", "k2:v2,k1:v1"]
         assert f.get("tracer_enabled") is True
 
         icfg = f.get("integrations")
@@ -224,43 +224,54 @@ def test_different_samplers():
 
 
 def test_error_output_ddtracerun_debug_mode():
-    r = subprocess.run(
+    p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DATADOG_TRACE_DEBUG="true", **os.environ),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    assert b"Test success" in r.stdout
-    assert b"DATADOG TRACER CONFIGURATION" in r.stderr
-    assert b"DATADOG TRACER DIAGNOSTIC" not in r.stderr
+    p.wait()
+    assert b"Test success" in p.stdout.read()
+    assert b"DATADOG TRACER CONFIGURATION" in p.stderr.read()
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in p.stderr.read()
 
     # No connection to agent, debug mode disabled
-    r = subprocess.run(
+    p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="true", **os.environ),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    assert b"Test success" in r.stdout
-    assert b"DATADOG TRACER CONFIGURATION" in r.stderr
-    assert b"DATADOG TRACER DIAGNOSTIC" in r.stderr
+    p.wait()
+    assert b"Test success" in p.stdout.read()
+    stderr = p.stderr.read()
+    assert b"DATADOG TRACER CONFIGURATION" in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" in stderr
 
 
 def test_error_output_ddtracerun():
     # Connection to agent, debug mode enabled
-    r = subprocess.run(
+    p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DATADOG_TRACE_DEBUG="false", **os.environ),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    assert b"Test success" in r.stdout
-    assert b"DATADOG TRACER CONFIGURATION" not in r.stderr
-    assert b"DATADOG TRACER DIAGNOSTIC" not in r.stderr
+    p.wait()
+    assert b"Test success" in p.stdout.read()
+    stderr = p.stderr.read()
+    assert b"DATADOG TRACER CONFIGURATION" not in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
 
     # No connection to agent, debug mode enabled
-    r = subprocess.run(
+    p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="false", **os.environ),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    assert b"Test success" in r.stdout
-    assert b"DATADOG TRACER CONFIGURATION" not in r.stderr
-    assert b"DATADOG TRACER DIAGNOSTIC" in r.stderr
+    p.wait()
+    assert b"Test success" in p.stdout.read()
+    stderr = p.stderr.read()
+    assert b"DATADOG TRACER CONFIGURATION" not in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" in stderr

@@ -484,15 +484,19 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertIsNotNone(self.tracer._runtime_worker)
 
     def test_configure_dogstatsd_host(self):
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True) as ws:
             warnings.simplefilter('always')
             self.tracer.configure(dogstatsd_host='foo')
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 8125
             # verify warnings triggered
-            assert len(w) >= 1
-            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert 'Use `dogstatsd_url`' in str(w[-1].message)
+            assert len(ws) >= 1
+            for w in ws:
+                if issubclass(w.category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning):
+                    assert 'Use `dogstatsd_url`' in str(w.message)
+                    break
+            else:
+                assert 0, "dogstatsd warning not found"
 
     def test_configure_dogstatsd_host_port(self):
         with warnings.catch_warnings(record=True) as w:
