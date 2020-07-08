@@ -1,6 +1,10 @@
 from datetime import datetime
-import mock
 import json
+import logging
+import mock
+import os
+import re
+import subprocess
 import sys
 
 import ddtrace
@@ -78,7 +82,6 @@ def test_standard_tags():
     assert f.get("priority_sampling_enabled") is True
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
-    assert f.get("profiling_enabled") is True
 
     icfg = f.get("integrations")
     assert icfg["django"] == "N/A"
@@ -100,7 +103,8 @@ def test_debug_post_configure():
     assert f.get("tracer_enabled") is True
 
     agent_error = f.get("agent_error")
-    assert agent_error == "Exception raised: [Errno 61] Connection refused"
+    # Error code can differ between Python version
+    assert re.match("^Exception raised.*Connection refused", agent_error)
 
     # DEV: Tracer doesn't support re-configure()-ing with a UDS after an
     # initial configure with normal http settings.
@@ -115,7 +119,7 @@ def test_debug_post_configure():
     assert agent_url == "uds:///file.sock"
 
     agent_error = f.get("agent_error")
-    assert agent_error == "Exception raised: [Errno 2] No such file or directory"
+    assert re.match("^Exception raised.*No such file or directory", agent_error)
 
 
 class TestGlobalConfig(SubprocessTestCase):
@@ -186,6 +190,15 @@ class TestGlobalConfig(SubprocessTestCase):
         assert tracer.log.info.call_count == 0
         assert tracer.log.error.call_count == 0
 
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126",))
+    def test_tracer_info_level_log(self):
+        logging.basicConfig(level=logging.INFO)
+        tracer = ddtrace.Tracer()
+        tracer.log = mock.MagicMock()
+        tracer.configure()
+        assert tracer.log.info.call_count == 1
+        assert tracer.log.error.call_count == 0
+
 
 def test_to_json():
     info = debug.collect(ddtrace.tracer)
@@ -208,3 +221,46 @@ def test_different_samplers():
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
+
+
+def test_error_output_ddtracerun_debug_mode():
+    r = subprocess.run(
+        ["ddtrace-run", "python", "tests/integration/hello.py"],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DATADOG_TRACE_DEBUG="true", **os.environ),
+        capture_output=True,
+    )
+    assert b"Test success" in r.stdout
+    assert b"DATADOG TRACER CONFIGURATION" in r.stderr
+    assert b"DATADOG TRACER DIAGNOSTIC" not in r.stderr
+
+    # No connection to agent, debug mode disabled
+    r = subprocess.run(
+        ["ddtrace-run", "python", "tests/integration/hello.py"],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="true", **os.environ),
+        capture_output=True,
+    )
+    assert b"Test success" in r.stdout
+    assert b"DATADOG TRACER CONFIGURATION" in r.stderr
+    assert b"DATADOG TRACER DIAGNOSTIC" in r.stderr
+
+
+def test_error_output_ddtracerun():
+    # Connection to agent, debug mode enabled
+    r = subprocess.run(
+        ["ddtrace-run", "python", "tests/integration/hello.py"],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DATADOG_TRACE_DEBUG="false", **os.environ),
+        capture_output=True,
+    )
+    assert b"Test success" in r.stdout
+    assert b"DATADOG TRACER CONFIGURATION" not in r.stderr
+    assert b"DATADOG TRACER DIAGNOSTIC" not in r.stderr
+
+    # No connection to agent, debug mode enabled
+    r = subprocess.run(
+        ["ddtrace-run", "python", "tests/integration/hello.py"],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="false", **os.environ),
+        capture_output=True,
+    )
+    assert b"Test success" in r.stdout
+    assert b"DATADOG TRACER CONFIGURATION" not in r.stderr
+    assert b"DATADOG TRACER DIAGNOSTIC" in r.stderr

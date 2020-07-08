@@ -32,7 +32,10 @@ def ping_agent(api=None, hostname=None, port=None, uds_path=None):
     p.traces.append(encoded)
     p.size += len(encoded)
 
-    resp = api._flush(p)
+    try:
+        resp = api._flush(p)
+    except Exception as e:
+        resp = e
 
     return resp
 
@@ -164,7 +167,6 @@ def collect(tracer):
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer.tags),
         integrations=integration_configs,
-        profiling_enabled=True,
     )
 
 

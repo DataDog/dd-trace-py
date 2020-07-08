@@ -490,7 +490,7 @@ class TracerTestCase(BaseTracerTestCase):
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 8125
             # verify warnings triggered
-            assert len(w) == 1
+            assert len(w) >= 1
             assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
             assert 'Use `dogstatsd_url`' in str(w[-1].message)
 
@@ -501,7 +501,7 @@ class TracerTestCase(BaseTracerTestCase):
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 1234
             # verify warnings triggered
-            assert len(w) == 2
+            assert len(w) >= 2
             assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
             assert 'Use `dogstatsd_url`' in str(w[0].message)
             assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
