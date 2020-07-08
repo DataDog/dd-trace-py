@@ -182,6 +182,25 @@ def test_stress_threads():
         t.join()
 
 
+def test_stress_threads_run_as_thread():
+    NB_THREADS = 40
+
+    threads = []
+    for i in range(NB_THREADS):
+        t = threading.Thread(target=_f0)  # noqa: E149,F821
+        t.start()
+        threads.append(t)
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(recorder=r)
+    # This mainly check nothing bad happens when we collect a lot of threads and store the result in the Recorder
+    with s:
+        time.sleep(3)
+    assert r.events[stack.StackSampleEvent]
+    for t in threads:
+        t.join()
+
+
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
 @pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 def test_exception_collection_threads():
@@ -224,7 +243,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 218, "test_exception_collection")]
+    assert e.frames == [(__file__, 237, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
