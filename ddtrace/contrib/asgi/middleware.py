@@ -18,6 +18,7 @@ def _extract_tags_from_scope(scope):
     http_url = scope.get("scheme", "http") + "://" + server_host + full_path
 
     query_string = scope.get("query_string")
+
     if query_string and http_url:
         if isinstance(query_string, bytes):
             query_string = query_string.decode("utf8")
@@ -28,8 +29,10 @@ def _extract_tags_from_scope(scope):
     tags = {
         http.URL: http_url,
         http.METHOD: http_method,
-        http.QUERY_STRING: query_string,
     }
+
+    if query_string is not None and len(query_string) > 0:
+        tags[http.QUERY_STRING] = query_string
 
     return tags
 
