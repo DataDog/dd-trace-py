@@ -12,6 +12,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v2
         name: Install Python
@@ -22,14 +24,11 @@ jobs:
         run: |
           python -m pip install cibuildwheel==1.5.1
 
-      - name: Install Visual C++ for Python 2.7
-        if: runner.os == 'Windows'
-        run: |
-          choco install vcpython27 -f -y
-
       - name: Build wheels
         run: |
           python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_SKIP: pp* cp27-win*
 
       - uses: actions/upload-artifact@v2
         with:
