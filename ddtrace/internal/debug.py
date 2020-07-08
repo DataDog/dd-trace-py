@@ -8,7 +8,6 @@ import sys
 
 import ddtrace
 from ddtrace.internal import writer
-from ddtrace.utils import formats
 
 from .logger import get_logger
 
@@ -53,16 +52,17 @@ def tags_to_str(tags):
 
 
 def collect(tracer):
-    """Collect system and library information
+    """Collect system and library information into a serializable dict.
     """
 
     # The tracer doesn't actually maintain a hostname/port, instead it stores
     # it on the possibly None writer which actually stores it on an API object.
     # Note that the tracer DOES have hostname and port attributes that it
-    # sets to the defaults and ignores.
+    # sets to the defaults and ignores afterwards.
     if tracer.writer:
         if isinstance(tracer.writer, writer.LogWriter):
-            agent_url = "agentless"
+            agent_url = "AGENTLESS"
+            hostname = port = uds_path = None
         else:
             hostname = tracer.writer.api.hostname
             port = tracer.writer.api.port
@@ -77,20 +77,24 @@ def collect(tracer):
                 agent_url = "%s://%s:%s" % (proto, hostname, port)
     else:
         # Else if we can't infer anything from the tracer, rely on the defaults.
-        hostname = ddtrace.Tracer.DEFAULT_HOSTNAME
-        port = ddtrace.Tracer.DEFAULT_PORT
+        hostname = tracer.hostname
+        port = tracer.port
         agent_url = "http://%s:%s" % (hostname, port)
 
-    resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
+    if (hostname and port) or uds_path:
+        resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
 
-    if isinstance(resp, ddtrace.api.Response):
-        if resp.status == 200:
-            agent_error = None
+        if isinstance(resp, ddtrace.api.Response):
+            if resp.status == 200:
+                agent_error = None
+            else:
+                agent_error = "HTTP code %s, reason %s, message %s" % (resp.status, resp.reason, resp.msg)
         else:
-            agent_error = "HTTP code %s, reason %s, message %s" % (resp.status, resp.reason, resp.msg)
+            # There was an exception
+            agent_error = "Exception raised: %s" % str(resp)
     else:
-        # There was an exception
-        agent_error = "Exception raised: %s" % str(resp)
+        # Serverless case
+        agent_error = None
 
     is_venv = in_venv()
 
@@ -105,7 +109,7 @@ def collect(tracer):
 
         if enabled:
             # DEV: integration configs aren't added until the integration module is
-            #      imported.
+            #      imported. This typically occurs as a side-effect of patch().
             config = ddtrace.config._config.get(module, "N/A")
         else:
             config = None
@@ -150,7 +154,7 @@ def collect(tracer):
         sampler_type=type(tracer.sampler).__name__ if tracer.sampler else "N/A",
         priority_sampler_type=type(tracer.priority_sampler).__name__ if tracer.priority_sampler else "N/A",
         service=ddtrace.config.service or "",
-        debug=tracer.log.isEnabledFor(logging.DEBUG),
+        debug=ddtrace.tracer.log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         analytics_enabled=ddtrace.config.analytics_enabled,
         log_injection_enabled=ddtrace.config.logs_injection,

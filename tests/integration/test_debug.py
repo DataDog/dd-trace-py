@@ -1,8 +1,10 @@
 from datetime import datetime
+import mock
 import json
 import sys
 
 import ddtrace
+import ddtrace.sampler
 from ddtrace.internal import debug
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
@@ -142,10 +144,47 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("service") == "service"
         assert f.get("global_tags") == "k1:v1,k2:v2"
         assert f.get("tracer_tags") == "k1:v1,k2:v2"
-        assert f.get("tracer_enabled") == True
+        assert f.get("tracer_enabled") is True
 
         icfg = f.get("integrations")
         assert icfg["django"] == "N/A"
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    def test_trace_agent_url(self):
+        f = debug.collect(ddtrace.tracer)
+        assert f.get("agent_url") == "http://0.0.0.0:1234"
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://localhost:8126",))
+    def test_tracer_loglevel_info_connection(self):
+        tracer = ddtrace.Tracer()
+        tracer.log = mock.MagicMock()
+        tracer.configure()
+        assert tracer.log.info.call_count == 1
+        assert tracer.log.error.call_count == 0
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    def test_tracer_loglevel_info_no_connection(self):
+        tracer = ddtrace.Tracer()
+        tracer.log = mock.MagicMock()
+        tracer.configure()
+        assert tracer.log.info.call_count == 1
+        assert tracer.log.error.call_count == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="0",))
+    def test_tracer_log_disabled_error(self):
+        tracer = ddtrace.Tracer()
+        tracer.log = mock.MagicMock()
+        tracer.configure()
+        assert tracer.log.info.call_count == 0
+        assert tracer.log.error.call_count == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126", DD_TRACE_STARTUP_LOGS="0",))
+    def test_tracer_log_disabled(self):
+        tracer = ddtrace.Tracer()
+        tracer.log = mock.MagicMock()
+        tracer.configure()
+        assert tracer.log.info.call_count == 0
+        assert tracer.log.error.call_count == 0
 
 
 def test_to_json():
@@ -153,3 +192,19 @@ def test_to_json():
     js = debug.to_json(info)
 
     assert json.loads(js) == info
+
+
+def test_agentless(monkeypatch):
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "something")
+    tracer = ddtrace.Tracer()
+    info = debug.collect(tracer)
+
+    assert info.get("agent_url", "AGENTLESS")
+
+
+def test_different_samplers():
+    tracer = ddtrace.Tracer()
+    tracer.configure(sampler=ddtrace.sampler.RateSampler())
+    info = debug.collect(tracer)
+
+    assert info.get("sampler_type") == "RateSampler"
