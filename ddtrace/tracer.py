@@ -334,11 +334,11 @@ class Tracer(object):
 
         info = debug.collect(self)
         if self.log.isEnabledFor(logging.INFO) and environ.get("DD_TRACE_STARTUP_LOGS") != "0":
-            self.log.info("DATADOG TRACER CONFIGURATION - %s", debug.to_json(info))
+            self.log.info("- DATADOG TRACER CONFIGURATION - %s", debug.to_json(info))
 
         agent_error = info.get("agent_error")
         if agent_error:
-            self.log.error(agent_error)
+            self.log.error("- DATADOG TRACER DIAGNOSTICS - %s", agent_error)
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """

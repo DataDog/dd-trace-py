@@ -64,6 +64,8 @@ def test_standard_tags():
     assert f.get("env") == ""
     assert f.get("is_global_tracer") is True
     assert f.get("tracer_enabled") is True
+    assert f.get("sampler_type") == "DatadogSampler"
+    assert f.get("priority_sampler_type") == "RateByServiceSampler"
     assert f.get("service") == ""
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
