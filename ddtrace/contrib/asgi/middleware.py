@@ -1,4 +1,4 @@
-from ddtrace import tracer
+from ddtrace import tracer as global_tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
@@ -42,10 +42,9 @@ def _get_headers_dict_from_scope(scope):
 
 
 class TraceMiddleware:
-    def __init__(
-        self, app,
-    ):
+    def __init__(self, app, tracer=global_tracer):
         self.app = app
+        self.tracer = tracer
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -58,11 +57,11 @@ class TraceMiddleware:
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
             if context.trace_id:
-                tracer.context_provider.activate(context)
+                self.tracer.context_provider.activate(context)
 
         resource = "{} {}".format(scope["method"], scope["path"])
 
-        span = tracer.trace(
+        span = self.tracer.trace(
             name="asgi.request", service=config.asgi.service_name, resource=resource, span_type=SpanTypes.HTTP,
         )
 
@@ -77,7 +76,7 @@ class TraceMiddleware:
         store_request_headers(headers, span, config.asgi)
 
         async def wrapped_send(message):
-            span = tracer.current_span()
+            span = self.tracer.current_span()
 
             if span and message.get("type") == "http.response.start":
                 if "status" in message:
