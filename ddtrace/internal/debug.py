@@ -43,10 +43,7 @@ def ping_agent(api=None, hostname=None, port=None, uds_path=None):
 def in_venv():
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
-    if "VIRTUAL_ENV" in os.environ:
-        return True
-
-    return hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
+    return "VIRTUAL_ENV" in os.environ or hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
 
 
 def tags_to_str(tags):
@@ -86,7 +83,6 @@ def collect(tracer):
 
     if (hostname and port) or uds_path:
         resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
-
         if isinstance(resp, ddtrace.api.Response):
             if resp.status == 200:
                 agent_error = None
@@ -111,8 +107,12 @@ def collect(tracer):
         module_imported = module in sys.modules
 
         if enabled:
-            # DEV: integration configs aren't added until the integration module is
-            #      imported. This typically occurs as a side-effect of patch().
+            # Note that integration configs aren't added until the integration
+            # module is imported. This typically occurs as a side-effect of
+            # patch().
+            # This also doesn't load work in all cases since we don't always
+            # name the configuration entry the same as the integration module
+            # name :/
             config = ddtrace.config._config.get(module, "N/A")
         else:
             config = None

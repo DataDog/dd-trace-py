@@ -340,10 +340,15 @@ class Tracer(object):
         agent_error = info.get("agent_error")
         if agent_error:
             msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
-            if self.log.handlers:
-                self.log.error(msg)
-            else:
+            # Python 2 will not submit logs to stderr if no handler is configured.
+            # Instead, we'll get something like this printed to stderr:
+            #   No handlers could be found for logger "ddtrace.tracer"
+            # Since the global tracer is configured on import it will likely be
+            # the case that there are no handlers installed yet.
+            if compat.PY2 and not self.log.handlers:
                 sys.stderr.write("%s\n" % msg)
+            else:
+                self.log.warning(msg)
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
