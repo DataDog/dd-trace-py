@@ -13,7 +13,9 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.exporter import pprof_pb2
 
 
-def test_call_script():
+def test_call_script(monkeypatch):
+    # Set a very short timeout to exit fast
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", 0.1)
     subp = subprocess.Popen(
         ["pyddprofile", os.path.join(os.path.dirname(__file__), "simple_program.py")], stdout=subprocess.PIPE
     )
