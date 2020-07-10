@@ -28,7 +28,8 @@ def test_call_script(monkeypatch):
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_call_script_gevent():
+def test_call_script_gevent(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", 0.1)
     subp = subprocess.Popen(
         ["python", os.path.join(os.path.dirname(__file__), "simple_program_gevent.py")], stdout=subprocess.PIPE
     )
