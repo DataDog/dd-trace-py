@@ -1,6 +1,7 @@
 import functools
 import logging
-from os import environ, getpid
+import os
+from os import environ
 
 from ddtrace.vendor import debtcollector
 
@@ -8,10 +9,9 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
-from .internal import runtime
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
-from .internal import _rand
+from .internal import _rand, forksafe
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
@@ -129,7 +129,7 @@ class Tracer(object):
 
         # Runtime id used for associating data collected during runtime to
         # traces
-        self._pid = getpid()
+        self._pid = os.getpid()
 
         # Apply the default configuration
         self.configure(
@@ -332,7 +332,13 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
+    def after_in_child():
+        _rand.seed()
+
+    @forksafe.register(after_in_child=after_in_child)
+    def start_span(
+        self, name, child_of=None, service=None, resource=None, span_type=None, is_in_child_after_fork=False
+    ):
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -358,7 +364,36 @@ class Tracer(object):
             context = tracer.get_call_context()
             span = tracer.start_span('web.worker', child_of=context)
         """
-        new_ctx = self._check_new_process()
+        if is_in_child_after_fork:
+            self._pid = os.getpid()
+            ctx = self.get_call_context()
+            # The spans remaining in the context can not and will not be finished
+            # in this new process. So we need to copy out the trace metadata needed
+            # to continue the trace.
+            # Also, note that because we're in a forked process, the lock that the
+            # context has might be permanently locked so we can't use ctx.clone().
+            new_ctx = Context(
+                sampling_priority=ctx._sampling_priority,
+                span_id=ctx._parent_span_id,
+                trace_id=ctx._parent_trace_id,
+            )
+            self.context_provider.activate(new_ctx)
+
+            # Assume that the services of the child are not necessarily a subset of those
+            # of the parent.
+            self._services = set()
+
+            if self._runtime_worker is not None:
+                self._start_runtime_worker()
+
+            # force an immediate update constant tags since we have reset services
+            # and generated a new runtime id
+            self._update_dogstatsd_constant_tags()
+
+            # Re-create the background writer thread
+            self.writer = self.writer.recreate()
+        else:
+            new_ctx = None
 
         if child_of is not None:
             if isinstance(child_of, Context):
@@ -472,7 +507,7 @@ class Tracer(object):
 
         if not span._parent:
             span.set_tag(system.PID, self._pid)
-            span.set_tag("runtime-id", get_runtime_id(self._pid))
+            span.set_tag("runtime-id", get_runtime_id())
 
         # add it to the current context
         context.add_span(span)
@@ -503,54 +538,6 @@ class Tracer(object):
     def _start_runtime_worker(self):
         self._runtime_worker = RuntimeWorker(self._dogstatsd_client, self._RUNTIME_METRICS_INTERVAL)
         self._runtime_worker.start()
-
-    def _check_new_process(self):
-        """ Checks if the tracer is in a new process (was forked) and performs
-            the necessary updates if it is a new process
-        """
-        pid = getpid()
-        if self._pid == pid:
-            return
-
-        self._pid = pid
-
-        # We have to reseed the RNG or we will get collisions between the
-        # processes as they will share the seed and generate the same random
-        # numbers.
-        # This is done automatically when we have fork hooks available in
-        # ddtrace_at_fork() which is installed in internal.runtime.__init__
-        # but must invoked manually if the hook is not available.
-        if not runtime.AT_FORK_INSTALLED:
-            _rand.seed()
-
-        ctx = self.get_call_context()
-        # The spans remaining in the context can not and will not be finished
-        # in this new process. So we need to copy out the trace metadata needed
-        # to continue the trace.
-        # Also, note that because we're in a forked process, the lock that the
-        # context has might be permanently locked so we can't use ctx.clone().
-        new_ctx = Context(
-            sampling_priority=ctx._sampling_priority,
-            span_id=ctx._parent_span_id,
-            trace_id=ctx._parent_trace_id,
-        )
-        self.context_provider.activate(new_ctx)
-
-        # Assume that the services of the child are not necessarily a subset of those
-        # of the parent.
-        self._services = set()
-
-        if self._runtime_worker is not None:
-            self._start_runtime_worker()
-
-        # force an immediate update constant tags since we have reset services
-        # and generated a new runtime id
-        self._update_dogstatsd_constant_tags()
-
-        # Re-create the background writer thread
-        self.writer = self.writer.recreate()
-
-        return new_ctx
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

@@ -56,6 +56,8 @@ import os
 
 from ddtrace import compat
 
+from . import forksafe
+
 
 cdef uint64_t state
 cdef object pid = None
