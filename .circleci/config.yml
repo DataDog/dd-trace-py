@@ -106,6 +106,8 @@ commands:
   save_results:
     description: "Persist tox *.results files to /tmp directory"
     steps:
+      - store_test_results:
+          path: test-results
       - persist_to_workspace:
           root: /tmp
           paths:
