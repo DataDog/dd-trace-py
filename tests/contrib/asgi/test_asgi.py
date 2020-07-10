@@ -1,5 +1,4 @@
 import pytest
-import sys
 from asgiref.testing import ApplicationCommunicator
 
 from ddtrace.contrib.asgi import TraceMiddleware
