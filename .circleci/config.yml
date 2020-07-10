@@ -81,7 +81,21 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
+      - restore_pip_cache
       - run: pip install tox
+
+  restore_pip_cache:
+    description: "Restore pip download cache"
+    steps:
+      - restore_cache:
+          key: pip-cache-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
+
+  save_pip_cache:
+    description: "Save pip download cache"
+    steps:
+      - save_cache:
+          key: pip-cache-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
+          paths: /root/.cache/pip
 
   save_results:
     description: "Persist tox *.results files to /tmp directory"
@@ -199,6 +213,7 @@ jobs:
       - setup_tox
       - run: tox -e 'black' --result-json /tmp/black.results
       - save_results
+      - save_pip_cache
 
   flake8:
     executor: python38
@@ -207,6 +222,7 @@ jobs:
       - setup_tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - save_results
+      - save_pip_cache
 
   build-docker-ci-image:
     executor: cimg_base
@@ -688,6 +704,7 @@ jobs:
       - store_artifacts:
           path: /tmp/test-reports
       - save_results
+      - save_pip_cache
 
   build_wheels:
     <<: *machine_executor
