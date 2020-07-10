@@ -27,7 +27,8 @@ class Service(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        return self.stop()
+        self.stop()
+        self.join()
 
     def start(self):
         """Start the service."""

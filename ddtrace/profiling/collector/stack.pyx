@@ -10,6 +10,7 @@ import weakref
 from ddtrace import compat
 from ddtrace.profiling import _attr
 from ddtrace.profiling import _periodic
+from ddtrace.profiling import _nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
@@ -21,22 +22,12 @@ from ddtrace.vendor import six
 _LOG = logging.getLogger(__name__)
 
 
-if "gevent" in sys.modules:
-    try:
-        import gevent.monkey
-    except ImportError:
-        _LOG.error("gevent loaded but unable to import gevent.monkey")
-        from threading import Lock as _threading_Lock
-        from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
-    else:
-        _threading_Lock = gevent.monkey.get_original("threading", "Lock")
-        _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
-
+if _nogevent.is_module_patched("threading"):
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
-    _main_thread_id = _thread_get_ident()
+    # We don't have the choice has we can't access the original MainThread
+    _main_thread_id = _nogevent.thread_get_ident()
 else:
-    from threading import Lock as _threading_Lock
     from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     if six.PY2:
         _main_thread_id = threading._MainThread().ident
@@ -388,7 +379,7 @@ class _ThreadSpanLinks(object):
     # Keys is a thread_id
     # Value is a set of weakrefs to spans
     _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
-    _lock = attr.ib(factory=_threading_Lock, repr=False, init=False)
+    _lock = attr.ib(factory=_nogevent.Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
@@ -397,7 +388,7 @@ class _ThreadSpanLinks(object):
         """
         # Since we're going to iterate over the set, make sure it's locked
         with self._lock:
-            self._thread_id_to_spans[_thread_get_ident()].add(weakref.ref(span))
+            self._thread_id_to_spans[_nogevent.thread_get_ident()].add(weakref.ref(span))
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
