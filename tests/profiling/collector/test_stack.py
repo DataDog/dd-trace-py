@@ -211,12 +211,11 @@ def test_exception_collection_threads():
 def test_exception_collection():
     r = recorder.Recorder()
     c = stack.StackCollector(r)
-    c.start()
-    try:
-        raise ValueError("hello")
-    except Exception:
-        _nogevent.sleep(1)
-    c.stop()
+    with c:
+        try:
+            raise ValueError("hello")
+        except Exception:
+            _nogevent.sleep(1)
 
     exception_events = r.events[stack.StackExceptionSampleEvent]
     assert len(exception_events) >= 1
