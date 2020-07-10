@@ -83,26 +83,6 @@ commands:
     steps:
       - run: pip install tox
 
-  restore_tox_cache:
-    description: "Restore .tox directory from previous runs for faster installs"
-    steps:
-      - restore_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
-
-  save_tox_cache:
-    description: "Save .tox directory into cache for faster installs next time"
-    steps:
-      - save_cache:
-          # In the cache key:
-          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-          #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
-          paths:
-            - ".tox"
-
   save_results:
     description: "Persist tox *.results files to /tmp directory"
     steps:
@@ -122,7 +102,6 @@ commands:
     steps:
       - checkout
       - setup_tox
-      - restore_tox_cache
       - when:
           condition:
             << parameters.wait >>
@@ -134,7 +113,6 @@ commands:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_results
-      - save_tox_cache
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
@@ -701,7 +679,6 @@ jobs:
     steps:
       - checkout
       - setup_tox
-      - restore_tox_cache
       - run:
           command: |
             mkdir -p /tmp/test-reports
@@ -711,7 +688,6 @@ jobs:
       - store_artifacts:
           path: /tmp/test-reports
       - save_results
-      - save_tox_cache
 
   build_wheels:
     <<: *machine_executor
