@@ -18,7 +18,7 @@ from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
-from .utils.formats import get_env, parse_tags_str
+from .utils.formats import get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
@@ -120,10 +120,7 @@ class Tracer(object):
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
 
         # globally set tags
-        self.tags = {}
-        env_tags = environ.get("DD_TAGS")
-        if env_tags:
-            self.set_tags(parse_tags_str(env_tags))
+        self.tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()
@@ -401,12 +398,11 @@ class Tracer(object):
         #     a. User provided or integration provided service name
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
-        #     a. `config.service`/`DD_SERVICE`
+        #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
         if service is None:
             if parent:
                 service = parent.service
             else:
-                # ``config`` is initialized with DD_SERVICE env var if it exists.
                 service = config.service
 
         if trace_id:
@@ -470,14 +466,14 @@ class Tracer(object):
             if self._runtime_worker and self._is_span_internal(span):
                 span.set_tag('language', 'python')
 
-        # Apply default global tags
+        # Apply default global tags.
         if self.tags:
             span.set_tags(self.tags)
 
-        # Add env, service, and version tags
-        # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
         if config.env:
             span.set_tag(ENV_KEY, config.env)
+
+        # Only set the version tag on internal spans.
         if config.version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or

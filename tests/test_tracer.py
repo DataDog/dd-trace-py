@@ -951,6 +951,38 @@ class EnvTracerTestCase(BaseTracerTestCase):
         assert "key2" in self.tracer.tags
         assert "key3" not in self.tracer.tags
 
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "mysvc"
+            assert s.get_tag("env") == "myenv"
+            assert s.get_tag("version") == "myvers"
+
+    @run_in_subprocess(env_overrides=dict(
+        DD_TAGS="service:s,env:e,version:v",
+        DD_ENV="env",
+        DD_SERVICE="svc",
+        DD_VERSION="0.123",
+    ))
+    def test_tags_from_DD_TAGS_precedence(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "svc"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS_override(self):
+        t = ddtrace.Tracer()
+        ddtrace.config.env = "env"
+        ddtrace.config.service = "service"
+        ddtrace.config.version = "0.123"
+        with t.trace("test") as s:
+            assert s.service == "service"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
 
 def test_tracer_custom_max_traces(monkeypatch):
     monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")

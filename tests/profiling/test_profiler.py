@@ -11,7 +11,7 @@ def test_status():
     assert repr(p.status) == "STOPPED"
     p.start()
     assert repr(p.status) == "RUNNING"
-    p.stop()
+    p.stop(flush=False)
     assert repr(p.status) == "STOPPED"
 
 
@@ -31,8 +31,8 @@ def test_multiple_stop():
     """
     p = profiler.Profiler()
     p.start()
-    p.stop()
-    p.stop()
+    p.stop(flush=False)
+    p.stop(flush=False)
 
 
 @pytest.mark.parametrize(
