@@ -314,7 +314,7 @@ cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
     ELSE:
         cdef dict running_threads = <dict>_PyThread_CurrentFrames()
 
-        # Now that we own the ref via <dict> casting, we can safely decrase the default refcount
+        # Now that we own the ref via <dict> casting, we can safely decrease the default refcount
         # so we don't leak the object
         Py_DECREF(running_threads)
 
