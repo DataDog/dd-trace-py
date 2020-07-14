@@ -23,7 +23,7 @@ Configuration
 
 .. py:data:: ddtrace.config.asgi['distributed_tracing_enabled']
 
-   Whether to parse distributed tracing headers from requests received by your Asgi app.
+   Whether to use distributed tracing headers from requests received by your Asgi app.
 
    Default: ``True``
 

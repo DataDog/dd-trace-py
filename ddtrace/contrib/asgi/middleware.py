@@ -6,7 +6,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
 from ddtrace.vendor.six.moves import urllib
 
-# Configure default configuration
 config._add("asgi", dict(service_name=config._get_service(default="asgi"), distributed_tracing=True,))
 
 
@@ -48,8 +47,7 @@ class TraceMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
+            return await self.app(scope, receive, send)
 
         headers = _get_headers_dict_from_scope(scope)
 
@@ -65,7 +63,6 @@ class TraceMiddleware:
             name="asgi.request", service=config.asgi.service_name, resource=resource, span_type=SpanTypes.HTTP,
         )
 
-        # set analytics sample rate with global config enabled
         sample_rate = config.asgi.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
@@ -85,10 +82,10 @@ class TraceMiddleware:
                 if "headers" in message:
                     store_response_headers(message["headers"], span, config.asgi)
 
-            await send(message)
+            return await send(message)
 
         try:
-            await self.app(scope, receive, wrapped_send)
+            return await self.app(scope, receive, wrapped_send)
         except BaseException as exc:
             span.set_traceback()
             raise exc from None
