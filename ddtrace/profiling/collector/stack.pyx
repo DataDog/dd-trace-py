@@ -228,6 +228,12 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
                 pyinterpreters interpreters
 
             cdef extern _PyRuntimeState _PyRuntime
+ELSE:
+    from cpython.ref cimport Py_DECREF
+
+    cdef extern from "<pystate.h>":
+        PyObject* _PyThread_CurrentFrames()
+
 
 
 cdef get_thread_name(thread_id):
@@ -306,10 +312,11 @@ cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
             finally:
                 PyThread_release_lock(lmutex)
     ELSE:
-        cdef extern from "<pystate.h>":
-            PyObject* _PyThread_CurrentFrames()
-
         cdef dict running_threads = <dict>_PyThread_CurrentFrames()
+
+        # Now that we own the ref via <dict> casting, we can safely decrease the default refcount
+        # so we don't leak the object
+        Py_DECREF(running_threads)
 
     cdef dict cpu_times = thread_time(running_threads.keys())
 
