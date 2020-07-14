@@ -1,8 +1,14 @@
 """
-Traces redis client queries.
+The redis integration traces redis requests.
 
-If you are not autoinstrumenting with ``ddtrace-run`` then install the redis
-instrumentation with::
+
+Enabling
+~~~~~~~~
+
+The redis integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(redis=True)
@@ -13,7 +19,10 @@ Global Configuration
 
 .. py:data:: ddtrace.config.redis["service"]
 
-   The service name reported by default for your redis instances.
+   The service name reported by default for redis traces.
+
+   This option can also be set with the ``DD_REDIS_SERVICE`` environment
+   variable.
 
    Default: ``"redis"``
 
@@ -21,14 +30,18 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-    from ddtrace import Pin
+To configure particular redis instances use the :ref:`Pin<Pin>` API::
+
     import redis
+    from ddtrace import Pin
+
+    client = redis.StrictRedis(host="localhost", port=6379)
 
     # Override service name for this instance
-    Pin.override(client, service="redis-queue")
+    Pin.override(client, service="my-custom-queue")
 
-    # This will report a span with the default settings
-    client = redis.StrictRedis(host="localhost", port=6379)
+    # Traces reported for this client will now have "my-custom-queue"
+    # as the service name.
     client.get("my-key")
 """
 

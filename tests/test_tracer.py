@@ -681,8 +681,8 @@ def test_tracer_fork():
                 assert t.writer._trace_queue != original_writer._trace_queue
 
         # Assert the trace got written into the correct queue
-        assert original_writer._trace_queue.empty()
-        assert t.writer._trace_queue.qsize() == 1
+        assert len(original_writer._trace_queue) == 0
+        assert len(t.writer._trace_queue) == 1
         assert [[span]] == list(t.writer._trace_queue.get())
 
     # Assert tracer in a new process correctly recreates the writer
@@ -702,8 +702,8 @@ def test_tracer_fork():
         assert t.writer._trace_queue == original_writer._trace_queue
 
     # Assert the trace got written into the correct queue
-    assert original_writer._trace_queue.qsize() == 1
-    assert t.writer._trace_queue.qsize() == 1
+    assert len(original_writer._trace_queue) == 1
+    assert len(t.writer._trace_queue) == 1
     assert [[span]] == list(t.writer._trace_queue.get())
 
 
@@ -946,6 +946,38 @@ class EnvTracerTestCase(BaseTracerTestCase):
         assert "key1" in self.tracer.tags
         assert "key2" in self.tracer.tags
         assert "key3" not in self.tracer.tags
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "mysvc"
+            assert s.get_tag("env") == "myenv"
+            assert s.get_tag("version") == "myvers"
+
+    @run_in_subprocess(env_overrides=dict(
+        DD_TAGS="service:s,env:e,version:v",
+        DD_ENV="env",
+        DD_SERVICE="svc",
+        DD_VERSION="0.123",
+    ))
+    def test_tags_from_DD_TAGS_precedence(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "svc"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS_override(self):
+        t = ddtrace.Tracer()
+        ddtrace.config.env = "env"
+        ddtrace.config.service = "service"
+        ddtrace.config.version = "0.123"
+        with t.trace("test") as s:
+            assert s.service == "service"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
 
 
 def test_tracer_custom_max_traces(monkeypatch):

@@ -5,6 +5,7 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 from ddtrace.compat import to_unicode
 from ddtrace.ext import SpanTypes, errors
+from ... import utils
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -152,7 +153,10 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            "grpc", span_type=SpanTypes.GRPC, service=self._pin.service, resource=client_call_details.method,
+            "grpc",
+            span_type=SpanTypes.GRPC,
+            service=utils.integration_service(config.grpc, self._pin),
+            resource=client_call_details.method,
         )
 
         # tags for method details
