@@ -5,12 +5,7 @@ To configure tracing manually::
 
     from ddtrace.contrib.asgi import TraceMiddleware
 
-    async def app(scope, receive, send):
-        assert scope["type"] == "http"
-        headers = [[b"content-type", b"text/plain"]]
-        await send({"type": "http.response.start", "status": 200, "headers": headers})
-        await send({"type": "http.response.body", "body": b"Hello, world!"})
-
+    # app = <your asgi app>
     app = TraceMiddleware(app)
 
 Then use ddtrace-run when serving your application. For example, if serving with Uvicorn::

@@ -4,6 +4,7 @@ from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.propagation import http as http_propagation
 from tests.test_tracer import get_dummy_tracer
+from tests.base import BaseTestCase
 
 
 @pytest.fixture
@@ -71,31 +72,32 @@ async def test_basic_asgi(scope, tracer):
 
 @pytest.mark.asyncio
 async def test_query_string(scope, tracer):
-    app = TraceMiddleware(basic_app, tracer=tracer)
-    scope["query_string"] = "foo=bar"
-    instance = ApplicationCommunicator(app, scope)
-    await instance.send_input({"type": "http.request", "body": b""})
-    response_start = await instance.receive_output(1)
-    assert response_start == {
-        "type": "http.response.start",
-        "status": 200,
-        "headers": [[b"Content-Type", b"text/plain"]],
-    }
-    response_body = await instance.receive_output(1)
-    assert response_body == {
-        "type": "http.response.body",
-        "body": b"*",
-    }
+    with BaseTestCase.override_http_config("asgi", dict(trace_query_string=True)):
+        app = TraceMiddleware(basic_app, tracer=tracer)
+        scope["query_string"] = "foo=bar"
+        instance = ApplicationCommunicator(app, scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        response_start = await instance.receive_output(1)
+        assert response_start == {
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [[b"Content-Type", b"text/plain"]],
+        }
+        response_body = await instance.receive_output(1)
+        assert response_body == {
+            "type": "http.response.body",
+            "body": b"*",
+        }
 
-    spans = tracer.writer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.name == "asgi.request"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://127.0.0.1/?foo=bar"
-    assert request_span.get_tag("http.query.string") == "foo=bar"
+        spans = tracer.writer.pop_traces()
+        assert len(spans) == 1
+        assert len(spans[0]) == 1
+        request_span = spans[0][0]
+        assert request_span.name == "asgi.request"
+        assert request_span.error == 0
+        assert request_span.get_tag("http.method") == "GET"
+        assert request_span.get_tag("http.url") == "http://127.0.0.1/?foo=bar"
+        assert request_span.get_tag("http.query.string") == "foo=bar"
 
 
 @pytest.mark.asyncio
