@@ -62,7 +62,7 @@ def _test_memory_ignore(ignore):
         c = memory.MemoryCollector(r, ignore_profiler=ignore, capture_pct=100)
         with c as mc:
             while not r.events[memory.MemorySampleEvent]:
-                _ = _alloc()
+                _ = object()
                 # Allow gevent to switch to the memory collector thread
                 time.sleep(0)
     sc.join()
