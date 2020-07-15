@@ -5,11 +5,10 @@ from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
 from ddtrace.vendor.six.moves import urllib
+
 from ...internal.logger import get_logger
-
+from .constants import ASGI_SPEC_VERSION, ASGI_VERSION
 from .utils import guarantee_single_callable
-
-from .constants import ASGI_VERSION, ASGI_SPEC_VERSION
 
 log = get_logger(__name__)
 
