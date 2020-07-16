@@ -353,7 +353,7 @@ def generate_base_venvs(suites, pattern, recreate, skip_deps):
             # Install the dev package into the base venv.
             logger.info("Installing dev package.")
             try:
-                run_cmd_venv(venv_path, "pip install -e .")
+                run_cmd_venv(venv_path, "pip install .")
             except CmdFailure as e:
                 logger.error("Dev install failed, aborting!\n%s", e.proc.stdout)
                 sys.exit(1)
@@ -427,7 +427,7 @@ def main():
         if args.list:
             list_suites(suites, pattern)
         elif args.generate_base_venvs:
-            generate_base_venvs(all_suites, pattern)
+            generate_base_venvs(suites, pattern, recreate=args.recreate_venvs, skip_deps=False)
         else:
             run_suites(
                 suites=suites,
