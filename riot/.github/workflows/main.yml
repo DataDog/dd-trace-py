@@ -1,0 +1,35 @@
+name: CI
+on: [push]
+jobs:
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # Default version is 3.x (latest)
+      - uses: actions/setup-python@v2
+      - run: pip install black
+      - run: black --check .
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # Default version is 3.x (latest)
+      - uses: actions/setup-python@v2
+      - run: pip install mypy
+      - run: mypy riot/ tests/
+  test:
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Riot
+        # Install Riot (".") + test dependencies
+        run: pip install . pytest
+      - name: Run tests
+        run: pytest tests/

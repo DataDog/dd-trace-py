@@ -1,8 +1,3 @@
-"""
-TODO
-- format/naming convention for cases
-- does specifying encoding="utf-8" affect the locale of the test cases?
-"""
 import argparse
 import itertools
 import logging
@@ -27,102 +22,15 @@ class AttrDict(dict):
         self.__dict__ = self
 
 
+CaseInstance = Case = Suite = AttrDict
+
+
 class CmdFailure(Exception):
     def __init__(self, msg, completed_proc):
         self.msg = msg
         self.proc = completed_proc
         self.code = completed_proc.returncode
         super().__init__(self, msg)
-
-
-# It's easier to read `Suite`, `Case` rather than AttrDict or dict.
-CaseInstance = Case = Suite = AttrDict
-
-global_deps = [
-    "mock",
-    "opentracing",
-    "pytest<4",
-    "pytest-benchmark",
-    "pytest-django",
-]
-
-global_env = [("PYTEST_ADDOPTS", "--color=yes")]
-
-all_suites = [
-    Suite(
-        name="tracer",
-        command="pytest tests/test_tracer.py",
-        env=dict(),
-        cases=[
-            Case(
-                pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0", ""])],
-            ),
-        ],
-    ),
-    Suite(
-        name="redis",
-        command="pytest tests/contrib/redis/",
-        cases=[
-            Case(
-                pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-                pkgs=[("redis", [">=2.10,<2.11", ">=3.0,<3.1", ">=3.2,<3.3", ">=3.4,<3.5", ">=3.5,<3.6", ""])],
-            ),
-        ],
-    ),
-    Suite(
-        name="profiling",
-        command="python -m tests.profiling.run pytest --capture=no --verbose tests/profiling/",
-        env=[("DD_PROFILE_TEST_GEVENT", lambda c: "1" if "gevent" in c.pkgs else None),],
-        cases=[
-            Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("gevent", [None, ""])],),
-            # Min reqs tests
-            Case(pys=[2.7], pkgs=[("gevent", ["==1.1.0"]), ("protobuf", ["==3.0.0"]), ("tenacity", ["==5.0.1"]),]),
-            Case(
-                pys=[3.5, 3.6, 3.7, 3.8],
-                pkgs=[("gevent", ["==1.4.0"]), ("protobuf", ["==3.0.0"]), ("tenacity", ["==5.0.1"]),],
-            ),
-        ],
-    ),
-    Suite(
-        name="django",
-        command="pytest tests/contrib/django",
-        cases=[
-            Case(
-                env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
-                pys=[2.7, 3.5, 3.6],
-                pkgs=[
-                    ("django-pylibmc", [">=0.6,<0.7"]),
-                    ("django-redis", [">=4.5,<4.6"]),
-                    ("pylibmc", [""]),
-                    ("python-memcached", [""]),
-                    ("django", [">=1.8,<1.9", ">=1.11,<1.12"]),
-                ],
-            ),
-            Case(
-                env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
-                pys=[3.5],
-                pkgs=[
-                    ("django-pylibmc", [">=0.6,<0.7"]),
-                    ("django-redis", [">=4.5,<4.6"]),
-                    ("pylibmc", [""]),
-                    ("python-memcached", [""]),
-                    ("django", [">=2.0,<2.1", ">=2.1,<2.2"]),
-                ],
-            ),
-            Case(
-                env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
-                pys=[3.6, 3.7, 3.8],
-                pkgs=[
-                    ("django-pylibmc", [">=0.6,<0.7"]),
-                    ("django-redis", [">=4.5,<4.6"]),
-                    ("pylibmc", [""]),
-                    ("python-memcached", [""]),
-                    ("django", [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", ""]),
-                ],
-            ),
-        ],
-    ),
-]
 
 
 def rmchars(chars: t.List[str], s: str):
@@ -262,7 +170,12 @@ def suites_iter(suites, pattern, py=None):
 
 
 def run_suites(
-    suites, pattern, skip_base_install=False, recreate_venvs=False, out=sys.stdout, pass_env=False,
+    suites,
+    pattern,
+    skip_base_install=False,
+    recreate_venvs=False,
+    out=sys.stdout,
+    pass_env=False,
 ):
     """Runs the command for each case in `suites` in a unique virtual
     environment.
@@ -271,28 +184,42 @@ def run_suites(
 
     # Generate the base virtual envs required for the test suites.
     # TODO: errors currently go unhandled
-    generate_base_venvs(suites, pattern, recreate=recreate_venvs, skip_deps=skip_base_install)
+    generate_base_venvs(
+        suites, pattern, recreate=recreate_venvs, skip_deps=skip_base_install
+    )
 
     for case in suites_iter(suites, pattern=pattern):
         base_venv = get_base_venv_path(case.py)
 
         # Resolve the packages required for this case.
-        pkgs: t.Dict[str, str] = {name: version for name, version in case.pkgs if version is not None}
+        pkgs: t.Dict[str, str] = {
+            name: version for name, version in case.pkgs if version is not None
+        }
 
         # Strip special characters for the venv directory name.
         venv = "_".join(["%s%s" % (n, rmchars("<=>.,", v)) for n, v in pkgs.items()])
         venv = "%s_%s" % (base_venv, venv)
-        pkg_str = " ".join(["'%s'" % get_pep_dep(lib, version) for lib, version in pkgs.items()])
+        pkg_str = " ".join(
+            ["'%s'" % get_pep_dep(lib, version) for lib, version in pkgs.items()]
+        )
         # Case result which will contain metadata about the test execution.
         result = AttrDict(case=case, venv=venv, pkgstr=pkg_str)
 
         try:
             # Copy the base venv to use for this case.
-            logger.info("Copying base virtualenv '%s' into case virtual env '%s'.", base_venv, venv)
+            logger.info(
+                "Copying base virtualenv '%s' into case virtual env '%s'.",
+                base_venv,
+                venv,
+            )
             try:
                 run_cmd(["cp", "-r", base_venv, venv], stdout=subprocess.PIPE)
             except CmdFailure as e:
-                raise CmdFailure("Failed to create case virtual env '%s'\n%s" % (venv, e.proc.stdout), e.proc)
+                raise CmdFailure(
+                    "Failed to create case virtual env '%s'\n%s"
+                    % (venv, e.proc.stdout),
+                    e.proc,
+                )
 
             # Install the case dependencies if there are any.
             if pkg_str:
@@ -300,7 +227,11 @@ def run_suites(
                 try:
                     run_cmd_venv(venv, "pip install %s" % pkg_str)
                 except CmdFailure as e:
-                    raise CmdFailure("Failed to install case dependencies %s\n%s" % (pkg_str, e.proc.stdout), e.proc)
+                    raise CmdFailure(
+                        "Failed to install case dependencies %s\n%s"
+                        % (pkg_str, e.proc.stdout),
+                        e.proc,
+                    )
 
             # Generate the environment for the test case.
             env = os.environ.copy() if pass_env else {}
@@ -325,13 +256,17 @@ def run_suites(
             # Finally, run the test in the venv.
             cmd = case.suite.command
             env_str = " ".join("%s=%s" % (k, v) for k, v in env.items())
-            logger.info("Running suite command '%s' with environment '%s'.", cmd, env_str)
+            logger.info(
+                "Running suite command '%s' with environment '%s'.", cmd, env_str
+            )
             try:
                 # Pipe the command output directly to `out` since we
                 # don't need to store it.
                 run_cmd_venv(venv, cmd, stdout=out, env=env)
             except CmdFailure as e:
-                raise CmdFailure("Test failed with exit code %s" % e.proc.returncode, e.proc)
+                raise CmdFailure(
+                    "Test failed with exit code %s" % e.proc.returncode, e.proc
+                )
         except CmdFailure as e:
             result.code = e.code
             print(e.msg, file=out)
@@ -351,7 +286,13 @@ def run_suites(
         failed = r.code != 0
         status_char = "❌" if failed else "✅"
         env_str = get_env_str(case.env)
-        s = "%s %s: %s python%s %s" % (status_char, r.case.suite.name, env_str, r.case.py, r.pkgstr)
+        s = "%s %s: %s python%s %s" % (
+            status_char,
+            r.case.suite.name,
+            env_str,
+            r.case.py,
+            r.pkgstr,
+        )
         print(s, file=out)
 
     if any(True for r in results if r.code != 0):
@@ -364,7 +305,9 @@ def list_suites(suites, pattern, out=sys.stdout):
         if case.suite != curr_suite:
             curr_suite = case.suite
             print("%s:" % case.suite.name, file=out)
-        pkgs_str = " ".join("'%s'" % get_pep_dep(name, version) for name, version in case.pkgs)
+        pkgs_str = " ".join(
+            "'%s'" % get_pep_dep(name, version) for name, version in case.pkgs
+        )
         env_str = get_env_str(case.env)
         py_str = "Python %s" % case.py
         print(" %s %s %s" % (env_str, py_str, pkgs_str), file=out)
@@ -376,7 +319,10 @@ def generate_base_venvs(suites, pattern, recreate, skip_deps):
     # Find all the python versions used.
     required_pys = set([case.py for case in suites_iter(suites, pattern=pattern)])
 
-    logger.info("Generating virtual environments for Python versions %s", " ".join(str(s) for s in required_pys))
+    logger.info(
+        "Generating virtual environments for Python versions %s",
+        " ".join(str(s) for s in required_pys),
+    )
 
     for py in required_pys:
         try:
@@ -392,12 +338,16 @@ def generate_base_venvs(suites, pattern, recreate, skip_deps):
 
             # Install the global dependencies into the base venv.
             global_deps_str = " ".join(["'%s'" % dep for dep in global_deps])
-            logger.info("Installing base dependencies %s into virtualenv.", global_deps_str)
+            logger.info(
+                "Installing base dependencies %s into virtualenv.", global_deps_str
+            )
 
             try:
                 run_cmd_venv(venv_path, "pip install %s" % global_deps_str)
             except CmdFailure as e:
-                logger.error("Base dependencies failed to install, aborting!\n%s", e.proc.stdout)
+                logger.error(
+                    "Base dependencies failed to install, aborting!\n%s", e.proc.stdout
+                )
                 sys.exit(1)
 
             # Install the dev package into the base venv.
@@ -409,10 +359,21 @@ def generate_base_venvs(suites, pattern, recreate, skip_deps):
                 sys.exit(1)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="A simple Python test matrix runner.")
+def main():
+    parser = argparse.ArgumentParser(description="A simple Python test runner runner.")
     parser.add_argument(
-        "case_matcher", type=str, default=".*", nargs="?", help="Regular expression used to match case names."
+        "case_matcher",
+        type=str,
+        default=".*",
+        nargs="?",
+        help="Regular expression used to match case names.",
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        type=argparse.FileType("rb"),
+        dest="file",
+        default="riotfile.py",
     )
     parser.add_argument("-l", "--list", action="store_true", help="List the cases.")
     parser.add_argument(
@@ -422,7 +383,9 @@ if __name__ == "__main__":
         help="Generates the base virtual environments containing the dev package.",
     )
     parser.add_argument(
-        "--pass-env", default=os.getenv("PASS_ENV"), help="Pass the current environment to the test cases."
+        "--pass-env",
+        default=os.getenv("PASS_ENV"),
+        help="Pass the current environment to the test cases.",
     )
     parser.add_argument(
         "-s",
@@ -440,8 +403,12 @@ if __name__ == "__main__":
         dest="recreate_venvs",
         help="Forces the recreation of virtual environments if they already exist.",
     )
-    parser.add_argument("-v", "--verbose", action="store_const", dest="loglevel", const=logging.INFO)
-    parser.add_argument("-d", "--debug", action="store_const", dest="loglevel", const=logging.DEBUG)
+    parser.add_argument(
+        "-v", "--verbose", action="store_const", dest="loglevel", const=logging.INFO
+    )
+    parser.add_argument(
+        "-d", "--debug", action="store_const", dest="loglevel", const=logging.DEBUG
+    )
     args = parser.parse_args()
 
     if args.loglevel:
@@ -451,14 +418,19 @@ if __name__ == "__main__":
 
     pattern = re.compile(args.case_matcher)
 
+    # Heh, major hack and security vulnerability.
+    # Assumes that global_deps, global_env and suites variables will be
+    # declared.
+    exec(args.file.read(), globals())
+
     try:
         if args.list:
-            list_suites(all_suites, pattern)
+            list_suites(suites, pattern)
         elif args.generate_base_venvs:
             generate_base_venvs(all_suites, pattern)
         else:
             run_suites(
-                suites=all_suites,
+                suites=suites,
                 pattern=pattern,
                 recreate_venvs=args.recreate_venvs,
                 skip_base_install=args.skip_base_install,
@@ -468,3 +440,7 @@ if __name__ == "__main__":
         pass
 
     sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
