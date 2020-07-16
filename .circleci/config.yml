@@ -853,7 +853,7 @@ workflows:
       # - build_docs
       # - black
       # - flake8
-      - build-base-venvs
+      # - build-base-venvs
       # Test building the package
       # - test_build_alpine: *requires_pre_test
       # - test_build_py38: *requires_pre_test
@@ -881,20 +881,20 @@ workflows:
         # - consul: *requires_pre_test
         # - dbapi: *requires_pre_test
         # - ddtracerun: *requires_pre_test
-      - django: *requires_pre_test
+      - django
         # - djangorestframework: *requires_pre_test
         # - dogpile_cache: *requires_pre_test
         # - elasticsearch: *requires_pre_test
         # - falcon: *requires_pre_test
-      - flask: *requires_pre_test
+      - flask
         # - futures: *requires_pre_test
         # - gevent: *requires_pre_test
         # - grpc: *requires_pre_test
         # - httplib: *requires_pre_test
         # - integration: *requires_pre_test
         # - internal: *requires_pre_test
-      - internal: *requires_pre_test
-      - profile: *requires_pre_test
+      - internal
+      - profile
         # - jinja2: *requires_pre_test
         # - kombu: *requires_pre_test
         # - mako: *requires_pre_test
@@ -911,7 +911,7 @@ workflows:
         # - pymongo: *requires_pre_test
         # - pymysql: *requires_pre_test
         # - pyramid: *requires_pre_test
-      - redis: *requires_pre_test
+      - redis
         # - rediscluster: *requires_pre_test
         # - requests: *requires_pre_test
         # - requestsgevent: *requires_pre_test
@@ -920,8 +920,7 @@ workflows:
         # - test_utils: *requires_pre_test
         # - test_logging: *requires_pre_test
         # - tornado: *requires_pre_test
-      # tracer
-      - tracer: *requires_pre_test
+      - tracer
       # - unit_tests: *requires_pre_test
       # - vertica: *requires_pre_test
         # - build-docker-ci-image: *requires_pre_test
