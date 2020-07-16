@@ -321,19 +321,19 @@ jobs:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: "^tracer$"
+          pattern: "tracer"
 
   internal:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-internal'
+      - run_test:
+          pattern: "internal"
 
   opentracer:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-opentracer'
+      - run_test:
+          pattern: "^opentracer"
 
   profile:
     executor: ddtrace_dev
@@ -499,9 +499,7 @@ jobs:
       - image: *memcached_image
     steps:
       - run_test:
-          pattern: "flask"
-      - run_test:
-          pattern: "flask_cache"
+          pattern: "^flask"
 
   gevent:
     executor: ddtrace_dev

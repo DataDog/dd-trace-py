@@ -181,4 +181,65 @@ suites = [
             ),
         ],
     ),
+    Suite(
+        name="opentracer",
+        command="pytest tests/opentracer/test_tracer.py tests/opentracer/test_span.py tests/opentracer/test_span_context.py tests/opentracer/test_dd_compatibility.py tests/opentracer/test_utils.py",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
+                pkgs=[],
+            ),
+        ],
+    ),
+    Suite(
+        name="opentracer_asyncio",
+        command="pytest tests/opentracer/test_tracer_asyncio.py",
+        cases=[
+            Case(
+                pys=[3.5, 3.6, 3.7, 3.8,],
+                pkgs=[],
+            ),
+        ],
+    ),
+    Suite(
+        name="opentracer_tornado",
+        command="pytest tests/opentracer/test_tracer_tornado.py",
+        cases=[
+            Case(
+                pys=[3.5, 3.6, 3.7, 3.8,],
+                pkgs=[
+                    # tox included opentracer_tornado-tornado{40,41,42,43} but no such packages get installed
+                    # easier to use ~=
+                    # https://www.python.org/dev/peps/pep-0440/#compatible-release
+                    # tox didn't include tornado 5.1 nor 6.0
+                    ("tornado", [">=4.4,<4.5", ">=4.5,<4.6", ">=5.0,<5.1", ">=5.1,<5.2", ">=6.0,<6.1"])
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="opentracer_gevent",
+        command="pytest tests/opentracer/test_tracer_gevent.py",
+        cases=[
+            Case(
+                pys=[2.7],
+                pkgs=[
+                    ("gevent", [">=1.0,<1.1"])
+                ],
+            ),
+            Case(
+                pys=[2.7, 3.5, 3.6],
+                pkgs=[
+                    ("gevent", [">=1.1,<1.2", ">=1.2,<1.3"])
+                ],
+            ),
+            Case(
+                pys=[3.7, 3.8],
+                pkgs=[
+                    # added gevent 1.5 but also gevent 20.4, 20.5, 20.6 have been released this year
+                    ("gevent", [">=1.3,<1.4", ">=1.4,<1.5", ">=1.5,<1.6"])
+                ],
+            ),
+        ],
+    ),
 ]
