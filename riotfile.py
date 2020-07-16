@@ -155,6 +155,44 @@ suites = [
         ],
     ),
     Suite(
+        # not great but we'll repeat the contents of the flask suite for this autopatch variant
+        name="flask_autopatch",
+        # why are we not running ddtrace_run if that's what we are supposed to test
+        command="python tests/ddtrace_run.py pytest tests/contrib/flask_autopatch",
+        env=[
+            ("DATADOG_SERVICE_NAME", "test.flask.service"),
+            # why are we disabling jinja2?
+            ("DATADOG_PATCH_MODULES", "jinja2:false"),
+        ],
+        cases=[
+            Case(
+                pys=[2.7],
+                pkgs=[
+                    ("flask", [">=0.9,<0.10"]),
+                    ("Werkzeug", ["<1"]),
+                    ("blinker", [""]),
+                ],
+            ),
+            Case(
+                # 3.7 and 3.8 are failing
+                pys=[3.5, 3.6],
+                pkgs=[
+                    ("flask", [">=0.10,<0.11", ">=0.11,<0.12", ">=0.12,<0.13"]),
+                    ("Werkzeug", ["<1"]),
+                    ("blinker", [""]),
+                ],
+            ),
+            Case(
+                # 3.7 and 3.8 are failing
+                pys=[3.5, 3.6],
+                pkgs=[
+                    ("flask", [">=1.0,<1.1", ""]),
+                    ("blinker", [""]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
         name="flask_cache",
         command="pytest tests/contrib/flask_cache",
         # tox file included an _autopatch variant but this didn't in fact resolve to any env so must have been skipped
