@@ -353,7 +353,7 @@ def generate_base_venvs(suites, pattern, recreate, skip_deps):
             # Install the dev package into the base venv.
             logger.info("Installing dev package.")
             try:
-                run_cmd_venv(venv_path, "pip install .")
+                run_cmd_venv(venv_path, "python setup.py build_ext -i -f && pip install .")
             except CmdFailure as e:
                 logger.error("Dev install failed, aborting!\n%s", e.proc.stdout)
                 sys.exit(1)
