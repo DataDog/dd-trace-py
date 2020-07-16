@@ -20,6 +20,17 @@ suites = [
         ],
     ),
     Suite(
+        name="internal",
+        command="pytest tests/internal",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
+                # still need to set pkgs even though this suite doesn't require any additional packages
+                pkgs=[],
+            ),
+        ],
+    ),
+    Suite(
         name="redis",
         command="pytest tests/contrib/redis/",
         cases=[
@@ -106,6 +117,66 @@ suites = [
                         "django",
                         [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", ""],
                     ),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="flask",
+        command="pytest tests/contrib/flask",
+        # to support autopatch tests we want to also run another command
+        # command="python tests/ddtrace_run.py pytest tests/contrib/flask_autopatch",
+        cases=[
+            Case(
+                pys=[2.7],
+                pkgs=[
+                    ("flask", [">=0.9,<0.10"]),
+                    ("Werkzeug", ["<1"]),
+                    ("blinker", [""]),
+                ],
+            ),
+            Case(
+                # 3.7 and 3.8 are failing
+                pys=[3.5, 3.6],
+                pkgs=[
+                    ("flask", [">=0.10,<0.11", ">=0.11,<0.12", ">=0.12,<0.13"]),
+                    ("Werkzeug", ["<1"]),
+                    ("blinker", [""]),
+                ],
+            ),
+            Case(
+                # 3.7 and 3.8 are failing
+                pys=[3.5, 3.6],
+                pkgs=[
+                    ("flask", [">=1.0,<1.1", ""]),
+                    ("blinker", [""]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="flask_cache",
+        command="pytest tests/contrib/flask_cache",
+        # tox file included an _autopatch variant but this didn't in fact resolve to any env so must have been skipped
+        cases=[
+            Case(
+                pys=[2.7],
+                pkgs=[
+                    ("flask", [">=0.10,<0.11", ">=0.11,<0.12"]),
+                    ("flask_cache", [">=0.12,<0.13"]),
+                    ("python-memcached", [""]),
+                    ("redis", [">=2.10,<2.11"]),
+                    ("blinker", [""]),
+                ],
+            ),
+            Case(
+                pys=[3.5, 3.6, 3.7, 3.8,],
+                pkgs=[
+                    ("flask", [">=0.10,<0.11", ">=0.11,<0.12", ">=0.12,<0.13"]),
+                    ("flask_cache", [">=0.13,<0.14"]),
+                    ("python-memcached", [""]),
+                    ("redis", [">=2.10,<2.11"]),
+                    ("blinker", [""]),
                 ],
             ),
         ],
