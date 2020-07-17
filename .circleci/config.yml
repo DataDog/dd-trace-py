@@ -329,13 +329,13 @@ jobs:
       - run_test:
           pattern: "internal"
 
-  opentracer:
+  opentracing:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: "^opentracer"
+          pattern: "^opentracing"
 
-  profile:
+  profiling:
     executor: ddtrace_dev
     steps:
       - run_test:
@@ -349,8 +349,8 @@ jobs:
           TEST_DATADOG_INTEGRATION: 1
       - *datadog_agent
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-integration'
+      - run_test:
+          pattern: "^integration$"
 
   futures:
     executor: ddtrace_dev
@@ -478,7 +478,7 @@ jobs:
       - *datadog_agent
     steps:
       - run_test:
-          pattern: "django"
+          pattern: "^django$"
 
   djangorestframework:
     executor: ddtrace_dev
@@ -488,8 +488,8 @@ jobs:
       - image: *memcached_image
       - *datadog_agent
     steps:
-      - run_tox_scenario:
-          pattern: '^django_drf_contrib'
+      - run_test:
+          pattern: "^django_drf"
 
   flask:
     executor: ddtrace_dev
@@ -722,8 +722,8 @@ jobs:
   unit_tests:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^unit_tests-'
+      - run_test:
+          pattern: '^unit$'
 
   benchmarks:
     executor: ddtrace_dev
@@ -882,7 +882,7 @@ workflows:
         # - dbapi: *requires_pre_test
         # - ddtracerun: *requires_pre_test
       - django
-        # - djangorestframework: *requires_pre_test
+      - djangorestframework
         # - dogpile_cache: *requires_pre_test
         # - elasticsearch: *requires_pre_test
         # - falcon: *requires_pre_test
@@ -891,10 +891,9 @@ workflows:
         # - gevent: *requires_pre_test
         # - grpc: *requires_pre_test
         # - httplib: *requires_pre_test
-        # - integration: *requires_pre_test
-        # - internal: *requires_pre_test
+      - integration
       - internal
-      - profile
+      - profiling
         # - jinja2: *requires_pre_test
         # - kombu: *requires_pre_test
         # - mako: *requires_pre_test
@@ -920,8 +919,9 @@ workflows:
         # - test_utils: *requires_pre_test
         # - test_logging: *requires_pre_test
         # - tornado: *requires_pre_test
+      - opentracing
       - tracer
-      # - unit_tests: *requires_pre_test
+      - unit_tests
       # - vertica: *requires_pre_test
         # - build-docker-ci-image: *requires_pre_test
         # - verify_all_tests_ran:
@@ -954,7 +954,6 @@ workflows:
         #       - httplib
         #       - integration
         #       - internal
-        #       - profile
         #       - jinja2
         #       - kombu
         #       - mako
@@ -963,7 +962,6 @@ workflows:
         #       - mysqlconnector
         #       - mysqldb
         #       - mysqlpython
-        #       - opentracer
         #       - psycopg
         #       - pylibmc
         #       - pylons

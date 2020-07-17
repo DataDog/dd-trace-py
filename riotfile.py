@@ -11,11 +11,10 @@ global_env = [("PYTEST_ADDOPTS", "--color=yes")]
 suites = [
     Suite(
         name="tracer",
-        command="pytest tests/test_tracer.py",
+        command="pytest --ignore='tests/contrib' --ignore='tests/commands' --ignore='tests/opentracer' --ignore='tests/unit' --ignore='tests/internal' --ignore='tests/test_integration' --ignore='tests/profiling' tests",
         cases=[
             Case(
-                pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-                pkgs=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0", ""])],
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0", ""])],
             ),
         ],
     ),
@@ -31,54 +30,51 @@ suites = [
         ],
     ),
     Suite(
+        name="unit",
+        command="pytest tests/unit",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],
+            ),
+        ],
+    ),
+    Suite(
+        name="integration",
+        command="pytest tests/test_integration.py",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", "~=0.5", "~=0.6", ""])],),],
+    ),
+    Suite(
         name="redis",
         command="pytest tests/contrib/redis/",
         cases=[
             Case(
                 pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-                pkgs=[
-                    (
-                        "redis",
-                        [
-                            ">=2.10,<2.11",
-                            ">=3.0,<3.1",
-                            ">=3.2,<3.3",
-                            ">=3.4,<3.5",
-                            ">=3.5,<3.6",
-                            "",
-                        ],
-                    )
-                ],
+                pkgs=[("redis", [">=2.10,<2.11", ">=3.0,<3.1", ">=3.2,<3.3", ">=3.4,<3.5", ">=3.5,<3.6", "",],)],
             ),
         ],
     ),
     Suite(
         name="profiling",
         command="python -m tests.profiling.run pytest --capture=no --verbose tests/profiling/",
-        env=[
-            ("DD_PROFILE_TEST_GEVENT", lambda case: "1" if "gevent" in case.pkgs else None),
-        ],
+        env=[("DD_PROFILE_TEST_GEVENT", lambda case: "1" if "gevent" in case.pkgs else None),],
         cases=[
             Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("gevent", [None, ""])],),
             # Min reqs tests
-            Case(
-                pys=[2.7],
-                pkgs=[
-                    ("gevent", ["==1.1.0"]),
-                    ("protobuf", ["==3.0.0"]),
-                    ("tenacity", ["==5.0.1"]),
-                ],
-            ),
+            Case(pys=[2.7], pkgs=[("gevent", ["==1.1.0"]), ("protobuf", ["==3.0.0"]), ("tenacity", ["==5.0.1"]),],),
             Case(
                 pys=[3.5, 3.6, 3.7, 3.8],
-                pkgs=[
-                    ("gevent", ["==1.4.0"]),
-                    ("protobuf", ["==3.0.0"]),
-                    ("tenacity", ["==5.0.1"]),
-                ],
+                pkgs=[("gevent", ["==1.4.0"]), ("protobuf", ["==3.0.0"]), ("tenacity", ["==5.0.1"]),],
             ),
         ],
     ),
+    # Django  Python version support
+    # 1.11    2.7, 3.4, 3.5, 3.6, 3.7 (added in 1.11.17)
+    # 2.0     3.4, 3.5, 3.6, 3.7
+    # 2.1     3.5, 3.6, 3.7
+    # 2.2     3.5, 3.6, 3.7, 3.8 (added in 2.2.8)
+    # 3.0     3.6, 3.7, 3.8
+    # 3.1     3.6, 3.7, 3.8
+    # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
     Suite(
         name="django",
         command="pytest tests/contrib/django",
@@ -113,12 +109,18 @@ suites = [
                     ("django-redis", [">=4.5,<4.6"]),
                     ("pylibmc", [""]),
                     ("python-memcached", [""]),
-                    (
-                        "django",
-                        [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", ""],
-                    ),
+                    ("django", [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", ""],),
                 ],
             ),
+        ],
+    ),
+    Suite(
+        name="django_drf",
+        command="pytest tests/contrib/djangorestframework",
+        cases=[
+            Case(pys=[2.7, 3.5, 3.6], pkgs=[("django", ["==1.11"]), ("djangorestframework", ["~=3.4", "~=3.5"]),],),
+            Case(pys=[3.5, 3.6, 3.7], pkgs=[("django", ["~=2.2"]), ("djangorestframework", ["~=3.8", "~=3.10"]),],),
+            Case(pys=[3.6, 3.7, 3.8], pkgs=[("django", ["~=3.0", ""]), ("djangorestframework", ["~=3.10", ""]),],),
         ],
     ),
     Suite(
@@ -127,14 +129,7 @@ suites = [
         # to support autopatch tests we want to also run another command
         # command="python tests/ddtrace_run.py pytest tests/contrib/flask_autopatch",
         cases=[
-            Case(
-                pys=[2.7],
-                pkgs=[
-                    ("flask", [">=0.9,<0.10"]),
-                    ("Werkzeug", ["<1"]),
-                    ("blinker", [""]),
-                ],
-            ),
+            Case(pys=[2.7], pkgs=[("flask", [">=0.9,<0.10"]), ("Werkzeug", ["<1"]), ("blinker", [""]),],),
             Case(
                 # 3.7 and 3.8 are failing
                 pys=[3.5, 3.6],
@@ -147,10 +142,7 @@ suites = [
             Case(
                 # 3.7 and 3.8 are failing
                 pys=[3.5, 3.6],
-                pkgs=[
-                    ("flask", [">=1.0,<1.1", ""]),
-                    ("blinker", [""]),
-                ],
+                pkgs=[("flask", [">=1.0,<1.1", ""]), ("blinker", [""]),],
             ),
         ],
     ),
@@ -165,14 +157,7 @@ suites = [
             ("DATADOG_PATCH_MODULES", "jinja2:false"),
         ],
         cases=[
-            Case(
-                pys=[2.7],
-                pkgs=[
-                    ("flask", [">=0.9,<0.10"]),
-                    ("Werkzeug", ["<1"]),
-                    ("blinker", [""]),
-                ],
-            ),
+            Case(pys=[2.7], pkgs=[("flask", [">=0.9,<0.10"]), ("Werkzeug", ["<1"]), ("blinker", [""]),],),
             Case(
                 # 3.7 and 3.8 are failing
                 pys=[3.5, 3.6],
@@ -185,10 +170,7 @@ suites = [
             Case(
                 # 3.7 and 3.8 are failing
                 pys=[3.5, 3.6],
-                pkgs=[
-                    ("flask", [">=1.0,<1.1", ""]),
-                    ("blinker", [""]),
-                ],
+                pkgs=[("flask", [">=1.0,<1.1", ""]), ("blinker", [""]),],
             ),
         ],
     ),
@@ -220,28 +202,18 @@ suites = [
         ],
     ),
     Suite(
-        name="opentracer",
-        command="pytest tests/opentracer/test_tracer.py tests/opentracer/test_span.py tests/opentracer/test_span_context.py tests/opentracer/test_dd_compatibility.py tests/opentracer/test_utils.py",
-        cases=[
-            Case(
-                pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
-                pkgs=[],
-            ),
-        ],
+        name="opentracing",
+        command="pytest tests/opentracing/test_tracer.py tests/opentracing/test_span.py tests/opentracing/test_span_context.py tests/opentracing/test_dd_compatibility.py tests/opentracing/test_utils.py",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],
     ),
     Suite(
-        name="opentracer_asyncio",
-        command="pytest tests/opentracer/test_tracer_asyncio.py",
-        cases=[
-            Case(
-                pys=[3.5, 3.6, 3.7, 3.8,],
-                pkgs=[],
-            ),
-        ],
+        name="opentracing_asyncio",
+        command="pytest tests/opentracing/test_tracer_asyncio.py",
+        cases=[Case(pys=[3.5, 3.6, 3.7, 3.8,], pkgs=[],),],
     ),
     Suite(
-        name="opentracer_tornado",
-        command="pytest tests/opentracer/test_tracer_tornado.py",
+        name="opentracing_tornado",
+        command="pytest tests/opentracing/test_tracer_tornado.py",
         cases=[
             Case(
                 pys=[3.5, 3.6, 3.7, 3.8,],
@@ -256,21 +228,11 @@ suites = [
         ],
     ),
     Suite(
-        name="opentracer_gevent",
-        command="pytest tests/opentracer/test_tracer_gevent.py",
+        name="opentracing_gevent",
+        command="pytest tests/opentracing/test_tracer_gevent.py",
         cases=[
-            Case(
-                pys=[2.7],
-                pkgs=[
-                    ("gevent", [">=1.0,<1.1"])
-                ],
-            ),
-            Case(
-                pys=[2.7, 3.5, 3.6],
-                pkgs=[
-                    ("gevent", [">=1.1,<1.2", ">=1.2,<1.3"])
-                ],
-            ),
+            Case(pys=[2.7], pkgs=[("gevent", [">=1.0,<1.1"])],),
+            Case(pys=[2.7, 3.5, 3.6], pkgs=[("gevent", [">=1.1,<1.2", ">=1.2,<1.3"])],),
             Case(
                 pys=[3.7, 3.8],
                 pkgs=[
