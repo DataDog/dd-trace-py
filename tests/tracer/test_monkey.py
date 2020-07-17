@@ -1,5 +1,5 @@
 from ddtrace import monkey
-from .subprocesstest import SubprocessTestCase, run_in_subprocess
+from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 
 
 class TestPatching(SubprocessTestCase):

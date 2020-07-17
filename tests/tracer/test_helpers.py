@@ -2,8 +2,8 @@ import mock
 
 from ddtrace import helpers
 
-from .base import BaseTracerTestCase
-from .util import override_global_tracer
+from tests.base import BaseTracerTestCase
+from tests.util import override_global_tracer
 
 
 class HelpersTestCase(BaseTracerTestCase):
