@@ -593,6 +593,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^requests_gevent_contrib-'
 
+  sanic:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^sanic_contrib-'
+
   sqlalchemy:
     executor: ddtrace_dev
     docker:
@@ -884,6 +890,7 @@ workflows:
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
+      - sanic: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
       - test_utils: *requires_pre_test
@@ -946,6 +953,7 @@ workflows:
             - rediscluster
             - requests
             - requestsgevent
+            - sanic
             - sqlalchemy
             - sqlite3
             - test_build_alpine
