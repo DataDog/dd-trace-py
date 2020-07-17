@@ -19,6 +19,16 @@ suites = [
         ],
     ),
     Suite(
+        name="ddtracerun",
+        command="pytest tests/commands/test_runner.py",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("redis", [""])],),],
+    ),
+    Suite(
+        name="logging",
+        command="pytest tests/contrib/logging.py",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],
+    ),
+    Suite(
         name="internal",
         command="pytest tests/internal",
         cases=[
@@ -253,24 +263,126 @@ suites = [
             # https://github.com/celery/kombu/blob/3e60e6503a77b9b1a987cf7954659929abac9bac/Changelog#L35
             Case(
                 pys=[2.7, 3.5, 3.6],
-                pkgs=[("celery", [">=4.0,<4.1", ">=4.1,<4.2"]), ("redis", [">=2.10,<2.11"]), ("kombu", [">=4.3,<4.4"]), ("pytest", [">=3,<4"])],
+                pkgs=[
+                    ("celery", [">=4.0,<4.1", ">=4.1,<4.2"]),
+                    ("redis", [">=2.10,<2.11"]),
+                    ("kombu", [">=4.3,<4.4"]),
+                    ("pytest", [">=3,<4"]),
+                ],
             ),
             # FIXME: repeating previous case but with different combo of redis and kombu versions
             Case(
                 pys=[2.7, 3.5, 3.6],
-                pkgs=[("celery", [">=4.0,<4.1", ">=4.1,<4.2"]), ("redis", [">=3.2,<3.3"]), ("kombu", [">=4.4,<4.5"]), ("pytest", [">=3,<4"])],
+                pkgs=[
+                    ("celery", [">=4.0,<4.1", ">=4.1,<4.2"]),
+                    ("redis", [">=3.2,<3.3"]),
+                    ("kombu", [">=4.4,<4.5"]),
+                    ("pytest", [">=3,<4"]),
+                ],
             ),
             # Celery 4.2 is now limited to Kombu 4.3
             # https://github.com/celery/celery/commit/1571d414461f01ae55be63a03e2adaa94dbcb15d
             Case(
                 pys=[2.7, 3.5, 3.6],
-                pkgs=[("celery", [">=4.2,<4.3"]), ("redis", [">=2.10,<2.11"]), ("kombu", [">=4.3,<4.4"]), ("pytest", [">=3,<4"])],
+                pkgs=[
+                    ("celery", [">=4.2,<4.3"]),
+                    ("redis", [">=2.10,<2.11"]),
+                    ("kombu", [">=4.3,<4.4"]),
+                    ("pytest", [">=3,<4"]),
+                ],
             ),
             # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
             # Python 3.7 needs Celery 4.3
             Case(
                 pys=[2.7, 3.5, 3.6, 3.7, 3.8],
                 pkgs=[("celery", [">=4.3,<4.4"]), ("redis", [">=3.2,<3.3"]), ("kombu", [">=4.4,<4.5"])],
+            ),
+        ],
+    ),
+    Suite(
+        name="requests",
+        command="pytest tests/contrib/requests",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8],
+                pkgs=[
+                    ("requests-mock", ">=1.4"),
+                    (
+                        "requests",
+                        [
+                            ">=2.8,<2.9",
+                            ">=2.10,<2.11",
+                            ">=2.12,<2.13",
+                            ">=2.14,<2.15",
+                            ">=2.16,<2.17",
+                            ">=2.18,<2.19",
+                            ">=2.20,<2.21",
+                            "",
+                        ],
+                    ),
+                ],
+            ),
+            Case(
+                env=[("TEST_GEVENT", "1")],
+                pys=[3.6],
+                pkgs=[
+                    ("requests-mock", ">=1.4"),
+                    (
+                        "requests",
+                        [
+                            ">=2.8,<2.9",
+                            ">=2.10,<2.11",
+                            ">=2.12,<2.13",
+                            ">=2.14,<2.15",
+                            ">=2.16,<2.17",
+                            ">=2.18,<2.19",
+                            ">=2.20,<2.21",
+                            "",
+                        ],
+                    ),
+                    ("gevent", [">=1.2,<1.3", ">=1.3,<1.4"]),
+                ],
+            ),
+            Case(
+                env=[("TEST_GEVENT", "1")],
+                pys=[3.7, 3.8],
+                pkgs=[
+                    ("requests-mock", ">=1.4"),
+                    (
+                        "requests",
+                        [
+                            ">=2.8,<2.9",
+                            ">=2.10,<2.11",
+                            ">=2.12,<2.13",
+                            ">=2.14,<2.15",
+                            ">=2.16,<2.17",
+                            ">=2.18,<2.19",
+                            ">=2.20,<2.21",
+                            "",
+                        ],
+                    ),
+                    ("gevent", [">=1.3,<1.4"]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="requests_autopatch",
+        command="pytest tests/contrib/requests",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("tornado", [">=4.4,<4.5", ">=4.5,<4.6"])],),],
+    ),
+    Suite(
+        name="tornado",
+        command="pytest tests/contrib/tornado",
+        cases=[
+            Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("tornado", [">=4.4,<4.5", ">=4.5,<4.6"])],),
+            Case(pys=[3.7, 3.8], pkgs=[("tornado", [">=5.0,<5.1", ">=5.1,<5.2", ">=6.0,<6.1", ""])],),
+            Case(
+                pys=[2.7],
+                pkgs=[
+                    ("tornado", [">=4.4,<4.5", ">=4.5,<4.6"]),
+                    ("futures", [">=3.0,<3.1", ">=3.1,<3.2", ">=3.2,<3.3", ""]),
+                ],
             ),
         ],
     ),

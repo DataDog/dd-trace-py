@@ -370,20 +370,14 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-ddtracerun$'
+      - run_test:
+          pattern: 'ddtracerun$'
 
-  test_utils:
+  logging:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_utils$'
-
-  test_logging:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_logging$'
+      - run_test:
+          pattern: '^logging$'
 
   asyncio:
     executor: ddtrace_dev
@@ -406,8 +400,8 @@ jobs:
   tornado:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: '^tornado$'
 
   bottle:
     executor: ddtrace_dev
@@ -613,14 +607,8 @@ jobs:
       - image: *ddtrace_dev_image
       - *httpbin_local
     steps:
-      - run_tox_scenario:
-          pattern: '^requests_contrib\(_autopatch\)\?-'
-
-  requestsgevent:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
+      - run_test:
+          pattern: "^requests$"
 
   sqlalchemy:
     executor: ddtrace_dev
@@ -880,7 +868,7 @@ workflows:
       - celery: *requires_pre_test
         # - consul: *requires_pre_test
         # - dbapi: *requires_pre_test
-        # - ddtracerun: *requires_pre_test
+      - ddtracerun: *requires_pre_test
       - django: *requires_pre_test
       - djangorestframework: *requires_pre_test
         # - dogpile_cache: *requires_pre_test
@@ -912,13 +900,11 @@ workflows:
         # - pyramid: *requires_pre_test
       - redis: *requires_pre_test
         # - rediscluster: *requires_pre_test
-        # - requests: *requires_pre_test
-        # - requestsgevent: *requires_pre_test
+      - requests: *requires_pre_test
         # - sqlalchemy: *requires_pre_test
         # - sqlite3: *requires_pre_test
-        # - test_utils: *requires_pre_test
-        # - test_logging: *requires_pre_test
-        # - tornado: *requires_pre_test
+      - logging: *requires_pre_test
+      - tornado: *requires_pre_test
       - opentracing: *requires_pre_test
       - tracer: *requires_pre_test
       - unit_tests: *requires_pre_test
@@ -981,7 +967,6 @@ workflows:
         #       - test_build_py36
         #       - test_build_py35
         #       - test_build_py27
-        #       - test_utils
         #       - test_logging
         #       - tracer
         #       - tornado
