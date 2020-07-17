@@ -10,7 +10,7 @@ from ddtrace.ext import http, errors
 
 from tests.opentracing.utils import init_tracer
 from .web import create_app
-from ...test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 from ...utils import assert_span_http_status_code
 
 
