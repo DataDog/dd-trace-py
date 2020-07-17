@@ -117,11 +117,21 @@ commands:
       pattern:
         type: string
         default: ""
+      wait:
+        type: string
+        default: ""
     steps:
       # Workspace includes source
       - attach_workspace:
           at: .
       - run: pip3 install virtualenv ./riot  # TODO: this can be baked into the image
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
       # TODO: for some reason the path doesn't contain the pyenv additions
       - run:
           name: "Running tests matching '<< parameters.pattern >>'"
@@ -420,7 +430,7 @@ jobs:
           - MAX_HEAP_SIZE=512M
           - HEAP_NEWSIZE=256M
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: cassandra
           pattern: '^cassandra_contrib-'
 
@@ -864,7 +874,7 @@ workflows:
       # - benchmarks: *requires_pre_test
         # - boto: *requires_pre_test
         # - bottle: *requires_pre_test
-        # - cassandra: *requires_pre_test
+      - cassandra: *requires_pre_test
       - celery: *requires_pre_test
         # - consul: *requires_pre_test
       - dbapi: *requires_pre_test

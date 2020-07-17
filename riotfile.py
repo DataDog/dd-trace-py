@@ -70,10 +70,18 @@ suites = [
         ],
     ),
     Suite(
-        name="dbapi",
-        command="pytest tests/contrib/dbapi",
-        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[],),],
+        name="cassandra",
+        command="pytest tests/contrib/cassandra",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8],
+                pkgs=[
+                    ("cassandra-driver", [">=3.5,<3.6", ">=3.6,<3.7", ">=3.7,<3.8", ">=3.8,<3.9", ">=3.15,<3.16", ""])
+                ],
+            ),
+        ],
     ),
+    Suite(name="dbapi", command="pytest tests/contrib/dbapi", cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[],),],),
     # Django  Python version support
     # 1.11    2.7, 3.4, 3.5, 3.6, 3.7 (added in 1.11.17)
     # 2.0     3.4, 3.5, 3.6, 3.7
