@@ -99,6 +99,10 @@ class DummyTracer(Tracer):
         self._update_writer()
 
 
+def assert_dict_issuperset(a, b):
+    assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
+
+
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
     assert SPAN_MEASURED_KEY in span.metrics
@@ -141,6 +145,19 @@ def override_env(env):
         # Full clear the environment out and reset back to the original
         os.environ.clear()
         os.environ.update(original)
+
+
+@contextlib.contextmanager
+def override_global_tracer(tracer):
+    """Helper functions that overrides the global tracer available in the
+    `ddtrace` package. This is required because in some `httplib` tests we
+    can't get easily the PIN object attached to the `HTTPConnection` to
+    replace the used tracer with a dummy tracer.
+    """
+    original_tracer = ddtrace.tracer
+    ddtrace.tracer = tracer
+    yield
+    ddtrace.tracer = original_tracer
 
 
 class BaseTestCase(SubprocessTestCase):
