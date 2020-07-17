@@ -69,6 +69,11 @@ suites = [
             ),
         ],
     ),
+    Suite(
+        name="dbapi",
+        command="pytest tests/contrib/dbapi",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[],),],
+    ),
     # Django  Python version support
     # 1.11    2.7, 3.4, 3.5, 3.6, 3.7 (added in 1.11.17)
     # 2.0     3.4, 3.5, 3.6, 3.7

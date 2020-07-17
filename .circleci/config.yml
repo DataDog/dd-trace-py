@@ -867,7 +867,7 @@ workflows:
         # - cassandra: *requires_pre_test
       - celery: *requires_pre_test
         # - consul: *requires_pre_test
-        # - dbapi: *requires_pre_test
+      - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
       - django: *requires_pre_test
       - djangorestframework: *requires_pre_test
