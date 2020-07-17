@@ -384,7 +384,7 @@ def main():
     )
     parser.add_argument(
         "--pass-env",
-        default=os.getenv("PASS_ENV"),
+        default=os.getenv("PASS_ENV") or True,
         help="Pass the current environment to the test cases.",
     )
     parser.add_argument(
