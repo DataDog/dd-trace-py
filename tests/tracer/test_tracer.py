@@ -23,10 +23,6 @@ from tests.utils.tracer import DummyWriter  # noqa
 from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
-def get_dummy_tracer():
-    return DummyTracer()
-
-
 class TracerTestCase(BaseTracerTestCase):
     def test_tracer_vars(self):
         span = self.trace('a', service='s', resource='r', span_type='t')

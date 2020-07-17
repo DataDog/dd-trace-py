@@ -8,7 +8,7 @@ import pytest
 
 from ddtrace.opentracer import Tracer, set_global_tracer
 
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.dummy import DummyTracer
 
 
 @pytest.fixture()
@@ -24,7 +24,7 @@ def ot_tracer_factory():
         )
 
         # similar to how we test the ddtracer, use a dummy tracer
-        dd_tracer = get_dummy_tracer()
+        dd_tracer = DummyTracer()
         if context_provider:
             dd_tracer.configure(context_provider=context_provider)
 

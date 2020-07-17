@@ -1,5 +1,5 @@
 from unittest import TestCase
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 
 from ddtrace.propagation.http import (
     HTTPPropagator,
@@ -17,7 +17,7 @@ class TestHttpPropagation(TestCase):
     """
 
     def test_inject(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         with tracer.trace("global_root_span") as span:
             span.context.sampling_priority = 2
@@ -32,7 +32,7 @@ class TestHttpPropagation(TestCase):
             assert headers[HTTP_HEADER_ORIGIN] == span.context._dd_origin
 
     def test_extract(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         headers = {
             "x-datadog-trace-id": "1234",
@@ -53,7 +53,7 @@ class TestHttpPropagation(TestCase):
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         headers = {
             "HTTP_X_DATADOG_TRACE_ID": "1234",

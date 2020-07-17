@@ -18,7 +18,7 @@ from ddtrace import config, Pin
 # testing
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracing.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured
 
@@ -374,7 +374,7 @@ class TestCassPatchDefault(unittest.TestCase, CassandraBase):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
@@ -392,7 +392,7 @@ class TestCassPatchAll(TestCassPatchDefault):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -413,7 +413,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
         Pin(service='not-%s' % self.TEST_SERVICE).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -426,7 +426,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
         patch()
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(Cluster).clone(tracer=tracer).onto(Cluster)
 
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
@@ -472,7 +472,7 @@ class TestCassandraConfig(BaseTracerTestCase):
     def setUp(self):
         super(TestCassandraConfig, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
         Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)

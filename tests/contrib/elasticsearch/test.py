@@ -12,7 +12,7 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 from tests.opentracing.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...base import BaseTracerTestCase
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.dummy import DummyTracer
 from ...utils import assert_span_http_status_code
 
 
@@ -43,7 +43,7 @@ class ElasticsearchTest(BaseTracerTestCase):
 
         All in this for now. Will split it later.
         """
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
         transport_class = get_traced_transport(datadog_tracer=tracer, datadog_service=self.TEST_SERVICE,)
 
@@ -151,7 +151,7 @@ class ElasticsearchTest(BaseTracerTestCase):
 
     def test_elasticsearch_ot(self):
         """Shortened OpenTracing version of test_elasticsearch."""
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
         ot_tracer = init_tracer("my_svc", tracer)
 

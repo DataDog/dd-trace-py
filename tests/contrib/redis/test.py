@@ -8,14 +8,14 @@ from ddtrace.contrib.redis.patch import patch, unpatch
 
 from tests.opentracing.utils import init_tracer
 from ..config import REDIS_CONFIG
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.dummy import DummyTracer
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured
 
 
 def test_redis_legacy():
     # ensure the old interface isn't broken, but doesn't trace
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     TracedRedisCache = get_traced_redis(tracer, "foo")
     r = TracedRedisCache(port=REDIS_CONFIG["port"])
     r.set("a", "b")
@@ -158,7 +158,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert "cheese" in span.meta and span.meta["cheese"] == "camembert"
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence

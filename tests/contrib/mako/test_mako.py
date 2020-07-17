@@ -8,7 +8,7 @@ from mako.runtime import Context
 from ddtrace import Pin
 from ddtrace.contrib.mako import patch, unpatch
 from ddtrace.compat import StringIO, to_unicode
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured
 
@@ -19,7 +19,7 @@ TMPL_DIR = os.path.join(TEST_DIR, 'templates')
 class MakoTest(BaseTracerTestCase):
     def setUp(self):
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         Pin.override(Template, tracer=self.tracer)
 
     def tearDown(self):

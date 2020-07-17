@@ -10,7 +10,7 @@ from ddtrace.ext.priority import USER_KEEP
 from unittest import TestCase
 from opentracing.scope_managers.gevent import GeventScopeManager
 from tests.opentracing.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 
 from .utils import silence_errors
 
@@ -22,7 +22,7 @@ class TestGeventTracer(TestCase):
     """
     def setUp(self):
         # use a dummy tracer
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # trace gevent

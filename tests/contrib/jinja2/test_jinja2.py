@@ -5,7 +5,7 @@ import jinja2
 
 from ddtrace import Pin, config
 from ddtrace.contrib.jinja2 import patch, unpatch
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured, assert_is_not_measured
 
@@ -19,7 +19,7 @@ class Jinja2Test(BaseTracerTestCase):
         # prevent cache effects when using Template('code...')
         jinja2.environment._spontaneous_environments.clear()
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         Pin.override(jinja2.environment.Environment, tracer=self.tracer)
 
     def tearDown(self):

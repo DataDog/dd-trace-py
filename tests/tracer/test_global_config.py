@@ -7,14 +7,14 @@ from ddtrace import config as global_config
 from ddtrace.settings import Config
 
 from ..utils import override_env
-from .test_tracer import get_dummy_tracer
+from .test_tracer import DummyTracer
 
 
 class GlobalConfigTestCase(TestCase):
     """Test the `Configuration` class that stores integration settings"""
     def setUp(self):
         self.config = Config()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings

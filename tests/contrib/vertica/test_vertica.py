@@ -14,7 +14,7 @@ from ddtrace.ext import errors
 from tests.base import BaseTracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracing.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 from ...utils import assert_is_measured
 
 TEST_TABLE = 'test_table'
@@ -22,7 +22,7 @@ TEST_TABLE = 'test_table'
 
 @pytest.fixture(scope='function')
 def test_tracer(request):
-    request.cls.test_tracer = get_dummy_tracer()
+    request.cls.test_tracer = DummyTracer()
     return request.cls.test_tracer
 
 
@@ -146,7 +146,7 @@ class TestVertica(BaseTracerTestCase):
             patch()
             import vertica_python
 
-            test_tracer = get_dummy_tracer()
+            test_tracer = DummyTracer()
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
@@ -180,7 +180,7 @@ class TestVertica(BaseTracerTestCase):
             patch()
             import vertica_python
 
-            test_tracer = get_dummy_tracer()
+            test_tracer = DummyTracer()
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
             Pin.override(conn, service='mycustomservice', tracer=test_tracer)

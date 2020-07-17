@@ -7,7 +7,7 @@ from ddtrace.compat import stringify
 
 from .utils import aiobotocore_client
 from ..asyncio.utils import AsyncioTestCase, mark_asyncio
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.dummy import DummyTracer
 from ...utils import assert_span_http_status_code, assert_is_measured
 
 
@@ -17,7 +17,7 @@ class AIOBotocoreTest(AsyncioTestCase):
     def setUp(self):
         super(AIOBotocoreTest, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
 
     def tearDown(self):
         super(AIOBotocoreTest, self).tearDown()

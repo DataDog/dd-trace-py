@@ -10,7 +10,7 @@ from ddtrace.ext import http, errors
 
 from tests.opentracing.utils import init_tracer
 from .web import create_app
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.dummy import DummyTracer
 from ...utils import assert_span_http_status_code
 
 
@@ -18,7 +18,7 @@ class TestFlask(TestCase):
     """Ensures Flask is properly instrumented."""
 
     def setUp(self):
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.flask_app = create_app()
         self.traced_app = TraceMiddleware(
             self.flask_app,

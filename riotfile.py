@@ -42,7 +42,7 @@ suites = [
     Suite(name="unit", command="pytest tests/unit", cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],),
     Suite(
         name="integration",
-        command="pytest tests/test_integration.py",
+        command="pytest tests/integration/",
         cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", "~=0.5", "~=0.6", ""])],),],
     ),
     Suite(

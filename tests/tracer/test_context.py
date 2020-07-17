@@ -4,7 +4,7 @@ import mock
 import threading
 
 from tests.base import BaseTestCase
-from .test_tracer import get_dummy_tracer
+from .test_tracer import DummyTracer
 
 import pytest
 
@@ -17,7 +17,7 @@ from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 @pytest.fixture
 def tracer_with_debug_logging():
     # All the tracers, dummy or not, shares the same logging object.
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     level = tracer.log.level
     tracer.log.setLevel(logging.DEBUG)
     try:
@@ -220,7 +220,7 @@ class TestTracingContext(BaseTestCase):
         When we have just enough finished spans to flush
         We return the finished spans
         """
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
 
         # Create a root span with 5 children, all of the children are finished, the root is not
@@ -259,7 +259,7 @@ class TestTracingContext(BaseTestCase):
         When we have more than the minimum number of spans needed to flush
         We return the finished spans
         """
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
 
         # Create a root span with 5 children, all of the children are finished, the root is not
@@ -298,7 +298,7 @@ class TestTracingContext(BaseTestCase):
         When we do not have enough finished spans to flush
         We return no spans
         """
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
 
         # Create a root span with 5 children, all of the children are finished, the root is not
@@ -331,7 +331,7 @@ class TestTracingContext(BaseTestCase):
         When we have some unfinished spans
         We keep the unfinished spans around
         """
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
 
         # Create a root span with 5 children, all of the children are finished, the root is not
@@ -375,7 +375,7 @@ class TestTracingContext(BaseTestCase):
     @mock.patch('logging.Logger.debug')
     def test_log_unfinished_spans_disabled(self, log):
         # the trace finished status logging is disabled
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
         # manually create a root-child trace
         root = Span(tracer=tracer, name='root')
@@ -396,7 +396,7 @@ class TestTracingContext(BaseTestCase):
     @mock.patch('logging.Logger.debug')
     def test_log_unfinished_spans_when_ok(self, log):
         # if the unfinished spans logging is enabled but the trace is finished, don't log anything
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
         # manually create a root-child trace
         root = Span(tracer=tracer, name='root')

@@ -15,7 +15,7 @@ from ddtrace.contrib.pymongo.patch import patch, unpatch
 from tests.opentracing.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...base import BaseTracerTestCase, override_config
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.dummy import DummyTracer
 from ...utils import assert_is_measured
 
 
@@ -348,7 +348,7 @@ class TestPymongoTraceClient(BaseTracerTestCase, PymongoCore):
     TEST_SERVICE = 'test-mongo-trace-client'
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         original_client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client = trace_mongo_client(original_client, tracer, service=self.TEST_SERVICE)
         return tracer, client
@@ -366,7 +366,7 @@ class TestPymongoPatchDefault(BaseTracerTestCase, PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         return tracer, client
@@ -407,13 +407,13 @@ class TestPymongoPatchConfigured(BaseTracerTestCase, PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         return tracer, client
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence
@@ -458,7 +458,7 @@ class TestPymongoPatchConfigured(BaseTracerTestCase, PymongoCore):
         from ddtrace import config
         assert config.service == "mysvc"
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")

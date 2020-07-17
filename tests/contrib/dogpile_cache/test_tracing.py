@@ -4,13 +4,13 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.dogpile_cache.patch import patch, unpatch
 
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyTracer
 from ...utils import assert_is_measured
 
 
 @pytest.fixture
 def tracer():
-    return get_dummy_tracer()
+    return DummyTracer()
 
 
 @pytest.fixture
