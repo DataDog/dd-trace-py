@@ -234,6 +234,51 @@ suites = [
         ],
     ),
     Suite(
+        name="grpc",
+        command="pytest tests/contrib/grpc",
+        # use grpcio versions with bdist_wheel packages for python versions
+        # py27,py35,py36: grpcio>=1.13.0
+        # py37: grpcio>=1.13.0
+        # py38: grpcio>=1.24.3
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6],
+                pkgs=[
+                    ("googleapis-common-protos", [""]),
+                    ("grpcio", [">=1.12,<1.13", ">=1.14,<1.15", ">=1.16,<1.17", ">=1.20,<1.21", ">=1.22,<1.23"]),
+                ],
+            ),
+            Case(
+                pys=[3.7],
+                pkgs=[
+                    ("googleapis-common-protos", [""]),
+                    (
+                        "grpcio",
+                        [
+                            ">=1.12,<1.13",
+                            ">=1.14,<1.15",
+                            ">=1.16,<1.17",
+                            ">=1.20,<1.21",
+                            ">=1.22,<1.23",
+                            ">=1.24,<1.25",
+                            ">=1.24,<1.25",
+                            ">=1.26,<1.27",
+                            ">=1.28,<1.29",
+                            "",
+                        ],
+                    ),
+                ],
+            ),
+            Case(
+                pys=[3.8],
+                pkgs=[
+                    ("googleapis-common-protos", [""]),
+                    ("grpcio", [">=1.24,<1.25", ">=1.24,<1.25", ">=1.26,<1.27", ">=1.28,<1.29", ""]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
         name="httplib", command="pytest tests/contrib/httplib", cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[],),]
     ),
     Suite(

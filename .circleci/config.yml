@@ -432,7 +432,7 @@ jobs:
     steps:
       - run_test:
           wait: cassandra
-          pattern: '^cassandra_contrib-'
+          pattern: '^cassandra'
 
   celery:
     executor: ddtrace_dev
@@ -521,7 +521,7 @@ jobs:
     executor: ddtrace_dev
     steps:
       - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+          pattern: '^grpc'
 
   molten:
     executor: ddtrace_dev
@@ -887,7 +887,7 @@ workflows:
       - flask: *requires_pre_test
         # - futures: *requires_pre_test
         # - gevent: *requires_pre_test
-        # - grpc: *requires_pre_test
+      - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
       - internal: *requires_pre_test
