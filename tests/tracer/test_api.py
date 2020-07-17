@@ -76,6 +76,8 @@ def _make_uds_server(path, request_handler):
 
 @pytest.fixture
 def endpoint_uds_server(tmp_path):
+    # TODO: the tmp_path results in a path too long to be used as an address
+    # https://github.com/pytest-dev/pytest/issues/5802
     server, thread = _make_uds_server(str(tmp_path / 'uds_server_socket'), _APIEndpointRequestHandlerTest)
     try:
         yield server

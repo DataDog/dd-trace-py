@@ -11,7 +11,7 @@ global_env = [("PYTEST_ADDOPTS", "--color=yes")]
 suites = [
     Suite(
         name="tracer",
-        command="pytest --ignore='tests/contrib' --ignore='tests/commands' --ignore='tests/opentracing' --ignore='tests/unit' --ignore='tests/internal' --ignore='tests/test_integration' --ignore='tests/profiling' tests",
+        command="pytest tests/tracer",
         cases=[
             Case(
                 pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[("msgpack", [None, "==0.5.0", ">=0.5,<0.6", ">=0.6.0,<1.0", ""])],
@@ -322,8 +322,8 @@ suites = [
                     ),
                 ],
             ),
-            ]
-            ),
+        ],
+    ),
     Suite(
         name="requests_gevent",
         command="pytest tests/contrib/requests_gevent/test_requests_gevent.py",
