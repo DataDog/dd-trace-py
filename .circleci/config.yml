@@ -118,7 +118,7 @@ commands:
         type: string
         default: ""
     steps:
-      - checkout
+      # Workspace includes source
       - attach_workspace:
           at: .
       - run: pip3 install virtualenv ./riot  # TODO: this can be baked into the image
@@ -246,7 +246,7 @@ jobs:
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - save_results
 
-  build-base-venvs:
+  build-base:
     executor: ddtrace_dev
     steps:
       - checkout
@@ -257,7 +257,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - ".venv*"
+            - "."
 
   build-docker-ci-image:
     executor: cimg_base
@@ -829,7 +829,7 @@ requires_pre_test: &requires_pre_test
   requires:
     # - black
       # - flake8
-      # - build-base-venvs
+    - build-base
 
 workflows:
   version: 2
@@ -853,7 +853,7 @@ workflows:
       # - build_docs
       # - black
       # - flake8
-      # - build-base-venvs
+      - build-base
       # Test building the package
       # - test_build_alpine: *requires_pre_test
       # - test_build_py38: *requires_pre_test
@@ -881,19 +881,19 @@ workflows:
         # - consul: *requires_pre_test
         # - dbapi: *requires_pre_test
         # - ddtracerun: *requires_pre_test
-      - django
-      - djangorestframework
+      - django: *requires_pre_test
+      - djangorestframework: *requires_pre_test
         # - dogpile_cache: *requires_pre_test
         # - elasticsearch: *requires_pre_test
         # - falcon: *requires_pre_test
-      - flask
+      - flask: *requires_pre_test
         # - futures: *requires_pre_test
         # - gevent: *requires_pre_test
         # - grpc: *requires_pre_test
         # - httplib: *requires_pre_test
-      - integration
-      - internal
-      - profiling
+      - integration: *requires_pre_test
+      - internal: *requires_pre_test
+      - profiling: *requires_pre_test
         # - jinja2: *requires_pre_test
         # - kombu: *requires_pre_test
         # - mako: *requires_pre_test
@@ -910,7 +910,7 @@ workflows:
         # - pymongo: *requires_pre_test
         # - pymysql: *requires_pre_test
         # - pyramid: *requires_pre_test
-      - redis
+      - redis: *requires_pre_test
         # - rediscluster: *requires_pre_test
         # - requests: *requires_pre_test
         # - requestsgevent: *requires_pre_test
@@ -919,9 +919,9 @@ workflows:
         # - test_utils: *requires_pre_test
         # - test_logging: *requires_pre_test
         # - tornado: *requires_pre_test
-      - opentracing
-      - tracer
-      - unit_tests
+      - opentracing: *requires_pre_test
+      - tracer: *requires_pre_test
+      - unit_tests: *requires_pre_test
       # - vertica: *requires_pre_test
         # - build-docker-ci-image: *requires_pre_test
         # - verify_all_tests_ran:
