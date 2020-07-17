@@ -125,7 +125,7 @@ commands:
       # TODO: for some reason the path doesn't contain the pyenv additions
       - run:
           name: "Running tests matching '<< parameters.pattern >>'"
-          command: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH riot -v '<< parameters.pattern >>'"
+          command: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH riot -vs '<< parameters.pattern >>'"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"

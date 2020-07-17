@@ -29,15 +29,7 @@ suites = [
             ),
         ],
     ),
-    Suite(
-        name="unit",
-        command="pytest tests/unit",
-        cases=[
-            Case(
-                pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],
-            ),
-        ],
-    ),
+    Suite(name="unit", command="pytest tests/unit", cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],),
     Suite(
         name="integration",
         command="pytest tests/test_integration.py",
@@ -80,7 +72,6 @@ suites = [
         command="pytest tests/contrib/django",
         cases=[
             Case(
-                env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
                 pys=[2.7, 3.5, 3.6],
                 pkgs=[
                     ("django-pylibmc", [">=0.6,<0.7"]),
@@ -91,7 +82,6 @@ suites = [
                 ],
             ),
             Case(
-                env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
                 pys=[3.5],
                 pkgs=[
                     ("django-pylibmc", [">=0.6,<0.7"]),
@@ -102,7 +92,6 @@ suites = [
                 ],
             ),
             Case(
-                env=[("TEST_DATADOG_DJANGO_MIGRATION", [None, "1"])],
                 pys=[3.6, 3.7, 3.8],
                 pkgs=[
                     ("django-pylibmc", [">=0.6,<0.7"]),
@@ -111,6 +100,11 @@ suites = [
                     ("python-memcached", [""]),
                     ("django", [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", ""],),
                 ],
+            ),
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8],
+                env=[("TEST_DATADOG_DJANGO_MIGRATION", "1")],
+                pkgs=[("django", ["~=1.8", "~=1.11", "~=2.0", "~=2.1", "~=2.2", "~=2.3", "~=3.0", ""],),],
             ),
         ],
     ),
