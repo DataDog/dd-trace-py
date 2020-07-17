@@ -673,7 +673,7 @@ jobs:
       - image: *redis_image
     steps:
       - run_test:
-          pattern: "redis"
+          pattern: '^redis$'
 
   rediscluster:
     executor: ddtrace_dev
@@ -683,9 +683,9 @@ jobs:
         environment:
           - IP=0.0.0.0
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: rediscluster
-          pattern: '^rediscluster_contrib-'
+          pattern: '^rediscluster$'
 
   vertica:
     executor: ddtrace_dev
@@ -909,7 +909,7 @@ workflows:
         # - pymysql: *requires_pre_test
         # - pyramid: *requires_pre_test
       - redis: *requires_pre_test
-        # - rediscluster: *requires_pre_test
+      - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
         # - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test

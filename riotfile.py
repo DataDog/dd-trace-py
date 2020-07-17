@@ -47,6 +47,16 @@ suites = [
     ),
     Suite(
         name="redis",
+        command="pytest tests/contrib/rediscluster/",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8,],
+                pkgs=[("redis", [">=2.10,<2.11"]), ("redis-py-cluster", [">=1.3,<1.4", ">=2.0,<2.1", ""]),],
+            ),
+        ],
+    ),
+    Suite(
+        name="rediscluster",
         command="pytest tests/contrib/redis/",
         cases=[
             Case(
