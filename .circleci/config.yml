@@ -131,7 +131,7 @@ commands:
           steps:
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: pip install tox && tox -e 'wait' << parameters.wait >>
       # TODO: for some reason the path doesn't contain the pyenv additions
       - run:
           name: "Running tests matching '<< parameters.pattern >>'"
@@ -634,8 +634,8 @@ jobs:
   dbapi:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
+      - run_test:
+          pattern: '^dbapi$'
 
   psycopg:
     executor: ddtrace_dev
@@ -714,8 +714,8 @@ jobs:
   sqlite3:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
+      - run_test:
+          pattern: '^sqlite3'
 
   unit_tests:
     executor: ddtrace_dev
