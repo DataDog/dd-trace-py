@@ -124,7 +124,7 @@ commands:
       # Workspace includes source
       - attach_workspace:
           at: .
-      - run: pip3 install virtualenv ./riot  # TODO: this can be baked into the image
+      - run: pip3 install virtualenv ddtrace ./riot  # TODO: this can be baked into the image
       - when:
           condition:
             << parameters.wait >>
@@ -217,12 +217,22 @@ deploy_docs_filters: &deploy_docs_filters
     branches:
       ignore: /.*/
 
-datadog_agent: &datadog_agent
+datadog_agent_dummy: &datadog_agent_dummy
   image: *datadog_agent_image
   environment:
     DD_APM_ENABLED: true
     DD_BIND_HOST: 0.0.0.0
     DD_API_KEY: invalid_key_but_this_is_fine
+
+
+datadog_agent: &datadog_agent
+  image: *datadog_agent_image
+  environment:
+    DD_APM_ENABLED: true
+    DD_BIND_HOST: 0.0.0.0
+    DD_API_KEY: ${DD_API_KEY}
+    DD_ENV: "staging"
+    DD_TAGS: "user:${CIRCLE_USERNAME},circle_url:${CIRCLE_BUILD_URL},pr:${CIRCLE_PULL_REQUEST},branch:${CIRCLE_BRANCH}"
 
 mysql_server: &mysql_server
   image: *mysql_image
@@ -260,7 +270,7 @@ jobs:
     executor: ddtrace_dev
     steps:
       - checkout
-      - run: pip3 install virtualenv ./riot  # TODO: this can be baked into the image
+      - run: pip3 install virtualenv ddtrace ./riot  # TODO: this can be baked into the image
       - run:
           name: "Generate base virtual environments."
           command: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH riot -v --generate-base-venvs"
@@ -329,6 +339,9 @@ jobs:
 
   tracer:
     executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+      - *datadog_agent
     steps:
       - run_test:
           pattern: "tracer"
@@ -357,7 +370,7 @@ jobs:
       - image: *ddtrace_dev_image
         environment:
           TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
+      - *datadog_agent_dummy
     steps:
       - run_test:
           pattern: "^integration$"
@@ -490,7 +503,7 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
       - image: *memcached_image
-      - *datadog_agent
+      - *datadog_agent_dummy
     steps:
       - run_test:
           pattern: "^django_drf"
@@ -501,6 +514,7 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
       - image: *memcached_image
+      - *datadog_agent
     steps:
       - run_test:
           pattern: "^flask"
@@ -671,6 +685,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
+      - *datadog_agent
     steps:
       - run_test:
           pattern: '^redis$'
