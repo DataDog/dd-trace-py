@@ -504,8 +504,8 @@ jobs:
   httplib:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
+      - run_test:
+          pattern: '^httplib'
 
   grpc:
     executor: ddtrace_dev
@@ -878,7 +878,7 @@ workflows:
         # - futures: *requires_pre_test
         # - gevent: *requires_pre_test
         # - grpc: *requires_pre_test
-        # - httplib: *requires_pre_test
+      - httplib: *requires_pre_test
       - integration: *requires_pre_test
       - internal: *requires_pre_test
       - profiling: *requires_pre_test

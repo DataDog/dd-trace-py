@@ -211,6 +211,9 @@ suites = [
         ],
     ),
     Suite(
+        name="httplib", command="pytest tests/contrib/httplib", cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[],),]
+    ),
+    Suite(
         name="opentracing",
         command="pytest tests/opentracing/core",
         cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],
