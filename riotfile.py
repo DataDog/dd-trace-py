@@ -1,3 +1,5 @@
+from riot import Suite, Case
+
 global_deps = [
     "mock",
     "opentracing",

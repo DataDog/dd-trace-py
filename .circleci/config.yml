@@ -124,7 +124,7 @@ commands:
       # Workspace includes source
       - attach_workspace:
           at: .
-      - run: pip3 install virtualenv ddtrace ./riot  # TODO: this can be baked into the image
+      - run: pip3 install virtualenv attrs ddtrace ./riot  # TODO: this can be baked into the image
       - when:
           condition:
             << parameters.wait >>
@@ -230,9 +230,9 @@ datadog_agent: &datadog_agent
   environment:
     DD_APM_ENABLED: true
     DD_BIND_HOST: 0.0.0.0
-    DD_API_KEY: ${DD_API_KEY}
+    DD_API_KEY: "{{ .Environment.DD_API_KEY }}"
     DD_ENV: "staging"
-    DD_TAGS: "user:${CIRCLE_USERNAME},circle_url:${CIRCLE_BUILD_URL},pr:${CIRCLE_PULL_REQUEST},branch:${CIRCLE_BRANCH}"
+    DD_TAGS: "user:{{ .Environment.CIRCLE_USERNAME }},circle_url:{{ .Environment.CIRCLE_BUILD_URL }},pr:{{ .Environment.CIRCLE_PULL_REQUEST }},branch:{{ .Environment.CIRCLE_BRANCH }}"
 
 mysql_server: &mysql_server
   image: *mysql_image
@@ -270,7 +270,7 @@ jobs:
     executor: ddtrace_dev
     steps:
       - checkout
-      - run: pip3 install virtualenv ddtrace ./riot  # TODO: this can be baked into the image
+      - run: pip3 install virtualenv attrs ddtrace ./riot  # TODO: this can be baked into the image
       - run:
           name: "Generate base virtual environments."
           command: "PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH riot -v --generate-base-venvs"
