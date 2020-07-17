@@ -5,7 +5,7 @@ import pytest
 
 
 @pytest.mark.skipif("TEST_GEVENT" not in os.environ, reason="Only relevant with gevent installed")
-def test_patch(self):
+def test_patch():
     """
     Patching `requests` before `gevent` monkeypatching
 

@@ -608,7 +608,7 @@ jobs:
       - *httpbin_local
     steps:
       - run_test:
-          pattern: "^requests$"
+          pattern: "^requests.*"
 
   sqlalchemy:
     executor: ddtrace_dev

@@ -25,7 +25,7 @@ suites = [
     ),
     Suite(
         name="logging",
-        command="pytest tests/contrib/logging.py",
+        command="pytest tests/contrib/logging/",
         cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],
     ),
     Suite(
@@ -306,7 +306,7 @@ suites = [
             Case(
                 pys=[2.7, 3.5, 3.6, 3.7, 3.8],
                 pkgs=[
-                    ("requests-mock", ">=1.4"),
+                    ("requests-mock", [">=1.4"]),
                     (
                         "requests",
                         [
@@ -322,11 +322,17 @@ suites = [
                     ),
                 ],
             ),
+            ]
+            ),
+    Suite(
+        name="requests_gevent",
+        command="pytest tests/contrib/requests_gevent/test_requests_gevent.py",
+        cases=[
             Case(
                 env=[("TEST_GEVENT", "1")],
                 pys=[3.6],
                 pkgs=[
-                    ("requests-mock", ">=1.4"),
+                    ("requests-mock", [">=1.4"]),
                     (
                         "requests",
                         [
@@ -347,7 +353,7 @@ suites = [
                 env=[("TEST_GEVENT", "1")],
                 pys=[3.7, 3.8],
                 pkgs=[
-                    ("requests-mock", ">=1.4"),
+                    ("requests-mock", [">=1.4"]),
                     (
                         "requests",
                         [
