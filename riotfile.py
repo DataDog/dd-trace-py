@@ -397,7 +397,7 @@ suites = [
     ),
     Suite(
         name="requests_gevent",
-        command="pytest tests/contrib/requests_gevent/test_requests_gevent.py",
+        command="pytest tests/contrib/requests/test_requests_gevent.py",
         cases=[
             Case(
                 env=[("TEST_GEVENT", "1")],

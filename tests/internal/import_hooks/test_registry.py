@@ -194,8 +194,8 @@ class RegistryTestCase(SubprocessTestCase):
                 We immediately call the hook function
         """
         hooks = ModuleHookRegistry()
-        module_name = "tests.test_module"
-        import tests.test_module
+        module_name = "tests.internal.import_hooks.test_module"
+        import tests.internal.import_hooks.test_module
 
         module_hook = mock.Mock()
 
@@ -207,7 +207,7 @@ class RegistryTestCase(SubprocessTestCase):
         assert hooks.hooks[module_name] == set([module_hook])
 
         # Assert it was called once with the appropriate arguments
-        module_hook.assert_called_once_with(tests.test_module)
+        module_hook.assert_called_once_with(tests.internal.import_hooks.test_module)
 
     def test_deregister(self):
         """
@@ -219,7 +219,7 @@ class RegistryTestCase(SubprocessTestCase):
         module_hook = mock.Mock()
 
         # Register the hook
-        module_name = "tests.test_module"
+        module_name = "tests.internal.import_hooks.test_module"
         hooks.register(module_name, module_hook)
         assert hooks.hooks[module_name] == set([module_hook])
 
@@ -229,9 +229,9 @@ class RegistryTestCase(SubprocessTestCase):
         # Ensure it was removed
         assert hooks.hooks[module_name] == set()
 
-        import tests.test_module
+        import tests.internal.import_hooks.test_module
 
-        hooks.call(module_name, module=tests.test_module)
+        hooks.call(module_name, module=tests.internal.import_hooks.test_module)
 
         # Ensure it was not called
         module_hook.assert_not_called()
@@ -297,7 +297,7 @@ class RegistryTestCase(SubprocessTestCase):
             All hooks registered for the module are called
         """
         hooks = ModuleHookRegistry()
-        module_name = "tests.test_module"
+        module_name = "tests.internal.import_hooks.test_module"
 
         hook_one = mock.Mock()
         hook_two = mock.Mock()
@@ -307,11 +307,11 @@ class RegistryTestCase(SubprocessTestCase):
         hooks.register(module_name, hook_two)
         hooks.register(module_name, hook_three)
 
-        import tests.test_module
+        import tests.internal.import_hooks.test_module
 
         hooks.call(module_name)
 
         # Assert all hooks were called with the module
-        hook_one.assert_called_once_with(tests.test_module)
-        hook_two.assert_called_once_with(tests.test_module)
-        hook_three.assert_called_once_with(tests.test_module)
+        hook_one.assert_called_once_with(tests.internal.import_hooks.test_module)
+        hook_two.assert_called_once_with(tests.internal.import_hooks.test_module)
+        hook_three.assert_called_once_with(tests.internal.import_hooks.test_module)

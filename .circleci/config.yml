@@ -520,7 +520,7 @@ jobs:
   grpc:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
+      - run_test:
           pattern: '^grpc'
 
   molten:
