@@ -381,6 +381,9 @@ suites = [
         cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("tornado", [">=4.4,<4.5", ">=4.5,<4.6"])],),],
     ),
     Suite(
+        name="sqlite", command="pytest tests/contrib/sqlite3", cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[],),]
+    ),
+    Suite(
         name="tornado",
         command="pytest tests/contrib/tornado",
         cases=[
@@ -502,5 +505,10 @@ suites = [
             ),
         ],
         # Python 3.7 needs at least aiohttp 2.3
+    ),
+    Suite(
+        name="vertica",
+        command="pytest tests/contrib/vertica",
+        cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8], pkgs=[("vertica-python", [">=0.6,<0.7", ">=0.7,<0.8"])],),],
     ),
 ]

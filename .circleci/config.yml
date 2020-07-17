@@ -687,9 +687,9 @@ jobs:
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: vertica
-          pattern: '^vertica_contrib-'
+          pattern: '^vertica'
 
   kombu:
     executor: ddtrace_dev
@@ -890,7 +890,7 @@ workflows:
         # - mysqlconnector: *requires_pre_test
         # - mysqldb: *requires_pre_test
         # - mysqlpython: *requires_pre_test
-        # - opentracer: *requires_pre_test
+      - opentracing: *requires_pre_test
         # - psycopg: *requires_pre_test
         # - pylibmc: *requires_pre_test
         # - pylons: *requires_pre_test
@@ -902,13 +902,12 @@ workflows:
         # - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
         # - sqlalchemy: *requires_pre_test
-        # - sqlite3: *requires_pre_test
+      - sqlite3: *requires_pre_test
       - logging: *requires_pre_test
       - tornado: *requires_pre_test
-      - opentracing: *requires_pre_test
       - tracer: *requires_pre_test
       - unit_tests: *requires_pre_test
-      # - vertica: *requires_pre_test
+      - vertica: *requires_pre_test
         # - build-docker-ci-image: *requires_pre_test
         # - verify_all_tests_ran:
         #     requires:
