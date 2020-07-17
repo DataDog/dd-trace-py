@@ -15,7 +15,7 @@ from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
 from ddtrace import Pin
 
 # testing
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured

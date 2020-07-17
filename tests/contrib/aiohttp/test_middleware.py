@@ -8,7 +8,7 @@ from ddtrace.sampler import RateSampler
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from .utils import TraceTestCase
 from .app.web import setup_app, noop_middleware
 from ...utils import assert_span_http_status_code

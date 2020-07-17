@@ -160,7 +160,7 @@ class TestTracerCompatibility(object):
 
         # confirm the ordering
         assert spans[0].name == 'ot_span_outer'
-        assert spans[1].name == 'tests.opentracer.test_dd_compatibility.fn'
+        assert spans[1].name == 'tests.opentracing.test_dd_compatibility.fn'
         assert spans[2].name == 'ot_span_inner'
 
         # check the parenting

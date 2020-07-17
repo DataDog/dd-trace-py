@@ -12,7 +12,7 @@ from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
 
 # testing
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...base import BaseTracerTestCase, override_config
 from ...test_tracer import get_dummy_tracer

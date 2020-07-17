@@ -9,7 +9,7 @@ from ddtrace.contrib.elasticsearch.elasticsearch import elasticsearch
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
 # testing
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...base import BaseTracerTestCase
 from ...test_tracer import get_dummy_tracer

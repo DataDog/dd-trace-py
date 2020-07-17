@@ -16,7 +16,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import trace_engine
 
 # testing
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 
 
 Base = declarative_base()

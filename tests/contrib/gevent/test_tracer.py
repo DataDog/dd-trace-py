@@ -9,7 +9,7 @@ from ddtrace.ext.priority import USER_KEEP
 
 from unittest import TestCase
 from opentracing.scope_managers.gevent import GeventScopeManager
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
 from .utils import silence_errors

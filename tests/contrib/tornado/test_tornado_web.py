@@ -7,7 +7,7 @@ from ddtrace.ext import http
 import pytest
 import tornado
 
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from ...utils import assert_span_http_status_code, assert_is_measured
 
 

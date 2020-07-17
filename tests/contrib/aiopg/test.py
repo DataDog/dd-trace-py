@@ -12,7 +12,7 @@ from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
 
 # testing
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio

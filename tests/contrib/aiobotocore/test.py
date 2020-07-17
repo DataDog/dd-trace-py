@@ -254,7 +254,7 @@ class AIOBotocoreTest(AsyncioTestCase):
 
     @mark_asyncio
     def test_opentraced_client(self):
-        from tests.opentracer.utils import init_tracer
+        from tests.opentracing.utils import init_tracer
 
         ot_tracer = init_tracer("my_svc", self.tracer)
 
@@ -287,7 +287,7 @@ class AIOBotocoreTest(AsyncioTestCase):
 
     @mark_asyncio
     def test_opentraced_s3_client(self):
-        from tests.opentracer.utils import init_tracer
+        from tests.opentracing.utils import init_tracer
 
         ot_tracer = init_tracer("my_svc", self.tracer)
 

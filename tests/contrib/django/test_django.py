@@ -11,7 +11,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.utils import get_wsgi_header
 
 from tests.base import BaseTestCase
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from ...util import assert_dict_issuperset
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")

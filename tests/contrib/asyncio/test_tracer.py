@@ -9,7 +9,7 @@ from ddtrace.provider import DefaultContextProvider
 from ddtrace.contrib.asyncio.patch import patch, unpatch
 from ddtrace.contrib.asyncio.helpers import set_call_context
 
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from .utils import AsyncioTestCase, mark_asyncio
 
 

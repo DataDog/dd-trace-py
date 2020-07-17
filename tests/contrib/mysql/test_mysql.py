@@ -8,7 +8,7 @@ from ddtrace.contrib.mysql.patch import patch, unpatch
 
 # tests
 from tests.contrib.config import MYSQL_CONFIG
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from ...base import BaseTracerTestCase
 from ...util import assert_dict_issuperset
 from ...utils import assert_is_measured

@@ -10,7 +10,7 @@ from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from ...base import BaseTracerTestCase
 from ...utils import assert_span_http_status_code, assert_is_measured
 

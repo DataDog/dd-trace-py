@@ -7,7 +7,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.celery import patch, unpatch
 from ddtrace.propagation.http import HTTPPropagator
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 
 from .base import CeleryBaseTestCase
 

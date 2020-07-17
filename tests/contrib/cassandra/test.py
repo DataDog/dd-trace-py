@@ -17,7 +17,7 @@ from ddtrace import config, Pin
 
 # testing
 from tests.contrib.config import CASSANDRA_CONFIG
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured

@@ -9,7 +9,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.requests import patch, unpatch
 from ddtrace.ext import errors, http
 
-from tests.opentracer.utils import init_tracer
+from tests.opentracing.utils import init_tracer
 
 from ...base import BaseTracerTestCase
 from ...util import override_global_tracer
