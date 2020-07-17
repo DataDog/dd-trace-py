@@ -386,4 +386,112 @@ suites = [
             ),
         ],
     ),
+    Suite(
+        name="aiobotocore",
+        command="pytest tests/contrib/aiobotocore",
+        cases=[
+            # aiobotocore 0.2 requires pinning
+            Case(pys=[3.5, 3.6], pkgs=[("aiobotocore", [">=0.2,<0.3",],), ("multidict", ["==4.5.2"])],),
+            # aiobotocore dropped Python 3.5 support in 0.12
+            Case(
+                pys=[3.5],
+                pkgs=[
+                    (
+                        "aiobotocore",
+                        [
+                            ">=0.2,<0.3",
+                            ">=0.3,<0.4",
+                            ">=0.4,<0.5",
+                            ">=0.5,<0.6",
+                            ">=0.6,<0.7",
+                            ">=0.7,<0.8",
+                            ">=0.8,<0.9",
+                            ">=0.9,<0.10",
+                            ">=0.10,<0.11",
+                            ">=0.11,<0.12",
+                        ],
+                    )
+                ],
+            ),
+            Case(
+                pys=[3.6],
+                pkgs=[
+                    (
+                        "aiobotocore",
+                        [
+                            ">=0.2,<0.3",
+                            ">=0.3,<0.4",
+                            ">=0.4,<0.5",
+                            ">=0.5,<0.6",
+                            ">=0.6,<0.7",
+                            ">=0.7,<0.8",
+                            ">=0.8,<0.9",
+                            ">=0.9,<0.10",
+                            ">=0.10,<0.11",
+                            ">=0.11,<0.12",
+                            ">=0.12,<0.13",
+                        ],
+                    )
+                ],
+            ),
+            # aiobotocore 0.2 and 0.4 do not work because they use async as a reserved keyword
+            Case(
+                pys=[3.7, 3.8],
+                pkgs=[
+                    (
+                        "aiobotocore",
+                        [
+                            ">=0.3,<0.4",
+                            ">=0.5,<0.6",
+                            # !!! tox didn't include 0.6 test
+                            ">=0.6,<0.7",
+                            ">=0.7,<0.8",
+                            ">=0.8,<0.9",
+                            ">=0.9,<0.10",
+                            ">=0.10,<0.11",
+                            ">=0.11,<0.12",
+                            ">=0.12,<0.13",
+                        ],
+                    )
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="aiohttp",
+        command="pytest tests/contrib/aiohttp",
+        cases=[
+            Case(
+                pys=[3.5, 3.6],
+                pkgs=[
+                    ("aiohttp", [">=1.2,<1.3", ">=1.3,<1.4", ">=2.0,<2.1", ">=2.2,<2.3"]),
+                    ("aiohttp_jinja2", [">=0.12,<0.13", ">=0.13,<0.14"]),
+                    # force the downgrade as a workaround
+                    # https://github.com/aio-libs/aiohttp/issues/2662
+                    ("yarl", ["==0.18.0"]),
+                ],
+            ),
+            Case(
+                pys=[3.5, 3.6, 3.7, 3.8],
+                pkgs=[("aiohttp", [">=2.3,<2.4"]), ("aiohttp_jinja2", [">=0.15,<0.16"]), ("yarl", [">=1.0,<1.1"]),],
+            ),
+            Case(
+                pys=[3.5, 3.6, 3.7],
+                pkgs=[
+                    ("aiohttp", [">=3.0,<3.1", ">=3.1,<3.2", ">=3.2,<3.3", ">=3.3,<3.4", ">=3.5,<3.6", ">=3.6,<3.7"]),
+                    ("aiohttp_jinja2", [">=0.15,<0.16"]),
+                    ("yarl", [">=1.0,<1.1"]),
+                ],
+            ),
+            Case(
+                pys=[3.8],
+                pkgs=[
+                    ("aiohttp", [">=3.0,<3.1", ">=3.1,<3.2", ">=3.2,<3.3", ">=3.3,<3.4", ">=3.6,<3.7"]),
+                    ("aiohttp_jinja2", [">=0.15,<0.16"]),
+                    ("yarl", [">=1.0,<1.1"]),
+                ],
+            ),
+        ],
+        # Python 3.7 needs at least aiohttp 2.3
+    ),
 ]

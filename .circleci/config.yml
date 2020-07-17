@@ -394,8 +394,8 @@ jobs:
   aiohttp:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^aiohttp_contrib-'
+      - run_test:
+          pattern: "aiohttp"
 
   tornado:
     executor: ddtrace_dev
@@ -643,8 +643,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *moto_image
     steps:
-      - run_tox_scenario:
-          pattern: '^aiobotocore_contrib'
+      - run_test:
+          pattern: "aiobotocore"
 
   aiopg:
     executor: ddtrace_dev
@@ -856,8 +856,8 @@ workflows:
       # - build_wheels: *requires_pre_test
 
       # Integration test suites
-      # - aiobotocore: *requires_pre_test
-      # - aiohttp: *requires_pre_test
+      - aiobotocore: *requires_pre_test
+      - aiohttp: *requires_pre_test
       # - aiopg: *requires_pre_test
       # - asyncio: *requires_pre_test
       # - algoliasearch: *requires_pre_test
