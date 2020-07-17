@@ -12,15 +12,13 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace.ext import system
 from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
+from ddtrace.ext import system
+from ddtrace.internal.writer import LogWriter, AgentWriter
 
 from tests.subprocesstest import run_in_subprocess
-from tests.base import BaseTracerTestCase
-from tests.utils.tracer import DummyTracer
-from tests.utils.tracer import DummyWriter  # noqa
-from ddtrace.internal.writer import LogWriter, AgentWriter
+from tests.base import BaseTracerTestCase, DummyTracer, DummyWriter
 
 
 class TracerTestCase(BaseTracerTestCase):

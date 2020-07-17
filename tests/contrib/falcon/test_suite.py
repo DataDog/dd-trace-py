@@ -3,7 +3,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracing.utils import init_tracer
-from ...utils import assert_span_http_status_code, assert_is_measured
+from tests.base import assert_span_http_status_code, assert_is_measured
 
 
 class FalconTestCase(object):

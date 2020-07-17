@@ -6,7 +6,7 @@ from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
 
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 SERVICE = 'bottle-app'
 

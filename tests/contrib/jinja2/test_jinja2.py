@@ -5,9 +5,9 @@ import jinja2
 
 from ddtrace import Pin, config
 from ddtrace.contrib.jinja2 import patch, unpatch
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured, assert_is_not_measured
+from tests.base import assert_is_measured, assert_is_not_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')

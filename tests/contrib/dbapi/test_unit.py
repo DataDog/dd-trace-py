@@ -5,7 +5,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ddtrace.span import Span
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured, assert_is_not_measured
+from tests.base import assert_is_measured, assert_is_not_measured
 
 
 class TestTracedCursor(BaseTracerTestCase):

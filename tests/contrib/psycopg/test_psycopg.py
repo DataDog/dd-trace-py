@@ -18,8 +18,8 @@ from ddtrace import Pin
 from tests.opentracing.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
-from ...utils.tracer import DummyTracer
+from tests.base import assert_is_measured
+from tests.base.tracer import DummyTracer
 
 
 if PSYCOPG2_VERSION >= (2, 7):

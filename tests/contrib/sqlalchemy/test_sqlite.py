@@ -4,7 +4,7 @@ from sqlalchemy.exc import OperationalError
 
 from .mixins import SQLAlchemyTestMixin
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):

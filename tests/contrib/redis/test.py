@@ -8,9 +8,8 @@ from ddtrace.contrib.redis.patch import patch, unpatch
 
 from tests.opentracing.utils import init_tracer
 from ..config import REDIS_CONFIG
-from tests.dummy import DummyTracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import DummyTracer
+from tests.base import BaseTracerTestCase, assert_is_measured
 
 
 def test_redis_legacy():

@@ -15,8 +15,8 @@ from ddtrace.ext import mongo as mongox
 from tests.opentracing.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...base import BaseTracerTestCase, override_config
-from tests.dummy import DummyTracer
-from ...utils import assert_is_measured
+from tests.base import DummyTracer
+from tests.base import assert_is_measured
 
 
 class Artist(mongoengine.Document):

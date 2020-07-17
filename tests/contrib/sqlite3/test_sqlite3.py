@@ -13,7 +13,7 @@ from ddtrace.ext import errors
 # testing
 from tests.opentracing.utils import init_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured, assert_is_not_measured
+from tests.base import assert_is_measured, assert_is_not_measured
 
 
 class TestSQLite(BaseTracerTestCase):

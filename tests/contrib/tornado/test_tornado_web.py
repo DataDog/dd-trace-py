@@ -8,7 +8,7 @@ import pytest
 import tornado
 
 from tests.opentracing.utils import init_tracer
-from ...utils import assert_span_http_status_code, assert_is_measured
+from tests.base import assert_span_http_status_code, assert_is_measured
 
 
 class TestTornadoWeb(TornadoTestCase):

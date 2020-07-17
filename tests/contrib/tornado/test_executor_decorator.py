@@ -6,7 +6,7 @@ from ddtrace.ext import http
 from tornado import version_info
 
 from .utils import TornadoTestCase
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 
 class TestTornadoExecutor(TornadoTestCase):

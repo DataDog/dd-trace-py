@@ -1,7 +1,7 @@
 import pytest
 
 from ddtrace import Tracer
-from .test_tracer import DummyWriter
+from tests.base import DummyWriter
 
 
 @pytest.fixture

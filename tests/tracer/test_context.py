@@ -4,7 +4,7 @@ import mock
 import threading
 
 from tests.base import BaseTestCase
-from .test_tracer import DummyTracer
+from tests.base import DummyTracer
 
 import pytest
 

@@ -4,8 +4,8 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.dogpile_cache.patch import patch, unpatch
 
-from tests.test_tracer import DummyTracer
-from ...utils import assert_is_measured
+from tests.base import DummyTracer
+from tests.base import assert_is_measured
 
 
 @pytest.fixture

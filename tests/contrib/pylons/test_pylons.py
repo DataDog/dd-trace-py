@@ -12,7 +12,7 @@ from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracing.utils import init_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from tests.base import assert_span_http_status_code, assert_is_measured
 
 
 class PylonsTestCase(BaseTracerTestCase):

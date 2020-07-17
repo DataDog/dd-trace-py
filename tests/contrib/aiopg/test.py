@@ -14,10 +14,10 @@ from ddtrace import Pin
 # testing
 from tests.opentracing.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 from ...subprocesstest import run_in_subprocess
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG['port']

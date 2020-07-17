@@ -8,7 +8,7 @@ from ddtrace.contrib.kombu import utils
 from ddtrace.ext import kombu as kombux
 from ..config import RABBITMQ_CONFIG
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 class TestKombuPatch(BaseTracerTestCase):

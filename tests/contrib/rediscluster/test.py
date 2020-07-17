@@ -6,8 +6,8 @@ from ddtrace.contrib.rediscluster.patch import patch, unpatch
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
 from ...base import BaseTracerTestCase
-from tests.dummy import DummyTracer
-from ...utils import assert_is_measured
+from tests.base import DummyTracer
+from tests.base import assert_is_measured
 
 
 class TestRedisPatch(BaseTracerTestCase):

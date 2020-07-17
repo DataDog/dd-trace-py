@@ -7,7 +7,7 @@ import pytest
 from .mixins import SQLAlchemyTestMixin
 from ..config import POSTGRES_CONFIG
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):

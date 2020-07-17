@@ -1,7 +1,7 @@
 from ddtrace.ext import http
 
 from . import BaseFlaskTestCase
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 
 class FlaskStaticFileTestCase(BaseFlaskTestCase):

@@ -3,7 +3,7 @@ from tornado import template
 import pytest
 
 from .utils import TornadoTestCase
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 from ddtrace.ext import http
 

@@ -6,7 +6,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 
 from ..config import POSTGRES_CONFIG
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 class SQLAlchemyPatchTestCase(BaseTracerTestCase):

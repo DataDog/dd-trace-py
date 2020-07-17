@@ -14,8 +14,8 @@ from ddtrace.ext import errors
 from tests.base import BaseTracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracing.utils import init_tracer
-from tests.test_tracer import DummyTracer
-from ...utils import assert_is_measured
+from tests.base import DummyTracer
+from tests.base import assert_is_measured
 
 TEST_TABLE = 'test_table'
 

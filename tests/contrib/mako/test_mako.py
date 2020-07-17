@@ -8,9 +8,9 @@ from mako.runtime import Context
 from ddtrace import Pin
 from ddtrace.contrib.mako import patch, unpatch
 from ddtrace.compat import StringIO, to_unicode
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')

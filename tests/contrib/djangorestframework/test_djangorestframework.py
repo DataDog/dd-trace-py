@@ -1,7 +1,7 @@
 import django
 import pytest
 
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")

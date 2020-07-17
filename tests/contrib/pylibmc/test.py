@@ -16,7 +16,7 @@ from ddtrace.ext import memcached
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 class PylibmcCore(object):

@@ -9,7 +9,7 @@ from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from tests.base import assert_span_http_status_code, assert_is_measured
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced

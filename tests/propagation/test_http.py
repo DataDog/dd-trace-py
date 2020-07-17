@@ -1,5 +1,5 @@
 from unittest import TestCase
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 
 from ddtrace.propagation.http import (
     HTTPPropagator,

@@ -3,7 +3,7 @@ ensure old interfaces exist and won't break things.
 """
 import mongoengine
 
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 from tests.contrib import config
 
 

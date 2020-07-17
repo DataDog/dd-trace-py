@@ -11,7 +11,7 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracing.utils import init_tracer
 from .utils import TraceTestCase
 from .app.web import setup_app, noop_middleware
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 
 class TestTraceMiddleware(TraceTestCase):

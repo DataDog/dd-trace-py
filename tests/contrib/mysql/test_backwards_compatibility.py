@@ -1,6 +1,6 @@
 
 from ddtrace.contrib.mysql import get_traced_mysql_connection
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 from tests.contrib import config
 
 

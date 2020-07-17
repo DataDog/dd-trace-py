@@ -18,7 +18,7 @@ from tests.opentracing.utils import init_tracer
 
 from ...base import BaseTracerTestCase
 from ...util import override_global_tracer
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request

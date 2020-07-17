@@ -10,8 +10,7 @@ from ddtrace.ext import http, errors
 
 from tests.opentracing.utils import init_tracer
 from .web import create_app
-from tests.dummy import DummyTracer
-from ...utils import assert_span_http_status_code
+from tests.base import DummyTracer, assert_span_http_status_code
 
 
 class TestFlask(TestCase):

@@ -14,7 +14,7 @@ from tests.opentracing.utils import init_tracer
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
 from ...base import BaseTracerTestCase
 from ...util import assert_dict_issuperset
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 class FlaskCacheTest(BaseTracerTestCase):

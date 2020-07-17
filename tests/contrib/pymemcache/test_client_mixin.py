@@ -9,9 +9,9 @@ from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from ddtrace.ext import memcached as memcachedx, net
 from .utils import MockSocket
 
-from tests.test_tracer import DummyTracer
+from tests.base import DummyTracer
 from ...base import override_config
-from ...utils import assert_is_measured
+from tests.base import assert_is_measured
 
 
 _Client = pymemcache.client.base.Client

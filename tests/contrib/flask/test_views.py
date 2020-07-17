@@ -4,7 +4,7 @@ from ddtrace.compat import PY2
 from ddtrace.ext import http
 
 from . import BaseFlaskTestCase
-from ...utils import assert_span_http_status_code
+from tests.base import assert_span_http_status_code
 
 
 base_exception_name = 'builtins.Exception'
