@@ -212,7 +212,7 @@ suites = [
     ),
     Suite(
         name="opentracing",
-        command="pytest tests/opentracing/test_tracer.py tests/opentracing/test_span.py tests/opentracing/test_span_context.py tests/opentracing/test_dd_compatibility.py tests/opentracing/test_utils.py",
+        command="pytest tests/opentracing/core",
         cases=[Case(pys=[2.7, 3.5, 3.6, 3.7, 3.8,], pkgs=[],),],
     ),
     Suite(
