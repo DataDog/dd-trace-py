@@ -48,7 +48,6 @@ def patch():
         return
     setattr(sanic, "__datadog_patch", True)
     _w("sanic", "Sanic.handle_request", patch_handle_request)
-    _w("sanic", "Sanic.register_middleware", patch_register_middleware)
 
 
 def unpatch():
@@ -97,10 +96,3 @@ def patch_handle_request(wrapped, instance, args, kwargs):
         wrapped_args = [request, _wrap_write_response(write_callback), stream_callback]
 
         return wrapped(*wrapped_args, **kwargs)
-
-
-def patch_register_middleware(wrapped, instance, args, kwargs):
-    """Wrrapper for Sanic.register_middleware"""
-
-    # TODO: wrap middleware
-    wrapped(*args, **kwargs)
