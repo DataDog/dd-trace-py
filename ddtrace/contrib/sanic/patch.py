@@ -27,9 +27,9 @@ def _extract_tags_from_request(request):
     if http_url:
         tags[http.URL] = http_url
 
-    http_version = request.version
-    if http_version:
-        tags[http.VERSION] = http_version
+    # http_version = request.version
+    # if http_version:
+    #     tags[http.VERSION] = http_version
 
     query_string = None
     if config.sanic.trace_query_string:
