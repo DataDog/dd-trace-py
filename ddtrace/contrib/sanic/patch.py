@@ -34,7 +34,7 @@ def _extract_tags_from_request(request):
         tags[http.VERSION] = http_version
 
     # query_string = None
-    # if config.sanic.trace_query_string:
+    # if config.sanic.trace_query_string == True: # note: this is configurations that USER has to set so by default its False ..  
     #     query_string = request.query_string
     #     if isinstance(query_string, bytes):
     #         query_string = query_string.decode()
@@ -61,7 +61,7 @@ def unpatch():
     """Unpatch the instrumented methods.
     """
     _u(sanic.Sanic, "handle_request")
-    -u(sanic.Sanic, "register_middleware")
+    _u(sanic.Sanic, "register_middleware")
 
 
 def patch_handle_request(wrapped, instance, args, kwargs):
