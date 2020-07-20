@@ -9,8 +9,8 @@ Enable Sanic tracing automatically via ``ddtrace-run``::
 Sanic tracing can also be enabled manually::
 
     from ddtrace import patch_all
-    patch_all()
-    
+    patch_all(sanic=True)
+
     from sanic import Sanic
     from sanic.response import text
 
@@ -62,14 +62,12 @@ Example::
 
 .. __: https://sanic.readthedocs.io/en/latest/
 """
-
 from ...utils.importlib import require_modules
 
-
-required_modules = ['sanic']
+required_modules = ["sanic"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch, unpatch
 
-        __all__ = ['patch']
+        __all__ = ["patch", "unpatch"]
