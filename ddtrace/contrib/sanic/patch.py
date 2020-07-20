@@ -1,5 +1,5 @@
 from ddtrace import Pin, config
-from ddtrace import tracer
+import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
@@ -76,9 +76,9 @@ def patch_handle_request(wrapped, instance, args, kwargs):
         propagator = HTTPPropagator()
         context = propagator.extract(headers)
         if context.trace_id:
-            tracer.context_provider.activate(context)
+            ddtrace.tracer.context_provider.activate(context)
 
-    with tracer.trace("sanic.request", service=config.sanic.service, resource=resource, span_type=SpanTypes.WEB) as span:
+    with ddtrace.tracer.trace("sanic.request", service=config.sanic.service, resource=resource, span_type=SpanTypes.WEB) as span:
         sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)

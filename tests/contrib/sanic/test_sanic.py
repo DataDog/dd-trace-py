@@ -10,20 +10,21 @@ from sanic.response import json
 
 
 @pytest.fixture
-def app(tracer):
-    patch()
-    app = Sanic(__name__)
-    yield app
-    unpatch()
-
-
-@pytest.fixture
 def tracer():
     original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
     setattr(ddtrace, "tracer", tracer)
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
+
+
+@pytest.fixture
+def app(tracer):
+    patch()
+    app = Sanic(__name__)
+    yield app
+    unpatch()
+
 
 
 def test_basic_app(app, tracer):
