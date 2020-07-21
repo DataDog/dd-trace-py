@@ -27,10 +27,6 @@ def _extract_tags_from_request(request):
     if http_url:
         tags[http.URL] = http_url
 
-    # http_version = request.version
-    # if http_version:
-    #     tags[http.VERSION] = http_version
-
     query_string = None
     if config.sanic.trace_query_string:
         query_string = request.query_string
@@ -40,6 +36,11 @@ def _extract_tags_from_request(request):
 
     return tags
 
+
+def _update_span_from_response(span, response):
+    span.set_tag(http.STATUS_CODE, response.status)
+    store_response_headers(response.headers, span, config.sanic)
+   
 
 def patch():
     """Patch the instrumented methods.
@@ -84,15 +85,27 @@ def patch_handle_request(wrapped, instance, args, kwargs):
 
         store_request_headers(headers, span, config.sanic)
 
-        # TODO: add support for tagging status code for streaming response
-        def _wrap_write_response(func):
-            def traced_write_response(response):
-                span.set_tag(http.STATUS_CODE, response.status)
-                store_response_headers(response.headers, span, config.sanic)
-                return func(response)
 
-            return traced_write_response
+        # wrap response callbacks to set span tags based on response
+        def _wrap_sync_response_callback(func):
+            def traced_func(response):
+                func(response)
+                _update_span_from_response(span, response)
 
-        wrapped_args = [request, _wrap_write_response(write_callback), stream_callback]
+            return traced_func
 
-        return wrapped(*wrapped_args, **kwargs)
+        def _wrap_async_response_callback(func):
+            async def traced_func(response):
+                if isinstance(response, sanic.response.StreamingHTTPResponse):
+                    await func(response)
+                    _update_span_from_response(span, response)
+
+            return traced_func
+
+        # skip wrapping if callback is None
+        if write_callback is not None:
+            write_callback = _wrap_sync_response_callback(write_callback)
+        if stream_callback is not None:
+            stream_callback = _wrap_async_response_callback(stream_callback)
+
+        return wrapped(request, write_callback, stream_callback, **kwargs)
