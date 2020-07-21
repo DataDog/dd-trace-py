@@ -1,5 +1,4 @@
 import datetime
-import json
 import logging
 import os
 import pkg_resources
@@ -172,7 +171,3 @@ def collect(tracer):
         tracer_tags=tags_to_str(tracer.tags),
         integrations=integration_configs,
     )
-
-
-def to_json(debug_info):
-    return json.dumps(debug_info)

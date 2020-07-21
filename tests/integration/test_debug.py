@@ -178,8 +178,20 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        # Python 2 logs will go to stdout directly
+        # Python 2 logs will go to stdout directly since there's no log handler
         if ddtrace.compat.PY3:
+            assert tracer.log.log.mock_calls == [
+                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
+                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
+            ]
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    def test_tracer_loglevel_info_no_connection_py2_handler(self):
+        tracer = ddtrace.Tracer()
+        tracer.log = mock.MagicMock()
+        logging.basicConfig()
+        tracer.configure()
+        if ddtrace.compat.PY2:
             assert tracer.log.log.mock_calls == [
                 mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
                 mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
@@ -210,9 +222,7 @@ class TestGlobalConfig(SubprocessTestCase):
 
 def test_to_json():
     info = debug.collect(ddtrace.tracer)
-    js = debug.to_json(info)
-
-    assert json.loads(js) == info
+    json.dumps(info)
 
 
 def test_agentless(monkeypatch):

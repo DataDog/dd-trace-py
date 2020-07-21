@@ -1,5 +1,6 @@
 import functools
 import logging
+import json
 from os import environ, getpid
 import sys
 
@@ -9,7 +10,7 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal import debug
-from .internal.logger import get_logger
+from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .internal import _rand
@@ -338,7 +339,7 @@ class Tracer(object):
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
                 if self.log.isEnabledFor(logging.INFO):
-                    msg = "- DATADOG TRACER CONFIGURATION - %s" % debug.to_json(info)
+                    msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
                     self._log_compat(logging.INFO, msg)
 
                 agent_error = info.get("agent_error")
@@ -572,7 +573,7 @@ class Tracer(object):
         to import the tracer as early as possible, it will likely be the case
         that there are no handlers installed yet.
         """
-        if compat.PY2 and not self.log.handlers:
+        if compat.PY2 and not hasHandlers(self.log):
             sys.stderr.write("%s\n" % msg)
         else:
             self.log.log(level, msg)
