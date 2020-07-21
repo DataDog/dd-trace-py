@@ -28,10 +28,6 @@ def app(tracer):
     unpatch()
 
 
-def error_app(app, tracer):
-    raise RuntimeError("Test")
-
-
 def test_basic_app(app, tracer):
     """Test Sanic Patching"""
 
@@ -106,7 +102,7 @@ def test_distributed_tracing(app, tracer):
     assert request_span.trace_id == 5678
 
 
-def test_streaming(app, tracer):
+def test_streaming_response(app, tracer):
     @app.route("/")
     async def test(request):
         async def sample_streaming_fn(response):
