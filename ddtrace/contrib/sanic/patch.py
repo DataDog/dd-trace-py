@@ -39,8 +39,10 @@ def _extract_tags_from_request(request):
 
 def _update_span_from_response(span, response):
     span.set_tag(http.STATUS_CODE, response.status)
+    if 500 <= response.status < 600:
+        span.error = 1
     store_response_headers(response.headers, span, config.sanic)
-
+    
 
 def patch():
     """Patch the instrumented methods.
@@ -55,15 +57,9 @@ def unpatch():
     """Unpatch the instrumented methods.
     """
     _u(sanic.Sanic, "handle_request")
-<<<<<<< HEAD
     if not getattr(sanic, '__datadog_patch', False):
         return
     setattr(sanic, '__datadog_patch', False)
-=======
-    if not getattr(sanic, "__datadog_patch", False):
-        return
-    setattr(sanic, "__datadog_patch", False)
->>>>>>> e6e2b1131cce86ca376648c2504ebbf2efb85228
 
 
 def patch_handle_request(wrapped, instance, args, kwargs):
@@ -91,7 +87,8 @@ def patch_handle_request(wrapped, instance, args, kwargs):
         tags = _extract_tags_from_request(request=request)
         span.set_tags(tags)
 
-        store_request_headers(headers, span, config.sanic)
+        store_request_headers(headers, span, config.sanic)        
+
 
         # wrap response callbacks to set span tags based on response
         def _wrap_sync_response_callback(func):

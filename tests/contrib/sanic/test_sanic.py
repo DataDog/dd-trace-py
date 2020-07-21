@@ -127,6 +127,7 @@ def test_streaming_response(app, tracer):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
 
+
 def test_error_app(app, tracer):
     @app.route("/")
     async def test(request):
@@ -141,16 +142,16 @@ def test_error_app(app, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
-    # assert request_span.error == 1
+    assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "404"
-    
+ 
 
 def test_exception(app, tracer):
     @app.route('/')
-    async def i_am_ready_to_die(request):
+    async def test(request):
         raise ServerError("Something bad happened", status_code=500)
 
     request, response = app.test_client.get("/")
@@ -162,11 +163,8 @@ def test_exception(app, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
-    # assert request_span.error == 1
+    assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
-
-    assert request_span.get_tag("error.msg") == ""
-    assert request_span.get_tag("error.type") == ""
