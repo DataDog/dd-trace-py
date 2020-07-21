@@ -2,6 +2,7 @@ import re
 
 import pytest
 from sanic import Sanic
+from sanic.exceptions import ServerError
 from sanic.response import json, stream
 
 import ddtrace
@@ -125,3 +126,47 @@ def test_streaming_response(app, tracer):
     assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
+
+def test_error_app(app, tracer):
+    @app.route("/")
+    async def test(request):
+        return json({"hello": "world"})
+
+    request, response = app.test_client.get("/error")
+    assert response.status == 404
+    assert b"not found" in response.body
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    # assert request_span.error == 1
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "404"
+    
+
+def test_exception(app, tracer):
+    @app.route('/')
+    async def i_am_ready_to_die(request):
+        raise ServerError("Something bad happened", status_code=500)
+
+    request, response = app.test_client.get("/")
+    assert response.status == 500
+    assert b"Something bad happened" in response.body
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    # assert request_span.error == 1
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "500"
+
+    assert request_span.get_tag("error.msg") == ""
+    assert request_span.get_tag("error.type") == ""
