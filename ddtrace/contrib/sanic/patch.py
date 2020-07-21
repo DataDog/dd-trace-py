@@ -55,7 +55,9 @@ def unpatch():
     """Unpatch the instrumented methods.
     """
     _u(sanic.Sanic, "handle_request")
-    _u(sanic.Sanic, "register_middleware")
+    if not getattr(sanic, '__datadog_patch', False):
+        return
+    setattr(sanic, '__datadog_patch', False)
 
 
 def patch_handle_request(wrapped, instance, args, kwargs):
