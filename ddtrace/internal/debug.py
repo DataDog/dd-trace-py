@@ -43,7 +43,11 @@ def ping_agent(api=None, hostname=None, port=None, uds_path=None):
 def in_venv():
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
-    return "VIRTUAL_ENV" in os.environ or hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
+    return (
+        "VIRTUAL_ENV" in os.environ
+        or hasattr(sys, "real_prefix")
+        or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
+    )
 
 
 def tags_to_str(tags):
@@ -135,7 +139,7 @@ def collect(tracer):
 
     return dict(
         # Timestamp UTC ISO 8601
-        date=str(datetime.datetime.utcnow().isoformat()),
+        date=datetime.datetime.utcnow().isoformat(),
         # eg. "Linux", "Darwin"
         os_name=platform.system(),
         # eg. 12.5.0

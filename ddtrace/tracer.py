@@ -18,7 +18,7 @@ from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
-from .utils.formats import get_env
+from .utils.formats import asbool, get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
@@ -330,22 +330,21 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        info = debug.collect(self)
-        if self.log.isEnabledFor(logging.INFO) and environ.get("DD_TRACE_STARTUP_LOGS") != "0":
-            self.log.info("- DATADOG TRACER CONFIGURATION - %s", debug.to_json(info))
-
-        agent_error = info.get("agent_error")
-        if agent_error:
-            msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
-            # Python 2 will not submit logs to stderr if no handler is configured.
-            # Instead, we'll get something like this printed to stderr:
-            #   No handlers could be found for logger "ddtrace.tracer"
-            # Since the global tracer is configured on import it will likely be
-            # the case that there are no handlers installed yet.
-            if compat.PY2 and not self.log.handlers:
-                sys.stderr.write("%s\n" % msg)
+        if asbool(environ.get("DD_TRACE_STARTUP_LOGS") or True):
+            try:
+                info = debug.collect(self)
+            except Exception as e:
+                msg = "Failed to collect start-up logs: %s" % e
+                self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
-                self.log.warning(msg)
+                if self.log.isEnabledFor(logging.INFO):
+                    msg = "- DATADOG TRACER CONFIGURATION - %s" % debug.to_json(info)
+                    self._log_compat(logging.INFO, msg)
+
+                agent_error = info.get("agent_error")
+                if agent_error:
+                    msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
+                    self._log_compat(logging.WARNING, msg)
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
@@ -560,6 +559,23 @@ class Tracer(object):
         self.writer = self.writer.recreate()
 
         return new_ctx
+
+    def _log_compat(self, level, msg):
+        """Logs a message for the given level.
+
+        Python 2 will not submit logs to stderr if no handler is configured.
+
+        Instead, something like this will be printed to stderr:
+            No handlers could be found for logger "ddtrace.tracer"
+
+        Since the global tracer is configured on import and it is recommended
+        to import the tracer as early as possible, it will likely be the case
+        that there are no handlers installed yet.
+        """
+        if compat.PY2 and not self.log.handlers:
+            sys.stderr.write("%s\n" % msg)
+        else:
+            self.log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

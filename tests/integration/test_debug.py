@@ -14,6 +14,16 @@ from ddtrace.internal import debug
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 
 
+def re_matcher(pattern):
+    pattern = re.compile(pattern)
+
+    class Match:
+        def __eq__(self, other):
+            return pattern.match(other)
+
+    return Match()
+
+
 def test_standard_tags():
     f = debug.collect(ddtrace.tracer)
 
@@ -106,10 +116,8 @@ def test_debug_post_configure():
     # Error code can differ between Python version
     assert re.match("^Agent not reachable.*Connection refused", agent_error)
 
-    # DEV: Tracer doesn't support re-configure()-ing with a UDS after an
-    # initial configure with normal http settings.
-    # tracer.configure(uds_path="/file.sock"))
-
+    # Tracer doesn't support re-configure()-ing with a UDS after an initial
+    # configure with normal http settings. So we need a new tracer instance.
     tracer = ddtrace.Tracer()
     tracer.configure(uds_path="/file.sock")
 
@@ -163,32 +171,33 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.info.call_count == 1
-        assert tracer.log.error.call_count == 0
+        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
     def test_tracer_loglevel_info_no_connection(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.info.call_count == 1
-        assert tracer.log.error.call_count == 1
+        # Python 2 logs will go to stdout directly
+        if ddtrace.compat.PY3:
+            assert tracer.log.log.mock_calls == [
+                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
+                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
+            ]
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="0",))
     def test_tracer_log_disabled_error(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.info.call_count == 0
-        assert tracer.log.error.call_count == 1
+        assert tracer.log.log.mock_calls == []
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126", DD_TRACE_STARTUP_LOGS="0",))
     def test_tracer_log_disabled(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.info.call_count == 0
-        assert tracer.log.error.call_count == 0
+        assert tracer.log.log.mock_calls == []
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126",))
     def test_tracer_info_level_log(self):
@@ -196,8 +205,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.info.call_count == 1
-        assert tracer.log.error.call_count == 0
+        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
 
 
 def test_to_json():
