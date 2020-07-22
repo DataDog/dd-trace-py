@@ -130,3 +130,7 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
+   * - ``DD_TRACE_STARTUP_LOGS``
+     - Boolean
+     - True
+     - Enable or disable start up diagnostic logging.

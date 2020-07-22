@@ -77,6 +77,7 @@ class TestWorkers(TestCase):
         """
         Helper that waits for the thread flush
         """
+        self.tracer.writer.flush_queue()
         self.tracer.writer.stop()
         self.tracer.writer.join(None)
 
