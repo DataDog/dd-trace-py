@@ -179,7 +179,7 @@ def configure_from_settings(pin, config, settings):
             setattr(config, config_key, settings[setting_key])
 
     # re-configure tracer
-    if "TRACE" in settings:
+    if "TRACER" in settings:
         pin.tracer = settings["TRACER"]
 
     if "TAGS" in settings:
