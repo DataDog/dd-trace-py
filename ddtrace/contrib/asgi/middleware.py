@@ -7,12 +7,14 @@ from ddtrace.settings import config
 from ddtrace.vendor.six.moves import urllib
 
 from ...internal.logger import get_logger
-from .constants import ASGI_SPEC_VERSION, ASGI_VERSION
 from .utils import guarantee_single_callable
 
 log = get_logger(__name__)
 
 config._add("asgi", dict(service_name=config._get_service(default="asgi"), distributed_tracing=True,))
+
+ASGI_VERSION = "asgi.version"
+ASGI_SPEC_VERSION = "asgi.spec_version"
 
 
 def _extract_tags_from_scope(scope):
