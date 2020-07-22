@@ -178,7 +178,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        # Python 2 logs will go to stdout directly since there's no log handler
+        # Python 2 logs will go to stderr directly since there's no log handler
         if ddtrace.compat.PY3:
             assert tracer.log.log.mock_calls == [
                 mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
