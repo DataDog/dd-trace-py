@@ -29,7 +29,6 @@ def _extract_tags_from_request(request):
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
         tags[http.QUERY_STRING] = query_string
-        tags[http.URL] = request.url
 
     return tags
 
@@ -61,8 +60,9 @@ def unpatch():
 
 def patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
-
-    request, write_callback, stream_callback = args
+    request = kwargs.get('request', args[0])
+    write_callback = kwargs.get('write_callback', args[1])
+    stream_callback = kwargs.get('stream_callback', args[2])
 
     resource = "{} {}".format(request.method, request.path)
 
