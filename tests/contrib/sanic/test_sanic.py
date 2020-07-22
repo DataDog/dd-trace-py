@@ -71,7 +71,7 @@ def test_query_string(app, tracer):
         assert request_span.name == "sanic.request"
         assert request_span.error == 0
         assert request_span.get_tag("http.method") == "GET"
-        assert re.match("http://127.0.0.1:\\d+/[?]foo=bar", request_span.get_tag("http.url"))
+        assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
         assert request_span.get_tag("http.status_code") == "200"
         assert request_span.get_tag("http.query.string") == "foo=bar"
 

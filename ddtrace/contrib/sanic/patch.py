@@ -18,14 +18,10 @@ config._add("sanic", dict(service=config._get_service(default="sanic"), distribu
 
 def _extract_tags_from_request(request):
     tags = {}
+    tags[http.METHOD] = request.method
 
-    http_method = request.method
-    if http_method:
-        tags[http.METHOD] = http_method
-
-    http_url = request.url
-    if http_url:
-        tags[http.URL] = http_url
+    url = '{scheme}://{host}{path}'.format(scheme=request.scheme, host=request.host, path=request.path)
+    tags[http.URL] = url
 
     query_string = None
     if config.sanic.trace_query_string:
@@ -33,6 +29,7 @@ def _extract_tags_from_request(request):
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
         tags[http.QUERY_STRING] = query_string
+        tags[http.URL] = request.url
 
     return tags
 
@@ -42,7 +39,7 @@ def _update_span_from_response(span, response):
     if 500 <= response.status < 600:
         span.error = 1
     store_response_headers(response.headers, span, config.sanic)
-    
+
 
 def patch():
     """Patch the instrumented methods.
@@ -69,7 +66,7 @@ def patch_handle_request(wrapped, instance, args, kwargs):
 
     resource = "{} {}".format(request.method, request.path)
 
-    headers = {k: v for (k, v) in request.headers.items()}
+    headers = request.headers.copy()
 
     if config.sanic.distributed_tracing:
         propagator = HTTPPropagator()
@@ -93,20 +90,21 @@ def patch_handle_request(wrapped, instance, args, kwargs):
         # wrap response callbacks to set span tags based on response
         def _wrap_sync_response_callback(func):
             def traced_func(response):
-                func(response)
+                r = func(response)
                 _update_span_from_response(span, response)
+                return r
 
             return traced_func
 
         def _wrap_async_response_callback(func):
             async def traced_func(response):
                 if isinstance(response, sanic.response.StreamingHTTPResponse):
-                    await func(response)
+                    r = await func(response)
                     _update_span_from_response(span, response)
+                    return r
 
             return traced_func
 
-        # skip wrapping if callback is None
         if write_callback is not None:
             write_callback = _wrap_sync_response_callback(write_callback)
         if stream_callback is not None:
