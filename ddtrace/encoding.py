@@ -42,14 +42,6 @@ class _EncoderBase(object):
         raise NotImplementedError
 
     @staticmethod
-    def decode(data):
-        """
-        Defines the underlying format used during traces or services encoding.
-        This method must be implemented and should only be used by the internal functions.
-        """
-        raise NotImplementedError
-
-    @staticmethod
     def join_encoded(objs):
         """Helper used to join a list of encoded objects into an encoded list of objects"""
         raise NotImplementedError
@@ -61,10 +53,6 @@ class JSONEncoder(_EncoderBase):
     @staticmethod
     def encode(obj):
         return json.dumps(obj)
-
-    @staticmethod
-    def decode(data):
-        return json.loads(data)
 
     @staticmethod
     def join_encoded(objs):

@@ -1,4 +1,5 @@
 import os
+import platform
 import sys
 
 from setuptools import setup, find_packages, Extension
@@ -100,16 +101,18 @@ def get_exts_for(name):
         return []
 
 
-if sys.platform == "win32":
-    encoding_libraries = ["ws2_32"]
-else:
-    encoding_libraries = []
-
-
 if sys.byteorder == "big":
     encoding_macros = [("__BIG_ENDIAN__", "1")]
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
+
+
+if platform.uname()[0] != "Windows":
+    encoding_libraries = ["ws2_32"]
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+else:
+    encoding_libraries = []
+    extra_compile_args = []
 
 
 # Base `setup()` kwargs without any C-extension registering
@@ -171,10 +174,13 @@ setup(
                     define_macros=encoding_macros,
                 ),
                 Cython.Distutils.Extension(
+                    "ddtrace.internal._queue", sources=["ddtrace/internal/_queue.pyx"], language="c",
+                ),
+                Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
                     sources=["ddtrace/profiling/collector/stack.pyx"],
                     language="c",
-                    extra_compile_args=["-DPy_BUILD_CORE"],
+                    extra_compile_args=extra_compile_args,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._traceback",

@@ -639,6 +639,9 @@ API
 
 ``Pin``
 ^^^^^^^
+
+.. _Pin:
+
 .. autoclass:: ddtrace.Pin
     :members:
     :special-members: __init__
@@ -649,6 +652,8 @@ API
 ^^^^^^^^^^^^^
 
 .. autofunction:: ddtrace.monkey.patch_all
+
+.. _patch:
 
 ``patch``
 ^^^^^^^^^

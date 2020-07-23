@@ -1,12 +1,10 @@
 import time
 
-import pytest
-
 import mock
 
 from ddtrace.span import Span
 from ddtrace.api import API
-from ddtrace.internal.writer import AgentWriter, LogWriter, Q, Empty
+from ddtrace.internal.writer import AgentWriter, LogWriter
 from ..base import BaseTestCase
 
 
@@ -228,28 +226,3 @@ class LogWriterTests(BaseTestCase):
         self.create_writer([filtr])
         self.assertEqual(len(self.output.entries), 0)
         self.assertEqual(filtr.filtered_traces, self.N_TRACES)
-
-
-def test_queue_full():
-    q = Q(maxsize=3)
-    q.put([1])
-    q.put(2)
-    q.put([3])
-    q.put([4, 4])
-    assert list(q.queue) == [[1], 2, [4, 4]] or list(q.queue) == [[1], [4, 4], [3]] or list(q.queue) == [[4, 4], 2, [3]]
-    assert q.dropped == 1
-    assert q.accepted == 4
-    assert q.accepted_lengths == 5
-    dropped, accepted, accepted_lengths = q.reset_stats()
-    assert dropped == 1
-    assert accepted == 4
-    assert accepted_lengths == 5
-
-
-def test_queue_get():
-    q = Q(maxsize=3)
-    q.put(1)
-    q.put(2)
-    assert list(q.get()) == [1, 2]
-    with pytest.raises(Empty):
-        q.get(block=False)

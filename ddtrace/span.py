@@ -3,7 +3,7 @@ import sys
 import traceback
 
 from .vendor import six
-from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer, getrandbits
+from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
 from .constants import (
     NUMERIC_TAGS,
     MANUAL_DROP_KEY,
@@ -15,6 +15,7 @@ from .constants import (
 )
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
+from .internal import _rand
 
 log = get_logger(__name__)
 
@@ -56,6 +57,7 @@ class Span(object):
         parent_id=None,
         start=None,
         context=None,
+        _check_pid=True,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -91,8 +93,8 @@ class Span(object):
         self.duration_ns = None
 
         # tracing
-        self.trace_id = trace_id or getrandbits(64)
-        self.span_id = span_id or getrandbits(64)
+        self.trace_id = trace_id or _rand.rand64bits(check_pid=_check_pid)
+        self.span_id = span_id or _rand.rand64bits(check_pid=_check_pid)
         self.parent_id = parent_id
         self.tracer = tracer
 

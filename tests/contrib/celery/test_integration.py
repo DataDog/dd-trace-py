@@ -1,15 +1,15 @@
+import pytest
+
 import celery
 from celery.exceptions import Retry
-
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.celery import patch, unpatch
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.propagation.http import HTTPPropagator
+from tests.opentracer.utils import init_tracer
 
 from .base import CeleryBaseTestCase
-
-from tests.opentracer.utils import init_tracer
 
 
 class MyException(Exception):
@@ -27,11 +27,13 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         def fn_task():
             return 42
 
-        for x in range(100):
-            fn_task.delay()
+        results = [fn_task.delay() for _ in range(100)]
+
+        for result in results:
+            assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
         traces = self.tracer.writer.pop_traces()
-        assert 100 == len(traces)
+        assert len(traces) == (200 if self.ASYNC_USE_CELERY_FIXTURES else 100)
 
     def test_idempotent_patch(self):
         # calling patch() twice doesn't have side effects
@@ -147,21 +149,37 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             return (user, force_logout)
 
         t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
-        assert "PENDING" == t.status
+        assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 1 == len(traces[0])
-        span = traces[0][0]
 
-        self.assert_is_measured(span)
-        assert span.error == 0
-        assert span.name == "celery.apply"
-        assert span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
-        assert span.service == "celery-producer"
-        assert span.get_tag("celery.id") == t.task_id
-        assert span.get_tag("celery.action") == "apply_async"
-        assert span.get_tag("celery.routing_key") == "celery"
+        if self.ASYNC_USE_CELERY_FIXTURES:
+            assert 2 == len(traces)
+            assert 1 == len(traces[0])
+            assert 1 == len(traces[1])
+            async_span = traces[0][0]
+            run_span = traces[1][0]
+
+            self.assert_is_measured(async_span)
+            assert async_span.error == 0
+            assert async_span.name == "celery.apply"
+            assert async_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+            assert async_span.service == "celery-producer"
+            assert async_span.get_tag("celery.id") == t.task_id
+            assert async_span.get_tag("celery.action") == "apply_async"
+            assert async_span.get_tag("celery.routing_key") == "celery"
+        else:
+            assert 1 == len(traces)
+            assert 1 == len(traces[0])
+            run_span = traces[0][0]
+
+        self.assert_is_measured(run_span)
+        assert run_span.error == 0
+        assert run_span.name == "celery.run"
+        assert run_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+        assert run_span.service == "celery-worker"
+        assert run_span.get_tag("celery.id") == t.task_id
+        assert run_span.get_tag("celery.action") == "run"
 
     def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
@@ -170,21 +188,37 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             return (user, force_logout)
 
         t = fn_task_parameters.delay("user", force_logout=True)
-        assert "PENDING" == t.status
+        assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 1 == len(traces[0])
-        span = traces[0][0]
 
-        self.assert_is_measured(span)
-        assert span.error == 0
-        assert span.name == "celery.apply"
-        assert span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
-        assert span.service == "celery-producer"
-        assert span.get_tag("celery.id") == t.task_id
-        assert span.get_tag("celery.action") == "apply_async"
-        assert span.get_tag("celery.routing_key") == "celery"
+        if self.ASYNC_USE_CELERY_FIXTURES:
+            assert 2 == len(traces)
+            assert 1 == len(traces[0])
+            assert 1 == len(traces[1])
+            async_span = traces[0][0]
+            run_span = traces[1][0]
+
+            self.assert_is_measured(async_span)
+            assert async_span.error == 0
+            assert async_span.name == "celery.apply"
+            assert async_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+            assert async_span.service == "celery-producer"
+            assert async_span.get_tag("celery.id") == t.task_id
+            assert async_span.get_tag("celery.action") == "apply_async"
+            assert async_span.get_tag("celery.routing_key") == "celery"
+        else:
+            assert 1 == len(traces)
+            assert 1 == len(traces[0])
+            run_span = traces[0][0]
+
+        self.assert_is_measured(run_span)
+        assert run_span.error == 0
+        assert run_span.name == "celery.run"
+        assert run_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+        assert run_span.service == "celery-worker"
+        assert run_span.get_tag("celery.id") == t.task_id
+        assert run_span.get_tag("celery.action") == "run"
 
     def test_fn_exception(self):
         # it should catch exceptions in task functions
@@ -410,15 +444,25 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         # Ensure producer service name can be changed via
         # configuration object
-        with self.override_config("celery", dict(producer_service_name="task-queue")):
+        with self.override_config("celery", dict(producer_service_name="task-queue", worker_service_name="task-queue")):
             t = fn_task.delay()
-            self.assertEqual("PENDING", t.status)
+            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
             traces = self.tracer.writer.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.service, "task-queue")
+
+            if self.ASYNC_USE_CELERY_FIXTURES:
+                assert 2 == len(traces)
+                assert 1 == len(traces[0])
+                assert 1 == len(traces[1])
+                async_span = traces[0][0]
+                run_span = traces[1][0]
+                assert async_span.service == "task-queue"
+            else:
+                assert 1 == len(traces)
+                assert 1 == len(traces[0])
+                run_span = traces[0][0]
+
+            assert run_span.service == "task-queue"
 
     def test_worker_analytics_default(self):
         @self.app.task
@@ -479,13 +523,18 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         # Ensure producer analytics sample rate is disabled by default
         t = fn_task.delay()
-        self.assertEqual("PENDING", t.status)
+        assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
         traces = self.tracer.writer.pop_traces()
-        self.assertEqual(1, len(traces))
-        self.assertEqual(1, len(traces[0]))
-        span = traces[0][0]
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+        if self.ASYNC_USE_CELERY_FIXTURES:
+            self.assertEqual(2, len(traces))
+        else:
+            self.assertEqual(1, len(traces))
+
+        for trace in traces:
+            self.assertEqual(1, len(trace))
+            self.assertIsNone(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_producer_analytics_with_rate(self):
         @self.app.task
@@ -496,13 +545,18 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         # configuration object
         with self.override_config("celery", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             t = fn_task.delay()
-            self.assertEqual("PENDING", t.status)
+            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
             traces = self.tracer.writer.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+            if self.ASYNC_USE_CELERY_FIXTURES:
+                self.assertEqual(2, len(traces))
+            else:
+                self.assertEqual(1, len(traces))
+
+            for trace in traces:
+                self.assertEqual(1, len(trace))
+                self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_producer_analytics_without_rate(self):
         @self.app.task
@@ -513,13 +567,18 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         # configuration object
         with self.override_config("celery", dict(analytics_enabled=True)):
             t = fn_task.delay()
-            self.assertEqual("PENDING", t.status)
+            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
             traces = self.tracer.writer.pop_traces()
-            self.assertEqual(1, len(traces))
-            self.assertEqual(1, len(traces[0]))
-            span = traces[0][0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+            if self.ASYNC_USE_CELERY_FIXTURES:
+                self.assertEqual(2, len(traces))
+            else:
+                self.assertEqual(1, len(traces))
+
+            for trace in traces:
+                self.assertEqual(1, len(trace))
+                self.assertEqual(trace[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""
@@ -532,29 +591,42 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         with ot_tracer.start_active_span("celery_op"):
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
-            assert "PENDING" == t.status
+            assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 2 == len(traces[0])
-        ot_span, dd_span = traces[0]
 
-        # confirm the parenting
+        if self.ASYNC_USE_CELERY_FIXTURES:
+            assert 2 == len(traces)
+            assert 1 == len(traces[0])
+            assert 2 == len(traces[1])
+            run_span = traces[0][0]
+            ot_span, async_span = traces[1]
+
+            self.assert_is_measured(async_span)
+            assert async_span.error == 0
+
+            # confirm the parenting
+            assert async_span.parent_id == ot_span.span_id
+            assert async_span.name == "celery.apply"
+            assert async_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+            assert async_span.service == "celery-producer"
+            assert async_span.get_tag("celery.id") == t.task_id
+            assert async_span.get_tag("celery.action") == "apply_async"
+            assert async_span.get_tag("celery.routing_key") == "celery"
+        else:
+            assert 1 == len(traces)
+            assert 2 == len(traces[0])
+            ot_span, run_span = traces[0]
+
         assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
         assert ot_span.name == "celery_op"
         assert ot_span.service == "celery_svc"
 
-        self.assert_is_measured(dd_span)
-        assert dd_span.error == 0
-
-        assert dd_span.name == "celery.apply"
-        assert dd_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
-        assert dd_span.service == "celery-producer"
-        assert dd_span.get_tag("celery.id") == t.task_id
-        assert dd_span.get_tag("celery.action") == "apply_async"
-        assert dd_span.get_tag("celery.routing_key") == "celery"
+        assert run_span.name == "celery.run"
+        assert run_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
+        assert run_span.service == "celery-worker"
+        assert run_span.get_tag("celery.id") == t.task_id
+        assert run_span.get_tag("celery.action") == "run"
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
@@ -576,16 +648,28 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
     """
 
     def setUp(self):
-        # Register our context-ruining signal before the normal ones so that
-        # the "real" task_prerun signal starts with the new context
-        celery.signals.task_prerun.connect(self.inject_new_context)
         super(CeleryDistributedTracingIntegrationTask, self).setUp()
         provider = Pin.get_from(self.app).tracer.context_provider
         provider.activate(Context(trace_id=12345, span_id=12345, sampling_priority=1))
 
     def tearDown(self):
-        celery.signals.task_prerun.disconnect(self.inject_new_context)
         super(CeleryDistributedTracingIntegrationTask, self).tearDown()
+
+    # override instrumenting fixture to add prerrun signal for context setting
+    @pytest.fixture(autouse=True)
+    def instrument_celery(self):
+        # Register our context-ruining signal before the normal ones so that
+        # the "real" task_prerun signal starts with the new context
+        celery.signals.task_prerun.connect(self.inject_new_context)
+
+        # instrument Celery and create an app with Broker and Result backends
+        patch()
+        yield
+
+        # remove instrumentation from Celery
+        unpatch()
+
+        celery.signals.task_prerun.disconnect(self.inject_new_context)
 
     def inject_new_context(self, *args, **kwargs):
         pin = Pin.get_from(self.app)
@@ -603,6 +687,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         fn_task.apply()
 
         traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
         span = traces[0][0]
         assert span.trace_id == 99999
 
@@ -623,3 +708,34 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         traces = self.tracer.writer.pop_traces()
         span = traces[0][0]
         assert span.trace_id == 12345
+
+    def test_distributed_tracing_propagation_async(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # This header manipulation is copying the work that should be done
+        # by the before_publish signal. Rip it out if Celery ever fixes their bug.
+        current_context = Pin.get_from(self.app).tracer.context_provider.active()
+        headers = {}
+        HTTPPropagator().inject(current_context, headers)
+
+        with self.override_config("celery", dict(distributed_tracing=True)):
+            result = fn_task.apply_async(headers=headers)
+            assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
+
+        traces = self.tracer.writer.pop_traces()
+
+        if self.ASYNC_USE_CELERY_FIXTURES:
+            assert 2 == len(traces)
+            assert 1 == len(traces[0])
+            assert 1 == len(traces[1])
+            async_span = traces[0][0]
+            run_span = traces[1][0]
+            assert async_span.trace_id == 12345
+        else:
+            assert 1 == len(traces)
+            assert 1 == len(traces[0])
+            run_span = traces[0][0]
+
+        assert run_span.trace_id == 12345

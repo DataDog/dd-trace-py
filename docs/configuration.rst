@@ -85,6 +85,10 @@ below:
      - Integer
      -
      - Deprecated: use ``DD_TRACE_AGENT_URL``
+   * - ``DD_PROFILING_ENABLED``
+     - Boolean
+     - False
+     - Enable Datadog profiling when using ``ddtrace-run``.
    * - ``DD_PROFILING_API_TIMEOUT``
      - Float
      - 10
@@ -113,10 +117,6 @@ below:
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
-   * - ``DD_PROFILING_MAX_EVENTS``
-     - Integer
-     - 49152
-     - The maximum number of total events captured that are stored in memory.
    * - ``DD_PROFILING_UPLOAD_INTERVAL``
      - Float
      - 60
@@ -130,3 +130,7 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
+   * - ``DD_TRACE_STARTUP_LOGS``
+     - Boolean
+     - True
+     - Enable or disable start up diagnostic logging.

@@ -3,8 +3,8 @@ import sys
 import threading
 
 from ddtrace.profiling import _service
+from ddtrace.profiling import _nogevent
 from ddtrace.vendor import attr
-from ddtrace.vendor import six
 
 
 PERIODIC_THREAD_IDS = set()
@@ -33,17 +33,14 @@ class PeriodicThread(threading.Thread):
         self.quit = threading.Event()
         self.daemon = True
 
-    def start(self):
-        """Start the thread."""
-        super(PeriodicThread, self).start()
-        PERIODIC_THREAD_IDS.add(self.ident)
-
     def stop(self):
         """Stop the thread."""
         self.quit.set()
 
     def run(self):
         """Run the target function periodically."""
+        PERIODIC_THREAD_IDS.add(self.ident)
+
         try:
             while not self.quit.wait(self.interval):
                 self._target()
@@ -73,14 +70,6 @@ class _GeventPeriodicThread(PeriodicThread):
         :param on_shutdown: The function to call when the thread shuts down.
         """
         super(_GeventPeriodicThread, self).__init__(interval, target, name, on_shutdown)
-        import gevent.monkey
-
-        self._sleep = gevent.monkey.get_original("time", "sleep")
-        try:
-            # Python ≥ 3.8
-            self._get_native_id = gevent.monkey.get_original("threading", "get_native_id")
-        except AttributeError:
-            self._get_native_id = None
         self._tident = None
 
     @property
@@ -89,25 +78,20 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def start(self):
         """Start the thread."""
-        import gevent.monkey
-
-        start_new_thread = gevent.monkey.get_original(six.moves._thread.__name__, "start_new_thread")
-
         self.quit = False
         self.has_quit = False
         threading._limbo[self] = self
         try:
-            self._tident = start_new_thread(self.run, tuple())
+            self._tident = _nogevent.start_new_thread(self.run, tuple())
         except Exception:
             del threading._limbo[self]
-        if self._get_native_id:
-            self._native_id = self._get_native_id()
-        PERIODIC_THREAD_IDS.add(self._tident)
+        if _nogevent.threading_get_native_id:
+            self._native_id = _nogevent.threading_get_native_id()
 
     def join(self, timeout=None):
         # FIXME: handle the timeout argument
         while not self.has_quit:
-            self._sleep(self.SLEEP_INTERVAL)
+            _nogevent.sleep(self.SLEEP_INTERVAL)
 
     def stop(self):
         """Stop the thread."""
@@ -115,6 +99,8 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def run(self):
         """Run the target function periodically."""
+        PERIODIC_THREAD_IDS.add(self._tident)
+
         with threading._active_limbo_lock:
             threading._active[self._tident] = self
             del threading._limbo[self]
@@ -123,7 +109,7 @@ class _GeventPeriodicThread(PeriodicThread):
                 self._target()
                 slept = 0
                 while self.quit is False and slept < self.interval:
-                    self._sleep(self.SLEEP_INTERVAL)
+                    _nogevent.sleep(self.SLEEP_INTERVAL)
                     slept += self.SLEEP_INTERVAL
             if self._on_shutdown is not None:
                 self._on_shutdown()
@@ -137,7 +123,7 @@ class _GeventPeriodicThread(PeriodicThread):
             try:
                 self.has_quit = True
                 del threading._active[self._tident]
-                PERIODIC_THREAD_IDS.remove(self.ident)
+                PERIODIC_THREAD_IDS.remove(self._tident)
             except Exception:
                 # Exceptions might happen during interpreter shutdown.
                 # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
@@ -153,11 +139,8 @@ def PeriodicRealThread(*args, **kwargs):
     in e.g. the gevent case, where Lock object must not be shared with the MainThread (otherwise it'd dead lock).
 
     """
-    if "gevent" in sys.modules:
-        import gevent.monkey
-
-        if gevent.monkey.is_module_patched("threading"):
-            return _GeventPeriodicThread(*args, **kwargs)
+    if _nogevent.is_module_patched("threading"):
+        return _GeventPeriodicThread(*args, **kwargs)
     return PeriodicThread(*args, **kwargs)
 
 

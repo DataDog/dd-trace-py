@@ -1,6 +1,6 @@
-from ddtrace import Tracer
 import pytest
 
+from ddtrace import Tracer
 from .test_tracer import DummyWriter
 
 
@@ -93,10 +93,42 @@ def test_tracer_start_span(benchmark, tracer):
 
 
 @pytest.mark.benchmark(group="span-id", min_time=0.005)
-def test_span_id_rand64bits(benchmark):
+def test_rand64bits_no_pid(benchmark):
     from ddtrace.internal import _rand
+
+    benchmark(_rand.rand64bits, False)
+
+
+@pytest.mark.benchmark(group="span-id", min_time=0.005)
+def test_rand64bits_pid_check(benchmark):
+    from ddtrace.internal import _rand
+
+    benchmark(_rand.rand64bits)
+
+
+@pytest.mark.benchmark(group="span-id", min_time=0.005)
+def test_randbits_stdlib(benchmark):
+    from ddtrace.compat import getrandbits
+
+    benchmark(getrandbits, 64)
+
+
+@pytest.mark.benchmark(group="queue", min_time=0.005)
+def test_trace_queue_put(benchmark):
+    from ddtrace.internal._queue import TraceQueue
 
     @benchmark
     def f():
-        _ = _rand.rand64bits()
-        _ = _rand.rand64bits()
+        q = TraceQueue()
+        q.put([])
+
+
+@pytest.mark.benchmark(group="queue", min_time=0.005)
+def test_trace_queue_get(benchmark):
+    from ddtrace.internal._queue import TraceQueue
+
+    @benchmark
+    def f():
+        q = TraceQueue()
+        q.put([])
+        q.get()

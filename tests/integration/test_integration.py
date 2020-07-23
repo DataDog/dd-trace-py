@@ -1,5 +1,6 @@
 import os
 import logging
+import math
 import mock
 import ddtrace
 
@@ -13,6 +14,8 @@ from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
+from ddtrace.payload import Payload
+from ddtrace.span import Span
 from ddtrace.compat import monotonic
 from tests.test_tracer import get_dummy_tracer
 
@@ -74,6 +77,7 @@ class TestWorkers(TestCase):
         """
         Helper that waits for the thread flush
         """
+        self.tracer.writer.flush_queue()
         self.tracer.writer.stop()
         self.tracer.writer.join(None)
 
@@ -293,6 +297,60 @@ class TestAPITransport(TestCase):
         traces = [trace] * 20000
 
         self._send_traces_and_check(traces, 2)
+
+    def test_send_single_trace_max_payload(self):
+        payload = Payload()
+
+        # compute number of spans to create to surpass max payload
+        trace = [Span(self.tracer, "child.span")]
+        trace_size = len(payload.encoder.encode_trace(trace))
+        num_spans = int(math.floor(payload.max_payload_size / trace_size))
+
+        # setup logging capture
+        log = logging.getLogger("ddtrace.api")
+        log_handler = MockedLogHandler(level="WARNING")
+        log.addHandler(log_handler)
+
+        with self.tracer.trace("client.testing"):
+            for n in range(num_spans):
+                self.tracer.trace("child.span").finish()
+
+        trace = self.tracer.writer.pop()
+
+        self._send_traces_and_check([trace], 0)
+
+        logged_warnings = log_handler.messages["warning"]
+        assert len(logged_warnings) == 1
+        assert "Trace is larger than the max payload size, dropping it" in logged_warnings[0]
+
+    def test_send_multiple_trace_max_payload(self):
+        payload = Payload()
+
+        # compute number of spans to create to surpass max payload
+        trace = [Span(self.tracer, "child.span")]
+        trace_size = len(payload.encoder.encode_trace(trace))
+        num_spans = int(math.floor((payload.max_payload_size - trace_size) / trace_size))
+
+        # setup logging capture
+        log = logging.getLogger("ddtrace.api")
+        log_handler = MockedLogHandler(level="WARNING")
+        log.addHandler(log_handler)
+
+        self.tracer.trace("client.testing").finish()
+        traces = [self.tracer.writer.pop()]
+
+        # create a trace larger than max payload size
+        with self.tracer.trace("client.testing"):
+            for n in range(num_spans):
+                self.tracer.trace("child.span").finish()
+
+        traces.append(self.tracer.writer.pop())
+
+        self._send_traces_and_check(traces, 1)
+
+        logged_warnings = log_handler.messages["warning"]
+        assert len(logged_warnings) == 1
+        assert "Trace is too big to fit in a payload, dropping it" in logged_warnings[0]
 
     def test_send_single_with_wrong_errors(self):
         # if the error field is set to True, it must be cast as int so
