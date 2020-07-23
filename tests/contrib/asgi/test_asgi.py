@@ -132,7 +132,7 @@ async def test_query_string(scope, tracer):
         assert request_span.name == "asgi.request"
         assert request_span.error == 0
         assert request_span.get_tag("http.method") == "GET"
-        assert request_span.get_tag("http.url") == "http://127.0.0.1/?foo=bar"
+        assert request_span.get_tag("http.url") == "http://127.0.0.1/"
         assert request_span.get_tag("http.query.string") == "foo=bar"
 
 

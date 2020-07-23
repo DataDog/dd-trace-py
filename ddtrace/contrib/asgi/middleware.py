@@ -4,7 +4,6 @@ from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
-from ddtrace.vendor.six.moves import urllib
 
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
@@ -37,8 +36,6 @@ def _extract_tags_from_scope(scope):
         server_host = server[0] + (":" + str(port) if port != 80 else "")
         full_path = scope.get("root_path", "") + scope.get("path", "")
         http_url = scope.get("scheme", "http") + "://" + server_host + full_path
-        if query_string:
-            http_url = http_url + ("?" + urllib.parse.unquote(query_string))
         tags[http.URL] = http_url
 
     http_version = scope.get("http_version")
