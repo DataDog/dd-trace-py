@@ -75,6 +75,14 @@ Pyramid
 .. automodule:: ddtrace.contrib.pyramid
 
 
+.. _sanic:
+
+Sanic
+^^^^^
+
+.. automodule:: ddtrace.contrib.sanic
+
+
 .. _tornado:
 
 Tornado
