@@ -26,9 +26,10 @@ def _extract_tags_from_scope(scope):
     query_string = None
     if config.asgi.trace_query_string:
         query_string = scope.get("query_string")
-        if isinstance(query_string, bytes):
-            query_string = query_string.decode()
-        tags[http.QUERY_STRING] = query_string
+        if len(query_string) > 0:
+            if isinstance(query_string, bytes):
+                query_string = query_string.decode()
+            tags[http.QUERY_STRING] = query_string
 
     server = scope.get("server")
     if server and len(server) == 2:
@@ -47,7 +48,7 @@ def _extract_tags_from_scope(scope):
     if scope_asgi and "version" in scope_asgi:
         tags[ASGI_VERSION] = scope_asgi["version"]
 
-    if scope_asgi and "version" in scope_asgi:
+    if scope_asgi and "spec_version" in scope_asgi:
         tags[ASGI_SPEC_VERSION] = scope_asgi["spec_version"]
 
     return tags
