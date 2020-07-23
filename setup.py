@@ -108,10 +108,10 @@ else:
 
 
 if platform.uname()[0] != "Windows":
-    encoding_libraries = ["ws2_32"]
+    encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
 else:
-    encoding_libraries = []
+    encoding_libraries = ["ws2_32"]
     extra_compile_args = []
 
 
