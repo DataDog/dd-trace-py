@@ -1,7 +1,7 @@
 import os
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 
 # ORDER MATTERS
@@ -100,6 +100,18 @@ def get_exts_for(name):
         return []
 
 
+if sys.platform == "win32":
+    encoding_libraries = ["ws2_32"]
+else:
+    encoding_libraries = []
+
+
+if sys.byteorder == "big":
+    encoding_macros = [("__BIG_ENDIAN__", "1")]
+else:
+    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
+
+
 # Base `setup()` kwargs without any C-extension registering
 setup(
     **dict(
@@ -151,8 +163,12 @@ setup(
                 Cython.Distutils.Extension(
                     "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
                 ),
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._encoding", sources=["ddtrace/internal/_encoding.pyx"], language="c",
+                Extension(
+                    "ddtrace.internal._encoding",
+                    ["ddtrace/internal/_encoding.pyx"],
+                    include_dirs=["."],
+                    libraries=encoding_libraries,
+                    define_macros=encoding_macros,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
