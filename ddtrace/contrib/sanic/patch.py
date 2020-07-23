@@ -20,7 +20,7 @@ def _extract_tags_from_request(request):
     tags = {}
     tags[http.METHOD] = request.method
 
-    url = '{scheme}://{host}{path}'.format(scheme=request.scheme, host=request.host, path=request.path)
+    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
     tags[http.URL] = url
 
     query_string = None
@@ -53,16 +53,16 @@ def unpatch():
     """Unpatch the instrumented methods.
     """
     _u(sanic.Sanic, "handle_request")
-    if not getattr(sanic, '__datadog_patch', False):
+    if not getattr(sanic, "__datadog_patch", False):
         return
-    setattr(sanic, '__datadog_patch', False)
+    setattr(sanic, "__datadog_patch", False)
 
 
 def patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
-    request = kwargs.get('request', args[0])
-    write_callback = kwargs.get('write_callback', args[1])
-    stream_callback = kwargs.get('stream_callback', args[2])
+    request = kwargs.get("request", args[0])
+    write_callback = kwargs.get("write_callback", args[1])
+    stream_callback = kwargs.get("stream_callback", args[2])
 
     resource = "{} {}".format(request.method, request.path)
 
@@ -84,8 +84,7 @@ def patch_handle_request(wrapped, instance, args, kwargs):
         tags = _extract_tags_from_request(request=request)
         span.set_tags(tags)
 
-        store_request_headers(headers, span, config.sanic)        
-
+        store_request_headers(headers, span, config.sanic)
 
         # wrap response callbacks to set span tags based on response
         def _wrap_sync_response_callback(func):
