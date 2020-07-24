@@ -22,10 +22,6 @@
 #include <limits.h>
 #include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef _MSC_VER
 #define inline __inline
 #endif
@@ -34,7 +30,7 @@ typedef struct msgpack_packer {
     char *buf;
     size_t length;
     size_t buf_size;
-    bool use_bin_type;
+    _Bool use_bin_type;
 } msgpack_packer;
 
 typedef struct Packer Packer;
@@ -115,6 +111,3 @@ msgpack_pack_unicode(msgpack_packer *pk, PyObject *o, long long limit)
 #endif
 }
 
-#ifdef __cplusplus
-}
-#endif
