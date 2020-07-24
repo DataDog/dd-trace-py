@@ -232,7 +232,7 @@ class TestEncoders(TestCase):
 
         encoder = MsgpackEncoder()
         spans = encoder.encode_traces(traces)
-        items = encoder.decode(spans)
+        items = encoder._decode(spans)
 
         # test the encoded output that should be a string
         # and the output must be flatten
@@ -256,13 +256,13 @@ class TestEncoders(TestCase):
 
         encoder = MsgpackEncoder()
 
-        # Encode each individual trace on it's own
+        # Encode each individual trace on its own
         encoded_traces = [encoder.encode_trace(trace) for trace in traces]
         # Join the encoded traces together
         data = encoder.join_encoded(encoded_traces)
 
         # Parse the encoded data
-        items = encoder.decode(data)
+        items = encoder._decode(data)
 
         # test the encoded output that should be a string
         # and the output must be flatten

@@ -64,7 +64,7 @@ class PayloadTestCase(BaseTracerTestCase):
         # No traces
         self.assertTrue(payload.empty)
         encoded_data = payload.get_payload()
-        decoded_data = payload.encoder.decode(encoded_data)
+        decoded_data = payload.encoder._decode(encoded_data)
         self.assertEqual(decoded_data, [])
 
         # Add traces to the payload
@@ -77,7 +77,7 @@ class PayloadTestCase(BaseTracerTestCase):
 
         # Assert the payload generated from Payload
         encoded_data = payload.get_payload()
-        decoded_data = payload.encoder.decode(encoded_data)
+        decoded_data = payload.encoder._decode(encoded_data)
         self.assertEqual(len(decoded_data), 5)
         for trace in decoded_data:
             self.assertEqual(len(trace), 2)

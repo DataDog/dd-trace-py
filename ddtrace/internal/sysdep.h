@@ -51,16 +51,6 @@ typedef unsigned int _msgpack_atomic_counter_t;
 
 #ifdef _WIN32
 
-#ifdef __cplusplus
-/* numeric_limits<T>::min,max */
-#ifdef max
-#undef max
-#endif
-#ifdef min
-#undef min
-#endif
-#endif
-
 #else
 #include <arpa/inet.h>  /* __BYTE_ORDER */
 #endif
@@ -180,15 +170,5 @@ typedef unsigned int _msgpack_atomic_counter_t;
     do { uint32_t val = _msgpack_be32(num); memcpy(to, &val, 4); } while(0)
 #define _msgpack_store64(to, num) \
     do { uint64_t val = _msgpack_be64(num); memcpy(to, &val, 8); } while(0)
-
-/*
-#define _msgpack_load16(cast, from) \
-    ({ cast val; memcpy(&val, (char*)from, 2); _msgpack_be16(val); })
-#define _msgpack_load32(cast, from) \
-    ({ cast val; memcpy(&val, (char*)from, 4); _msgpack_be32(val); })
-#define _msgpack_load64(cast, from) \
-    ({ cast val; memcpy(&val, (char*)from, 8); _msgpack_be64(val); })
-*/
-
 
 #endif /* msgpack/sysdep.h */

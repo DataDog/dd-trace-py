@@ -88,7 +88,7 @@ class TestWorkers(TestCase):
         """
         for call, _ in calls:
             if endpoint in call[0]:
-                return call[0], self.api._encoder.decode(call[1])
+                return call[0], self.api._encoder._decode(call[1])
 
         return None, None
 

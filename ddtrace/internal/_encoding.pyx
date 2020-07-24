@@ -1,5 +1,3 @@
-# cython: boundscheck=False, wraparound=False, nonecheck=False
-
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_CheckExact
 import struct
@@ -15,7 +13,6 @@ cdef extern from "pack.h":
         char* buf
         size_t length
         size_t buf_size
-        bint use_bin_type
 
     int msgpack_pack_int(msgpack_packer* pk, int d)
     int msgpack_pack_nil(msgpack_packer* pk)
@@ -27,7 +24,6 @@ cdef extern from "pack.h":
     int msgpack_pack_array(msgpack_packer* pk, size_t l)
     int msgpack_pack_map(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
-    int msgpack_pack_bin(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
 
@@ -43,7 +39,7 @@ cdef inline int PyBytesLike_CheckExact(object o):
 cdef inline int pack_bytes(msgpack_packer *pk, char *bytes, Py_ssize_t l):
     cdef int ret
     cdef dict d
-    ret = msgpack_pack_bin(pk, l)
+    ret = msgpack_pack_raw(pk, l)
     if ret == 0:
         ret = msgpack_pack_raw_body(pk, bytes, l)
     return ret
@@ -67,16 +63,6 @@ cdef class Packer(object):
 
     :param bool use_single_float:
         Use single precision float type for float. (default: False)
-
-    :param bool autoreset:
-        Reset buffer after each pack and return its content as `bytes`. (default: True).
-        If set this to false, use `bytes()` to get content and `.reset()` to clear buffer.
-
-    :param bool use_bin_type:
-        Use bin type introduced in msgpack spec 2.0 for bytes.
-        It also enables str8 type for unicode.
-        Current default value is false, but it will be changed to true
-        in future version.  You should specify it explicitly.
     """
     cdef msgpack_packer pk
     cdef object _default
@@ -84,7 +70,6 @@ cdef class Packer(object):
     cdef const char *encoding
     cdef const char *unicode_errors
     cdef bool use_float
-    cdef bint autoreset
 
     def __cinit__(self):
         cdef int buf_size = 1024*1024
@@ -95,10 +80,8 @@ cdef class Packer(object):
         self.pk.length = 0
 
     def __init__(self, default=None,
-                 bint use_single_float=False, bint autoreset=True, bint use_bin_type=False):
+                 bint use_single_float=False):
         self.use_float = use_single_float
-        self.autoreset = autoreset
-        self.pk.use_bin_type = use_bin_type
         if default is not None:
             if not PyCallable_Check(default):
                 raise TypeError("default must be a callable.")
@@ -162,7 +145,7 @@ cdef class Packer(object):
                 if L > ITEM_LIMIT:
                     PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(o).tp_name)
                 rawval = o
-                ret = msgpack_pack_bin(&self.pk, L)
+                ret = msgpack_pack_raw(&self.pk, L)
                 if ret == 0:
                     ret = msgpack_pack_raw_body(&self.pk, rawval, L)
             elif PyUnicode_CheckExact(o):  #  if strict_types else PyUnicode_Check(o):
@@ -290,18 +273,6 @@ cdef class Packer(object):
                 PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
             return ret
 
-    cdef int _pack_bytes(self, char *rawval):
-        cdef int ret
-        cdef dict d
-        cdef Py_ssize_t L
-        L = len(rawval)
-        if L > ITEM_LIMIT:
-            PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(rawval).tp_name)
-        ret = msgpack_pack_bin(&self.pk, L)
-        if ret == 0:
-            ret = msgpack_pack_raw_body(&self.pk, rawval, L)
-        return ret
-
     cpdef pack(self, object obj):
         cdef int ret
         try:
@@ -312,17 +283,10 @@ cdef class Packer(object):
         if ret:  # should not happen.
             raise RuntimeError("internal error")
 
-        if self.autoreset:
-            buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-            self.pk.length = 0
-            return buf
-
-    def reset(self):
-        """Reset internal buffer.
-
-        This method is useful only when autoreset=False.
-        """
+        # Reset the buffer.
+        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
         self.pk.length = 0
+        return buf
 
     def bytes(self):
         """Return internal buffer contents as bytes object"""
@@ -336,7 +300,7 @@ cdef class Packer(object):
 cdef class MsgpackEncoder(object):
     content_type = "application/msgpack"
 
-    cpdef decode(self, data):
+    cpdef _decode(self, data):
         import msgpack
         if msgpack.version[:2] < (0, 6):
             return msgpack.unpackb(data)
