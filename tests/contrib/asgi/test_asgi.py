@@ -12,12 +12,20 @@ from tests.base import BaseTestCase
 from tests.test_tracer import get_dummy_tracer
 
 
-@pytest.fixture
-def scope():
-    return {
+@pytest.fixture(
+    params=[
+        {},
+        {"server": None},
+        {"http_version": "1.0", "asgi": {}},
+        {"http_version": "1.0", "asgi": {"version": "3.2"}},
+        {"http_version": "1.0", "asgi": {"spec_version": "2.1",}},
+        {"http_version": "1.0", "asgi": {"version": "3.2", "spec_version": "2.1",}},
+    ]
+)
+def scope(request):
+    s = {
         "client": ("127.0.0.1", 32767),
         "headers": [],
-        "http_version": "1.0",
         "method": "GET",
         "path": "/",
         "query_string": b"",
@@ -25,6 +33,8 @@ def scope():
         "server": ("127.0.0.1", 80),
         "type": "http",
     }
+    s.update(request.param)
+    return {k: v for (k, v) in s.items() if v is not None}
 
 
 @pytest.fixture
@@ -64,6 +74,31 @@ def double_callable_app(scope):
     return partial(basic_app, scope)
 
 
+def _check_span_tags(scope, span):
+    assert span.get_tag("http.method") == scope["method"]
+    server = scope.get("server")
+    expected_http_url = (
+        "http://{}{}".format(server[0], ":{}/".format(server[1]) if server[1] != 80 else "/") if server else None
+    )
+    assert expected_http_url or span.get_tag("http.url") == expected_http_url
+    assert (
+        scope.get("query_string") is None
+        or scope.get("query_string") == b""
+        or span.get_tag("http.query.string") == scope["query_string"]
+    )
+    assert scope.get("http_version") is None or span.get_tag("http.version") == scope["http_version"]
+    assert (
+        scope.get("asgi") is None
+        or scope["asgi"].get("version") is None
+        or span.get_tag("asgi.version") == scope["asgi"]["version"]
+    )
+    assert (
+        scope.get("asgi") is None
+        or scope["asgi"].get("spec_version") is None
+        or span.get_tag("asgi.spec_version") == scope["asgi"]["spec_version"]
+    )
+
+
 @pytest.mark.asyncio
 async def test_basic_asgi(scope, tracer):
     app = TraceMiddleware(basic_app, tracer=tracer)
@@ -87,9 +122,7 @@ async def test_basic_asgi(scope, tracer):
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
     assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://127.0.0.1/"
-    assert request_span.get_tag("http.query.string") is None
+    _check_span_tags(scope, request_span)
 
 
 @pytest.mark.asyncio
@@ -115,9 +148,7 @@ async def test_double_callable_asgi(scope, tracer):
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
     assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://127.0.0.1/"
-    assert request_span.get_tag("http.query.string") is None
+    _check_span_tags(scope, request_span)
 
 
 @pytest.mark.asyncio
@@ -145,9 +176,7 @@ async def test_query_string(scope, tracer):
         request_span = spans[0][0]
         assert request_span.name == "asgi.request"
         assert request_span.error == 0
-        assert request_span.get_tag("http.method") == "GET"
-        assert request_span.get_tag("http.url") == "http://127.0.0.1/"
-        assert request_span.get_tag("http.query.string") == "foo=bar"
+        _check_span_tags(scope, request_span)
 
 
 @pytest.mark.asyncio
@@ -164,12 +193,10 @@ async def test_asgi_error(scope, tracer):
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
     assert request_span.error == 1
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://127.0.0.1/"
-    assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("error.msg") == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
+    _check_span_tags(scope, request_span)
 
 
 @pytest.mark.asyncio
@@ -196,15 +223,13 @@ async def test_distributed_tracing(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://127.0.0.1/"
-    assert request_span.get_tag("http.query.string") is None
     assert request_span.parent_id == 1234
     assert request_span.trace_id == 5678
+    _check_span_tags(scope, request_span)
 
 
 @pytest.mark.asyncio
-async def test_multiple_requests(scope, tracer):
+async def test_multiple_requests(tracer):
     with BaseTestCase.override_http_config("asgi", dict(trace_query_string=True)):
         app = TraceMiddleware(basic_app, tracer=tracer)
         async with httpx.AsyncClient(app=app) as client:
