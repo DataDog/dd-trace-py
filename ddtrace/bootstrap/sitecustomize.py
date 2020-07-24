@@ -2,41 +2,20 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-
 import os
 import imp
 import sys
-import logging
 
 from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 from ddtrace.internal.logger import get_logger
 from ddtrace import config, constants
 
-DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-    if config.logs_injection
-    else ""
-)
 
 if config.logs_injection:
     # immediately patch logging if trace id injected
     from ddtrace import patch
 
     patch(logging=True)
-
-debug = os.environ.get("DATADOG_TRACE_DEBUG")
-
-# Set here a default logging format for basicConfig
-
-# DEV: Once basicConfig is called here, future calls to it cannot be used to
-# change the formatter since it applies the formatter to the root handler only
-# upon initializing it the first time.
-# See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
-if debug and debug.lower() == "true":
-    logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
-else:
-    logging.basicConfig(format=DD_LOG_FORMAT)
 
 log = get_logger(__name__)
 
@@ -63,12 +42,9 @@ def update_patched_modules():
 try:
     from ddtrace import tracer
 
-    patch = True
-
     # Respect DATADOG_* environment variables in global tracer configuration
     # TODO: these variables are deprecated; use utils method and update our documentation
     # correct prefix should be DD_*
-    enabled = os.environ.get("DATADOG_TRACE_ENABLED")
     hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME"))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
@@ -79,9 +55,6 @@ try:
 
     opts = {}
 
-    if enabled and enabled.lower() == "false":
-        opts["enabled"] = False
-        patch = False
     if hostname:
         opts["hostname"] = hostname
     if port:
@@ -94,11 +67,10 @@ try:
     if opts:
         tracer.configure(**opts)
 
-    if patch:
-        update_patched_modules()
-        from ddtrace import patch_all
+    update_patched_modules()
+    from ddtrace import patch_all
 
-        patch_all(**EXTRA_PATCHED_MODULES)
+    patch_all(**EXTRA_PATCHED_MODULES)
 
     if "DATADOG_ENV" in os.environ:
         tracer.set_tags({constants.ENV_KEY: os.environ["DATADOG_ENV"]})

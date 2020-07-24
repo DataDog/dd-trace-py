@@ -28,6 +28,18 @@ from . import _hooks
 
 log = get_logger(__name__)
 
+debug_mode = asbool(environ.get("DD_TRACE_DEBUG", environ.get("DATADOG_TRACE_DEBUG", False)))
+
+if debug_mode and not hasHandlers(log):
+    if config.logs_injection:
+        fmt = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
+            "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+            " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+        )
+        logging.basicConfig(level=logging.DEBUG, format=fmt)
+    else:
+        logging.basicConfig(level=logging.DEBUG)
+
 
 def _parse_dogstatsd_url(url):
     if url is None:
@@ -130,9 +142,10 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
+        self.enabled = asbool(environ.get("DD_TRACE_ENABLED", True))
+
         # Apply the default configuration
         self.configure(
-            enabled=True,
             hostname=hostname,
             port=port,
             https=https,
@@ -331,7 +344,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        if asbool(environ.get("DD_TRACE_STARTUP_LOGS") or True):
+        if asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
             try:
                 info = debug.collect(self)
             except Exception as e:

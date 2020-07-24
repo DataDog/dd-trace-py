@@ -7,6 +7,7 @@ A library instrumentation can be configured (for instance, to report as another 
 using Pin. For that, check its documentation.
 """
 import importlib
+import os
 import sys
 import threading
 
@@ -14,6 +15,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
 from .settings import config
+from .utils import formats
 
 
 log = get_logger(__name__)
@@ -147,6 +149,10 @@ def patch_module(module, raise_errors=True):
 
     Returns if the module got properly patched.
     """
+    if not formats.asbool(os.environ.get("DD_TRACE_%s_ENABLED" % module, True)):
+        log.info("Not patching %s as it's disabled by environment variable.", module)
+        return
+
     try:
         return _patch_module(module)
     except Exception:
