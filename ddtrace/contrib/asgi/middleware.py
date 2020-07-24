@@ -1,3 +1,5 @@
+import sys
+
 from ddtrace import tracer as global_tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
@@ -5,6 +7,7 @@ from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
 
+from ...compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
 
@@ -107,8 +110,9 @@ class TraceMiddleware:
 
         try:
             return await self.app(scope, receive, wrapped_send)
-        except Exception as exc:
-            span.set_traceback()
-            raise
+        except Exception:
+            (exc_type, exc_val, exc_tb) = sys.exc_info()
+            span.set_exc_info(exc_type, exc_val, exc_tb)
+            reraise(exc_type, exc_val, exc_tb)
         finally:
             span.finish()
