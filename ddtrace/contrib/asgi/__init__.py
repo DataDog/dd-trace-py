@@ -16,6 +16,7 @@ If using Python 3.6, the legacy ``AsyncioContextProvider`` will have to be
 enabled before using the middleware::
 
     from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
+    from ddtrace import tracer  # Or whichever tracer instance you plan to use
     tracer.configure(context_provider=AsyncioContextProvider())
 
 
