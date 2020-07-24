@@ -16,6 +16,7 @@ from tests.test_tracer import get_dummy_tracer
     params=[
         {},
         {"server": None},
+        {"server": ("dev", 8000)},
         {"http_version": "1.0", "asgi": {}},
         {"http_version": "1.0", "asgi": {"version": "3.2"}},
         {"http_version": "1.0", "asgi": {"spec_version": "2.1",}},
