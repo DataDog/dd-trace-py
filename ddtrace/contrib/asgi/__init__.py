@@ -33,7 +33,7 @@ Configuration
 
    Whether to analyze spans for Asgi in App Analytics.
 
-   Can also be enabled with the ``DD_ASGI_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_TRACE_ASGI_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 

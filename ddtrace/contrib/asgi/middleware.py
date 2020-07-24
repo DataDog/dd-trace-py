@@ -23,13 +23,14 @@ def _extract_tags_from_scope(scope):
     if http_method:
         tags[http.METHOD] = http_method
 
-    query_string = None
     if config.asgi.trace_query_string:
         query_string = scope.get("query_string")
         if len(query_string) > 0:
             if isinstance(query_string, bytes):
                 query_string = query_string.decode()
             tags[http.QUERY_STRING] = query_string
+    else:
+        query_string = None
 
     server = scope.get("server")
     if server and len(server) == 2:
@@ -106,8 +107,8 @@ class TraceMiddleware:
 
         try:
             return await self.app(scope, receive, wrapped_send)
-        except BaseException as exc:
+        except Exception as exc:
             span.set_traceback()
-            raise exc from None
+            raise
         finally:
             span.finish()
