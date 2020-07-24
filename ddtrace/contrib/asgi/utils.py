@@ -1,6 +1,8 @@
 """
-Compatibility functions vendored from asgiref__.
+Compatibility functions vendored from asgiref
 
+Source: https://github.com/django/asgiref
+Version: 3.2.10
 License:
 
 Copyright (c) Django Software Foundation and individual contributors.
@@ -30,7 +32,6 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-.. __: https://github.com/django/asgiref/
 """
 import asyncio
 import inspect
