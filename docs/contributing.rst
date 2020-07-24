@@ -12,7 +12,7 @@ Developement happens in the `master` branch. When all the features for the next
 milestone are merged, the next version is released and tagged on the `master`
 branch as `vVERSION`.
 
-Your pull request should targets the `master` branch.
+Your pull request should target the `master` branch.
 
 Once a new version is released, a `release/VERSION` branch might be created to
 support micro releases to `VERSION`. Patches should be cherry-picking from the
@@ -99,6 +99,17 @@ integration as a starting point.
 The key focus of an integration is to provide concise, insightful information
 about the library or framework that'll be useful for developers to monitor their
 application.
+
+  **Notes**:
+    - Every integration must be defined in it's own folder in `ddtrace/contrib <https://github.com/DataDog/dd-trace-py/tree/master/ddtrace/contrib>`_ and contain an ``__init__.py`` file.
+
+       - ``__init__`` file should also contain information about configuring the integration manually as well as automatically e.g: `flask init file <https://github.com/DataDog/dd-trace-py/blob/master/ddtrace/contrib/flask/__init__.py>`_ , `asgi init file <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/ddtrace/contrib/asgi/__init__.py>`_.
+
+    - For automatic instrumentation: each integration module must have a ``patch()`` and ``unpatch()`` method. These are used to enable and disable integration.
+
+       - **For example**: `sanic automatic instrumentation <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/ddtrace/contrib/sanic/patch.py>`_.
+
+    - For manual instrumentation integration: check out this `asgi Tracemiddleware() example <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/ddtrace/contrib/asgi/middleware.py>`_.
 
 There are a number of things to keep in mind while writing an integration:
 
@@ -201,6 +212,8 @@ that the integration:
     2) is invisible: does not impact the library or application by disturbing state,
        performance or raising exceptions
 
+  *Notes*:
+    - Each integration tests must be defined in it's own folder in ``ddtrace/tests/contrib/{module}/``.
 
 Testing integrations is hard. There are often many versions of the library to go
 along with the different versions of Python.
@@ -214,5 +227,42 @@ Testing checklist (with the ``redis`` integration as an example):
     - [ ] Integration is configurable and all the configuration options are
       hooked up and functional
     - [ ] Spans contain meaningful/correct data
-    - [ ] No uncaught exceptions are raised from the integration
-    - [ ] Distributed tracing (if applicable)
+
+        **Note**:
+          - By default, ``query_string`` is not shown unless user defines in the configuration e.g: `example <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/ddtrace/contrib/sanic/patch.py#L27>`_.
+
+    - [ ] No uncaught exceptions are raised from the integration: 
+          - `sanic_ <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/tests/contrib/sanic/test_sanic.py#L43>`_ && `asgi_ <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/tests/contrib/asgi/test_asgi.py#L56>`_ examples.
+
+    - [ ] Distributed tracing (if applicable):
+          - `sanic example <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/tests/contrib/sanic/test_sanic.py#L100>`_ && `asgi example <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/tests/contrib/asgi/test_asgi.py#L176>`_
+
+
+Docs
+++++
+
+There is `ddtrace-py api documentation <http://pypi.datadoghq.com/trace/docs/>`_ where we add information about supported libraries with versions as well as other integration notes. 
+After adding new integration, you could add info about the integration by updating ``docs`` folder within ``ddtrace-py`` repo. 
+
+  *For instance*: if you are adding new web framework integration, update two ``docs`` files such as:
+
+  - `docs/index.rst <https://github.com/DataDog/dd-trace-py/blob/master/docs/index.rst>`_
+
+  - `docs/web_integrations.rst <https://github.com/DataDog/dd-trace-py/blob/master/docs/web_integrations.rst>`_
+
+    **For example**: this is how we did on adding ``asgi`` && ``sanic`` info on docs:
+
+      - `sanic <https://github.com/DataDog/dd-trace-py/pull/1572/commits/e40834e97c498bdae84e774b6aeab5d17b881090>`_
+      - `asgi <https://github.com/DataDog/dd-trace-py/pull/1567/files#diff-caf2a6b8f4947d018f68893c695b5202>`_ 
+
+
+Trace Examples
+++++++++++++++
+
+Optional! But it would be great if you have a sample app that you could add to `trace examples repository <https://github.com/Datadog/trace-examples>`_ along with screenshots of some example traces in the PR description.
+
+**For example**:
+  - `ASGI integration example app <https://github.com/DataDog/trace-examples/tree/master/python/asgi>`_
+  - `Sanic Integration example app <https://github.com/DataDog/trace-examples/tree/master/python/sanic>`_
+
+  *Note*: this will be helpful to quickly spin up example app to test as well as see how traces look like for that integration you added.
