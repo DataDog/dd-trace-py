@@ -33,6 +33,7 @@ def tracer():
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
+
         tracer.configure(context_provider=AsyncioContextProvider())
     yield tracer
 
@@ -209,7 +210,7 @@ async def test_multiple_requests(scope, tracer):
         async with httpx.AsyncClient(app=app) as client:
             responses = await asyncio.gather(
                 client.get("http://testserver/", params={"sleep": True}),
-                client.get("http://testserver/", params={"sleep": True})
+                client.get("http://testserver/", params={"sleep": True}),
             )
 
     assert len(responses) == 2
