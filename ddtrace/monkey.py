@@ -149,9 +149,11 @@ def patch_module(module, raise_errors=True):
 
     Returns if the module got properly patched.
     """
-    if not formats.asbool(os.environ.get("DD_TRACE_%s_ENABLED" % module, True)):
-        log.info("Not patching %s as it's disabled by environment variable.", module)
+    env_var = "DD_TRACE_%s_ENABLED" % module
+    if not formats.asbool(os.environ.get(env_var, True)):
+        log.info("Not patching %s as it's disabled by environment variable %s.", module, env_var)
         return
+
 
     try:
         return _patch_module(module)

@@ -2,6 +2,7 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+import logging
 import os
 import imp
 import sys
@@ -9,6 +10,7 @@ import sys
 from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 from ddtrace.internal.logger import get_logger
 from ddtrace import config, constants
+from ddtrace.tracer import debug_mode, DD_LOG_FORMAT
 
 
 if config.logs_injection:
@@ -16,6 +18,15 @@ if config.logs_injection:
     from ddtrace import patch
 
     patch(logging=True)
+
+
+# DEV: Once basicConfig is called here, future calls to it cannot be used to
+# change the formatter since it applies the formatter to the root handler only
+# upon initializing it the first time.
+# See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
+# Debug mode from the tracer will do a basicConfig so only need to do this otherwise
+if not debug_mode:
+    logging.basicConfig(format=DD_LOG_FORMAT)
 
 log = get_logger(__name__)
 
@@ -55,6 +66,12 @@ try:
 
     opts = {}
 
+    if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
+        patch = True
+    else:
+        patch = False
+        opts["enabled"] = False
+
     if hostname:
         opts["hostname"] = hostname
     if port:
@@ -67,10 +84,11 @@ try:
     if opts:
         tracer.configure(**opts)
 
-    update_patched_modules()
-    from ddtrace import patch_all
+    if patch:
+        update_patched_modules()
+        from ddtrace import patch_all
 
-    patch_all(**EXTRA_PATCHED_MODULES)
+        patch_all(**EXTRA_PATCHED_MODULES)
 
     if "DATADOG_ENV" in os.environ:
         tracer.set_tags({constants.ENV_KEY: os.environ["DATADOG_ENV"]})

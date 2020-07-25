@@ -30,13 +30,13 @@ log = get_logger(__name__)
 
 debug_mode = asbool(environ.get("DD_TRACE_DEBUG", environ.get("DATADOG_TRACE_DEBUG", False)))
 
+DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
+    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+)
 if debug_mode and not hasHandlers(log):
     if config.logs_injection:
-        fmt = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-            "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-            " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-        )
-        logging.basicConfig(level=logging.DEBUG, format=fmt)
+        logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
     else:
         logging.basicConfig(level=logging.DEBUG)
 
@@ -142,7 +142,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(environ.get("DD_TRACE_ENABLED", True))
+        self.enabled = asbool(get_env("trace", "enabled", default=True))
 
         # Apply the default configuration
         self.configure(
