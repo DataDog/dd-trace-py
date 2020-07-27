@@ -28,7 +28,7 @@ from . import _hooks
 
 log = get_logger(__name__)
 
-debug_mode = asbool(environ.get("DD_TRACE_DEBUG", environ.get("DATADOG_TRACE_DEBUG", False)))
+debug_mode = asbool(get_env("trace", "debug", default=False))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
