@@ -26,7 +26,10 @@ if config.logs_injection:
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
 if not debug_mode:
-    logging.basicConfig(format=DD_LOG_FORMAT)
+    if config.logs_injection:
+        logging.basicConfig(format=DD_LOG_FORMAT)
+    else:
+        logging.basicConfig()
 
 log = get_logger(__name__)
 
