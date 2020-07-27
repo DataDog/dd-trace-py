@@ -50,11 +50,11 @@ def tracer():
 
 
 async def basic_app(scope, receive, send):
-    message = await receive()
     assert scope["type"] == "http"
+    message = await receive()
     if message.get("type") == "http.request":
         await send(
-            {"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]],}
+            {"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]}
         )
         query_string = scope.get("query_string")
         if query_string and query_string == b"sleep=true":

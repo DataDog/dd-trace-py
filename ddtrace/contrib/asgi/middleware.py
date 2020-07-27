@@ -13,7 +13,7 @@ from .utils import guarantee_single_callable
 
 log = get_logger(__name__)
 
-config._add("asgi", dict(service_name=config._get_service(default="asgi"), distributed_tracing=True,))
+config._add("asgi", dict(service_name=config._get_service(default="asgi"), distributed_tracing=True))
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
@@ -106,10 +106,10 @@ class TraceMiddleware:
                 if "headers" in message:
                     store_response_headers(message["headers"], span, config.asgi)
 
-            return await send(message)
+            await send(message)
 
         try:
-            return await self.app(scope, receive, wrapped_send)
+            await self.app(scope, receive, wrapped_send)
         except Exception:
             (exc_type, exc_val, exc_tb) = sys.exc_info()
             span.set_exc_info(exc_type, exc_val, exc_tb)
