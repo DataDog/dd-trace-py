@@ -1,4 +1,4 @@
-"""Patch librairies to be automatically instrumented.
+"""Patch libraries to be automatically instrumented.
 
 It can monkey patch supported standard libraries and third party modules.
 A patched module will automatically report spans with its default configuration.
