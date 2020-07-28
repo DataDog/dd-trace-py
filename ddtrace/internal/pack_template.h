@@ -554,18 +554,6 @@ if(sizeof(unsigned long long) == 2) {
 }
 
 
-/*
- * Float
- */
-
-static inline int msgpack_pack_float(msgpack_packer* x, float d)
-{
-    unsigned char buf[5];
-    buf[0] = 0xca;
-    _PyFloat_Pack4(d, &buf[1], 0);
-    msgpack_pack_append_buffer(x, buf, 5);
-}
-
 static inline int msgpack_pack_double(msgpack_packer* x, double d)
 {
     unsigned char buf[9];

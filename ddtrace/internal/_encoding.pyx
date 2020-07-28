@@ -19,7 +19,6 @@ cdef extern from "pack.h":
     int msgpack_pack_long(msgpack_packer* pk, long d)
     int msgpack_pack_long_long(msgpack_packer* pk, long long d)
     int msgpack_pack_unsigned_long_long(msgpack_packer* pk, unsigned long long d)
-    int msgpack_pack_float(msgpack_packer* pk, float d)
     int msgpack_pack_double(msgpack_packer* pk, double d)
     int msgpack_pack_array(msgpack_packer* pk, size_t l)
     int msgpack_pack_map(msgpack_packer* pk, size_t l)
@@ -60,16 +59,12 @@ cdef class Packer(object):
     :param callable default:
         Convert user type to builtin type that Packer supports.
         See also simplejson's document.
-
-    :param bool use_single_float:
-        Use single precision float type for float. (default: False)
     """
     cdef msgpack_packer pk
     cdef object _default
     cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
-    cdef bool use_float
 
     def __cinit__(self):
         cdef int buf_size = 1024*1024
@@ -79,9 +74,7 @@ cdef class Packer(object):
         self.pk.buf_size = buf_size
         self.pk.length = 0
 
-    def __init__(self, default=None,
-                 bint use_single_float=False):
-        self.use_float = use_single_float
+    def __init__(self, default=None):
         if default is not None:
             if not PyCallable_Check(default):
                 raise TypeError("default must be a callable.")
@@ -134,12 +127,8 @@ cdef class Packer(object):
                 longval = o
                 ret = msgpack_pack_long(&self.pk, longval)
             elif PyFloat_CheckExact(o):
-                if self.use_float:
-                   fval = o
-                   ret = msgpack_pack_float(&self.pk, fval)
-                else:
-                   dval = o
-                   ret = msgpack_pack_double(&self.pk, dval)
+                dval = o
+                ret = msgpack_pack_double(&self.pk, dval)
             elif PyBytesLike_CheckExact(o):
                 L = len(o)
                 if L > ITEM_LIMIT:
@@ -176,7 +165,6 @@ cdef class Packer(object):
                        if ret != 0: break
             elif PyList_CheckExact(o):
                 # Expect a list of traces or a list of spans
-
                 L = len(o)
                 if L > ITEM_LIMIT:
                     raise ValueError("list is too large")
@@ -186,7 +174,7 @@ cdef class Packer(object):
                     break
 
                 if L > 0 and PyList_CheckExact(o[0]):
-                    # List of traces
+                    # List of lists of spans (a list of traces)
                     for i in range(L):
                         span = o[i]
                         ret = self._pack(span)
