@@ -484,15 +484,19 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertIsNotNone(self.tracer._runtime_worker)
 
     def test_configure_dogstatsd_host(self):
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True) as ws:
             warnings.simplefilter('always')
             self.tracer.configure(dogstatsd_host='foo')
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 8125
             # verify warnings triggered
-            assert len(w) == 1
-            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert 'Use `dogstatsd_url`' in str(w[-1].message)
+            assert len(ws) >= 1
+            for w in ws:
+                if issubclass(w.category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning):
+                    assert 'Use `dogstatsd_url`' in str(w.message)
+                    break
+            else:
+                assert 0, "dogstatsd warning not found"
 
     def test_configure_dogstatsd_host_port(self):
         with warnings.catch_warnings(record=True) as w:
@@ -501,7 +505,7 @@ class TracerTestCase(BaseTracerTestCase):
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 1234
             # verify warnings triggered
-            assert len(w) == 2
+            assert len(w) >= 2
             assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
             assert 'Use `dogstatsd_url`' in str(w[0].message)
             assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
@@ -1044,3 +1048,12 @@ def test_deregister_start_span_hooks():
     t.start_span("hello")
 
     assert result == {}
+
+
+def test_enable(monkeypatch):
+    t1 = ddtrace.Tracer()
+    assert t1.enabled
+
+    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    t2 = ddtrace.Tracer()
+    assert not t2.enabled

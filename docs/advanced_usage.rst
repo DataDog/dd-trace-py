@@ -203,77 +203,77 @@ Enabling analyzed spans for all web frameworks can be accomplished by setting th
 * :ref:`tornado`
 
 
-For most libraries, analyzed spans can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
+For most libraries, analyzed spans can be enabled with the environment variable ``DD_TRACE_{INTEGRATION}_ANALYTICS_ENABLED=true``:
 
-+----------------------+----------------------------------------+
-|       Library        |          Environment Variable          |
-+======================+========================================+
-| :ref:`aiobotocore`   | ``DD_AIOBOTOCORE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |
-+----------------------+----------------------------------------+
-| :ref:`bottle`        | ``DD_BOTTLE_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
-+----------------------+----------------------------------------+
-| :ref:`celery`        | ``DD_CELERY_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
-+----------------------+----------------------------------------+
-| :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`flask`         | ``DD_FLASK_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`flask_cache`   | ``DD_FLASK_CACHE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`grpc`          | ``DD_GRPC_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`httplib`       | ``DD_HTTPLIB_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`kombu`         | ``DD_KOMBU_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`molten`        | ``DD_MOLTEN_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pylibmc`       | ``DD_PYLIBMC_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`pylons`        | ``DD_PYLONS_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pymemcache`    | ``DD_PYMEMCACHE_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`pymongo`       | ``DD_PYMONGO_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`redis`         | ``DD_REDIS_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`rediscluster`  | ``DD_REDISCLUSTER_ANALYTICS_ENABLED``  |
-+----------------------+----------------------------------------+
-| :ref:`sqlalchemy`    | ``DD_SQLALCHEMY_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`vertica`       | ``DD_VERTICA_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
++----------------------+----------------------------------------------+
+|       Library        |              Environment Variable            |
++======================+==============================================+
+| :ref:`aiobotocore`   | ``DD_TRACE_AIOBOTOCORE_ANALYTICS_ENABLED``   |
++----------------------+----------------------------------------------+
+| :ref:`aiopg`         | ``DD_TRACE_AIOPG_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`boto`          | ``DD_TRACE_BOTO_ANALYTICS_ENABLED``          |
++----------------------+----------------------------------------------+
+| :ref:`botocore`      | ``DD_TRACE_BOTOCORE_ANALYTICS_ENABLED``      |
++----------------------+----------------------------------------------+
+| :ref:`bottle`        | ``DD_TRACE_BOTTLE_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`cassandra`     | ``DD_TRACE_CASSANDRA_ANALYTICS_ENABLED``     |
++----------------------+----------------------------------------------+
+| :ref:`celery`        | ``DD_TRACE_CELERY_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`elasticsearch` | ``DD_TRACE_ELASTICSEARCH_ANALYTICS_ENABLED`` |
++----------------------+----------------------------------------------+
+| :ref:`falcon`        | ``DD_TRACE_FALCON_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`flask`         | ``DD_TRACE_FLASK_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`flask_cache`   | ``DD_TRACE_FLASK_CACHE_ANALYTICS_ENABLED``   |
++----------------------+----------------------------------------------+
+| :ref:`grpc`          | ``DD_TRACE_GRPC_ANALYTICS_ENABLED``          |
++----------------------+----------------------------------------------+
+| :ref:`httplib`       | ``DD_TRACE_HTTPLIB_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
+| :ref:`kombu`         | ``DD_TRACE_KOMBU_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`molten`        | ``DD_TRACE_MOLTEN_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`pylibmc`       | ``DD_TRACE_PYLIBMC_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
+| :ref:`pylons`        | ``DD_TRACE_PYLONS_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`pymemcache`    | ``DD_TRACE_PYMEMCACHE_ANALYTICS_ENABLED``    |
++----------------------+----------------------------------------------+
+| :ref:`pymongo`       | ``DD_TRACE_PYMONGO_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
+| :ref:`redis`         | ``DD_TRACE_REDIS_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`rediscluster`  | ``DD_TRACE_REDISCLUSTER_ANALYTICS_ENABLED``  |
++----------------------+----------------------------------------------+
+| :ref:`sqlalchemy`    | ``DD_TRACE_SQLALCHEMY_ANALYTICS_ENABLED``    |
++----------------------+----------------------------------------------+
+| :ref:`vertica`       | ``DD_TRACE_VERTICA_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
 
 For datastore libraries that extend another, use the setting for the underlying library:
 
-+------------------------+----------------------------------+
-|        Library         |       Environment Variable       |
-+========================+==================================+
-| :ref:`mongoengine`     | ``DD_PYMONGO_ANALYTICS_ENABLED`` |
-+------------------------+----------------------------------+
-| :ref:`mysql-connector` | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`mysqldb`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`psycopg2`        | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`pymysql`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
++------------------------+----------------------------------------+
+|        Library         |          Environment Variable          |
++========================+========================================+
+| :ref:`mongoengine`     | ``DD_TRACE_PYMONGO_ANALYTICS_ENABLED`` |
++------------------------+----------------------------------------+
+| :ref:`mysql-connector` | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`mysqldb`         | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`psycopg2`        | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`pymysql`         | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`sqllite`         | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
 
-Where environment variables are not used for configuring the tracer, the instructions for configuring app analytics is provided in the library documentation:
+Where environment variables are not used for configuring the tracer, the instructions for configuring app analytics are provided in the library documentation:
 
 * :ref:`aiohttp`
 * :ref:`django`

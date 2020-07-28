@@ -1,4 +1,4 @@
-"""Patch librairies to be automatically instrumented.
+"""Patch libraries to be automatically instrumented.
 
 It can monkey patch supported standard libraries and third party modules.
 A patched module will automatically report spans with its default configuration.
@@ -7,6 +7,7 @@ A library instrumentation can be configured (for instance, to report as another 
 using Pin. For that, check its documentation.
 """
 import importlib
+import os
 import sys
 import threading
 
@@ -14,6 +15,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
 from .settings import config
+from .utils import formats
 
 
 log = get_logger(__name__)
@@ -100,11 +102,27 @@ def _on_import_factory(module, raise_errors=True):
 def patch_all(**patch_modules):
     """Automatically patches all available modules.
 
+    In addition to ``patch_modules``, an override can be specified via an
+    environment variable, ``DD_TRACE_<module>_ENABLED`` for each module.
+
+    ``patch_modules`` have the highest precedence for overriding.
+
     :param dict patch_modules: Override whether particular modules are patched or not.
 
         >>> patch_all(redis=False, cassandra=False)
     """
     modules = PATCH_MODULES.copy()
+
+    # The enabled setting can be overridden by environment variables
+    for module, enabled in modules.items():
+        env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+        if env_var not in os.environ:
+            continue
+
+        override_enabled = formats.asbool(os.environ[env_var])
+        modules[module] = override_enabled
+
+    # Arguments take precedence over the environment and the defaults.
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
