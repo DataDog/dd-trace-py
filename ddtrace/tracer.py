@@ -344,7 +344,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        if asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
+        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
             try:
                 info = debug.collect(self)
             except Exception as e:

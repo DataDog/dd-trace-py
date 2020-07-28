@@ -19,12 +19,12 @@ class TestPatching(SubprocessTestCase):
         monkey.patch_all()
         assert "sqlite3" in monkey._PATCHED_MODULES
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_REDIS_ENABLED="false"))
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
     def test_patch_all_env_override_sqlite_disabled(self):
         monkey.patch_all()
         assert "sqlite3" not in monkey._PATCHED_MODULES
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_REDIS_ENABLED="false"))
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
     def test_patch_all_env_override_manual_patch(self):
         # Manual patching should not be affected by the environment variable override.
         monkey.patch(sqlite3=True)
