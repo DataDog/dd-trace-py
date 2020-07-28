@@ -32,10 +32,15 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
+def _register(hook):
+    if hook not in registry:
+        registry.append(hook)
+
+
 if BUILTIN_FORK_HOOKS:
 
     def register(after_in_child):
-        registry.append(after_in_child)
+        _register(after_in_child)
         return lambda f: f
 
     def call_nocheck(f, *args, **kwargs):
@@ -61,7 +66,7 @@ else:
                 # if a fork occurred and we're in the child.
                 pass
         """
-        registry.append(after_in_child)
+        _register(after_in_child)
 
         def wrapper(func):
             global PID

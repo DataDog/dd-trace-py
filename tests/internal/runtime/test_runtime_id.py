@@ -32,10 +32,3 @@ def test_get_runtime_id_fork():
     exit_code = os.WEXITSTATUS(status)
 
     assert exit_code == 42
-
-
-def test_flag():
-    if hasattr(os, "register_at_fork"):
-        assert runtime.AT_FORK_INSTALLED
-    else:
-        assert not runtime.AT_FORK_INSTALLED

@@ -1,23 +1,25 @@
 import functools
 import logging
-import os
-from os import environ
+import json
+from os import environ, getpid
+import sys
 
 from ddtrace.vendor import debtcollector
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal.logger import get_logger
+from .internal import debug
+from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
-from .internal import _rand, forksafe
+from .internal import _rand
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
-from .utils.formats import get_env, parse_tags_str
+from .utils.formats import asbool, get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
@@ -119,17 +121,14 @@ class Tracer(object):
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
 
         # globally set tags
-        self.tags = {}
-        env_tags = environ.get("DD_TAGS")
-        if env_tags:
-            self.set_tags(parse_tags_str(env_tags))
+        self.tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()
 
         # Runtime id used for associating data collected during runtime to
         # traces
-        self._pid = os.getpid()
+        self._pid = getpid()
 
         # Apply the default configuration
         self.configure(
@@ -332,13 +331,23 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-    def after_in_child():
-        _rand.seed()
+        if asbool(environ.get("DD_TRACE_STARTUP_LOGS") or True):
+            try:
+                info = debug.collect(self)
+            except Exception as e:
+                msg = "Failed to collect start-up logs: %s" % e
+                self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
+            else:
+                if self.log.isEnabledFor(logging.INFO):
+                    msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
+                    self._log_compat(logging.INFO, msg)
 
-    @forksafe.register(after_in_child=after_in_child)
-    def start_span(
-        self, name, child_of=None, service=None, resource=None, span_type=None, is_in_child_after_fork=False
-    ):
+                agent_error = info.get("agent_error")
+                if agent_error:
+                    msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
+                    self._log_compat(logging.WARNING, msg)
+
+    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -364,36 +373,7 @@ class Tracer(object):
             context = tracer.get_call_context()
             span = tracer.start_span('web.worker', child_of=context)
         """
-        if is_in_child_after_fork:
-            self._pid = os.getpid()
-            ctx = self.get_call_context()
-            # The spans remaining in the context can not and will not be finished
-            # in this new process. So we need to copy out the trace metadata needed
-            # to continue the trace.
-            # Also, note that because we're in a forked process, the lock that the
-            # context has might be permanently locked so we can't use ctx.clone().
-            new_ctx = Context(
-                sampling_priority=ctx._sampling_priority,
-                span_id=ctx._parent_span_id,
-                trace_id=ctx._parent_trace_id,
-            )
-            self.context_provider.activate(new_ctx)
-
-            # Assume that the services of the child are not necessarily a subset of those
-            # of the parent.
-            self._services = set()
-
-            if self._runtime_worker is not None:
-                self._start_runtime_worker()
-
-            # force an immediate update constant tags since we have reset services
-            # and generated a new runtime id
-            self._update_dogstatsd_constant_tags()
-
-            # Re-create the background writer thread
-            self.writer = self.writer.recreate()
-        else:
-            new_ctx = None
+        new_ctx = self._check_new_process()
 
         if child_of is not None:
             if isinstance(child_of, Context):
@@ -418,12 +398,11 @@ class Tracer(object):
         #     a. User provided or integration provided service name
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
-        #     a. `config.service`/`DD_SERVICE`
+        #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
         if service is None:
             if parent:
                 service = parent.service
             else:
-                # ``config`` is initialized with DD_SERVICE env var if it exists.
                 service = config.service
 
         if trace_id:
@@ -487,14 +466,14 @@ class Tracer(object):
             if self._runtime_worker and self._is_span_internal(span):
                 span.set_tag('language', 'python')
 
-        # Apply default global tags
+        # Apply default global tags.
         if self.tags:
             span.set_tags(self.tags)
 
-        # Add env, service, and version tags
-        # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
         if config.env:
             span.set_tag(ENV_KEY, config.env)
+
+        # Only set the version tag on internal spans.
         if config.version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
@@ -506,7 +485,7 @@ class Tracer(object):
                 span.set_tag(VERSION_KEY, config.version)
 
         if not span._parent:
-            span.set_tag(system.PID, self._pid)
+            span.set_tag(system.PID, getpid())
             span.set_tag("runtime-id", get_runtime_id())
 
         # add it to the current context
@@ -538,6 +517,66 @@ class Tracer(object):
     def _start_runtime_worker(self):
         self._runtime_worker = RuntimeWorker(self._dogstatsd_client, self._RUNTIME_METRICS_INTERVAL)
         self._runtime_worker.start()
+
+    def _check_new_process(self):
+        """ Checks if the tracer is in a new process (was forked) and performs
+            the necessary updates if it is a new process
+        """
+        pid = getpid()
+        if self._pid == pid:
+            return
+
+        self._pid = pid
+
+        # We have to reseed the RNG or we will get collisions between the processes as
+        # they will share the seed and generate the same random numbers.
+        _rand.seed()
+
+        ctx = self.get_call_context()
+        # The spans remaining in the context can not and will not be finished
+        # in this new process. So we need to copy out the trace metadata needed
+        # to continue the trace.
+        # Also, note that because we're in a forked process, the lock that the
+        # context has might be permanently locked so we can't use ctx.clone().
+        new_ctx = Context(
+            sampling_priority=ctx._sampling_priority,
+            span_id=ctx._parent_span_id,
+            trace_id=ctx._parent_trace_id,
+        )
+        self.context_provider.activate(new_ctx)
+
+        # Assume that the services of the child are not necessarily a subset of those
+        # of the parent.
+        self._services = set()
+
+        if self._runtime_worker is not None:
+            self._start_runtime_worker()
+
+        # force an immediate update constant tags since we have reset services
+        # and generated a new runtime id
+        self._update_dogstatsd_constant_tags()
+
+        # Re-create the background writer thread
+        self.writer = self.writer.recreate()
+
+        return new_ctx
+
+    def _log_compat(self, level, msg):
+        """Logs a message for the given level.
+
+        Python 2 will not submit logs to stderr if no handler is configured.
+
+        Instead, something like this will be printed to stderr:
+            No handlers could be found for logger "ddtrace.tracer"
+
+        Since the global tracer is configured on import and it is recommended
+        to import the tracer as early as possible, it will likely be the case
+        that there are no handlers installed yet.
+        """
+        if compat.PY2 and not hasHandlers(self.log):
+            sys.stderr.write("%s\n" % msg)
+        else:
+            self.log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

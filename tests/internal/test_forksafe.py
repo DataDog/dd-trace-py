@@ -44,6 +44,38 @@ def test_registry():
     assert state == [1, 2, 3]
 
 
+def test_duplicates():
+    state = []
+
+    def hook():
+        state.append(1)
+
+    @forksafe.register(after_in_child=hook)
+    def f1():
+        return state
+
+    @forksafe.register(after_in_child=hook)
+    def f2():
+        return state
+
+    @forksafe.register(after_in_child=hook)
+    def f3():
+        return state
+
+    pid = os.fork()
+
+    if pid == 0:
+        # child
+        assert f1() == f2() == f3() == [1]
+        os._exit(12)
+    else:
+        assert f1() == f2() == f3() == []
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
 def test_method_usage():
     class A:
         def __init__(self):
