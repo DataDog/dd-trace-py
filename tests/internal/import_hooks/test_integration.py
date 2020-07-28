@@ -9,6 +9,9 @@ from ddtrace.internal import import_hooks
 from tests.subprocesstest import run_in_subprocess, SubprocessTestCase
 
 
+import_hooks.patch()
+
+
 @pytest.fixture
 def hooks():
     import_hooks.hooks.reset()
