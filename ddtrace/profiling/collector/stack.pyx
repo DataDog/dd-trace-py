@@ -10,6 +10,7 @@ import weakref
 from ddtrace import compat
 from ddtrace.profiling import _attr
 from ddtrace.profiling import _periodic
+from ddtrace.profiling import _nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
@@ -21,22 +22,12 @@ from ddtrace.vendor import six
 _LOG = logging.getLogger(__name__)
 
 
-if "gevent" in sys.modules:
-    try:
-        import gevent.monkey
-    except ImportError:
-        _LOG.error("gevent loaded but unable to import gevent.monkey")
-        from threading import Lock as _threading_Lock
-        from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
-    else:
-        _threading_Lock = gevent.monkey.get_original("threading", "Lock")
-        _thread_get_ident = gevent.monkey.get_original("thread" if six.PY2 else "_thread", "get_ident")
-
+if _nogevent.is_module_patched("threading"):
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
-    _main_thread_id = _thread_get_ident()
+    # We don't have the choice has we can't access the original MainThread
+    _main_thread_id = _nogevent.thread_get_ident()
 else:
-    from threading import Lock as _threading_Lock
     from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
     if six.PY2:
         _main_thread_id = threading._MainThread().ident
@@ -83,16 +74,21 @@ IF UNAME_SYSNAME == "Linux":
             return int(tp.tv_nsec + tp.tv_sec * 10e8)
         PyErr_SetFromErrno(OSError)
 
-    class _ThreadTime(object):
+    cdef class _ThreadTime(object):
+        cdef dict _last_thread_time
+
         def __init__(self):
-            # This uses a tuple of (thread unique id, pthread_id) as the key to identify the thread: you'd think using
+            # This uses a tuple of (pthread_id, thread_native_id) as the key to identify the thread: you'd think using
             # the pthread_t id would be enough, but the glibc reuses the id.
             self._last_thread_time = {}
 
-        def __call__(self, thread_ids):
-            threads_cpu_time = {}
-            for pthread_id, thread_native_id in thread_ids.items():
-                key = (pthread_id, thread_native_id)
+        # Only used in tests
+        def _get_last_thread_time(self):
+            return dict(self._last_thread_time)
+
+        def __call__(self, pthread_ids):
+            cdef list cpu_times = []
+            for pthread_id in pthread_ids:
                 # TODO: Use QueryThreadCycleTime on Windows?
                 # ⚠ WARNING ⚠
                 # `pthread_getcpuclockid` can make Python segfault if the thread is does not exist anymore.
@@ -100,47 +96,55 @@ IF UNAME_SYSNAME == "Linux":
                 # This is why this whole file is compiled down to C: we make sure we never release the GIL between
                 # calling sys._current_frames() and pthread_getcpuclockid, making sure no thread disappeared.
                 try:
-                    clock_id = p_pthread_getcpuclockid(pthread_id)
+                    cpu_time = p_clock_gettime_ns(p_pthread_getcpuclockid(pthread_id))
                 except OSError:
-                    cpu_time = self._last_thread_time.get(key, 0)
-                else:
-                    try:
-                        cpu_time = p_clock_gettime_ns(clock_id)
-                    except OSError:
-                        cpu_time = self._last_thread_time.get(key, 0)
+                    # Just in case it fails, set it to 0
+                    # (Note that glibc never fails, it segfaults instead)
+                    cpu_time = 0
+                cpu_times.append(cpu_time)
+
+            cdef dict pthread_cpu_time = {}
+
+            # We should now be safe doing more Pythonic stuff and maybe releasing the GIL
+            for pthread_id, cpu_time in zip(pthread_ids, cpu_times):
+                thread_native_id = get_thread_native_id(pthread_id)
+                key = pthread_id, thread_native_id
                 # Do a max(0, …) here just in case the result is < 0:
                 # This should never happen, but it can happen if the one chance in a billion happens:
-                # A new thread has been created and has the same native id and the same pthread_id.
-                threads_cpu_time[pthread_id] = max(0, cpu_time - self._last_thread_time.get(key, cpu_time))
+                # - A new thread has been created and has the same native id and the same pthread_id.
+                # - We got an OSError with clock_gettime_ns
+                pthread_cpu_time[key] = max(0, cpu_time - self._last_thread_time.get(key, cpu_time))
                 self._last_thread_time[key] = cpu_time
 
             # Clear cache
-            keys = list(thread_ids.items())
+            keys = list(pthread_cpu_time.keys())
             for key in list(self._last_thread_time.keys()):
                 if key not in keys:
                     del self._last_thread_time[key]
 
-            return threads_cpu_time
+            return pthread_cpu_time
 ELSE:
-    class _ThreadTime(object):
+    cdef class _ThreadTime(object):
+        cdef long _last_process_time
+
         def __init__(self):
             self._last_process_time = compat.process_time_ns()
 
-        def __call__(self, thread_ids):
+        def __call__(self, pthread_ids):
             current_process_time = compat.process_time_ns()
             cpu_time = current_process_time - self._last_process_time
             self._last_process_time = current_process_time
             # Spread the consumed CPU time on all threads.
             # It's not fair, but we have no clue which CPU used more unless we can use `pthread_getcpuclockid`
             # Check that we don't have zero thread — _might_ very rarely happen at shutdown
-            nb_threads = len(thread_ids)
+            nb_threads = len(pthread_ids)
             if nb_threads == 0:
                 cpu_time = 0
             else:
                 cpu_time //= nb_threads
             return {
-                tid: cpu_time
-                for tid in thread_ids
+                (pthread_id, get_thread_native_id(pthread_id)): cpu_time
+                for pthread_id in pthread_ids
             }
 
 
@@ -170,16 +174,15 @@ class StackExceptionSampleEvent(StackBasedEvent):
 
     exc_type = attr.ib(default=None)
 
+from cpython.object cimport PyObject
 
 # The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
-IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
     FEATURES['stack-exceptions'] = True
 
     from cpython cimport PyInterpreterState
     from cpython cimport PyInterpreterState_Head, PyInterpreterState_Next
     from cpython cimport PyInterpreterState_ThreadHead, PyThreadState_Next
-
-    from cpython.object cimport PyObject
 
     from cpython.pythread cimport (
         PyThread_acquire_lock, PyThread_release_lock,
@@ -225,6 +228,12 @@ IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
                 pyinterpreters interpreters
 
             cdef extern _PyRuntimeState _PyRuntime
+ELSE:
+    from cpython.ref cimport Py_DECREF
+
+    cdef extern from "<pystate.h>":
+        PyObject* _PyThread_CurrentFrames()
+
 
 
 cdef get_thread_name(thread_id):
@@ -247,16 +256,35 @@ cdef get_thread_name(thread_id):
             return "Anonymous Thread %d" % thread_id
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
-    current_exceptions = []
+cpdef get_thread_native_id(thread_id):
+    try:
+        thread_obj = threading._active[thread_id]
+    except KeyError:
+        # This should not happen, unless somebody started a thread without
+        # using the `threading` module.
+        # In that case, well… just use the thread_id as native_id 🤞
+        return thread_id
+    else:
+        # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
+        # for hashes since they are relative to the memory address which can easily be the same across different
+        # objects.
+        try:
+            return thread_obj.native_id
+        except AttributeError:
+            # Python < 3.8
+            return hash(thread_obj)
 
-    IF PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
+
+cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
+    cdef dict current_exceptions = {}
+
+    IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
         cdef PyInterpreterState* interp
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
         cdef PyThread_type_lock lmutex = _PyRuntime.interpreters.mutex
 
-        running_threads = []
+        cdef dict running_threads = {}
 
         # This is an internal lock but we do need it.
         # See https://bugs.python.org/issue1021318
@@ -272,13 +300,11 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     while tstate:
                         # The frame can be NULL
                         if tstate.frame:
-                            running_threads.append((tstate.thread_id, <object>tstate.frame))
+                            running_threads[tstate.thread_id] = <object>tstate.frame
 
                         exc_info = _PyErr_GetTopmostException(tstate)
                         if exc_info and exc_info.exc_type and exc_info.exc_traceback:
-                            current_exceptions.append(
-                                (tstate.thread_id, <object>exc_info.exc_type, <object>exc_info.exc_traceback)
-                            )
+                            current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
 
                         tstate = PyThreadState_Next(tstate)
 
@@ -286,80 +312,70 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             finally:
                 PyThread_release_lock(lmutex)
     ELSE:
-        running_threads = list(sys._current_frames().items())
+        cdef dict running_threads = <dict>_PyThread_CurrentFrames()
 
-    running_thread_ids = {t[0] for t in running_threads}
+        # Now that we own the ref via <dict> casting, we can safely decrease the default refcount
+        # so we don't leak the object
+        Py_DECREF(running_threads)
+
+    cdef dict cpu_times = thread_time(running_threads.keys())
+
+    return tuple(
+        (
+            pthread_id,
+            native_thread_id,
+            get_thread_name(pthread_id),
+            running_threads[pthread_id],
+            current_exceptions.get(pthread_id),
+            thread_span_links.get_active_leaf_spans_from_thread_id(pthread_id) if thread_span_links else set(),
+            cpu_time,
+        )
+        for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
+        if not ignore_profiler or pthread_id not in _periodic.PERIODIC_THREAD_IDS
+    )
+
+
+
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
+
+    running_threads = collect_threads(ignore_profiler, thread_time, thread_span_links)
 
     if thread_span_links:
-        thread_span_links.clear_threads(running_thread_ids)
-
-    if ignore_profiler:
-        running_thread_ids -= _periodic.PERIODIC_THREAD_IDS
-
-    # Build a dict of pthread_t id -> native thread id
-    # We need to use both as pthread_id can be reused for new thread, messing with the CPU time clock
-    thread_native_ids = {}
-
-    for thread_id in running_thread_ids:
-        try:
-            thread_obj = threading._active[thread_id]
-        except KeyError:
-            # This should not happen, unless somebody started a thread without
-            # using the `threading` module; in that case, ignore the thread altogether.
-            # In that case, well… just use the thread_id as native_id 🤞
-            native_id = thread_id
-        else:
-            # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
-            # for hashes since they are relative to the memory address which can easily be the same across different
-            # objects.
-            try:
-                native_id = thread_obj.native_id
-            except AttributeError:
-                # Python < 3.8
-                native_id = hash(thread_obj)
-
-        thread_native_ids[thread_id] = native_id
-
-    cpu_time = thread_time(thread_native_ids)
+        # FIXME also use native thread id
+        thread_span_links.clear_threads(tuple(thread[0] for thread in running_threads))
 
     stack_events = []
-    for tid, frame in running_threads:
-        if ignore_profiler and tid in _periodic.PERIODIC_THREAD_IDS:
-            continue
-        if thread_span_links:
-            spans = thread_span_links.get_active_leaf_spans_from_thread_id(tid)
-        else:
-            spans = set()
+    exc_events = []
+
+    for thread_id, thread_native_id, thread_name, frame, exception, spans, cpu_time in running_threads:
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
         stack_events.append(
             StackSampleEvent(
-                thread_id=tid,
-                thread_native_id=thread_native_ids.get(tid),
-                thread_name=get_thread_name(tid),
+                thread_id=thread_id,
+                thread_native_id=thread_native_id,
+                thread_name=thread_name,
                 trace_ids=set(span.trace_id for span in spans),
                 nframes=nframes, frames=frames,
                 wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time[tid],
+                cpu_time_ns=cpu_time,
                 sampling_period=int(interval * 1e9),
             ),
         )
 
-    exc_events = []
-    for tid, exc_type, exc_traceback in current_exceptions:
-        if ignore_profiler and tid in _periodic.PERIODIC_THREAD_IDS:
-            continue
-        frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
-        exc_events.append(
-            StackExceptionSampleEvent(
-                thread_id=tid,
-                thread_name=get_thread_name(tid),
-                thread_native_id=thread_native_ids.get(tid),
-                nframes=nframes,
-                frames=frames,
-                sampling_period=int(interval * 1e9),
-                exc_type=exc_type,
-            ),
-        )
+        if exception is not None:
+            exc_type, exc_traceback = exception
+            frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
+            exc_events.append(
+                StackExceptionSampleEvent(
+                    thread_id=thread_id,
+                    thread_name=thread_name,
+                    thread_native_id=thread_native_id,
+                    nframes=nframes,
+                    frames=frames,
+                    sampling_period=int(interval * 1e9),
+                    exc_type=exc_type,
+                ),
+            )
 
     return stack_events, exc_events
 
@@ -370,7 +386,7 @@ class _ThreadSpanLinks(object):
     # Keys is a thread_id
     # Value is a set of weakrefs to spans
     _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
-    _lock = attr.ib(factory=_threading_Lock, repr=False, init=False)
+    _lock = attr.ib(factory=_nogevent.Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
@@ -379,7 +395,7 @@ class _ThreadSpanLinks(object):
         """
         # Since we're going to iterate over the set, make sure it's locked
         with self._lock:
-            self._thread_id_to_spans[_thread_get_ident()].add(weakref.ref(span))
+            self._thread_id_to_spans[_nogevent.thread_get_ident()].add(weakref.ref(span))
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
@@ -454,12 +470,16 @@ class StackCollector(collector.PeriodicCollector):
         if value <= 0 or value > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
-    def start(self):
+    def _init(self):
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
+
+    def start(self):
+        # This is split in its own function to ease testing
+        self._init()
         super(StackCollector, self).start()
 
     def stop(self):

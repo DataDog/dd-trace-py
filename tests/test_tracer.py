@@ -486,15 +486,19 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertIsNotNone(self.tracer._runtime_worker)
 
     def test_configure_dogstatsd_host(self):
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True) as ws:
             warnings.simplefilter('always')
             self.tracer.configure(dogstatsd_host='foo')
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 8125
             # verify warnings triggered
-            assert len(w) == 1
-            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert 'Use `dogstatsd_url`' in str(w[-1].message)
+            assert len(ws) >= 1
+            for w in ws:
+                if issubclass(w.category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning):
+                    assert 'Use `dogstatsd_url`' in str(w.message)
+                    break
+            else:
+                assert 0, "dogstatsd warning not found"
 
     def test_configure_dogstatsd_host_port(self):
         with warnings.catch_warnings(record=True) as w:
@@ -503,7 +507,7 @@ class TracerTestCase(BaseTracerTestCase):
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 1234
             # verify warnings triggered
-            assert len(w) == 2
+            assert len(w) >= 2
             assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
             assert 'Use `dogstatsd_url`' in str(w[0].message)
             assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
@@ -683,8 +687,8 @@ def test_tracer_fork():
                 assert t.writer._trace_queue != original_writer._trace_queue
 
         # Assert the trace got written into the correct queue
-        assert original_writer._trace_queue.empty()
-        assert t.writer._trace_queue.qsize() == 1
+        assert len(original_writer._trace_queue) == 0
+        assert len(t.writer._trace_queue) == 1
         assert [[span]] == list(t.writer._trace_queue.get())
 
     # Assert tracer in a new process correctly recreates the writer
@@ -704,8 +708,8 @@ def test_tracer_fork():
         assert t.writer._trace_queue == original_writer._trace_queue
 
     # Assert the trace got written into the correct queue
-    assert original_writer._trace_queue.qsize() == 1
-    assert t.writer._trace_queue.qsize() == 1
+    assert len(original_writer._trace_queue) == 1
+    assert len(t.writer._trace_queue) == 1
     assert [[span]] == list(t.writer._trace_queue.get())
 
 
@@ -949,6 +953,38 @@ class EnvTracerTestCase(BaseTracerTestCase):
         assert "key2" in self.tracer.tags
         assert "key3" not in self.tracer.tags
 
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "mysvc"
+            assert s.get_tag("env") == "myenv"
+            assert s.get_tag("version") == "myvers"
+
+    @run_in_subprocess(env_overrides=dict(
+        DD_TAGS="service:s,env:e,version:v",
+        DD_ENV="env",
+        DD_SERVICE="svc",
+        DD_VERSION="0.123",
+    ))
+    def test_tags_from_DD_TAGS_precedence(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "svc"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS_override(self):
+        t = ddtrace.Tracer()
+        ddtrace.config.env = "env"
+        ddtrace.config.service = "service"
+        ddtrace.config.version = "0.123"
+        with t.trace("test") as s:
+            assert s.service == "service"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
 
 def test_tracer_custom_max_traces(monkeypatch):
     monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
@@ -1014,6 +1050,15 @@ def test_deregister_start_span_hooks():
     t.start_span("hello")
 
     assert result == {}
+
+
+def test_enable(monkeypatch):
+    t1 = ddtrace.Tracer()
+    assert t1.enabled
+
+    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    t2 = ddtrace.Tracer()
+    assert not t2.enabled
 
 
 def test_runtime_id_parent_only():

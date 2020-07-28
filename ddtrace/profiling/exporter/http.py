@@ -7,6 +7,7 @@ import platform
 
 import tenacity
 
+from ddtrace.internal.runtime import container
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
@@ -48,6 +49,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     env = attr.ib(default=None)
     version = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
+    _container_info = attr.ib(factory=container.get_container_info, repr=False)
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
@@ -129,6 +131,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         else:
             headers = {}
 
+        if self._container_info and self._container_info.container_id:
+            headers["Datadog-Container-Id"] = self._container_info.container_id
+
         profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         s = six.BytesIO()
         with gzip.GzipFile(fileobj=s, mode="wb") as gz:
@@ -168,7 +173,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         except tenacity.RetryError as e:
             raise UploadFailed(e.last_attempt.exception())
         except error.HTTPError as e:
-            if e.code == 404 and not self.api_key:
+            if e.code == 400:
+                msg = "Server returned 400, check your API key"
+            elif e.code == 404 and not self.api_key:
                 msg = (
                     "Datadog Agent is not accepting profiles. "
                     "Agent-based profiling deployments require Datadog Agent >= 7.20"

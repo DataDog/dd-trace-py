@@ -40,12 +40,12 @@ class MemoryCollector(collector.PeriodicCollector, collector.CaptureSamplerColle
 
     @staticmethod
     def _filter_profiler(traces):
-        return [trace for trace in traces if all(map(lambda frame: not frame[0].startswith(_MODULE_TOP_DIR), trace[2]))]
+        return [trace for trace in traces if not any(frame[0].startswith(_MODULE_TOP_DIR) for frame in trace[2])]
 
     @staticmethod
     def _filter_profiler_35(traces):
         # Python <= 3.5 does not have support for domain
-        return [trace for trace in traces if all(map(lambda frame: not frame[0].startswith(_MODULE_TOP_DIR), trace[1]))]
+        return [trace for trace in traces if not any(frame[0].startswith(_MODULE_TOP_DIR) for frame in trace[1])]
 
     def start(self):
         """Start collecting memory profiles."""
