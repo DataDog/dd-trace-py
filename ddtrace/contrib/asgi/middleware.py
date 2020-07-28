@@ -19,6 +19,10 @@ ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
 
 
+def bytes_to_str(str_or_bytes):
+    return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
+
+
 def _extract_tags_from_scope(scope):
     tags = {}
 
@@ -29,9 +33,7 @@ def _extract_tags_from_scope(scope):
     if config.asgi.trace_query_string:
         query_string = scope.get("query_string")
         if len(query_string) > 0:
-            if isinstance(query_string, bytes):
-                query_string = query_string.decode()
-            tags[http.QUERY_STRING] = query_string
+            tags[http.QUERY_STRING] = bytes_to_str(query_string)
     else:
         query_string = None
 
@@ -58,6 +60,13 @@ def _extract_tags_from_scope(scope):
     return tags
 
 
+def _extract_headers(scope):
+    headers = scope.get("headers")
+    if headers:
+        # headers: (Iterable[[byte string, byte string]])
+        return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -75,7 +84,7 @@ class TraceMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
-        headers = {k: v for (k, v) in scope["headers"]}
+        headers = _extract_headers(scope)
 
         if config.asgi.distributed_tracing:
             propagator = HTTPPropagator()

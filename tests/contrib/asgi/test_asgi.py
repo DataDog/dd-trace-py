@@ -53,9 +53,7 @@ async def basic_app(scope, receive, send):
     assert scope["type"] == "http"
     message = await receive()
     if message.get("type") == "http.request":
-        await send(
-            {"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]}
-        )
+        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
         query_string = scope.get("query_string")
         if query_string and query_string == b"sleep=true":
             await asyncio.sleep(random.random())
@@ -203,7 +201,10 @@ async def test_asgi_error(scope, tracer):
 @pytest.mark.asyncio
 async def test_distributed_tracing(scope, tracer):
     app = TraceMiddleware(basic_app, tracer=tracer)
-    headers = [(http_propagation.HTTP_HEADER_PARENT_ID, "1234"), (http_propagation.HTTP_HEADER_TRACE_ID, "5678")]
+    headers = [
+        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
+        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
+    ]
     scope["headers"] = headers
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({"type": "http.request", "body": b""})
