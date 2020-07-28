@@ -185,7 +185,7 @@ cdef class Packer(object):
                         ret = self._pack(o[i])
                         if ret != 0: break
 
-            elif type(o) is Span:
+            elif isinstance(o, Span):
                 has_span_type = <bint>(o.span_type is not None)
                 has_meta = <bint>(len(o.meta) > 0)
                 has_metrics = <bint>(len(o.metrics) > 0)
