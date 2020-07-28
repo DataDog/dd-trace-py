@@ -1,5 +1,8 @@
-import inspect
+"""
+An API to provide after_in_child fork hooks across all Pythons.
+"""
 import functools
+import logging
 import os
 import threading
 
@@ -11,39 +14,29 @@ __all__ = [
 ]
 
 
+log = logging.getLogger(__name__)
+
 BUILTIN_FORK_HOOKS = hasattr(os, "register_at_fork")
 
-if BUILTIN_FORK_HOOKS:
-    registry = []
+registry = []
 
-    def ddtrace_after_in_child():
-        global registry
 
-        for fn, hook in registry:
+def ddtrace_after_in_child():
+    global registry
+
+    for hook in registry:
+        try:
             hook()
-            fn._fork_occurred = True
+        except Exception:
+            # Mimic the behaviour of Python's fork hooks.
+            log.exception("Exception ignored in forksafe hook %r", hook)
+
+
+if BUILTIN_FORK_HOOKS:
 
     def register(after_in_child):
-        # TODO: this function won't work if not used as a decorator.
-        # eg: register(hook) won't result in hook being called.
-        def wrapper(func):
-            args = inspect.getfullargspec(func)[0]
-            include_arg = "is_in_child_after_fork" in args
-
-            @functools.wraps(func)
-            def fsfunc(*args, **kwargs):
-                fork_occurred = fsfunc._fork_occurred
-                fsfunc._fork_occurred = False
-                if include_arg:
-                    return func(*args, is_in_child_after_fork=fork_occurred, **kwargs)
-                else:
-                    return func(*args, **kwargs)
-
-            fsfunc._fork_occurred = False
-            registry.append((fsfunc, after_in_child))
-            return fsfunc
-
-        return wrapper
+        registry.append(after_in_child)
+        return lambda f: f
 
     def call_nocheck(f, *args, **kwargs):
         return f(*args, **kwargs)
@@ -52,27 +45,34 @@ if BUILTIN_FORK_HOOKS:
 else:
     PID = os.getpid()
     PID_LOCK = threading.Lock()
-    registry = []
-
-    def ddtrace_after_in_child():
-        global registry
-
-        for hook in registry:
-            hook()
 
     def register(after_in_child):
+        """Decorator that registers a function `after_in_child` that will be
+        called in the child process when a fork occurs.
+
+        Decorator usage::
+            def after_fork():
+                # update fork-sensitive state
+                pass
+
+            @forksafe.register(after_in_child=after_fork)
+            def fork_sensitive_fn():
+                # after_fork is guaranteed to be called by this point
+                # if a fork occurred and we're in the child.
+                pass
+        """
         registry.append(after_in_child)
 
         def wrapper(func):
-            args, _, _, _ = inspect.getargspec(func)
-            include_arg = "is_in_child_after_fork" in args
+            global PID
 
             @functools.wraps(func)
-            def fsfunc(*args, **kwargs):
+            def forksafe_func(*args, **kwargs):
                 global PID
-                fork_occurred = False
 
-                if kwargs.get("check_pid", True):
+                if kwargs.pop("_check_pid", True):
+                    # A lock is required here to ensure that the hooks
+                    # are only called once.
                     with PID_LOCK:
                         pid = os.getpid()
 
@@ -81,26 +81,16 @@ else:
                             # Call ALL the hooks.
                             ddtrace_after_in_child()
                             PID = pid
-                            fork_occurred = True
+                return func(*args, **kwargs)
 
-                    # Check if a fork occurred and the hooks were called
-                    # by another function.
-                    if fsfunc._pid != pid:
-                        fsfunc._pid = pid
-                        fork_occurred = True
-
-                if include_arg:
-                    return func(*args, is_in_child_after_fork=fork_occurred, **kwargs)
-                else:
-                    return func(*args, **kwargs)
-
-            fsfunc._pid = PID
             # Set a flag to use to perform sanity checks.
-            fsfunc._is_forksafe = True
-            return fsfunc
+            forksafe_func._is_forksafe = True
+            return forksafe_func
 
         return wrapper
 
     def call_nocheck(f, *args, **kwargs):
-        assert hasattr(f, "_is_forksafe")
-        return f(*args, check_pid=False, **kwargs)
+        if not hasattr(f, "_is_forksafe"):
+            raise ValueError("The given function is not forksafe. Was it `registered`?")
+
+        return f(*args, _check_pid=False, **kwargs)
