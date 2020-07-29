@@ -1,0 +1,16 @@
+name: Contrib tests
+
+on: [push]
+
+jobs:
+  redis:
+    runs-on: ubuntu-latest
+    env:
+      SNAP_CI: 1
+    steps:
+    - uses: actions/checkout@v1
+    - run: docker-compose up -d testagent redis
+    - name: Run test suite
+      run: scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+    - name: Test agent logs
+      run: docker-compose logs testagent
