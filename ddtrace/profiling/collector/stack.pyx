@@ -228,6 +228,11 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
                 pyinterpreters interpreters
 
             cdef extern _PyRuntimeState _PyRuntime
+
+        IF PY_MINOR_VERSION >= 9:
+            # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
+            cdef extern from "<internal/pycore_gc.h>":
+                pass
 ELSE:
     from cpython.ref cimport Py_DECREF
 
