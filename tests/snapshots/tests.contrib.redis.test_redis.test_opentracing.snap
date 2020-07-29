@@ -5,12 +5,12 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1594738114695024896
-   "duration" 3316104
-   "meta" {"runtime-id" "08f15e8814d94efa83b5e37fd6edca0a"}
+   "start" 1596062188665713920
+   "duration" 3061080
+   "meta" {"runtime-id" "601815e8709646a9ac897c59376c80b6"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 42504}}
+              "system.pid" 76411}}
       {"name" "redis.command"
        "service" "redis"
        "resource" "GET cheese"
@@ -19,8 +19,8 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1594738114695461000
-       "duration" 2846000
+       "start" 1596062188666033000
+       "duration" 2694000
        "meta" {"redis.raw_command" "GET cheese"
                "out.host" "localhost"}
        "metrics" {"_dd.measured" 1
