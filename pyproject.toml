@@ -165,7 +165,6 @@ exclude = '''
       | test_logger.py
       | test_rate_limiter.py
     )
-    | memory.py
     | opentracer/
     (
       conftest.py
