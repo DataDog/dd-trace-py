@@ -69,8 +69,6 @@ else:
         _register(after_in_child)
 
         def wrapper(func):
-            global PID
-
             @functools.wraps(func)
             def forksafe_func(*args, **kwargs):
                 global PID
