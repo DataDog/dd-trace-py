@@ -446,8 +446,8 @@ def test_ppprof_memory_exporter():
             (32, (("<stdin>", 1),)),
             (24, (("<unknown>", 0),)),
         ]
-
-    else:
+    elif sys.version_info.major <= 3 and sys.version_info.minor < 9:
+        # Python before 3.9 does not support number of frames
         traces = [
             (0, 45, (("<unknown>", 0),)),
             (0, 64, (("<stdin>", 1),)),
@@ -456,6 +456,16 @@ def test_ppprof_memory_exporter():
             (0, 32, (("<unknown>", 0),)),
             (0, 32, (("<stdin>", 1),)),
             (0, 24, (("<unknown>", 0),)),
+        ]
+    else:
+        traces = [
+            (0, 45, (("<unknown>", 0),), 1),
+            (0, 64, (("<stdin>", 1),), 1),
+            (0, 8224, (("<unknown>", 0),), 1),
+            (0, 144, (("<unknown>", 0),), 1),
+            (0, 32, (("<unknown>", 0),), 1),
+            (0, 32, (("<stdin>", 1),), 1),
+            (0, 24, (("<unknown>", 0),), 1),
         ]
     events = {
         memory.MemorySampleEvent: [
