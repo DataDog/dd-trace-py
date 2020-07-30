@@ -98,7 +98,7 @@ def _unpatch_server():
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
+    pin = Pin.get_from(channel)
     if not pin or not pin.enabled():
         return channel
 
