@@ -165,7 +165,6 @@ exclude = '''
       | test_logger.py
       | test_rate_limiter.py
     )
-    | memory.py
     | profiling/_ast_test_file.py
     | propagation/test_utils.py
     | subprocesstest.py
