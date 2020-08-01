@@ -15,7 +15,7 @@ from ddtrace import Pin
 from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from .utils import MockSocket, _str
 from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 
 from tests.tracer.test_tracer import get_dummy_tracer
 
@@ -272,7 +272,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         self.check_spans(2, ['add', 'delete'], ['add key', 'delete key'])
 
 
-class PymemcacheClientConfiguration(BaseTracerTestCase):
+class PymemcacheClientConfiguration(TracerTestCase):
     """Ensure that pymemache can be configured properly."""
 
     def setUp(self):
@@ -320,7 +320,7 @@ class PymemcacheClientConfiguration(BaseTracerTestCase):
 
         self.assertEqual(spans[0].service, 'mysvc2')
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

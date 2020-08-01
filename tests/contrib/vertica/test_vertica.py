@@ -11,7 +11,7 @@ from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
 
 # testing
-from tests.base import BaseTracerTestCase
+from tests.base import TracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
@@ -52,7 +52,7 @@ def test_conn(request, test_tracer):
     return conn, cur
 
 
-class TestVerticaPatching(BaseTracerTestCase):
+class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
@@ -134,7 +134,7 @@ class TestVerticaPatching(BaseTracerTestCase):
 
 
 @pytest.mark.usefixtures('test_tracer', 'test_conn')
-class TestVertica(BaseTracerTestCase):
+class TestVertica(TracerTestCase):
     def tearDown(self):
         super(TestVertica, self).tearDown()
 

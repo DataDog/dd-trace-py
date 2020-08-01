@@ -14,7 +14,7 @@ from ddtrace.contrib.pymongo.patch import patch, unpatch
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...base import BaseTracerTestCase, override_config
+from ...base import TracerTestCase, override_config
 from tests.tracer.test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 
@@ -342,7 +342,7 @@ class PymongoCore(object):
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
-class TestPymongoTraceClient(BaseTracerTestCase, PymongoCore):
+class TestPymongoTraceClient(TracerTestCase, PymongoCore):
     """Test suite for pymongo with the legacy trace interface"""
 
     TEST_SERVICE = 'test-mongo-trace-client'
@@ -354,7 +354,7 @@ class TestPymongoTraceClient(BaseTracerTestCase, PymongoCore):
         return tracer, client
 
 
-class TestPymongoPatchDefault(BaseTracerTestCase, PymongoCore):
+class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
 
     TEST_SERVICE = mongox.SERVICE
@@ -395,7 +395,7 @@ class TestPymongoPatchDefault(BaseTracerTestCase, PymongoCore):
         assert client
 
 
-class TestPymongoPatchConfigured(BaseTracerTestCase, PymongoCore):
+class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     """Test suite for pymongo with a configured patched library"""
 
     TEST_SERVICE = 'test-mongo-trace-client'
@@ -448,7 +448,7 @@ class TestPymongoPatchConfigured(BaseTracerTestCase, PymongoCore):
         assert spans, spans
         assert len(spans) == 1
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

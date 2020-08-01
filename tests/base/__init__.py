@@ -137,7 +137,7 @@ class BaseTestCase(SubprocessTestCase):
 override_config = BaseTestCase.override_config
 
 
-class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
+class TracerTestCase(TestSpanContainer, BaseTestCase):
     """
     BaseTracerTestCase is a base test case for when you need access to a dummy tracer and span assertions
     """
@@ -145,11 +145,11 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
 
-        super(BaseTracerTestCase, self).setUp()
+        super(TracerTestCase, self).setUp()
 
     def tearDown(self):
         """After each test case, reset and remove the dummy tracer"""
-        super(BaseTracerTestCase, self).tearDown()
+        super(TracerTestCase, self).tearDown()
 
         self.reset()
         delattr(self, 'tracer')

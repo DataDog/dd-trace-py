@@ -9,7 +9,7 @@ from ddtrace.contrib.redis.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
 from tests.tracer.test_tracer import get_dummy_tracer
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 from ...utils import assert_is_measured
 
 
@@ -24,7 +24,7 @@ def test_redis_legacy():
     assert not tracer.writer.pop()
 
 
-class TestRedisPatch(BaseTracerTestCase):
+class TestRedisPatch(TracerTestCase):
 
     TEST_PORT = REDIS_CONFIG["port"]
 
@@ -223,7 +223,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert dd_span.get_metric("redis.args_length") == 2
         assert dd_span.resource == "GET cheese"
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         from ddtrace import config
 
@@ -233,7 +233,7 @@ class TestRedisPatch(BaseTracerTestCase):
         span = self.get_spans()[0]
         assert span.service == "redis"
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
     def test_env_user_specified_redis_service(self):
         self.r.get("cheese")
         span = self.get_spans()[0]
@@ -258,7 +258,7 @@ class TestRedisPatch(BaseTracerTestCase):
         span = self.get_spans()[0]
         assert span.service == "mysvc", span.service
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
     def test_service_precedence(self):
         self.r.get("cheese")
         span = self.get_spans()[0]

@@ -4,10 +4,10 @@ import concurrent
 from ddtrace.contrib.futures import patch, unpatch
 
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 
 
-class PropagationTestCase(BaseTracerTestCase):
+class PropagationTestCase(TracerTestCase):
     """Ensures the Context Propagation works between threads
     when the ``futures`` library is used, or when the
     ``concurrent`` module is available (Python 3 only)

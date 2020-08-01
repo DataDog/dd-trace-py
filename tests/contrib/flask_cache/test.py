@@ -12,12 +12,12 @@ from flask import Flask
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 from ...util import assert_dict_issuperset
 from ...utils import assert_is_measured
 
 
-class FlaskCacheTest(BaseTracerTestCase):
+class FlaskCacheTest(TracerTestCase):
     SERVICE = 'test-flask-cache'
     TEST_REDIS_PORT = REDIS_CONFIG['port']
     TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
@@ -290,7 +290,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestFlaskCacheSettings(BaseTracerTestCase):
+class TestFlaskCacheSettings(TracerTestCase):
     TEST_REDIS_PORT = REDIS_CONFIG['port']
     TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
 
@@ -302,7 +302,7 @@ class TestFlaskCacheSettings(BaseTracerTestCase):
         app = Flask(__name__)
         self.cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user

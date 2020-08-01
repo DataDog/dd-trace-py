@@ -2,10 +2,10 @@ from falcon import testing
 
 from .app import get_app
 from .test_suite import FalconTestCase
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 
 
-class MiddlewareTestCase(BaseTracerTestCase, testing.TestCase, FalconTestCase):
+class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     """Executes tests using the manual instrumentation so a middleware
     is explicitly added.
     """

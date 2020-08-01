@@ -11,7 +11,7 @@ from ddtrace.ext import errors, http
 
 from tests.opentracer.utils import init_tracer
 
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 from ...util import override_global_tracer
 from ...utils import assert_span_http_status_code, assert_is_measured
 
@@ -38,7 +38,7 @@ class BaseRequestTestCase(object):
         super(BaseRequestTestCase, self).tearDown()
 
 
-class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
+class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_resource_path(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200

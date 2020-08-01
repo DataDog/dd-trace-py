@@ -16,7 +16,7 @@ from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
 
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 from ...util import override_global_tracer
 from ...utils import assert_span_http_status_code
 
@@ -53,7 +53,7 @@ class HTTPLibBaseMixin(object):
 
 
 # Main test cases for httplib/http.client and urllib2/urllib.request
-class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
+class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
     SPAN_NAME = 'httplib.request' if PY2 else 'http.client.request'
 
     def to_str(self, value):
@@ -546,7 +546,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
 if PY2:
     import urllib
 
-    class HTTPLibPython2Test(HTTPLibBaseMixin, BaseTracerTestCase):
+    class HTTPLibPython2Test(HTTPLibBaseMixin, TracerTestCase):
         def test_urllib_request(self):
             """
             When making a request via urllib.urlopen

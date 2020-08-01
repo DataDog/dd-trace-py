@@ -9,7 +9,7 @@ from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from ddtrace import Pin
 
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -18,7 +18,7 @@ _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split('.')])
 
 
-class GrpcTestCase(BaseTracerTestCase):
+class GrpcTestCase(TracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
         patch()
@@ -448,7 +448,7 @@ class GrpcTestCase(BaseTracerTestCase):
             rpc_error = exception_context.exception
             assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_app_service_name(self):
         """
         When a service name is specified by the user
@@ -470,7 +470,7 @@ class GrpcTestCase(BaseTracerTestCase):
         self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):
         """
         When a service name is specified by the user in config.grpc{_server}
@@ -489,7 +489,7 @@ class GrpcTestCase(BaseTracerTestCase):
         self._check_server_span(spans[0], "myserversvc", "SayHello", "unary")
         self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
     def test_client_service_name_config_env_override(self):
         """
         When a service name is specified by the user in the DD_GRPC_SERVICE env var

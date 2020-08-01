@@ -15,7 +15,7 @@ from ddtrace.ext import memcached
 # testing
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 from ...utils import assert_is_measured
 
 
@@ -235,7 +235,7 @@ class PylibmcCore(object):
         finally:
             tracer.enabled = True
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
@@ -252,7 +252,7 @@ class PylibmcCore(object):
         assert spans[0].service != "mysvc"
 
 
-class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
+class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
 
     TEST_SERVICE = 'mc-legacy'
@@ -266,7 +266,7 @@ class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
         return client, self.tracer
 
 
-class TestPylibmcPatchDefault(BaseTracerTestCase, PylibmcCore):
+class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the default lib patching"""
 
     def setUp(self):

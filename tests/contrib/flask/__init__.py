@@ -3,10 +3,10 @@ from ddtrace.contrib.flask import patch, unpatch
 import flask
 from ddtrace.vendor import wrapt
 
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 
 
-class BaseFlaskTestCase(BaseTracerTestCase):
+class BaseFlaskTestCase(TracerTestCase):
     def setUp(self):
         super(BaseFlaskTestCase, self).setUp()
 

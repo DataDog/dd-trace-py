@@ -6,11 +6,11 @@ import pytest
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
+from ...base import TracerTestCase
 from ...utils import assert_is_measured
 
 
-class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for Postgres Engine"""
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
