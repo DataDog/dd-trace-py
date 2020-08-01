@@ -57,9 +57,7 @@ class BaseTestCase(SubprocessTestCase):
         ]
 
         # Grab the current values of all keys
-        originals = dict(
-            (key, getattr(ddtrace.config, key)) for key in global_config_keys
-        )
+        originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
 
         # Override from the passed in keys
         for key, value in values.items():
@@ -83,10 +81,7 @@ class BaseTestCase(SubprocessTestCase):
         """
         options = getattr(ddtrace.config, integration)
 
-        original = dict(
-            (key, options.get(key))
-            for key in values.keys()
-        )
+        original = dict((key, options.get(key)) for key in values.keys())
 
         options.update(values)
         try:
@@ -159,6 +154,7 @@ class TestSpanContainer(object):
                 # Grab only the `requests.request` spans
                 spans = self.filter_spans(name='requests.request')
     """
+
     def _ensure_test_spans(self, spans):
         """
         internal helper to ensure the list of spans are all :class:`tests.utils.span.TestSpan`
@@ -168,9 +164,7 @@ class TestSpanContainer(object):
         :returns: A list og :class:`tests.utils.span.TestSpan`
         :rtype: list
         """
-        return [
-            span if isinstance(span, TestSpan) else TestSpan(span) for span in spans
-        ]
+        return [span if isinstance(span, TestSpan) else TestSpan(span) for span in spans]
 
     @property
     def spans(self):
@@ -201,10 +195,10 @@ class TestSpanContainer(object):
         for span in self.spans:
             if span.parent_id is None:
                 if root is not None:
-                    raise AssertionError('Multiple root spans found {0!r} {1!r}'.format(root, span))
+                    raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
                 root = span
 
-        assert root, 'No root span found in {0!r}'.format(self.spans)
+        assert root, "No root span found in {0!r}".format(self.spans)
 
         return self._build_tree(root)
 
@@ -225,19 +219,19 @@ class TestSpanContainer(object):
     def assert_trace_count(self, count):
         """Assert the number of unique trace ids this container has"""
         trace_count = len(self.get_root_spans())
-        assert trace_count == count, 'Trace count {0} != {1}'.format(trace_count, count)
+        assert trace_count == count, "Trace count {0} != {1}".format(trace_count, count)
 
     def assert_span_count(self, count):
         """Assert this container has the expected number of spans"""
-        assert len(self.spans) == count, 'Span count {0} != {1}'.format(len(self.spans), count)
+        assert len(self.spans) == count, "Span count {0} != {1}".format(len(self.spans), count)
 
     def assert_has_spans(self):
         """Assert this container has spans"""
-        assert len(self.spans), 'No spans found'
+        assert len(self.spans), "No spans found"
 
     def assert_has_no_spans(self):
         """Assert this container does not have any spans"""
-        assert len(self.spans) == 0, 'Span count {0}'.format(len(self.spans))
+        assert len(self.spans) == 0, "Span count {0}".format(len(self.spans))
 
     def filter_spans(self, *args, **kwargs):
         """
@@ -274,9 +268,8 @@ class TestSpanContainer(object):
         :rtype: :class:`tests.TestSpan`
         """
         span = next(self.filter_spans(*args, **kwargs), None)
-        assert span is not None, (
-            'No span found for filter {0!r} {1!r}, have {2} spans'
-            .format(args, kwargs, len(self.spans))
+        assert span is not None, "No span found for filter {0!r} {1!r}, have {2} spans".format(
+            args, kwargs, len(self.spans)
         )
         return span
 
@@ -285,6 +278,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     """
     BaseTracerTestCase is a base test case for when you need access to a dummy tracer and span assertions
     """
+
     def setUp(self):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
@@ -296,7 +290,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         super(TracerTestCase, self).tearDown()
 
         self.reset()
-        delattr(self, 'tracer')
+        delattr(self, "tracer")
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
@@ -323,11 +317,11 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, 'tracer', tracer)
+        setattr(ddtrace, "tracer", tracer)
         try:
             yield
         finally:
-            setattr(ddtrace, 'tracer', original)
+            setattr(ddtrace, "tracer", original)
 
 
 class DummyWriter(AgentWriter):
@@ -386,6 +380,7 @@ class DummyTracer(Tracer):
     """
     DummyTracer is a tracer which uses the DummyWriter by default
     """
+
     def __init__(self):
         super(DummyTracer, self).__init__()
         self._update_writer()
@@ -397,7 +392,7 @@ class DummyTracer(Tracer):
             self.original_writer = self.writer
         # LogWriters don't have an api property, so we test that
         # exists before using it to assign hostname/port
-        if hasattr(self.writer, 'api'):
+        if hasattr(self.writer, "api"):
             self.writer = DummyWriter(
                 hostname=self.writer.api.hostname,
                 port=self.writer.api.port,
@@ -406,10 +401,7 @@ class DummyTracer(Tracer):
             )
         else:
             self.writer = DummyWriter(
-                hostname="",
-                port=0,
-                filters=self.writer._filters,
-                priority_sampler=self.writer._priority_sampler,
+                hostname="", port=0, filters=self.writer._filters, priority_sampler=self.writer._priority_sampler,
             )
 
     def configure(self, *args, **kwargs):
@@ -433,6 +425,7 @@ class TestSpan(Span):
         # Raises an AssertionError
         span.assert_matches(name='not.my.span', meta={'system.pid': getpid()})
     """
+
     def __init__(self, span):
         """
         Constructor for TestSpan
@@ -444,7 +437,7 @@ class TestSpan(Span):
             span = span._span
 
         # DEV: Use `object.__setattr__` to by-pass this class's `__setattr__`
-        object.__setattr__(self, '_span', span)
+        object.__setattr__(self, "_span", span)
 
     def __getattr__(self, key):
         """
@@ -490,7 +483,7 @@ class TestSpan(Span):
         """
         for name, value in kwargs.items():
             # Special case for `meta`
-            if name == 'meta' and not self.meta_matches(value):
+            if name == "meta" and not self.meta_matches(value):
                 return False
 
             # Ensure it has the property first
@@ -544,15 +537,14 @@ class TestSpan(Span):
         """
         for name, value in kwargs.items():
             # Special case for `meta`
-            if name == 'meta':
+            if name == "meta":
                 self.assert_meta(value)
-            elif name == 'metrics':
+            elif name == "metrics":
                 self.assert_metrics(value)
             else:
-                assert hasattr(self, name), '{0!r} does not have property {1!r}'.format(self, name)
-                assert getattr(self, name) == value, (
-                    '{0!r} property {1}: {2!r} != {3!r}'
-                    .format(self, name, getattr(self, name), value)
+                assert hasattr(self, name), "{0!r} does not have property {1!r}".format(self, name)
+                assert getattr(self, name) == value, "{0!r} property {1}: {2!r} != {3!r}".format(
+                    self, name, getattr(self, name), value
                 )
 
     def assert_meta(self, meta, exact=False):
@@ -574,10 +566,9 @@ class TestSpan(Span):
             assert self.meta == meta
         else:
             for key, value in meta.items():
-                assert key in self.meta, '{0} meta does not have property {1!r}'.format(self, key)
-                assert self.meta[key] == value, (
-                    '{0} meta property {1!r}: {2!r} != {3!r}'
-                    .format(self, key, self.meta[key], value)
+                assert key in self.meta, "{0} meta does not have property {1!r}".format(self, key)
+                assert self.meta[key] == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self.meta[key], value
                 )
 
     def assert_metrics(self, metrics, exact=False):
@@ -599,10 +590,9 @@ class TestSpan(Span):
             assert self.metrics == metrics
         else:
             for key, value in metrics.items():
-                assert key in self.metrics, '{0} metrics does not have property {1!r}'.format(self, key)
-                assert self.metrics[key] == value, (
-                    '{0} metrics property {1!r}: {2!r} != {3!r}'
-                    .format(self, key, self.metrics[key], value)
+                assert key in self.metrics, "{0} metrics does not have property {1!r}".format(self, key)
+                assert self.metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self.metrics[key], value
                 )
 
 
@@ -611,6 +601,7 @@ class TracerSpanContainer(TestSpanContainer):
     A class to wrap a :class:`tests.utils.tracer.DummyTracer` with a
     :class:`tests.utils.span.TestSpanContainer` to use in tests
     """
+
     def __init__(self, tracer):
         self.tracer = tracer
         super(TracerSpanContainer, self).__init__()
@@ -654,9 +645,10 @@ class TestSpanNode(TestSpan, TestSpanContainer):
                 # Assert the parent/child relationship of this `request` span
                 request.assert_structure( ... )
     """
+
     def __init__(self, root, children=None):
         super(TestSpanNode, self).__init__(root)
-        object.__setattr__(self, '_children', children or [])
+        object.__setattr__(self, "_children", children or [])
 
     def get_spans(self):
         """required subclass property, returns this spans children"""
@@ -730,6 +722,6 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     def pprint(self):
         parts = [super(TestSpanNode, self).pprint()]
         for child in self._children:
-            parts.append('-' * 20)
+            parts.append("-" * 20)
             parts.append(child.pprint())
-        return '\r\n'.join(parts)
+        return "\r\n".join(parts)
