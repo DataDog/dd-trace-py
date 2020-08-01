@@ -4,7 +4,7 @@ from ddtrace.encoding import Encoder, JSONEncoder
 from ddtrace.payload import Payload, PayloadFull
 from ddtrace.span import Span
 
-from tests.base import TracerTestCase
+from tests import TracerTestCase
 
 import pytest
 

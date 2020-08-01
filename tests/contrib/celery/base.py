@@ -7,7 +7,7 @@ from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery import patch, unpatch
 
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ..config import REDIS_CONFIG
 
 REDIS_URL = "redis://127.0.0.1:{port}".format(port=REDIS_CONFIG["port"])

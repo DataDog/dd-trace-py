@@ -6,8 +6,7 @@ from ddtrace.compat import StringIO
 from ddtrace.contrib.logging import patch, unpatch
 from ddtrace.vendor import wrapt
 
-from ...base import TracerTestCase
-
+from ... import TracerTestCase
 
 logger = logging.getLogger()
 logger.level = logging.INFO

@@ -9,7 +9,7 @@ from ddtrace import Pin
 from ddtrace.contrib.mako import patch, unpatch
 from ddtrace.compat import StringIO, to_unicode
 from tests.tracer.test_tracer import get_dummy_tracer
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))

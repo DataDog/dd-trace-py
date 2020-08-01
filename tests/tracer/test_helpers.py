@@ -2,7 +2,7 @@ import mock
 
 from ddtrace import helpers
 
-from tests.base import TracerTestCase
+from tests import TracerTestCase
 from tests.util import override_global_tracer
 
 

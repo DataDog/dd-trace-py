@@ -11,7 +11,7 @@ from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
 
 # testing
-from tests.base import TracerTestCase
+from ... import TracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer

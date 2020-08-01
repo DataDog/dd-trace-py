@@ -4,7 +4,7 @@ from ddtrace.contrib.tornado import patch, unpatch
 from ddtrace.compat import reload_module
 
 from .web import app, compat
-from ...base import TracerTestCase
+from ... import TracerTestCase
 
 
 class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):

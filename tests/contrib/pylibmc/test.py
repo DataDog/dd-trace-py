@@ -15,7 +15,7 @@ from ddtrace.ext import memcached
 # testing
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 
 

@@ -19,7 +19,7 @@ from ddtrace import config, Pin
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 
 # Oftentimes our tests fails because Cassandra connection timeouts during keyspace drop. Slowness in keyspace drop

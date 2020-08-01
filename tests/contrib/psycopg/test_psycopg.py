@@ -17,7 +17,7 @@ from ddtrace import Pin
 # testing
 from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 from ...utils.tracer import DummyTracer
 

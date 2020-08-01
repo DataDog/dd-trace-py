@@ -12,7 +12,7 @@ from flask import Flask
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...util import assert_dict_issuperset
 from ...utils import assert_is_measured
 

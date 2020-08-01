@@ -2,7 +2,7 @@ from falcon import testing
 
 from .app import get_app
 from .test_suite import FalconTestCase
-from ...base import TracerTestCase
+from ... import TracerTestCase
 
 
 class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):

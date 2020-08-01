@@ -6,7 +6,7 @@ import pytest
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import POSTGRES_CONFIG
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 
 

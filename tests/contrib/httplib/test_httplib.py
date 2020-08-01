@@ -16,7 +16,7 @@ from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
 
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...util import override_global_tracer
 from ...utils import assert_span_http_status_code
 

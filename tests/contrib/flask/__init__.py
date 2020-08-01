@@ -3,7 +3,7 @@ from ddtrace.contrib.flask import patch, unpatch
 import flask
 from ddtrace.vendor import wrapt
 
-from ...base import TracerTestCase
+from ... import TracerTestCase
 
 
 class BaseFlaskTestCase(TracerTestCase):

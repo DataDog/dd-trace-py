@@ -10,7 +10,7 @@ from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
 
-from tests.base import BaseTestCase
+from ... import BaseTestCase
 from tests.opentracer.utils import init_tracer
 from ...util import assert_dict_issuperset
 

@@ -6,7 +6,7 @@ from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.contrib.consul.patch import patch, unpatch
 
 from ..config import CONSUL_CONFIG
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 
 

@@ -14,7 +14,8 @@ from ddtrace.ext import mongo as mongox
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...base import TracerTestCase, override_config
+from ...base import override_config
+from ... import TracerTestCase
 from tests.tracer.test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 

@@ -2,7 +2,7 @@ from falcon import testing
 
 import ddtrace
 
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from .app import get_app
 from .test_suite import FalconTestCase
 

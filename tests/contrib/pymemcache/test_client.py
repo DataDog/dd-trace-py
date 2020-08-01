@@ -15,7 +15,7 @@ from ddtrace import Pin
 from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from .utils import MockSocket, _str
 from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
-from ...base import TracerTestCase
+from ... import TracerTestCase
 
 from tests.tracer.test_tracer import get_dummy_tracer
 

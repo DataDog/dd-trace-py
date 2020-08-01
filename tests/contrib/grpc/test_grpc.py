@@ -9,7 +9,7 @@ from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from ddtrace import Pin
 
-from ...base import TracerTestCase
+from ... import TracerTestCase
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer

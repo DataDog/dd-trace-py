@@ -12,7 +12,7 @@ from ddtrace.ext import errors
 
 # testing
 from tests.opentracer.utils import init_tracer
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured, assert_is_not_measured
 
 

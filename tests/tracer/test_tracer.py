@@ -17,7 +17,7 @@ from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
 
 from tests.subprocesstest import run_in_subprocess
-from tests.base import TracerTestCase
+from tests import TracerTestCase
 from tests.utils.tracer import DummyTracer
 from tests.utils.tracer import DummyWriter  # noqa
 from ddtrace.internal.writer import LogWriter, AgentWriter

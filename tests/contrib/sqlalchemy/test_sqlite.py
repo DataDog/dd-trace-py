@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from .mixins import SQLAlchemyTestMixin
-from ...base import TracerTestCase
+from ... import TracerTestCase
 from ...utils import assert_is_measured
 
 
