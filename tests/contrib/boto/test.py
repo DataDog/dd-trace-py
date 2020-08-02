@@ -17,8 +17,7 @@ from ddtrace.ext import http
 # testing
 from unittest import skipUnless
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
 class BotoTest(TracerTestCase):

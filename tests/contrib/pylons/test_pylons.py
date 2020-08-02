@@ -11,8 +11,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
 class PylonsTestCase(TracerTestCase):

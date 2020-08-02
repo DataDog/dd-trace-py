@@ -7,8 +7,7 @@ from ddtrace.contrib.kombu.patch import patch, unpatch
 from ddtrace.contrib.kombu import utils
 from ddtrace.ext import kombu as kombux
 from ..config import RABBITMQ_CONFIG
-from ... import TracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
 class TestKombuPatch(TracerTestCase):

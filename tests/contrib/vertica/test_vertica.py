@@ -11,11 +11,10 @@ from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
 
 # testing
-from ... import TracerTestCase
+from ... import TracerTestCase, assert_is_measured
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
-from ...utils import assert_is_measured
 
 TEST_TABLE = 'test_table'
 

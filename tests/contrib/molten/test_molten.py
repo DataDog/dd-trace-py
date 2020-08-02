@@ -8,8 +8,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
-from ... import TracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced

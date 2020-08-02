@@ -16,9 +16,8 @@ from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
 
-from ... import TracerTestCase
+from ... import TracerTestCase, assert_span_http_status_code
 from ...util import override_global_tracer
-from ...utils import assert_span_http_status_code
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request

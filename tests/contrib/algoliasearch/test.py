@@ -1,8 +1,7 @@
 from ddtrace import config, patch_all
 from ddtrace.contrib.algoliasearch.patch import patch, unpatch, algoliasearch_version
 from ddtrace.pin import Pin
-from ... import TracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
 class AlgoliasearchTest(TracerTestCase):

@@ -12,8 +12,7 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
 from ..config import ELASTICSEARCH_CONFIG
-from ... import TracerTestCase
-from ...utils import assert_span_http_status_code
+from ... import TracerTestCase, assert_span_http_status_code
 
 
 class ElasticsearchTest(TracerTestCase):

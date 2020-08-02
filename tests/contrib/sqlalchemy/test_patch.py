@@ -5,8 +5,7 @@ from ddtrace.contrib.sqlalchemy import patch, unpatch
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 
 from ..config import POSTGRES_CONFIG
-from ... import TracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
 class SQLAlchemyPatchTestCase(TracerTestCase):
