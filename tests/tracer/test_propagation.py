@@ -1,6 +1,6 @@
 from unittest import TestCase
-from tests.test_tracer import get_dummy_tracer
 
+from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.propagation.http import (
     HTTPPropagator,
     HTTP_HEADER_TRACE_ID,
@@ -8,6 +8,7 @@ from ddtrace.propagation.http import (
     HTTP_HEADER_SAMPLING_PRIORITY,
     HTTP_HEADER_ORIGIN,
 )
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 class TestHttpPropagation(TestCase):
@@ -71,3 +72,8 @@ class TestHttpPropagation(TestCase):
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
             assert span.context._dd_origin == "synthetics"
+
+
+class TestPropagationUtils(object):
+    def test_get_wsgi_header(self):
+        assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"

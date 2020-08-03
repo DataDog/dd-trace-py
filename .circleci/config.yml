@@ -81,7 +81,7 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
-      - run: pip install tox
+      - run: pip install -U tox
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"

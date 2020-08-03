@@ -6,7 +6,7 @@ from ddtrace.contrib.rediscluster.patch import patch, unpatch
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
 from ...base import BaseTracerTestCase
-from ...test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 
 
