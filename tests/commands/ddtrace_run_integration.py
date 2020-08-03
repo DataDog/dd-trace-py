@@ -7,7 +7,7 @@ import redis
 
 from ddtrace import Pin
 from tests.contrib.config import REDIS_CONFIG
-from tests.test_tracer import DummyWriter
+from tests.tracer.test_tracer import DummyWriter
 
 if __name__ == "__main__":
     r = redis.Redis(port=REDIS_CONFIG["port"])
