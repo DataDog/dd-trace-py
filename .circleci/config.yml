@@ -555,6 +555,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^pymongo_contrib-'
 
+  pynamodb:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^pynamodb_contrib-'
+
   pyramid:
     executor: ddtrace_dev
     steps:
@@ -905,6 +911,7 @@ workflows:
       - pymemcache: *requires_pre_test
       - pymongo: *requires_pre_test
       - pymysql: *requires_pre_test
+      - pynamodb: *requires_pre_test      
       - pyramid: *requires_pre_test
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test
