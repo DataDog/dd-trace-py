@@ -8,7 +8,7 @@ import pytest
 
 from ddtrace.opentracer import Tracer, set_global_tracer
 
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 @pytest.fixture()

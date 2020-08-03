@@ -1,6 +1,6 @@
 import pytest
 from ddtrace.opentracer.span import Span
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 @pytest.fixture

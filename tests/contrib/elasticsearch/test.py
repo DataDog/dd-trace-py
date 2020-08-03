@@ -10,9 +10,9 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
 # testing
 from tests.opentracer.utils import init_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...base import BaseTracerTestCase
-from ...test_tracer import get_dummy_tracer
 from ...utils import assert_span_http_status_code
 
 

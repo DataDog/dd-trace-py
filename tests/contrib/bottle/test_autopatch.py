@@ -3,7 +3,7 @@ import ddtrace
 import webtest
 
 from unittest import TestCase
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 from ...utils import assert_span_http_status_code
 
 from ddtrace import compat
