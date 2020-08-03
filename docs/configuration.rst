@@ -103,7 +103,7 @@ below:
      - The maximum number of frames to capture in stack execution tracing.
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
-     - 10
+     - 2
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
