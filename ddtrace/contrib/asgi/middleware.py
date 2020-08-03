@@ -67,6 +67,7 @@ def _extract_headers(scope):
         return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
     return {}
 
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
