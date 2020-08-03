@@ -116,10 +116,10 @@ class TraceMiddleware:
                 if "headers" in message:
                     store_response_headers(message["headers"], span, config.asgi)
 
-            await send(message)
+            return await send(message)
 
         try:
-            await self.app(scope, receive, wrapped_send)
+            return await self.app(scope, receive, wrapped_send)
         except Exception:
             (exc_type, exc_val, exc_tb) = sys.exc_info()
             span.set_exc_info(exc_type, exc_val, exc_tb)
