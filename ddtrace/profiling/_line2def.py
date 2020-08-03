@@ -55,12 +55,12 @@ def file_to_tree(filename):
 
 
 def default_def(filename, lineno):
-    return filename + ":" + str(lineno)
+    return str(filename) + ":" + str(lineno)
 
 
 @lru_cache(maxsize=8192)
 def filename_and_lineno_to_def(filename, lineno):
-    if filename[0] == "<" and filename[-1] == ">":
+    if not filename or (filename[0] == "<" and filename[-1] == ">"):
         return default_def(filename, lineno)
 
     try:
