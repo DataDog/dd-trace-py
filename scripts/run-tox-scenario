@@ -3,6 +3,7 @@ set -e
 PATTERN="$1"
 shift
 
+# TODO: remove once #1579 is merged
 pip install tox
 # CircleCI has a bug in its workspace code where it can't handle filenames with some chars
 CLEANED_PATTERN=`echo $PATTERN | tr '^?()$' '_'`
