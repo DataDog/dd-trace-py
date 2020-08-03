@@ -14,17 +14,6 @@ python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
-test_agent: &test_agent
-  - image: kyleverhoog/dd-trace-test-agent:latest
-    environment:
-      # Use the cloned snapshot directory (see below)
-      - SNAPSHOT_DIR=dd-trace-py/tests/snapshots
-      # Enable CI mode for the test agent
-      - SNAPSHOT_CI=1
-    # CircleCI does not provide a way to mount a volume between containers or a
-    # way to bake the snapshots into a custom image...
-    # So we have to clone the repo and snapshots into the container.
-    command: /bin/bash -c "git clone https://github.com/datadog/dd-trace-py/; cd dd-trace-py; git checkout << pipeline.git.branch >>; cd ..; java -jar app-standalone.jar"
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
@@ -658,8 +647,6 @@ jobs:
           command: SNAPSHOT_CI=1 docker-compose up redis testagent
           background: true
       - run: scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
-      - run_tox_scenario:
-          pattern: '^redis_contrib-'
       - save_results
 
   rediscluster:
