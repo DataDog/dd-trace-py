@@ -39,7 +39,7 @@ class PynamodbTest(BaseTracerTestCase):
 
         assert span.name == "pynamodb.command"
         assert span.service == "pynamodb"
-        assert span.resource == "dynamodb.listtables"
+        assert span.resource == "ListTables"
         assert len(spans) == 1
         assert span.span_type == "http"
         assert span.get_tag("aws.operation") == "ListTables"
@@ -52,7 +52,6 @@ class PynamodbTest(BaseTracerTestCase):
     def test_delete_table(self):
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
-
         self.conn.delete_table("Test")
         spans = self.get_spans()
 
@@ -61,7 +60,7 @@ class PynamodbTest(BaseTracerTestCase):
 
         assert span.name == "pynamodb.command"
         assert span.service == "pynamodb"
-        assert span.resource == "dynamodb.deletetable"
+        assert span.resource == "DeleteTable Test"
         assert len(spans) == 1
         assert span.span_type == "http"
         assert span.get_tag("aws.operation") == "DeleteTable"
@@ -73,7 +72,6 @@ class PynamodbTest(BaseTracerTestCase):
     @mock_dynamodb
     def test_scan(self):
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
         self.conn.scan("Test")
 
@@ -84,7 +82,7 @@ class PynamodbTest(BaseTracerTestCase):
 
         assert span.name == "pynamodb.command"
         assert span.service == "pynamodb"
-        assert span.resource == "dynamodb.scan"
+        assert span.resource == "Scan Test"
         assert len(spans) == 1
         assert span.span_type == "http"
         assert span.get_tag("aws.operation") == "Scan"
@@ -105,7 +103,7 @@ class PynamodbTest(BaseTracerTestCase):
             span = spans[0]
             assert span.name == "pynamodb.command"
             assert span.service == "pynamodb"
-            assert span.resource == "dynamodb.scan"
+            assert span.resource == "Scan OtherTable"
             assert len(spans) == 1
             assert span.span_type == "http"
             assert span.get_tag("aws.operation") == "Scan"
