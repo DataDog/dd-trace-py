@@ -1,13 +1,14 @@
+import asyncio
 import ddtrace
+import sanic
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.wrappers import unwrap as _u
+from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-
-import sanic
 
 from ...internal.logger import get_logger
 
@@ -33,11 +34,34 @@ def _extract_tags_from_request(request):
     return tags
 
 
-def _update_span_from_response(span, response):
-    span.set_tag(http.STATUS_CODE, response.status)
-    if 500 <= response.status < 600:
-        span.error = 1
-    store_response_headers(response.headers, span, config.sanic)
+def _wrap_response_callback(span, callback):
+    # wrap response callbacks (either sync or async function) to set span tags
+    # based on response
+
+    def update_span(response):
+        span.set_tag(http.STATUS_CODE, response.status)
+        if 500 <= response.status < 600:
+            span.error = 1
+        store_response_headers(response.headers, span, config.sanic)
+
+    @wrapt.function_wrapper
+    def wrap_sync(wrapped, instance, args, kwargs):
+        r = wrapped(*args, **kwargs)
+        response = args[0]
+        update_span(response)
+        return r
+
+    @wrapt.function_wrapper
+    async def wrap_async(wrapped, instance, args, kwargs):
+        r = await wrapped(*args, **kwargs)
+        response = args[0]
+        update_span(response)
+        return r
+
+    if asyncio.iscoroutinefunction(callback):
+        return wrap_async(callback)
+
+    return wrap_sync(callback)
 
 
 def patch():
@@ -86,27 +110,9 @@ def patch_handle_request(wrapped, instance, args, kwargs):
 
         store_request_headers(headers, span, config.sanic)
 
-        # wrap response callbacks to set span tags based on response
-        def _wrap_sync_response_callback(func):
-            def traced_func(response):
-                r = func(response)
-                _update_span_from_response(span, response)
-                return r
-
-            return traced_func
-
-        def _wrap_async_response_callback(func):
-            async def traced_func(response):
-                if isinstance(response, sanic.response.StreamingHTTPResponse):
-                    r = await func(response)
-                    _update_span_from_response(span, response)
-                    return r
-
-            return traced_func
-
         if write_callback is not None:
-            write_callback = _wrap_sync_response_callback(write_callback)
+            write_callback = _wrap_response_callback(span, write_callback)
         if stream_callback is not None:
-            stream_callback = _wrap_async_response_callback(stream_callback)
+            stream_callback = _wrap_response_callback(span, stream_callback)
 
         return wrapped(request, write_callback, stream_callback, **kwargs)
