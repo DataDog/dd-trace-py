@@ -65,7 +65,7 @@ def _extract_headers(scope):
     if headers:
         # headers: (Iterable[[byte string, byte string]])
         return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
-
+    return {}
 
 class TraceMiddleware:
     """
