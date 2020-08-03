@@ -14,6 +14,7 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
 
 ### Testing
 - [ ] Tests are added to CI.
+- [ ] Functionality is maintained from original library.
 - [ ] All Python versions that the library supports are tested.
 - [ ] All relevant library versions (including the latest) are tested.
 - [ ] Global configuration
