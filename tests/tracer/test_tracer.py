@@ -17,9 +17,9 @@ from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
 
 from tests.subprocesstest import run_in_subprocess
-from .base import BaseTracerTestCase
-from .utils.tracer import DummyTracer
-from .utils.tracer import DummyWriter  # noqa
+from tests.base import BaseTracerTestCase
+from tests.utils.tracer import DummyTracer
+from tests.utils.tracer import DummyWriter  # noqa
 from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
@@ -112,7 +112,7 @@ class TracerTestCase(BaseTracerTestCase):
 
         f()
 
-        self.assert_structure(dict(name='tests.test_tracer.f'))
+        self.assert_structure(dict(name='tests.tracer.test_tracer.f'))
 
     def test_tracer_wrap_exception(self):
         @self.tracer.wrap()
@@ -211,9 +211,9 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertEqual(f.i(), 3)
 
         self.assert_span_count(3)
-        self.spans[0].assert_matches(name='tests.test_tracer.s')
-        self.spans[1].assert_matches(name='tests.test_tracer.c')
-        self.spans[2].assert_matches(name='tests.test_tracer.i')
+        self.spans[0].assert_matches(name='tests.tracer.test_tracer.s')
+        self.spans[1].assert_matches(name='tests.tracer.test_tracer.c')
+        self.spans[2].assert_matches(name='tests.tracer.test_tracer.i')
 
     def test_tracer_wrap_factory(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):

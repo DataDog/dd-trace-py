@@ -19,7 +19,7 @@ from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.payload import Payload
 from ddtrace.span import Span
 from ddtrace.compat import monotonic
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 class MockedLogHandler(logging.Handler):
