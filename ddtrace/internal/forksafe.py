@@ -8,7 +8,6 @@ import threading
 
 
 __all__ = [
-    "call_nocheck",
     "ddtrace_after_in_child",
     "register",
 ]
@@ -43,9 +42,6 @@ if BUILTIN_FORK_HOOKS:
         _register(after_in_child)
         return lambda f: f
 
-    def call_nocheck(f, *args, **kwargs):
-        return f(*args, **kwargs)
-
     os.register_at_fork(after_in_child=ddtrace_after_in_child)
 else:
     PID = os.getpid()
@@ -73,17 +69,16 @@ else:
             def forksafe_func(*args, **kwargs):
                 global PID
 
-                if kwargs.pop("_check_pid", True):
-                    # A lock is required here to ensure that the hooks
-                    # are only called once.
-                    with PID_LOCK:
-                        pid = os.getpid()
+                # A lock is required here to ensure that the hooks
+                # are only called once.
+                with PID_LOCK:
+                    pid = os.getpid()
 
-                        # Check the global pid
-                        if pid != PID:
-                            # Call ALL the hooks.
-                            ddtrace_after_in_child()
-                            PID = pid
+                    # Check the global pid
+                    if pid != PID:
+                        # Call ALL the hooks.
+                        ddtrace_after_in_child()
+                        PID = pid
                 return func(*args, **kwargs)
 
             # Set a flag to use to perform sanity checks.
@@ -91,9 +86,3 @@ else:
             return forksafe_func
 
         return wrapper
-
-    def call_nocheck(f, *args, **kwargs):
-        if not hasattr(f, "_is_forksafe"):
-            raise ValueError("The given function is not forksafe. Was it `registered`?")
-
-        return f(*args, _check_pid=False, **kwargs)

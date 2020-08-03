@@ -1,5 +1,4 @@
 import os
-import sys
 
 from ddtrace.internal import forksafe
 
@@ -96,32 +95,6 @@ def test_method_usage():
         os._exit(12)
     else:
         assert a.method() == 0
-
-    _, status = os.waitpid(pid, 0)
-    exit_code = os.WEXITSTATUS(status)
-    assert exit_code == 12
-
-
-def test_call_nocheck():
-    state = []
-
-    @forksafe.register(after_in_child=lambda: state.append(1))
-    def f1():
-        return state
-
-    pid = os.fork()
-    if pid == 0:
-        # child
-
-        if sys.version_info < (3, 7):
-            assert forksafe.call_nocheck(f1) == []
-        else:
-            assert forksafe.call_nocheck(f1) == [1]
-        assert f1() == [1]
-        os._exit(12)
-    else:
-        assert forksafe.call_nocheck(f1) == []
-        assert f1() == []
 
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
