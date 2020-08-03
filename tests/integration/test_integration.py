@@ -2,6 +2,8 @@ import os
 import logging
 import math
 import mock
+import subprocess
+import sys
 import ddtrace
 
 from unittest import TestCase, skip, skipUnless
@@ -88,7 +90,7 @@ class TestWorkers(TestCase):
         """
         for call, _ in calls:
             if endpoint in call[0]:
-                return call[0], self.api._encoder.decode(call[1])
+                return call[0], self.api._encoder._decode(call[1])
 
         return None, None
 
@@ -491,3 +493,23 @@ class TestConfigure(TestCase):
         tracer.configure(priority_sampling=True)
         assert "127.0.0.1" == tracer.writer.api.hostname
         assert 8127 == tracer.writer.api.port
+
+
+def test_debug_mode():
+    p = subprocess.Popen(
+        [sys.executable, "-c", "import ddtrace"], env=dict(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.stdout.read() == b""
+    assert b"DEBUG:ddtrace" not in p.stderr.read()
+
+    p = subprocess.Popen(
+        [sys.executable, "-c", "import ddtrace"],
+        env=dict(DD_TRACE_DEBUG="true"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.stdout.read() == b""
+    # Stderr should have some debug lines
+    assert b"DEBUG:ddtrace" in p.stderr.read()

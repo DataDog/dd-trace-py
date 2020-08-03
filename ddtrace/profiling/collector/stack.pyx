@@ -228,6 +228,11 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
                 pyinterpreters interpreters
 
             cdef extern _PyRuntimeState _PyRuntime
+
+        IF PY_MINOR_VERSION >= 9:
+            # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
+            cdef extern from "<internal/pycore_gc.h>":
+                pass
 ELSE:
     from cpython.ref cimport Py_DECREF
 
@@ -246,14 +251,19 @@ cdef get_thread_name(thread_id):
     if thread_id == _main_thread_id:
         return "MainThread"
 
-    # Since we own the GIL, we can safely run this and assume no change will happen, without bothering to lock anything
+    # Try to look if this is one of our periodic threads
     try:
-        return threading._active[thread_id].name
+        return _periodic.PERIODIC_THREADS[thread_id].name
     except KeyError:
+        # Since we own the GIL, we can safely run this and assume no change will happen,
+        # without bothering to lock anything
         try:
-            return threading._limbo[thread_id].name
+            return threading._active[thread_id].name
         except KeyError:
-            return "Anonymous Thread %d" % thread_id
+            try:
+                return threading._limbo[thread_id].name
+            except KeyError:
+                return "Anonymous Thread %d" % thread_id
 
 
 cpdef get_thread_native_id(thread_id):
@@ -331,7 +341,7 @@ cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
             cpu_time,
         )
         for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
-        if not ignore_profiler or pthread_id not in _periodic.PERIODIC_THREAD_IDS
+        if not ignore_profiler or pthread_id not in _periodic.PERIODIC_THREADS
     )
 
 

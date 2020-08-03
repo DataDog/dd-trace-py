@@ -1,3 +1,5 @@
+import os
+
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import (
     SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING,
@@ -32,10 +34,13 @@ def traced_init(wrapped, instance, args, kwargs):
     distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', default=True))
     # DEV: integration-specific analytics flag can be not set but still enabled
     # globally for web frameworks
-    analytics_enabled = get_env('pyramid', 'analytics_enabled')
+    old_analytics_enabled = get_env('pyramid', 'analytics_enabled')
+    analytics_enabled = os.environ.get("DD_TRACE_PYRAMID_ANALYTICS_ENABLED", old_analytics_enabled)
     if analytics_enabled is not None:
         analytics_enabled = asbool(analytics_enabled)
-    analytics_sample_rate = get_env('pyramid', 'analytics_sample_rate', default=True)
+    # TODO: why is analytics sample rate a string or a bool here?
+    old_analytics_sample_rate = get_env('pyramid', 'analytics_sample_rate', default=True)
+    analytics_sample_rate = os.environ.get("DD_TRACE_PYRAMID_ANALYTICS_SAMPLE_RATE", old_analytics_sample_rate)
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: distributed_tracing,

@@ -1048,3 +1048,12 @@ def test_deregister_start_span_hooks():
     t.start_span("hello")
 
     assert result == {}
+
+
+def test_enable(monkeypatch):
+    t1 = ddtrace.Tracer()
+    assert t1.enabled
+
+    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    t2 = ddtrace.Tracer()
+    assert not t2.enabled

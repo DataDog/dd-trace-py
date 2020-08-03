@@ -165,18 +165,6 @@ exclude = '''
       | test_logger.py
       | test_rate_limiter.py
     )
-    | memory.py
-    | opentracer/
-    (
-      conftest.py
-      | test_dd_compatibility.py
-      | test_span.py
-      | test_span_context.py
-      | test_tracer_asyncio.py
-      | test_tracer_gevent.py
-      | test_tracer_tornado.py
-      | test_utils.py
-    )
     | profiling/_ast_test_file.py
     | propagation/test_utils.py
     | subprocesstest.py
