@@ -374,6 +374,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^aiohttp_contrib-'
 
+  asgi:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^asgi_contrib-'
+
   tornado:
     executor: ddtrace_dev
     steps:
@@ -843,6 +849,7 @@ workflows:
       - aiopg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
+      - asgi: *requires_pre_test
       - benchmarks: *requires_pre_test
       - boto: *requires_pre_test
       - bottle: *requires_pre_test
@@ -905,6 +912,7 @@ workflows:
             - aiopg
             - asyncio
             - algoliasearch
+            - asgi
             - benchmarks
             - boto
             - bottle
