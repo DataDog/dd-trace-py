@@ -149,7 +149,6 @@ exclude = '''
       )
       | rediscluster
       | requests
-      | requests_gevent
       | sqlalchemy
       | sqlite3
       | test_utils.py
@@ -165,36 +164,9 @@ exclude = '''
       | test_logger.py
       | test_rate_limiter.py
     )
-    | memory.py
-    | opentracer/
-    (
-      conftest.py
-      | test_dd_compatibility.py
-      | test_span.py
-      | test_span_context.py
-      | test_tracer_asyncio.py
-      | test_tracer_gevent.py
-      | test_tracer_tornado.py
-      | test_utils.py
-    )
     | profiling/_ast_test_file.py
-    | propagation/test_utils.py
     | subprocesstest.py
-    | test_api.py
-    | test_compat.py
-    | test_context.py
-    | test_encoders.py
-    | test_filters.py
-    | test_global_config.py
-    | test_helpers.py
-    | test_hook.py
-    | test_instance_config.py
-    | test_payload.py
-    | test_pin.py
-    | test_sampler.py
-    | test_span.py
-    | test_tracer.py
-    | test_worker.py
+    | tracer/
     | unit/
     (
       test_settings.py

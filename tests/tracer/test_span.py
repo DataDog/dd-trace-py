@@ -11,8 +11,8 @@ from ddtrace.constants import (
 )
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
-from .base import BaseTracerTestCase
-from .utils import assert_is_measured, assert_is_not_measured
+from tests.base import BaseTracerTestCase
+from tests.utils import assert_is_measured, assert_is_not_measured
 
 
 class SpanTestCase(BaseTracerTestCase):

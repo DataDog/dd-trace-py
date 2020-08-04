@@ -50,6 +50,30 @@ def get_logger(name):
     return logger
 
 
+def hasHandlers(self):
+    """
+    See if this logger has any handlers configured.
+    Loop through all handlers for this logger and its parents in the
+    logger hierarchy. Return True if a handler was found, else False.
+    Stop searching up the hierarchy whenever a logger with the "propagate"
+    attribute set to zero is found - that will be the last logger which
+    is checked for the existence of handlers.
+
+    https://github.com/python/cpython/blob/8f192d12af82c4dc40730bf59814f6a68f68f950/Lib/logging/__init__.py#L1629
+    """
+    c = self
+    rv = False
+    while c:
+        if c.handlers:
+            rv = True
+            break
+        if not c.propagate:
+            break
+        else:
+            c = c.parent
+    return rv
+
+
 class DDLogger(logging.Logger):
     """
     Custom rate limited logger used by ``ddtrace``

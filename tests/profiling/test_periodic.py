@@ -53,13 +53,13 @@ def test_periodic():
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
     thread_started.wait()
-    assert t.ident in _periodic.PERIODIC_THREAD_IDS
+    assert t.ident in _periodic.PERIODIC_THREADS
     thread_continue.set()
     t.stop()
     t.join()
     assert x["OK"]
     assert x["DOWN"]
-    assert t.ident not in _periodic.PERIODIC_THREAD_IDS
+    assert t.ident not in _periodic.PERIODIC_THREADS
     if hasattr(threading, "get_native_id"):
         assert t.native_id is not None
 
@@ -81,12 +81,12 @@ def test_periodic_error():
     t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
     thread_started.wait()
-    assert t.ident in _periodic.PERIODIC_THREAD_IDS
+    assert t.ident in _periodic.PERIODIC_THREADS
     thread_continue.set()
     t.stop()
     t.join()
     assert "DOWN" not in x
-    assert t.ident not in _periodic.PERIODIC_THREAD_IDS
+    assert t.ident not in _periodic.PERIODIC_THREADS
 
 
 def test_gevent_class():
@@ -94,17 +94,6 @@ def test_gevent_class():
         assert isinstance(_periodic.PeriodicRealThread(1, sum), _periodic._GeventPeriodicThread)
     else:
         assert isinstance(_periodic.PeriodicRealThread(1, sum), _periodic.PeriodicThread)
-
-
-def test_periodic_real_thread_name():
-    def do_nothing():
-        pass
-
-    t = _periodic.PeriodicRealThread(interval=1, target=do_nothing)
-    t.start()
-    assert t in threading.enumerate()
-    t.stop()
-    t.join()
 
 
 def test_periodic_service_start_stop():

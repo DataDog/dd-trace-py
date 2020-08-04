@@ -20,6 +20,14 @@ aiohttp
 .. automodule:: ddtrace.contrib.aiohttp
 
 
+.. _asgi:
+
+asgi
+^^^^
+
+.. automodule:: ddtrace.contrib.asgi
+
+
 .. _bottle:
 
 Bottle
