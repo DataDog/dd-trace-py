@@ -16,13 +16,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        # Include all history and tags
         with:
           fetch-depth: 0
 
       - uses: actions/setup-python@v2
         name: Install Python
         with:
-          python-version: '3.x'
+          python-version: '3.8'
 
       - name: Install cibuildwheel
         run: |
