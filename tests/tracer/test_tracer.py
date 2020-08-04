@@ -17,9 +17,9 @@ from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
 
 from tests.subprocesstest import run_in_subprocess
-from .base import BaseTracerTestCase
-from .utils.tracer import DummyTracer
-from .utils.tracer import DummyWriter  # noqa
+from tests.base import BaseTracerTestCase
+from tests.utils.tracer import DummyTracer
+from tests.utils.tracer import DummyWriter  # noqa
 from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
@@ -112,7 +112,7 @@ class TracerTestCase(BaseTracerTestCase):
 
         f()
 
-        self.assert_structure(dict(name='tests.test_tracer.f'))
+        self.assert_structure(dict(name='tests.tracer.test_tracer.f'))
 
     def test_tracer_wrap_exception(self):
         @self.tracer.wrap()
@@ -211,9 +211,9 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertEqual(f.i(), 3)
 
         self.assert_span_count(3)
-        self.spans[0].assert_matches(name='tests.test_tracer.s')
-        self.spans[1].assert_matches(name='tests.test_tracer.c')
-        self.spans[2].assert_matches(name='tests.test_tracer.i')
+        self.spans[0].assert_matches(name='tests.tracer.test_tracer.s')
+        self.spans[1].assert_matches(name='tests.tracer.test_tracer.c')
+        self.spans[2].assert_matches(name='tests.tracer.test_tracer.i')
 
     def test_tracer_wrap_factory(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
@@ -484,15 +484,19 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertIsNotNone(self.tracer._runtime_worker)
 
     def test_configure_dogstatsd_host(self):
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True) as ws:
             warnings.simplefilter('always')
             self.tracer.configure(dogstatsd_host='foo')
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 8125
             # verify warnings triggered
-            assert len(w) == 1
-            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert 'Use `dogstatsd_url`' in str(w[-1].message)
+            assert len(ws) >= 1
+            for w in ws:
+                if issubclass(w.category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning):
+                    assert 'Use `dogstatsd_url`' in str(w.message)
+                    break
+            else:
+                assert 0, "dogstatsd warning not found"
 
     def test_configure_dogstatsd_host_port(self):
         with warnings.catch_warnings(record=True) as w:
@@ -501,7 +505,7 @@ class TracerTestCase(BaseTracerTestCase):
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 1234
             # verify warnings triggered
-            assert len(w) == 2
+            assert len(w) >= 2
             assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
             assert 'Use `dogstatsd_url`' in str(w[0].message)
             assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
@@ -947,6 +951,38 @@ class EnvTracerTestCase(BaseTracerTestCase):
         assert "key2" in self.tracer.tags
         assert "key3" not in self.tracer.tags
 
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "mysvc"
+            assert s.get_tag("env") == "myenv"
+            assert s.get_tag("version") == "myvers"
+
+    @run_in_subprocess(env_overrides=dict(
+        DD_TAGS="service:s,env:e,version:v",
+        DD_ENV="env",
+        DD_SERVICE="svc",
+        DD_VERSION="0.123",
+    ))
+    def test_tags_from_DD_TAGS_precedence(self):
+        t = ddtrace.Tracer()
+        with t.trace("test") as s:
+            assert s.service == "svc"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
+    def test_tags_from_DD_TAGS_override(self):
+        t = ddtrace.Tracer()
+        ddtrace.config.env = "env"
+        ddtrace.config.service = "service"
+        ddtrace.config.version = "0.123"
+        with t.trace("test") as s:
+            assert s.service == "service"
+            assert s.get_tag("env") == "env"
+            assert s.get_tag("version") == "0.123"
+
 
 def test_tracer_custom_max_traces(monkeypatch):
     monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
@@ -1012,3 +1048,12 @@ def test_deregister_start_span_hooks():
     t.start_span("hello")
 
     assert result == {}
+
+
+def test_enable(monkeypatch):
+    t1 = ddtrace.Tracer()
+    assert t1.enabled
+
+    monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+    t2 = ddtrace.Tracer()
+    assert not t2.enabled

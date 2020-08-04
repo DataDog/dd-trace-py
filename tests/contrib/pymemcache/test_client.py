@@ -17,7 +17,7 @@ from .utils import MockSocket, _str
 from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
 from ...base import BaseTracerTestCase
 
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 _Client = pymemcache.client.base.Client

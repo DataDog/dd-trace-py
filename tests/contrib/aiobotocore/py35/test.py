@@ -4,7 +4,7 @@ from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 
 from ..utils import aiobotocore_client
 from ...asyncio.utils import AsyncioTestCase, mark_asyncio
-from ....test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 from ....utils import assert_span_http_status_code, assert_is_measured
 
 
