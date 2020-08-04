@@ -170,7 +170,17 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertTrue(config.analytics_enabled)
             self.assertIsNone(config.foo.analytics_enabled)
 
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+            self.assertIsNone(config.foo.analytics_enabled)
+
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.foo.analytics_enabled)
+            self.assertEqual(config.foo.analytics_sample_rate, 1.0)
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED='True')):
             config = Config()
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 1.0)
@@ -179,7 +189,16 @@ class TestIntegrationConfig(BaseTestCase):
             config = Config()
             self.assertFalse(config.foo.analytics_enabled)
 
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.foo.analytics_enabled)
+
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True', DD_FOO_ANALYTICS_SAMPLE_RATE='0.5')):
+            config = Config()
+            self.assertTrue(config.foo.analytics_enabled)
+            self.assertEqual(config.foo.analytics_sample_rate, 0.5)
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED='True', DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE='0.5')):
             config = Config()
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
@@ -193,6 +212,10 @@ class TestIntegrationConfig(BaseTestCase):
         self.assertFalse(ic.analytics_enabled)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True')):
+            ic = IntegrationConfig(self.config, 'foo', analytics_enabled=False)
+            self.assertFalse(ic.analytics_enabled)
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED='True')):
             ic = IntegrationConfig(self.config, 'foo', analytics_enabled=False)
             self.assertFalse(ic.analytics_enabled)
 
@@ -212,7 +235,17 @@ class TestIntegrationConfig(BaseTestCase):
             ic = IntegrationConfig(config, 'foo')
             self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
 
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            ic = IntegrationConfig(config, 'foo')
+            self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
+
         with self.override_env(dict(DD_ANALYTICS_ENABLED='False')):
+            config = Config()
+            ic = IntegrationConfig(config, 'foo')
+            self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
+
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='False')):
             config = Config()
             ic = IntegrationConfig(config, 'foo')
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))

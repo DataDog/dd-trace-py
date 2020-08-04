@@ -39,7 +39,7 @@ Configuration
 
    Whether to analyze spans for Django in App Analytics.
 
-   Can also be enabled with the ``DD_DJANGO_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_TRACE_DJANGO_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 
@@ -171,7 +171,7 @@ The mapping from old configuration settings to new ones.
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``TRACE_QUERY_STRING``      | ``config.django['trace_query_string']``                                                                                 |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``TAGS``                    | ``DD_TRACE_GLOBAL_TAGS`` environment variable or ``tracer.set_tags()``                                                  |
+| ``TAGS``                    | ``DD_TAGS`` environment variable or ``tracer.set_tags()``                                                               |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``TRACER``                  | N/A - if a particular tracer is required for the Django integration use ``Pin.override(Pin.get_from(django), tracer=)`` |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+

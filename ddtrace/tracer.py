@@ -1,13 +1,16 @@
 import functools
 import logging
+import json
 from os import environ, getpid
+import sys
 
 from ddtrace.vendor import debtcollector
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal.logger import get_logger
+from .internal import debug
+from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .internal import _rand
@@ -16,7 +19,7 @@ from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
-from .utils.formats import get_env, parse_tags_str
+from .utils.formats import asbool, get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
@@ -24,6 +27,18 @@ from . import _hooks
 
 
 log = get_logger(__name__)
+
+debug_mode = asbool(get_env("trace", "debug", default=False))
+
+DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
+    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+)
+if debug_mode and not hasHandlers(log):
+    if config.logs_injection:
+        logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
+    else:
+        logging.basicConfig(level=logging.DEBUG)
 
 
 def _parse_dogstatsd_url(url):
@@ -118,10 +133,7 @@ class Tracer(object):
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
 
         # globally set tags
-        self.tags = {}
-        env_tags = environ.get("DD_TAGS")
-        if env_tags:
-            self.set_tags(parse_tags_str(env_tags))
+        self.tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()
@@ -130,9 +142,10 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
+        self.enabled = asbool(get_env("trace", "enabled", default=True))
+
         # Apply the default configuration
         self.configure(
-            enabled=True,
             hostname=hostname,
             port=port,
             https=https,
@@ -331,6 +344,22 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
+        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
+            try:
+                info = debug.collect(self)
+            except Exception as e:
+                msg = "Failed to collect start-up logs: %s" % e
+                self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
+            else:
+                if self.log.isEnabledFor(logging.INFO):
+                    msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
+                    self._log_compat(logging.INFO, msg)
+
+                agent_error = info.get("agent_error")
+                if agent_error:
+                    msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
+                    self._log_compat(logging.WARNING, msg)
+
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
         Return a span that will trace an operation called `name`. This method allows
@@ -382,12 +411,11 @@ class Tracer(object):
         #     a. User provided or integration provided service name
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
-        #     a. `config.service`/`DD_SERVICE`
+        #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
         if service is None:
             if parent:
                 service = parent.service
             else:
-                # ``config`` is initialized with DD_SERVICE env var if it exists.
                 service = config.service
 
         if trace_id:
@@ -451,14 +479,14 @@ class Tracer(object):
             if self._runtime_worker and self._is_span_internal(span):
                 span.set_tag('language', 'python')
 
-        # Apply default global tags
+        # Apply default global tags.
         if self.tags:
             span.set_tags(self.tags)
 
-        # Add env, service, and version tags
-        # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
         if config.env:
             span.set_tag(ENV_KEY, config.env)
+
+        # Only set the version tag on internal spans.
         if config.version:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
@@ -545,6 +573,23 @@ class Tracer(object):
         self.writer = self.writer.recreate()
 
         return new_ctx
+
+    def _log_compat(self, level, msg):
+        """Logs a message for the given level.
+
+        Python 2 will not submit logs to stderr if no handler is configured.
+
+        Instead, something like this will be printed to stderr:
+            No handlers could be found for logger "ddtrace.tracer"
+
+        Since the global tracer is configured on import and it is recommended
+        to import the tracer as early as possible, it will likely be the case
+        that there are no handlers installed yet.
+        """
+        if compat.PY2 and not hasHandlers(self.log):
+            sys.stderr.write("%s\n" % msg)
+        else:
+            self.log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

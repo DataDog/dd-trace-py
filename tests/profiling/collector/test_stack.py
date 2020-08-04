@@ -9,23 +9,13 @@ import pytest
 import ddtrace
 from ddtrace.vendor import six
 
+from ddtrace.profiling import _nogevent
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 
 from . import test_collector
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
-
-try:
-    from gevent import monkey
-except ImportError:
-    real_sleep = time.sleep
-    real_Thread = threading.Thread
-    real_Lock = threading.Lock
-else:
-    real_sleep = monkey.get_original("time", "sleep")
-    real_Thread = monkey.get_original("threading", "Thread")
-    real_Lock = monkey.get_original("threading", "Lock")
 
 
 def func1():
@@ -45,7 +35,7 @@ def func4():
 
 
 def func5():
-    return real_sleep(1)
+    return _nogevent.sleep(1)
 
 
 def test_collect_truncate():
@@ -192,6 +182,25 @@ def test_stress_threads():
         t.join()
 
 
+def test_stress_threads_run_as_thread():
+    NB_THREADS = 40
+
+    threads = []
+    for i in range(NB_THREADS):
+        t = threading.Thread(target=_f0)  # noqa: E149,F821
+        t.start()
+        threads.append(t)
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(recorder=r)
+    # This mainly check nothing bad happens when we collect a lot of threads and store the result in the Recorder
+    with s:
+        time.sleep(3)
+    assert r.events[stack.StackSampleEvent]
+    for t in threads:
+        t.join()
+
+
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
 @pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 def test_exception_collection_threads():
@@ -221,21 +230,20 @@ def test_exception_collection_threads():
 def test_exception_collection():
     r = recorder.Recorder()
     c = stack.StackCollector(r)
-    c.start()
-    try:
-        raise ValueError("hello")
-    except Exception:
-        real_sleep(1)
-    c.stop()
+    with c:
+        try:
+            raise ValueError("hello")
+        except Exception:
+            _nogevent.sleep(1)
 
     exception_events = r.events[stack.StackExceptionSampleEvent]
     assert len(exception_events) >= 1
     e = exception_events[0]
     assert e.timestamp > 0
     assert e.sampling_period > 0
-    assert e.thread_id == stack._thread_get_ident()
+    assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 228, "test_exception_collection")]
+    assert e.frames == [(__file__, 237, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -255,7 +263,7 @@ def tracer_and_collector():
 def test_thread_to_span_thread_isolation(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
 
     store = {}
@@ -278,7 +286,7 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
 def test_thread_to_span_multiple(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subspan}
@@ -297,7 +305,7 @@ def test_thread_to_child_span_multiple_unknown_thread(tracer_and_collector):
 def test_thread_to_child_span_clear(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     c._thread_span_links.clear_threads(set())
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
@@ -306,7 +314,7 @@ def test_thread_to_child_span_clear(tracer_and_collector):
 def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     subsubspan = t.start_span("subsubtrace", child_of=subspan)
@@ -374,10 +382,10 @@ def test_stress_trace_collection(tracer_and_collector):
 def test_thread_time_cache():
     tt = stack._ThreadTime()
 
-    lock = real_Lock()
+    lock = _nogevent.Lock()
     lock.acquire()
 
-    t = real_Thread(target=lock.acquire)
+    t = _nogevent.Thread(target=lock.acquire)
     t.start()
 
     main_thread_id = threading.current_thread().ident
