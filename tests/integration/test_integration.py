@@ -19,7 +19,7 @@ from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.payload import Payload
 from ddtrace.span import Span
 from ddtrace.compat import monotonic
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 class MockedLogHandler(logging.Handler):
@@ -90,7 +90,7 @@ class TestWorkers(TestCase):
         """
         for call, _ in calls:
             if endpoint in call[0]:
-                return call[0], self.api._encoder.decode(call[1])
+                return call[0], self.api._encoder._decode(call[1])
 
         return None, None
 
