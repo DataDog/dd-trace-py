@@ -44,7 +44,7 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        use_legacy_resource_format=get_env("django", "use_legacy_resource_format", default=False),
+        use_handler_resource_format=get_env("django", "use_handler_resource_format", default=False),
     ),
 )
 
@@ -362,7 +362,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             urlpattern = ""
             resource_format = None
 
-            if config.django.use_legacy_resource_format:
+            if config.django.use_handler_resource_format:
                 resource_format = "{method} {handler}"
             else:
                 # In Django >= 2.2.0 we can access the original route or regex pattern

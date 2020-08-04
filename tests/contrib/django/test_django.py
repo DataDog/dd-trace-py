@@ -1350,11 +1350,11 @@ def test_user_name_excluded(client, test_spans):
     assert root.meta.get("django.user.is_authenticated") == "True"
 
 
-def test_django_use_legacy_resource_format(client, test_spans):
+def test_django_use_handler_resource_format(client, test_spans):
     """
     Test that the specified format is used over the default.
     """
-    with BaseTestCase.override_config("django", dict(use_legacy_resource_format=True)):
+    with BaseTestCase.override_config("django", dict(use_handler_resource_format=True)):
         resp = client.get("/")
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."

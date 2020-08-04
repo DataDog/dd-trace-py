@@ -101,7 +101,7 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.django['use_legacy_resource_format']
+.. py:data:: ddtrace.config.django['use_handler_resource_format']
 
    Whether or not to use the legacy resource format `"{method} {handler}"`.
 
