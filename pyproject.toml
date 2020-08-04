@@ -149,7 +149,6 @@ exclude = '''
       )
       | rediscluster
       | requests
-      | requests_gevent
       | sqlalchemy
       | sqlite3
       | test_utils.py
