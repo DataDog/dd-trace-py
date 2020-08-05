@@ -1,4 +1,4 @@
-name: Build and upload to PyPI
+name: Build
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install cibuildwheel==1.5.5 cython
+          python -m pip install cibuildwheel==1.5.5
 
       - name: Install Visual C++ for Python 2.7
         if: runner.os == 'Windows'
@@ -52,7 +52,9 @@ jobs:
           python-version: '3.7'
 
       - name: Build sdist
-        run: python setup.py sdist
+        run: |
+          pip install cython
+          python setup.py sdist
 
       - uses: actions/upload-artifact@v2
         with:
