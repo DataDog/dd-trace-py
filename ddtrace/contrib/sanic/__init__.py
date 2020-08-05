@@ -37,7 +37,7 @@ Configuration
 
    Whether to analyze spans for Sanic in App Analytics.
 
-   Can also be enabled with the ``DD_SANIC_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_TRACE_SANIC_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 
@@ -47,7 +47,7 @@ Configuration
 
    Can also be configured via the ``DD_SERVICE`` environment variable.
 
-   Default: ``'Sanic'``
+   Default: ``'sanic'``
 
 
 Example::

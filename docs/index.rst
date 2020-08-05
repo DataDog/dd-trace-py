@@ -131,7 +131,7 @@ contacting support.
 
 .. [3] only the syncronous client
 
-.. [4] only the Python 3.7+
+.. [4] only in Python 3.7 and above.
 
 
 Indices and tables
