@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Add new GitHub workflow to validate that Reno release notes are added to every pull request,
+    and that the release notes pass linting and can be properly generated.
