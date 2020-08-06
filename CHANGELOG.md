@@ -4,6 +4,7 @@
 
 ### Changes
 
+- feat: add asgi integration (#1567)
 - feat(profiling): reduce the default amount of sampling for memory/lock to 2% (#1586)
 - fix(profiling/line2def): handle empty filename (#1585)
 - fix(grpc): GRPC Channel Pin (#1582 -- thanks @munagekar)
