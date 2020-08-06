@@ -11,30 +11,17 @@ from ddtrace.contrib.sanic import patch, unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.base import BaseTestCase
 from tests.tracer.test_tracer import get_dummy_tracer
-from tests.utils import override_env
-
-
-@pytest.fixture(
-    params=[{}, dict(DD_SERVICE="mysvc"),]
-)
-def env_overrides(request):
-    return request.param
 
 
 @pytest.fixture
-def tracer(env_overrides):
-    with override_env(env_overrides):
-        original_config = ddtrace.config
-        config = ddtrace.settings.Config()
-        setattr(ddtrace, "config", config)
-        patch()
-        original_tracer = ddtrace.tracer
-        tracer = get_dummy_tracer()
-        setattr(ddtrace, "tracer", tracer)
-        yield tracer
-        setattr(ddtrace, "tracer", original_tracer)
-        setattr(ddtrace, "config", original_config)
-        unpatch()
+def tracer():
+    patch()
+    original_tracer = ddtrace.tracer
+    tracer = get_dummy_tracer()
+    setattr(ddtrace, "tracer", tracer)
+    yield tracer
+    setattr(ddtrace, "tracer", original_tracer)
+    unpatch()
 
 
 @pytest.fixture
@@ -83,7 +70,6 @@ async def test_basic_app(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
-    assert request_span.service == ddtrace.config.sanic.service
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
@@ -103,7 +89,6 @@ async def test_query_string(tracer, test_cli):
         assert len(spans) == 1
         assert len(spans[0]) == 1
         request_span = spans[0][0]
-        assert request_span.service == ddtrace.config.sanic.service
         assert request_span.name == "sanic.request"
         assert request_span.error == 0
         assert request_span.get_tag("http.method") == "GET"
@@ -126,7 +111,6 @@ async def test_distributed_tracing(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
-    assert request_span.service == ddtrace.config.sanic.service
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
@@ -165,7 +149,6 @@ async def test_error_app(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
-    assert request_span.service == ddtrace.config.sanic.service
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/nonexistent", request_span.get_tag("http.url"))
@@ -208,7 +191,6 @@ async def test_multiple_requests(tracer, test_cli):
 
     request_sleep_span = spans[0][0]
     assert request_sleep_span.name == "sanic.request"
-    assert request_sleep_span.service == ddtrace.config.sanic.service
     assert request_sleep_span.error == 0
     assert request_sleep_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/sleep", request_sleep_span.get_tag("http.url"))
@@ -216,7 +198,6 @@ async def test_multiple_requests(tracer, test_cli):
 
     request_hello_span = spans[1][0]
     assert request_hello_span.name == "sanic.request"
-    assert request_hello_span.service == ddtrace.config.sanic.service
     assert request_hello_span.error == 0
     assert request_hello_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_hello_span.get_tag("http.url"))
