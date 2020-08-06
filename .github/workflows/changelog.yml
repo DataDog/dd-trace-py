@@ -1,14 +1,24 @@
 name: Changelog
 on: [push, pull_request]
 jobs:
-  lint:
-    name: Lint changelog
+  validate:
+    name: Validate changelog
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         # Include all history and tags
         with:
           fetch-depth: 0
+
+      # Ensure a new reno release note was added in this PR.
+      # Use `reno new <slug>` to add a new note to `releasenotes/notes`,
+      #   or add `changelog/no-changelog` label if no release note is needed.
+      - name: Ensure release note added
+        # Only run this on pull requests
+        if: github.event_name == 'pull_request'
+        run: |
+          jq -e '.pull_request?.labels[]? | select(. == "changelog/no-changelog")' ${{github.event_path}} \
+          || git diff ${{github.base_ref}}...${{github.ref}} releasenotes/notes
 
       - uses: actions/setup-python@v2
         name: Install Python
@@ -24,12 +34,3 @@ jobs:
       - name: Generate changelog
         run: reno report
 
-      # Ensure a new reno release note was added in this PR.
-      # Use `reno new <slug>` to add a new note to `releasenotes/notes`,
-      #   or add `changelog/no-changelog` label if no release note is needed.
-      - name: Ensure release note added
-        # Only run this on pull requests
-        if: github.event_name == 'pull_request'
-        run: |
-          jq -e '.pull_request?.labels[]? | select(. == "changelog/no-changelog")' ${{github.event_path}} \
-          || git diff ${{github.base_ref}}...${{github.ref}} releasenotes/notes
