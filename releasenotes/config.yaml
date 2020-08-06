@@ -1,0 +1,4 @@
+---
+add_release_date: true
+stop_at_branch_base: false
+unreleased_version_title: Unreleased changes
