@@ -47,3 +47,15 @@ jobs:
           path: |
             CHANGELOG.rst
             CHANGELOG.html
+
+      - name: Commit updated changelog
+        if: github.event_name == 'push' && github.ref == 'master'
+        run: |
+          # Make sure we have changes that need to be committed first
+          [ -n "$(git status -s CHANGELOG.rst)" ] \
+          && git add CHANGELOG.rst \
+          && git -c user.name="${GITHUB_ACTOR}" \
+              -c user.email="${GITHUB_ACTOR}@users.noreply.github.com" \
+              commit -m "Update changelog" \
+              --author "${GITHUB_ACTOR} <${GITHUB_ACTOR}@users.noreply.github.com>" \
+          && git push origin ${{github.ref}}
