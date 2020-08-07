@@ -10,6 +10,7 @@
 - [ ] Entry added to `CHANGELOG.md`
 - [ ] Regression test added; or
 - [ ] Description of manual testing performed and explanation is included in the code and/or PR.
+- [ ] Added to the correct milestone.
 
 # Testing
 - [ ] Tests are run against all relevant library versions (or confirm that the relevant versions are already being tested in `tox.ini`)
