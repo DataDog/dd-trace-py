@@ -1,7 +1,8 @@
 name: Changelog
 on:
   push:
-    branch: master
+    branches:
+      - master
   pull_request:
 jobs:
   validate:
