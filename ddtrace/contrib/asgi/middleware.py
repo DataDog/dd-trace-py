@@ -40,7 +40,7 @@ def _extract_tags_from_scope(scope):
     server = scope.get("server")
     if server and len(server) == 2:
         port = server[1]
-        server_host = server[0] + (":" + str(port) if port != 80 else "")
+        server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
         full_path = scope.get("root_path", "") + scope.get("path", "")
         http_url = scope.get("scheme", "http") + "://" + server_host + full_path
         tags[http.URL] = http_url
