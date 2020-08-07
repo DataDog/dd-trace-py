@@ -25,17 +25,21 @@ jobs:
         with:
           python-version: '3.8'
 
-      - name: Install Reno
-        run: pip install reno
+      - name: Install Dependencies
+        run: pip install reno docutils
 
       - name: Lint changelog notes
         run: reno lint
 
       - name: Generate changelog
-        run: reno report | tee CHANGELOG.rst
+        run: |
+          reno report | tee CHANGELOG.rst
+          rst2html.py CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
         uses: actions/upload-artifact@v2
         with:
           name: changelog
-          path: CHANGELOG.rst
+          path: |
+            CHANGELOG.rst
+            CHANGELOG.html
