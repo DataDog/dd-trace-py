@@ -18,7 +18,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           jq -e '.pull_request?.labels[]? | select(. == "changelog/no-changelog")' ${{github.event_path}} \
-          || git diff ${{github.base_ref}}...${{github.ref}} releasenotes/notes
+          || git diff ${{github.base_ref}}... releasenotes/notes
 
       - uses: actions/setup-python@v2
         name: Install Python
