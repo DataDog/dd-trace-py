@@ -70,6 +70,7 @@ async def test_basic_app(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
@@ -85,16 +86,17 @@ async def test_query_string(tracer, test_cli):
         response_json = await response.json()
         assert response_json == {"hello": "world"}
 
-        spans = tracer.writer.pop_traces()
-        assert len(spans) == 1
-        assert len(spans[0]) == 1
-        request_span = spans[0][0]
-        assert request_span.name == "sanic.request"
-        assert request_span.error == 0
-        assert request_span.get_tag("http.method") == "GET"
-        assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
-        assert request_span.get_tag("http.status_code") == "200"
-        assert request_span.get_tag("http.query.string") == "foo=bar"
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("http.query.string") == "foo=bar"
 
 
 async def test_distributed_tracing(tracer, test_cli):
@@ -111,6 +113,7 @@ async def test_distributed_tracing(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
@@ -131,6 +134,7 @@ async def test_streaming_response(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
@@ -149,6 +153,7 @@ async def test_error_app(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/nonexistent", request_span.get_tag("http.url"))
@@ -167,6 +172,7 @@ async def test_exception(tracer, test_cli):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
@@ -202,3 +208,17 @@ async def test_multiple_requests(tracer, test_cli):
     assert request_hello_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_hello_span.get_tag("http.url"))
     assert request_hello_span.get_tag("http.status_code") == "200"
+
+
+async def test_override_service(tracer, test_cli):
+    with BaseTestCase.override_config("sanic", dict(service="mysanicsvc")):
+        response = await test_cli.get("/hello")
+        assert response.status == 200
+        response_json = await response.json()
+        assert response_json == {"hello": "world"}
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "mysanicsvc"
