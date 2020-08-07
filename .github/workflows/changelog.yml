@@ -21,8 +21,7 @@ jobs:
         # Only run this on pull requests
         if: github.event_name == 'pull_request'
         run: |
-          jq '.pull_request.labels' ${{github.event_path}}
-          jq -e '.pull_request?.labels[]? | select(. == "changelog/no-changelog")' ${{github.event_path}} \
+          jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' ${{github.event_path}} \
           || git diff origin/${{github.base_ref}}... releasenotes/notes
 
       - uses: actions/setup-python@v2
