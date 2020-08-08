@@ -7,6 +7,7 @@ from sanic.exceptions import ServerError
 from sanic.response import json, stream
 
 import ddtrace
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sanic import patch, unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.base import BaseTestCase
@@ -58,69 +59,83 @@ def test_cli(loop, app, test_client):
     return loop.run_until_complete(test_client(app))
 
 
-async def test_basic_app(tracer, test_cli):
+@pytest.fixture(
+    params=[
+        dict(),
+        dict(service="mysanicsvc"),
+        dict(analytics_enabled=False),
+        dict(analytics_enabled=True),
+        dict(analytics_enabled=True, analytics_sample_rate=0.5),
+        dict(analytics_enabled=False, analytics_sample_rate=0.5),
+        dict(distributed_tracing=False),
+    ],
+    ids=[
+        "default",
+        "service_override",
+        "disable_analytics",
+        "enable_analytics_default_sample_rate",
+        "enable_analytics_custom_sample_rate",
+        "disable_analytics_custom_sample_rate",
+        "disable_distributed_tracing",
+    ],
+)
+def override_config(request):
+    return request.param
+
+
+@pytest.fixture(
+    params=[dict(), dict(trace_query_string=False), dict(trace_query_string=True),],
+    ids=["default", "disable trace query string", "enable trace query string",],
+)
+def override_http_config(request):
+    return request.param
+
+
+async def test_basic_app(tracer, test_cli, override_config, override_http_config):
     """Test Sanic Patching"""
-    response = await test_cli.get("/hello")
-    assert response.status == 200
-    response_json = await response.json()
-    assert response_json == {"hello": "world"}
+    with BaseTestCase.override_http_config("sanic", override_http_config):
+        with BaseTestCase.override_config("sanic", override_config):
+            headers = [
+                (http_propagation.HTTP_HEADER_PARENT_ID, "1234"),
+                (http_propagation.HTTP_HEADER_TRACE_ID, "5678"),
+            ]
+            response = await test_cli.get("/hello", params=[("foo", "bar")], headers=headers)
+            assert response.status == 200
+            response_json = await response.json()
+            assert response_json == {"hello": "world"}
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
-    assert request_span.service == "sanic"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
-
-
-async def test_query_string(tracer, test_cli):
-    """Test query string"""
-    with BaseTestCase.override_http_config("sanic", dict(trace_query_string=True)):
-        response = await test_cli.get("/hello", params=[("foo", "bar")])
-        assert response.status == 200
-        response_json = await response.json()
-        assert response_json == {"hello": "world"}
-
-    spans = tracer.writer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.name == "sanic.request"
-    assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("http.query.string") == "foo=bar"
 
+    if override_config.get("service"):
+        assert request_span.service == override_config["service"]
+    else:
+        assert request_span.service == "sanic"
 
-async def test_distributed_tracing(tracer, test_cli):
-    """Test distributed tracing"""
-    headers = [(http_propagation.HTTP_HEADER_PARENT_ID, "1234"), (http_propagation.HTTP_HEADER_TRACE_ID, "5678")]
+    if override_http_config.get("trace_query_string"):
+        assert request_span.get_tag("http.query.string") == "foo=bar"
+    else:
+        assert request_span.get_tag("http.query.string") is None
 
-    response = await test_cli.get("/hello", headers=headers)
-    assert response.status == 200
-    response_json = await response.json()
-    assert response_json == {"hello": "world"}
+    if override_config.get("analytics_enabled"):
+        analytics_sample_rate = override_config.get("analytics_sample_rate") or 1.0
+        assert request_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == analytics_sample_rate
+    else:
+        assert request_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
-    spans = tracer.writer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.name == "sanic.request"
-    assert request_span.service == "sanic"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.parent_id == 1234
-    assert request_span.trace_id == 5678
+    if override_config.get("distributed_tracing", True):
+        assert request_span.parent_id == 1234
+        assert request_span.trace_id == 5678
+    else:
+        assert request_span.parent_id is None
+        assert request_span.trace_id is not None and request_span.trace_id != 5678
 
 
 async def test_streaming_response(tracer, test_cli):
@@ -208,17 +223,3 @@ async def test_multiple_requests(tracer, test_cli):
     assert request_hello_span.get_tag("http.method") == "GET"
     assert re.match("http://127.0.0.1:\\d+/hello", request_hello_span.get_tag("http.url"))
     assert request_hello_span.get_tag("http.status_code") == "200"
-
-
-async def test_override_service(tracer, test_cli):
-    with BaseTestCase.override_config("sanic", dict(service="mysanicsvc")):
-        response = await test_cli.get("/hello")
-        assert response.status == 200
-        response_json = await response.json()
-        assert response_json == {"hello": "world"}
-
-    spans = tracer.writer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.service == "mysanicsvc"
