@@ -5,7 +5,7 @@ import mock
 from ddtrace.span import Span
 from ddtrace.api import API
 from ddtrace.internal.writer import AgentWriter, LogWriter
-from ..base import BaseTestCase
+from .. import BaseTestCase
 
 
 class RemoveAllFilter:

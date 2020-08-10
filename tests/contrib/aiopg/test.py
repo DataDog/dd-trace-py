@@ -17,8 +17,7 @@ from tests.contrib.config import POSTGRES_CONFIG
 from tests.tracer.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 from ...subprocesstest import run_in_subprocess
-from ...utils import assert_is_measured
-
+from ... import assert_is_measured
 
 TEST_PORT = POSTGRES_CONFIG['port']
 

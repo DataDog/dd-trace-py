@@ -2,11 +2,11 @@ from requests_mock import Adapter
 
 from ddtrace import config
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 from .test_requests import BaseRequestTestCase
 
 
-class TestRequestsDistributed(BaseRequestTestCase, BaseTracerTestCase):
+class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
     def headers_here(self, tracer, request, root_span):
         # Use an additional matcher to query the request headers.
         # This is because the parent_id can only been known within such a callback,

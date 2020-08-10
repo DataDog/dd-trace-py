@@ -4,7 +4,7 @@ from ddtrace.context import Context
 from ddtrace.internal.context_manager import DefaultContextManager
 from ddtrace.span import Span
 
-from ..base import BaseTestCase
+from .. import BaseTestCase
 
 
 class TestDefaultContextManager(BaseTestCase):
