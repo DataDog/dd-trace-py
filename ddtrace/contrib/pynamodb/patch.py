@@ -22,24 +22,22 @@ if "DD_PYNAMODB_SERVICE" in os.environ:
 else:
     service = get_env("pynamodb", "service_name")
 
-config._add('pynamodb', {
-    'service_name': service or 'pynamodb',
-})
+config._add("pynamodb", {"service_name": service or "pynamodb",})
 
 
 def patch():
-    if getattr(pynamodb.connection.base, '_datadog_patch', False):
+    if getattr(pynamodb.connection.base, "_datadog_patch", False):
         return
-    setattr(pynamodb.connection.base, '_datadog_patch', True)
+    setattr(pynamodb.connection.base, "_datadog_patch", True)
 
-    wrapt.wrap_function_wrapper('pynamodb.connection.base', 'Connection._make_api_call', patched_api_call)
+    wrapt.wrap_function_wrapper("pynamodb.connection.base", "Connection._make_api_call", patched_api_call)
     Pin(service=None).onto(pynamodb.connection.base.Connection)
 
 
 def unpatch():
-    if getattr(pynamodb.connection.base, '_datadog_patch', False):
-        setattr(pynamodb.connection.base, '_datadog_patch', False)
-        unwrap(pynamodb.connection.base.Connection, '_make_api_call')
+    if getattr(pynamodb.connection.base, "_datadog_patch", False):
+        setattr(pynamodb.connection.base, "_datadog_patch", False)
+        unwrap(pynamodb.connection.base.Connection, "_make_api_call")
 
 
 def patched_api_call(original_func, instance, args, kwargs):
@@ -48,9 +46,9 @@ def patched_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('pynamodb.command',
-                          service=config.pynamodb['service_name'],
-                          span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace(
+        "pynamodb.command", service=config.pynamodb["service_name"], span_type=SpanTypes.HTTP
+    ) as span:
 
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -60,28 +58,25 @@ def patched_api_call(original_func, instance, args, kwargs):
             operation = args[0]
             span.resource = operation
 
-            if args[1] and 'TableName' in args[1]:
-                table_name = args[1]['TableName']
-                span.set_tag('table_name', table_name)
-                span.resource = span.resource + ' ' + table_name
+            if args[1] and "TableName" in args[1]:
+                table_name = args[1]["TableName"]
+                span.set_tag("table_name", table_name)
+                span.resource = span.resource + " " + table_name
 
         else:
             span.resource = "Unknown"
 
-        region_name = deep_getattr(instance, 'client.meta.region_name')
+        region_name = deep_getattr(instance, "client.meta.region_name")
 
         meta = {
-            'aws.agent': 'pynamodb',
-            'aws.operation': operation,
-            'aws.region': region_name,
+            "aws.agent": "pynamodb",
+            "aws.operation": operation,
+            "aws.region": region_name,
         }
         span.set_tags(meta)
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.pynamodb.get_analytics_sample_rate()
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pynamodb.get_analytics_sample_rate())
 
         result = original_func(*args, **kwargs)
 
