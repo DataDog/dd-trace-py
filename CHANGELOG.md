@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.41 (05/08/2020)
+
+### Changes
+
+- feat: add asgi integration (#1567)
+- feat(profiling): reduce the default amount of sampling for memory/lock to 2% (#1586)
+- fix(profiling/line2def): handle empty filename (#1585)
+- fix(grpc): GRPC Channel Pin (#1582 -- thanks @munagekar)
+- feat(core): make environment variables consistent with other languages (#1575)
+- fix(profiling,gevent): fix race condition with periodic thread (#1569)
+- fix(core): disable import hooks (#1563)
+- feat(core): set tags from DD_TAGS (#1561)
+- fix(profiling): lock Recorder on reset (#1560)
+- feat(django): add option for using legacy resource format (#1551 -- thanks @tredzko, @jheld)
+- feat(core): add startup logging (#1548)
+- feat(core): add msgpack encoder (#1491)
+
+### Full changeset
+
+https://github.com/DataDog/dd-trace-py/compare/v0.40.0...v0.41.0
+
+
 ## 0.40 (17/07/2020)
 
 # Upgrading to 0.40.0

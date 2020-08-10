@@ -160,7 +160,7 @@ setup(
             "Programming Language :: Python :: 3.8",
         ],
         use_scm_version=True,
-        setup_requires=["setuptools_scm", "cython"],
+        setup_requires=["setuptools_scm[toml]>=4", "cython"],
         ext_modules=cythonize(
             [
                 Cython.Distutils.Extension(

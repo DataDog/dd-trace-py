@@ -17,7 +17,7 @@ datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
-cassandra_image: &cassandra_image spotify/cassandra:latest
+cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
@@ -373,6 +373,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^aiohttp_contrib-'
+
+  asgi:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^asgi_contrib-'
 
   tornado:
     executor: ddtrace_dev
@@ -843,6 +849,7 @@ workflows:
       - aiopg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
+      - asgi: *requires_pre_test
       - benchmarks: *requires_pre_test
       - boto: *requires_pre_test
       - bottle: *requires_pre_test
@@ -905,6 +912,7 @@ workflows:
             - aiopg
             - asyncio
             - algoliasearch
+            - asgi
             - benchmarks
             - boto
             - bottle
