@@ -103,14 +103,6 @@ commands:
           paths:
             - ".tox"
 
-  save_results:
-    description: "Persist tox *.results files to /tmp directory"
-    steps:
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - "*.results"
-
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
     parameters:
@@ -133,7 +125,6 @@ commands:
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_results
       - save_tox_cache
 
   test_build:
@@ -220,7 +211,6 @@ jobs:
       - checkout
       - setup_tox
       - run: tox -e 'black' --result-json /tmp/black.results
-      - save_results
 
   flake8:
     executor: python38
@@ -228,7 +218,6 @@ jobs:
       - checkout
       - setup_tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
-      - save_results
 
   build-docker-ci-image:
     executor: cimg_base
@@ -716,7 +705,6 @@ jobs:
           path: /tmp/test-reports
       - store_artifacts:
           path: /tmp/test-reports
-      - save_results
       - save_tox_cache
 
   build_wheels:
@@ -783,24 +771,6 @@ jobs:
       - checkout
       - deploy_docs:
           s3_dir: *s3_dir_prod
-
-  verify_all_tests_ran:
-    executor: python38
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - setup_tox
-      - run: ls /tmp/workspace/*
-        # debug: shows how many time each test was executed
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq -c | sort -rn
-        # list all executed test
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | grep -v .package | sed 's/"//g' | sort | uniq | tee all_executed_tests
-        # list all tests in tox.ini
-      - run: tox -l | grep -v -E "^(wait$|\.)" | sort > all_tests
-        # checks that all tests were executed
-      - run: diff -u all_tests all_executed_tests
-
 
 requires_pre_test: &requires_pre_test
   requires:
@@ -901,83 +871,11 @@ workflows:
       - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
-      - verify_all_tests_ran:
-          requires:
-            # Individual tests do not need this to start running
-            - build_docs
-
-            # flake8 dependent jobs
-            - aiobotocore
-            - aiohttp
-            - aiopg
-            - asyncio
-            - algoliasearch
-            - asgi
-            - benchmarks
-            - boto
-            - bottle
-            - cassandra
-            - celery
-            - consul
-            - dbapi
-            - ddtracerun
-            - dogpile_cache
-            - django
-            - djangorestframework
-            - elasticsearch
-            - falcon
-            - flask
-            - futures
-            - gevent
-            - grpc
-            - httplib
-            - integration
-            - internal
-            - profile
-            - jinja2
-            - kombu
-            - mako
-            - molten
-            - mongoengine
-            - mysqlconnector
-            - mysqldb
-            - mysqlpython
-            - opentracer
-            - psycopg
-            - pylibmc
-            - pylons
-            - pymemcache
-            - pymongo
-            - pymysql
-            - pyramid
-            - redis
-            - rediscluster
-            - requests
-            - requestsgevent
-            - sqlalchemy
-            - sqlite3
-            - test_build_alpine
-            - test_build_py38
-            - test_build_py37
-            - test_build_py36
-            - test_build_py35
-            - test_build_py27
-            - test_utils
-            - test_logging
-            - tracer
-            - tornado
-            - unit_tests
-            - vertica
-            - build-docker-ci-image
       - deploy_master:
-          requires:
-            - verify_all_tests_ran
           filters:
             branches:
               only: master
       - deploy_staging:
-          requires:
-            - verify_all_tests_ran
           filters:
             branches:
               only: staging
