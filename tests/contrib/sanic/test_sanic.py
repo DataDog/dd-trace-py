@@ -37,10 +37,13 @@ def tracer():
 def app(tracer):
     app = Sanic(__name__)
 
+    @tracer.wrap()
+    async def random_sleep():
+        await asyncio.sleep(random.random())
+
     @app.route("/hello")
     async def hello(request):
-        with tracer.trace("random_sleep"):
-            await asyncio.sleep(random.random())
+        await random_sleep()
         return json({"hello": "world"})
 
     @app.route("/stream_response")
@@ -119,7 +122,7 @@ async def test_basic_app(tracer, client, override_config, override_http_config):
     assert request_span.get_tag("http.status_code") == "200"
 
     sleep_span = spans[0][1]
-    assert sleep_span.name == "random_sleep"
+    assert sleep_span.name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert sleep_span.parent_id == request_span.span_id
 
     if override_config.get("service"):
@@ -217,11 +220,11 @@ async def test_multiple_requests(tracer, client):
     assert len(spans[1]) == 2
 
     assert spans[0][0].name == "sanic.request"
-    assert spans[0][1].name == "random_sleep"
+    assert spans[0][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[0][0].parent_id is None
     assert spans[0][1].parent_id == spans[0][0].span_id
 
     assert spans[1][0].name == "sanic.request"
-    assert spans[1][1].name == "random_sleep"
+    assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
