@@ -1,6 +1,9 @@
-import re
 import asyncio
+import random
+import re
+import sys
 
+import httpx
 import pytest
 from sanic import Sanic
 from sanic.exceptions import ServerError
@@ -16,10 +19,15 @@ from tests.tracer.test_tracer import get_dummy_tracer
 
 @pytest.fixture
 def tracer():
-    patch()
     original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
+    if sys.version_info < (3, 7):
+        # enable legacy asyncio support
+        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
+
+        tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
+    patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     unpatch()
@@ -31,6 +39,8 @@ def app(tracer):
 
     @app.route("/hello")
     async def hello(request):
+        with tracer.trace("random_sleep"):
+            await asyncio.sleep(random.random())
         return json({"hello": "world"})
 
     @app.route("/stream_response")
@@ -45,18 +55,12 @@ def app(tracer):
     async def error(request):
         raise ServerError("Something bad happened", status_code=500)
 
-    @app.route("/sleep")
-    async def sleep(request):
-        timeout = int(request.args.get("timeout", 1))
-        await asyncio.sleep(timeout)
-        return json({"sleep": timeout})
-
     yield app
 
 
 @pytest.fixture
-def test_cli(loop, app, test_client):
-    return loop.run_until_complete(test_client(app))
+def client(app):
+    yield httpx.AsyncClient(app=app, base_url="http://testserver")
 
 
 @pytest.fixture(
@@ -91,7 +95,8 @@ def override_http_config(request):
     return request.param
 
 
-async def test_basic_app(tracer, test_cli, override_config, override_http_config):
+@pytest.mark.asyncio
+async def test_basic_app(tracer, client, override_config, override_http_config):
     """Test Sanic Patching"""
     with BaseTestCase.override_http_config("sanic", override_http_config):
         with BaseTestCase.override_config("sanic", override_config):
@@ -99,20 +104,23 @@ async def test_basic_app(tracer, test_cli, override_config, override_http_config
                 (http_propagation.HTTP_HEADER_PARENT_ID, "1234"),
                 (http_propagation.HTTP_HEADER_TRACE_ID, "5678"),
             ]
-            response = await test_cli.get("/hello", params=[("foo", "bar")], headers=headers)
-            assert response.status == 200
-            response_json = await response.json()
-            assert response_json == {"hello": "world"}
+            response = await client.get("/hello", params=[("foo", "bar")], headers=headers)
+            assert response.status_code == 200
+            assert response.json() == {"hello": "world"}
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
+    assert len(spans[0]) == 2
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/hello", request_span.get_tag("http.url"))
+    assert re.search("/hello$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.status_code") == "200"
+
+    sleep_span = spans[0][1]
+    assert sleep_span.name == "random_sleep"
+    assert sleep_span.parent_id == request_span.span_id
 
     if override_config.get("service"):
         assert request_span.service == override_config["service"]
@@ -138,11 +146,11 @@ async def test_basic_app(tracer, test_cli, override_config, override_http_config
         assert request_span.trace_id is not None and request_span.trace_id != 5678
 
 
-async def test_streaming_response(tracer, test_cli):
-    response = await test_cli.get("/stream_response")
-    assert response.status == 200
-    response_text = await response.text()
-    assert response_text == "foo,bar"
+@pytest.mark.asyncio
+async def test_streaming_response(tracer, client):
+    response = await client.get("/stream_response")
+    assert response.status_code == 200
+    assert response.text.endswith("foo,\r\n3\r\nbar\r\n0\r\n\r\n")
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -152,16 +160,16 @@ async def test_streaming_response(tracer, test_cli):
     assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
+    assert re.search("/stream_response$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
 
 
-async def test_error_app(tracer, test_cli):
-    response = await test_cli.get("/nonexistent")
-    assert response.status == 404
-    response_text = await response.text()
-    assert "not found" in response_text
+@pytest.mark.asyncio
+async def test_error_app(tracer, client):
+    response = await client.get("/nonexistent")
+    assert response.status_code == 404
+    assert "not found" in response.text
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -171,16 +179,16 @@ async def test_error_app(tracer, test_cli):
     assert request_span.service == "sanic"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/nonexistent", request_span.get_tag("http.url"))
+    assert re.search("/nonexistent$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "404"
 
 
-async def test_exception(tracer, test_cli):
-    response = await test_cli.get("/error")
-    assert response.status == 500
-    response_text = await response.text()
-    assert "Something bad happened" in response_text
+@pytest.mark.asyncio
+async def test_exception(tracer, client):
+    response = await client.get("/error")
+    assert response.status_code == 500
+    assert "Something bad happened" in response.text
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -190,36 +198,30 @@ async def test_exception(tracer, test_cli):
     assert request_span.service == "sanic"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/", request_span.get_tag("http.url"))
+    assert re.search("/error$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
 
 
-async def test_multiple_requests(tracer, test_cli):
-    response_sleep = await test_cli.get("/sleep", params={"timeout": 2})
-    response_hello = await test_cli.get("/hello")
-    assert response_sleep.status == 200
-    response_sleep_json = await response_sleep.json()
-    assert response_sleep_json == {"sleep": 2}
-    assert response_hello.status == 200
-    response_hello_json = await response_hello.json()
-    assert response_hello_json == {"hello": "world"}
+@pytest.mark.asyncio
+async def test_multiple_requests(tracer, client):
+    responses = await asyncio.gather(client.get("/hello"), client.get("/hello"),)
+
+    assert len(responses) == 2
+    assert [r.status_code for r in responses] == [200] * 2
+    assert [r.json() for r in responses] == [{"hello": "world"}] * 2
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 2
-    assert len(spans[0]) == 1
-    assert len(spans[1]) == 1
+    assert len(spans[0]) == 2
+    assert len(spans[1]) == 2
 
-    request_sleep_span = spans[0][0]
-    assert request_sleep_span.name == "sanic.request"
-    assert request_sleep_span.error == 0
-    assert request_sleep_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/sleep", request_sleep_span.get_tag("http.url"))
-    assert request_sleep_span.get_tag("http.status_code") == "200"
+    assert spans[0][0].name == "sanic.request"
+    assert spans[0][1].name == "random_sleep"
+    assert spans[0][0].parent_id is None
+    assert spans[0][1].parent_id == spans[0][0].span_id
 
-    request_hello_span = spans[1][0]
-    assert request_hello_span.name == "sanic.request"
-    assert request_hello_span.error == 0
-    assert request_hello_span.get_tag("http.method") == "GET"
-    assert re.match("http://127.0.0.1:\\d+/hello", request_hello_span.get_tag("http.url"))
-    assert request_hello_span.get_tag("http.status_code") == "200"
+    assert spans[1][0].name == "sanic.request"
+    assert spans[1][1].name == "random_sleep"
+    assert spans[1][0].parent_id is None
+    assert spans[1][1].parent_id == spans[1][0].span_id

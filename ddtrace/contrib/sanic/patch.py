@@ -36,13 +36,14 @@ def _extract_tags_from_request(request):
 
 def _wrap_response_callback(span, callback):
     # wrap response callbacks (either sync or async function) to set span tags
-    # based on response
+    # based on response and finish span before returning response
 
     def update_span(response):
         span.set_tag(http.STATUS_CODE, response.status)
         if 500 <= response.status < 600:
             span.error = 1
         store_response_headers(response.headers, span, config.sanic)
+        span.finish()
 
     @wrapt.function_wrapper
     def wrap_sync(wrapped, instance, args, kwargs):
@@ -98,21 +99,21 @@ def patch_handle_request(wrapped, instance, args, kwargs):
         if context.trace_id:
             ddtrace.tracer.context_provider.activate(context)
 
-    with ddtrace.tracer.trace(
+    span = ddtrace.tracer.trace(
         "sanic.request", service=config.sanic.service, resource=resource, span_type=SpanTypes.WEB
-    ) as span:
-        sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+    )
+    sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
+    if sample_rate is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-        tags = _extract_tags_from_request(request=request)
-        span.set_tags(tags)
+    tags = _extract_tags_from_request(request=request)
+    span.set_tags(tags)
 
-        store_request_headers(headers, span, config.sanic)
+    store_request_headers(headers, span, config.sanic)
 
-        if write_callback is not None:
-            write_callback = _wrap_response_callback(span, write_callback)
-        if stream_callback is not None:
-            stream_callback = _wrap_response_callback(span, stream_callback)
+    if write_callback is not None:
+        write_callback = _wrap_response_callback(span, write_callback)
+    if stream_callback is not None:
+        stream_callback = _wrap_response_callback(span, stream_callback)
 
-        return wrapped(request, write_callback, stream_callback, **kwargs)
+    return wrapped(request, write_callback, stream_callback, **kwargs)
