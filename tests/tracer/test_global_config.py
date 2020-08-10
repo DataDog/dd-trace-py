@@ -6,7 +6,7 @@ import pytest
 from ddtrace import config as global_config
 from ddtrace.settings import Config
 
-from ..utils import override_env
+from .. import override_env
 from .test_tracer import get_dummy_tracer
 
 

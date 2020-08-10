@@ -9,7 +9,7 @@ from ddtrace.internal.runtime.constants import (
     GC_RUNTIME_METRICS,
     PSUTIL_RUNTIME_METRICS,
 )
-from ...base import BaseTestCase
+from ... import BaseTestCase
 
 
 class TestRuntimeMetricCollector(BaseTestCase):

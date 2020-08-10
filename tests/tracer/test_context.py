@@ -3,7 +3,7 @@ import logging
 import mock
 import threading
 
-from tests.base import BaseTestCase
+from .. import BaseTestCase
 from .test_tracer import get_dummy_tracer
 
 import pytest

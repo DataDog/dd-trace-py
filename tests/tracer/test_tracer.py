@@ -17,9 +17,7 @@ from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
 
 from tests.subprocesstest import run_in_subprocess
-from tests.base import BaseTracerTestCase
-from tests.utils.tracer import DummyTracer
-from tests.utils.tracer import DummyWriter  # noqa
+from tests import TracerTestCase, DummyWriter, DummyTracer
 from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
@@ -27,7 +25,7 @@ def get_dummy_tracer():
     return DummyTracer()
 
 
-class TracerTestCase(BaseTracerTestCase):
+class TracerTestCases(TracerTestCase):
     def test_tracer_vars(self):
         span = self.trace('a', service='s', resource='r', span_type='t')
         span.assert_matches(name='a', service='s', resource='r', span_type='t')
@@ -794,7 +792,7 @@ def test_tracer_with_version():
     t = ddtrace.Tracer()
 
     # With global `config.version` defined
-    with BaseTracerTestCase.override_global_config(dict(version='1.2.3')):
+    with TracerTestCase.override_global_config(dict(version='1.2.3')):
         with t.trace('test.span') as span:
             assert span.get_tag(VERSION_KEY) == '1.2.3'
 
@@ -812,7 +810,7 @@ def test_tracer_with_version():
 
     # With global tags set
     t.set_tags({VERSION_KEY: 'tags.version'})
-    with BaseTracerTestCase.override_global_config(dict(version='config.version')):
+    with TracerTestCase.override_global_config(dict(version='config.version')):
         with t.trace('test.span') as span:
             assert span.get_tag(VERSION_KEY) == 'config.version'
 
@@ -821,7 +819,7 @@ def test_tracer_with_env():
     t = ddtrace.Tracer()
 
     # With global `config.env` defined
-    with BaseTracerTestCase.override_global_config(dict(env='prod')):
+    with TracerTestCase.override_global_config(dict(env='prod')):
         with t.trace('test.span') as span:
             assert span.get_tag(ENV_KEY) == 'prod'
 
@@ -839,12 +837,12 @@ def test_tracer_with_env():
 
     # With global tags set
     t.set_tags({ENV_KEY: 'tags.env'})
-    with BaseTracerTestCase.override_global_config(dict(env='config.env')):
+    with TracerTestCase.override_global_config(dict(env='config.env')):
         with t.trace('test.span') as span:
             assert span.get_tag(ENV_KEY) == 'config.env'
 
 
-class EnvTracerTestCase(BaseTracerTestCase):
+class EnvTracerTestCase(TracerTestCase):
     """Tracer test cases requiring environment variables.
     """
     @run_in_subprocess(env_overrides=dict(DATADOG_SERVICE_NAME="mysvc"))

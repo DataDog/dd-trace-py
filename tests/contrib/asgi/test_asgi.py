@@ -8,7 +8,7 @@ import pytest
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.propagation import http as http_propagation
-from tests.base import BaseTestCase
+from tests import BaseTestCase
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
