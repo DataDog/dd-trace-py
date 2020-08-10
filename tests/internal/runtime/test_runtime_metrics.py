@@ -15,13 +15,10 @@ from ddtrace.internal.runtime.constants import (
     ENV
 )
 
-from ...base import (
-    BaseTestCase,
-    BaseTracerTestCase,
-)
+from ... import TracerTestCase, BaseTestCase
 
 
-class TestRuntimeTags(BaseTracerTestCase):
+class TestRuntimeTags(TracerTestCase):
     def test_all_tags(self):
         with self.override_global_tracer():
             with self.trace('test', service='test'):
@@ -73,7 +70,7 @@ class TestRuntimeMetrics(BaseTestCase):
         self.assertEqual(metrics, [GC_COUNT_GEN0])
 
 
-class TestRuntimeWorker(BaseTracerTestCase):
+class TestRuntimeWorker(TracerTestCase):
     def test_tracer_metrics(self):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch('socket.socket'):

@@ -4,12 +4,12 @@ from ddtrace.encoding import Encoder, JSONEncoder
 from ddtrace.payload import Payload, PayloadFull
 from ddtrace.span import Span
 
-from tests.base import BaseTracerTestCase
+from tests import TracerTestCase
 
 import pytest
 
 
-class PayloadTestCase(BaseTracerTestCase):
+class PayloadTestCase(TracerTestCase):
     def test_init(self):
         """
         When calling `Payload.init`

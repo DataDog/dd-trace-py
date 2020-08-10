@@ -11,11 +11,10 @@ from ddtrace.constants import (
 )
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
-from tests.base import BaseTracerTestCase
-from tests.utils import assert_is_measured, assert_is_not_measured
+from tests import TracerTestCase, assert_is_measured, assert_is_not_measured
 
 
-class SpanTestCase(BaseTracerTestCase):
+class SpanTestCase(TracerTestCase):
     def test_ids(self):
         s = Span(tracer=None, name='span.test')
         assert s.trace_id

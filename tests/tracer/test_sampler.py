@@ -15,7 +15,7 @@ from ddtrace.sampler import DatadogSampler, SamplingRule
 from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
 from ddtrace.span import Span
 
-from tests.utils import override_env
+from .. import override_env
 from .test_tracer import get_dummy_tracer
 
 

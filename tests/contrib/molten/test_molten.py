@@ -8,8 +8,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -24,7 +23,7 @@ def molten_client(headers=None, params=None):
     return client.request('GET', uri, headers=headers, params=params)
 
 
-class TestMolten(BaseTracerTestCase):
+class TestMolten(TracerTestCase):
     """"Ensures Molten is properly instrumented."""
 
     TEST_SERVICE = 'molten-patch'
@@ -318,7 +317,7 @@ class TestMolten(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertTrue(len(spans) > 0)
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user

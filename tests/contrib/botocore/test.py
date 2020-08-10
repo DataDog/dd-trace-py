@@ -10,11 +10,10 @@ from ddtrace.compat import stringify
 
 # testing
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
-class BotocoreTest(BaseTracerTestCase):
+class BotocoreTest(TracerTestCase):
     """Botocore integration testsuite"""
 
     TEST_SERVICE = 'test-botocore-tracing'
