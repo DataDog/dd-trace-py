@@ -69,7 +69,7 @@ class IntegrationConfig(AttrDict):
     def trace_query_string(self):
         if self.http.trace_query_string is not None:
             return self.http.trace_query_string
-        return self.global_config._http.trace_query_string
+        return self.global_config.http.trace_query_string
 
     def header_is_traced(self, header_name):
         """

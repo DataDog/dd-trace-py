@@ -59,6 +59,22 @@ class TestConfig(BaseTestCase):
             config = Config()
             self.assertEqual(config.service, "my-service")
 
+    def test_http_config(self):
+        config = Config()
+        config._add("django", dict())
+        assert config.django.trace_query_string is None
+        config.http.trace_query_string = True
+        assert config.http.trace_query_string is True
+        assert config.django.trace_query_string is True
+
+        # Integration usage
+        config = Config()
+        config._add("django", dict())
+        config.django.http.trace_query_string = True
+        assert config.http.trace_query_string is None
+        assert config.django.trace_query_string is True
+        assert config.django.http.trace_query_string is True
+
 
 class TestHttpConfig(BaseTestCase):
 
