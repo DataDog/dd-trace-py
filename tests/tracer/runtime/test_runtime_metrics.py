@@ -15,7 +15,7 @@ from ddtrace.internal.runtime.constants import (
     ENV
 )
 
-from ... import TracerTestCase, BaseTestCase
+from tests import TracerTestCase, BaseTestCase
 
 
 class TestRuntimeTags(TracerTestCase):

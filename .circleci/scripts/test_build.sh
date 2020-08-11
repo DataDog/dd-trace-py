@@ -13,10 +13,8 @@ if [[ "$OSTYPE" == "msys" ]]; then
 fi
 
 # Install required dependencies
-# DEV: `pyopenssl` needed until the following PR is released
-#      https://github.com/pypa/twine/pull/447
 # DEV: `wheel` is needed to run `bdist_wheel`
-pip install twine readme_renderer[md] pyopenssl wheel cython
+pip install twine readme_renderer[md] wheel cython
 # Ensure we didn't cache from previous runs
 rm -rf build/ dist/
 # Manually build any extensions to ensure they succeed
