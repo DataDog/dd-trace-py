@@ -158,14 +158,6 @@ exclude = '''
       | vertica
     )
     | ddtrace_run.py
-    | internal/
-    (
-      runtime/
-      | test_context_manager.py
-      | test_hostname.py
-      | test_logger.py
-      | test_rate_limiter.py
-    )
     | profiling/_ast_test_file.py
     | subprocesstest.py
     | tracer/

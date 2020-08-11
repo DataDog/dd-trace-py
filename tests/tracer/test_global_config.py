@@ -3,6 +3,7 @@ from unittest import TestCase
 
 import pytest
 
+import tests.tracer.test_import_hooks
 from ddtrace import config as global_config
 from ddtrace.settings import Config
 
@@ -103,7 +104,7 @@ class GlobalConfigTestCase(TestCase):
                 we call the hook as expected
         """
         # Setup our hook
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request(span):
             span.set_tag('web.request', '/')
 
@@ -112,7 +113,7 @@ class GlobalConfigTestCase(TestCase):
         assert 'web.request' not in span.meta
 
         # Emit the span
-        self.config.web.hooks.emit('request', span)
+        tests.tracer.test_import_hooks.hooks.emit('request', span)
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == '/'
@@ -124,7 +125,7 @@ class GlobalConfigTestCase(TestCase):
                 we call the hook as expected
         """
         # Setup our hook
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request(span, request, response):
             span.set_tag('web.request', request)
             span.set_tag('web.response', response)
@@ -135,7 +136,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: The actual values don't matter, we just want to test args + kwargs usage
-        self.config.web.hooks.emit('request', span, 'request', response='response')
+        tests.tracer.test_import_hooks.hooks.emit('request', span, 'request', response='response')
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == 'request'
@@ -149,7 +150,7 @@ class GlobalConfigTestCase(TestCase):
         """
         # Setup our hook
         # DEV: We are missing the required "response" argument
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request(span, request):
             span.set_tag('web.request', request)
 
@@ -159,7 +160,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: This also asserts that no exception was raised
-        self.config.web.hooks.emit('request', span, 'request', response='response')
+        tests.tracer.test_import_hooks.hooks.emit('request', span, 'request', response='response')
 
         # Assert we did not update the span
         assert 'web.request' not in span.meta
@@ -171,15 +172,15 @@ class GlobalConfigTestCase(TestCase):
                 we do not raise an exception
         """
         # Setup our hooks
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request(span):
             span.set_tag('web.request', '/')
 
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request2(span):
             span.set_tag('web.status', 200)
 
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request3(span):
             span.set_tag('web.method', 'GET')
 
@@ -190,7 +191,7 @@ class GlobalConfigTestCase(TestCase):
         assert 'web.method' not in span.meta
 
         # Emit the span
-        self.config.web.hooks.emit('request', span)
+        tests.tracer.test_import_hooks.hooks.emit('request', span)
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == '/'
@@ -205,14 +206,14 @@ class GlobalConfigTestCase(TestCase):
         """
         # Setup our failing hook
         on_web_request = mock.Mock(side_effect=Exception)
-        self.config.web.hooks.register('request')(on_web_request)
+        tests.tracer.test_import_hooks.hooks.register('request')(on_web_request)
 
         # Create our span
         span = self.tracer.start_span('web.request')
 
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks.emit('request', span)
+        tests.tracer.test_import_hooks.hooks.emit('request', span)
         on_web_request.assert_called()
 
     def test_settings_no_hook(self):
@@ -226,7 +227,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks.emit('request', span)
+        tests.tracer.test_import_hooks.hooks.emit('request', span)
 
     def test_settings_no_span(self):
         """
@@ -235,13 +236,13 @@ class GlobalConfigTestCase(TestCase):
                 we do not raise an exception
         """
         # Setup our hooks
-        @self.config.web.hooks.on('request')
+        @tests.tracer.test_import_hooks.hooks.on('request')
         def on_web_request(span):
             span.set_tag('web.request', '/')
 
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks.emit('request', None)
+        tests.tracer.test_import_hooks.hooks.emit('request', None)
 
     def test_dd_version(self):
         c = Config()

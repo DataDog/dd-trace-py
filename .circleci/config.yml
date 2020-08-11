@@ -294,12 +294,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-tracer'
 
-  internal:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-internal'
-
   opentracer:
     executor: ddtrace_dev
     steps:
@@ -863,7 +857,6 @@ workflows:
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
-      - internal: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
@@ -925,7 +918,6 @@ workflows:
             - grpc
             - httplib
             - integration
-            - internal
             - profile
             - jinja2
             - kombu
