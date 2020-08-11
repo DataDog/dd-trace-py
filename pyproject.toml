@@ -169,7 +169,6 @@ exclude = '''
     | profiling/_ast_test_file.py
     | subprocesstest.py
     | tracer/
-    | util.py
     | vendor
     | wait-for-services.py
   )

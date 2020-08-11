@@ -11,8 +11,7 @@ from ddtrace.ext import errors, http
 
 from tests.opentracer.utils import init_tracer
 
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
-from ...util import override_global_tracer
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code, override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'

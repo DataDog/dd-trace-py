@@ -9,8 +9,7 @@ from ddtrace.contrib.mysql.patch import patch, unpatch
 # tests
 from tests.contrib.config import MYSQL_CONFIG
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured
-from ...util import assert_dict_issuperset
+from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 
 
 class MySQLCore(object):
