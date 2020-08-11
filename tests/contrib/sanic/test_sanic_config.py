@@ -1,4 +1,4 @@
-from tests.base import BaseTestCase
+from tests import BaseTestCase
 
 
 class SanicConfigTestCase(BaseTestCase):

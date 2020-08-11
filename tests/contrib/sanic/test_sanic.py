@@ -13,7 +13,7 @@ import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sanic import patch, unpatch
 from ddtrace.propagation import http as http_propagation
-from tests.base import BaseTestCase
+from tests import override_config, override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -86,7 +86,7 @@ def client(app):
         "disable_distributed_tracing",
     ],
 )
-def override_config(request):
+def integration_config(request):
     return request.param
 
 
@@ -94,15 +94,15 @@ def override_config(request):
     params=[dict(), dict(trace_query_string=False), dict(trace_query_string=True),],
     ids=["default", "disable trace query string", "enable trace query string",],
 )
-def override_http_config(request):
+def integration_http_config(request):
     return request.param
 
 
 @pytest.mark.asyncio
-async def test_basic_app(tracer, client, override_config, override_http_config):
+async def test_basic_app(tracer, client, integration_config, integration_http_config):
     """Test Sanic Patching"""
-    with BaseTestCase.override_http_config("sanic", override_http_config):
-        with BaseTestCase.override_config("sanic", override_config):
+    with override_http_config("sanic", integration_http_config):
+        with override_config("sanic", integration_config):
             headers = [
                 (http_propagation.HTTP_HEADER_PARENT_ID, "1234"),
                 (http_propagation.HTTP_HEADER_TRACE_ID, "5678"),
@@ -125,23 +125,23 @@ async def test_basic_app(tracer, client, override_config, override_http_config):
     assert sleep_span.name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert sleep_span.parent_id == request_span.span_id
 
-    if override_config.get("service"):
-        assert request_span.service == override_config["service"]
+    if integration_config.get("service"):
+        assert request_span.service == integration_config["service"]
     else:
         assert request_span.service == "sanic"
 
-    if override_http_config.get("trace_query_string"):
+    if integration_http_config.get("trace_query_string"):
         assert request_span.get_tag("http.query.string") == "foo=bar"
     else:
         assert request_span.get_tag("http.query.string") is None
 
-    if override_config.get("analytics_enabled"):
-        analytics_sample_rate = override_config.get("analytics_sample_rate") or 1.0
+    if integration_config.get("analytics_enabled"):
+        analytics_sample_rate = integration_config.get("analytics_sample_rate") or 1.0
         assert request_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == analytics_sample_rate
     else:
         assert request_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
-    if override_config.get("distributed_tracing", True):
+    if integration_config.get("distributed_tracing", True):
         assert request_span.parent_id == 1234
         assert request_span.trace_id == 5678
     else:
