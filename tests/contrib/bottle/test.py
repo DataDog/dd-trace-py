@@ -3,8 +3,7 @@ import ddtrace
 import webtest
 
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -14,7 +13,7 @@ from ddtrace.ext import http
 SERVICE = 'bottle-app'
 
 
-class TraceBottleTest(BaseTracerTestCase):
+class TraceBottleTest(TracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
@@ -423,7 +422,7 @@ class TraceBottleTest(BaseTracerTestCase):
         services = self.tracer.writer.pop_services()
         assert services == {}
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user

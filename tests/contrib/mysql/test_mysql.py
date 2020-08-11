@@ -9,9 +9,7 @@ from ddtrace.contrib.mysql.patch import patch, unpatch
 # tests
 from tests.contrib.config import MYSQL_CONFIG
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...util import assert_dict_issuperset
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 
 
 class MySQLCore(object):
@@ -369,7 +367,7 @@ class MySQLCore(object):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
@@ -390,7 +388,7 @@ class MySQLCore(object):
         assert spans[0].service != "mysvc"
 
 
-class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
+class TestMysqlPatch(MySQLCore, TracerTestCase):
 
     def setUp(self):
         super(TestMysqlPatch, self).setUp()

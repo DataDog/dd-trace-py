@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-from ..base import BaseTestCase
+from .. import BaseTestCase
 
 
 def inject_sitecustomize(path):
