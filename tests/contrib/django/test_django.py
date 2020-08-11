@@ -10,7 +10,7 @@ from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
 
-from tests.base import BaseTestCase
+from tests import override_config, override_global_config, override_http_config
 from tests.opentracer.utils import init_tracer
 from ...util import assert_dict_issuperset
 
@@ -146,7 +146,7 @@ def test_http_header_tracing_disabled(client, test_spans):
 
 
 def test_http_header_tracing_enabled(client, test_spans):
-    with BaseTestCase.override_config("django", {}):
+    with override_config("django", {}):
         config.django.http.trace_headers(["my-header", "my-response-header"])
 
         headers = {
@@ -1049,7 +1049,7 @@ Configuration tests
 
 
 def test_service_can_be_overridden(client, test_spans):
-    with BaseTestCase.override_config("django", dict(service_name="test-service")):
+    with override_config("django", dict(service_name="test-service")):
         response = client.get("/")
         assert response.status_code == 200
 
@@ -1062,7 +1062,7 @@ def test_service_can_be_overridden(client, test_spans):
 
 @pytest.mark.django_db
 def test_database_service_prefix_can_be_overridden(test_spans):
-    with BaseTestCase.override_config("django", dict(database_service_name_prefix="my-")):
+    with override_config("django", dict(database_service_name_prefix="my-")):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1077,7 +1077,7 @@ def test_database_service_prefix_can_be_overridden(test_spans):
 def test_cache_service_can_be_overridden(test_spans):
     cache = django.core.cache.caches["default"]
 
-    with BaseTestCase.override_config("django", dict(cache_service_name="test-cache-service")):
+    with override_config("django", dict(cache_service_name="test-cache-service")):
         cache.get("missing_key")
 
     spans = test_spans.get_spans()
@@ -1122,7 +1122,7 @@ def test_django_request_distributed_disabled(client, test_spans):
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
         get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
     }
-    with BaseTestCase.override_config("django", dict(distributed_tracing_enabled=False)):
+    with override_config("django", dict(distributed_tracing_enabled=False)):
         resp = client.get("/", **headers)
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
@@ -1140,7 +1140,7 @@ def test_analytics_global_off_integration_default(client, test_spans):
         When an integration trace search is not set and sample rate is set and globally trace search is disabled
             We expect the root span to not include tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
+    with override_global_config(dict(analytics_enabled=False)):
         assert client.get("/users/").status_code == 200
 
     req_span = test_spans.get_root_span()
@@ -1155,7 +1155,7 @@ def test_analytics_global_on_integration_default(client, test_spans):
         When an integration trace search is not event sample rate is not set and globally trace search is enabled
             We expect the root span to have the appropriate tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=True)):
+    with override_global_config(dict(analytics_enabled=True)):
         assert client.get("/users/").status_code == 200
 
     req_span = test_spans.get_root_span()
@@ -1170,8 +1170,8 @@ def test_analytics_global_off_integration_on(client, test_spans):
         When an integration trace search is enabled and sample rate is set and globally trace search is disabled
             We expect the root span to have the appropriate tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
-        with BaseTestCase.override_config("django", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+    with override_global_config(dict(analytics_enabled=False)):
+        with override_config("django", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             assert client.get("/users/").status_code == 200
 
     sp_request = test_spans.get_root_span()
@@ -1188,8 +1188,8 @@ def test_analytics_global_off_integration_on_and_none(client, test_spans):
         Globally trace search is disabled
             We expect the root span to have the appropriate tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
-        with BaseTestCase.override_config("django", dict(analytics_enabled=False, analytics_sample_rate=1.0)):
+    with override_global_config(dict(analytics_enabled=False)):
+        with override_config("django", dict(analytics_enabled=False, analytics_sample_rate=1.0)):
             assert client.get("/users/").status_code == 200
 
     sp_request = test_spans.get_root_span()
@@ -1198,7 +1198,7 @@ def test_analytics_global_off_integration_on_and_none(client, test_spans):
 
 
 def test_trace_query_string_integration_enabled(client, test_spans):
-    with BaseTestCase.override_http_config("django", dict(trace_query_string=True)):
+    with override_http_config("django", dict(trace_query_string=True)):
         assert client.get("/?key1=value1&key2=value2").status_code == 200
 
     sp_request = test_spans.get_root_span()
@@ -1207,7 +1207,7 @@ def test_trace_query_string_integration_enabled(client, test_spans):
 
 
 def test_disabled_caches(client, test_spans):
-    with BaseTestCase.override_config("django", dict(instrument_caches=False)):
+    with override_config("django", dict(instrument_caches=False)):
         cache = django.core.cache.caches["default"]
         cache.get("missing_key")
 
@@ -1340,7 +1340,7 @@ def test_user_name_excluded(client, test_spans):
     When making a request to a Django app with user name excluded
         We correctly omit the `django.user.name` tag to the root span
     """
-    with BaseTestCase.override_config("django", dict(include_user_name=False)):
+    with override_config("django", dict(include_user_name=False)):
         resp = client.get("/authenticated/")
     assert resp.status_code == 200
 
@@ -1354,7 +1354,7 @@ def test_django_use_handler_resource_format(client, test_spans):
     """
     Test that the specified format is used over the default.
     """
-    with BaseTestCase.override_config("django", dict(use_handler_resource_format=True)):
+    with override_config("django", dict(use_handler_resource_format=True)):
         resp = client.get("/")
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."

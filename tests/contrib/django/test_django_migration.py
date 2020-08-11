@@ -5,7 +5,7 @@ import pytest
 from ddtrace import config, Pin
 from ddtrace.contrib.django.conf import configure_from_settings
 
-from tests.base import BaseTestCase
+from tests import override_config
 
 
 pytestmark = pytest.mark.skipif(
@@ -20,7 +20,7 @@ migration tests
 def test_configure_from_settings(tracer):
     pin = Pin.get_from(django)
 
-    with BaseTestCase.override_config("django", dict()):
+    with override_config("django", dict()):
         assert "ddtrace.contrib.django" in django.conf.settings.INSTALLED_APPS
         assert hasattr(django.conf.settings, "DATADOG_TRACE")
 

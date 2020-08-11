@@ -8,7 +8,7 @@ import pytest
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.propagation import http as http_propagation
-from tests.base import BaseTestCase
+from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -153,7 +153,7 @@ async def test_double_callable_asgi(scope, tracer):
 
 @pytest.mark.asyncio
 async def test_query_string(scope, tracer):
-    with BaseTestCase.override_http_config("asgi", dict(trace_query_string=True)):
+    with override_http_config("asgi", dict(trace_query_string=True)):
         app = TraceMiddleware(basic_app, tracer=tracer)
         scope["query_string"] = "foo=bar"
         instance = ApplicationCommunicator(app, scope)
@@ -233,7 +233,7 @@ async def test_distributed_tracing(scope, tracer):
 
 @pytest.mark.asyncio
 async def test_multiple_requests(tracer):
-    with BaseTestCase.override_http_config("asgi", dict(trace_query_string=True)):
+    with override_http_config("asgi", dict(trace_query_string=True)):
         app = TraceMiddleware(basic_app, tracer=tracer)
         async with httpx.AsyncClient(app=app) as client:
             responses = await asyncio.gather(

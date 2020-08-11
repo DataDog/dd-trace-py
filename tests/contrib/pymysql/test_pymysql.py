@@ -10,9 +10,8 @@ from ddtrace.contrib.pymysql.patch import patch, unpatch
 
 # testing
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 from ...util import assert_dict_issuperset
-from ...utils import assert_is_measured
 from ...contrib.config import MYSQL_CONFIG
 
 
@@ -375,7 +374,7 @@ class PyMySQLCore(object):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
+class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     def _get_conn_tracer(self):
         if not self.conn:
             self.conn = pymysql.connect(**MYSQL_CONFIG)
