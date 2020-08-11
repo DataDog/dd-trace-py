@@ -1,6 +1,5 @@
 import sys
 
-import tests.tracer.test_import_hooks
 from ddtrace.ext import SpanTypes, http as httpx
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
@@ -93,7 +92,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        tests.tracer.test_import_hooks.hooks.emit('request', span, req, resp)
+        config.falcon.hooks.emit('request', span, req, resp)
 
         # Close the span
         span.finish()

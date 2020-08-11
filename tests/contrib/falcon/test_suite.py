@@ -1,4 +1,3 @@
-import tests.tracer.test_import_hooks
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
@@ -250,7 +249,7 @@ class FalconTestCase(object):
         assert dd_span.get_tag(httpx.URL) == 'http://falconframework.org/200'
 
     def test_falcon_request_hook(self):
-        @tests.tracer.test_import_hooks.hooks.on('request')
+        @config.falcon.hooks.on('request')
         def on_falcon_request(span, request, response):
             span.set_tag('my.custom', 'tag')
 

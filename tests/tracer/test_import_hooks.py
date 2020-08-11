@@ -1,9 +1,6 @@
 import mock
 import pytest
 
-import tests.internal
-import tests.test_module
-
 from ddtrace.internal.import_hooks import register_module_hook, ModuleHookRegistry, hooks as global_hooks
 from tests import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -72,7 +69,7 @@ def test_global_hooks():
     assert isinstance(global_hooks, ModuleHookRegistry)
 
     # No hooks are registered by default
-    assert len(tests.tracer.test_import_hooks.hooks) == 0
+    assert len(global_hooks.hooks) == 0
 
 
 def test_registry_init(hooks):
@@ -80,7 +77,7 @@ def test_registry_init(hooks):
     When initializing a new registry hook
         No hooks are added by default
     """
-    assert len(tests.tracer.test_import_hooks.hooks) == 0
+    assert len(hooks.hooks) == 0
 
 
 def test_registry_reset(hooks, module_hook):
@@ -92,13 +89,13 @@ def test_registry_reset(hooks, module_hook):
     hooks.register("test.module.name", module_hook)
     hooks.register("pytest", module_hook)
     hooks.register("ddtrace", module_hook)
-    assert len(tests.tracer.test_import_hooks.hooks) == 3
+    assert len(hooks.hooks) == 3
 
     # Reset the registry
     hooks.reset()
 
     # All hooks are removed
-    assert len(tests.tracer.test_import_hooks.hooks) == 0
+    assert len(hooks.hooks) == 0
 
 
 def test_registry_call_with_module(hooks):
@@ -200,7 +197,7 @@ def test_registry_call_no_name(hooks):
     module_name = "test.module.name"
 
     # Ensure the module isn't registered
-    assert module_name not in tests.tracer.test_import_hooks.hooks
+    assert module_name not in hooks.hooks
 
     # Call the hooks, this should not have any side effects
     hooks.call(module_name, module)
