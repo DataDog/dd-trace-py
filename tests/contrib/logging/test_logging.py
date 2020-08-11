@@ -6,8 +6,7 @@ from ddtrace.compat import StringIO
 from ddtrace.contrib.logging import patch, unpatch
 from ddtrace.vendor import wrapt
 
-from ...base import BaseTracerTestCase
-
+from ... import TracerTestCase
 
 logger = logging.getLogger()
 logger.level = logging.INFO
@@ -45,7 +44,7 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
     return out.getvalue().strip(), result
 
 
-class LoggingTestCase(BaseTracerTestCase):
+class LoggingTestCase(TracerTestCase):
     def setUp(self):
         patch()
         super(LoggingTestCase, self).setUp()
@@ -112,9 +111,7 @@ class LoggingTestCase(BaseTracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @BaseTracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion")
-    )
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
     def test_log_DD_TAGS(self):
         def create_span():
             return self.tracer.trace("test.logging")

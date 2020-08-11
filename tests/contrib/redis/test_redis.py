@@ -7,10 +7,9 @@ from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
 
 from tests.opentracer.utils import init_tracer
-from tests.util import snapshot
 from ..config import REDIS_CONFIG
-from ...test_tracer import get_dummy_tracer
-from ...base import BaseTracerTestCase
+from tests.tracer.test_tracer import get_dummy_tracer
+from tests import TracerTestCase, snapshot
 
 
 def test_redis_legacy():
@@ -24,7 +23,7 @@ def test_redis_legacy():
     assert not tracer.writer.pop()
 
 
-class TestRedisPatch(BaseTracerTestCase):
+class TestRedisPatch(TracerTestCase):
 
     TEST_PORT = REDIS_CONFIG["port"]
 
@@ -128,7 +127,7 @@ class TestRedisPatch(BaseTracerTestCase):
             us = self.r.get("cheese")
             assert us is None
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @snapshot()
     def test_user_specified_service(self):
         from ddtrace import config
@@ -137,7 +136,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         self.r.get("cheese")
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
     @snapshot()
     def test_env_user_specified_redis_service(self):
         self.r.get("cheese")
@@ -154,7 +153,7 @@ class TestRedisPatch(BaseTracerTestCase):
         Pin.override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
     @snapshot()
     def test_service_precedence(self):
         self.r.get("cheese")

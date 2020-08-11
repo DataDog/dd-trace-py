@@ -5,12 +5,11 @@ from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import patch, unpatch
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
-from ...base import BaseTracerTestCase
-from ...test_tracer import get_dummy_tracer
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
-class TestRedisPatch(BaseTracerTestCase):
+class TestRedisPatch(TracerTestCase):
 
     TEST_SERVICE = 'rediscluster-patch'
     TEST_HOST = REDISCLUSTER_CONFIG['host']
@@ -108,7 +107,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
