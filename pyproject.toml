@@ -106,7 +106,6 @@ exclude = '''
   )
   | tests/
   (
-    base
     | contrib/
     (
       aiobotocore
@@ -170,15 +169,7 @@ exclude = '''
     | profiling/_ast_test_file.py
     | subprocesstest.py
     | tracer/
-    | unit/
-    (
-      test_settings.py
-      | test_ext.py
-      | utils/
-      | http/
-    )
     | util.py
-    | utils
     | vendor
     | wait-for-services.py
   )

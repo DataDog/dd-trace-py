@@ -696,12 +696,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^sqlite3_contrib-'
 
-  unit_tests:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^unit_tests-'
-
   benchmarks:
     executor: ddtrace_dev
     steps:
@@ -898,7 +892,6 @@ workflows:
       - tornado: *requires_pre_test
       # tracer
       - tracer: *requires_pre_test
-      - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - verify_all_tests_ran:
@@ -966,7 +959,6 @@ workflows:
             - test_logging
             - tracer
             - tornado
-            - unit_tests
             - vertica
             - build-docker-ci-image
       - deploy_master:

@@ -3,6 +3,9 @@ import os
 import unittest
 import warnings
 
+import pytest
+
+from ddtrace.utils import time
 from ddtrace.utils.deprecation import deprecation, deprecated, format_message
 from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 
@@ -143,3 +146,44 @@ class TestUtils(unittest.TestCase):
                 mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key3", "key,key2,key3"),
             ]
         )
+
+
+def test_no_states():
+    watch = time.StopWatch()
+    with pytest.raises(RuntimeError):
+        watch.stop()
+
+
+def test_start_stop():
+    watch = time.StopWatch()
+    watch.start()
+    watch.stop()
+
+
+def test_start_stop_elapsed():
+    watch = time.StopWatch()
+    watch.start()
+    watch.stop()
+    e = watch.elapsed()
+    assert e > 0
+    watch.start()
+    assert watch.elapsed() != e
+
+
+def test_no_elapsed():
+    watch = time.StopWatch()
+    with pytest.raises(RuntimeError):
+        watch.elapsed()
+
+
+def test_elapsed():
+    watch = time.StopWatch()
+    watch.start()
+    watch.stop()
+    assert watch.elapsed() > 0
+
+
+def test_context_manager():
+    with time.StopWatch() as watch:
+        pass
+    assert watch.elapsed() > 0
