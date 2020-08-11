@@ -635,7 +635,7 @@ jobs:
       - run:
           command: SNAPSHOT_CI=1 docker-compose up redis testagent
           background: true
-      - run: scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+      - run: sleep 60; ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
 
   rediscluster:
     executor: ddtrace_dev
