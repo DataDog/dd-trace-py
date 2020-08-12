@@ -1,5 +1,5 @@
 """
-The Sanic__ integration will add tracing to all requests to your Sanic application.
+The Sanic__ integration will trace requests to and from Sanic.
 
 
 Enable Sanic tracing automatically via ``ddtrace-run``::
