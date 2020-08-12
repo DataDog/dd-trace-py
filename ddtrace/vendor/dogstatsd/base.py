@@ -8,6 +8,7 @@ import logging
 import os
 import socket
 from threading import Lock
+import requests
 
 # datadog
 from .context import TimedContextManagerDecorator
@@ -23,6 +24,9 @@ DEFAULT_PORT = 8125
 
 # Tag name of entity_id
 ENTITY_ID_TAG_NAME = "dd.internal.entity_id"
+
+# host = 'torch'
+host = 'localhost'
 
 
 class DogStatsd(object):
@@ -190,6 +194,13 @@ class DogStatsd(object):
             # Only send packets if there are packets to send
             self._flush_buffer()
 
+    def format_tags_torch(self, tags):
+        new_tags = {}
+        for tag in tags:
+            key, value = tag.split(":")
+            new_tags[key] = value
+        return tags
+
     def gauge(self, metric, value, tags=None, sample_rate=1):
         """
         Record the value of a gauge, optionally setting a list of tags and a
@@ -198,6 +209,13 @@ class DogStatsd(object):
         >>> statsd.gauge('users.online', 123)
         >>> statsd.gauge('active.connections', 1001, tags=["protocol:http"])
         """
+        json = {
+            'name': metric,
+            'description': '',
+            'labels': {},  # self.format_tags_torch(tags) if tags else {},
+            'value': value,
+        }
+        requests.post(f'http://{host}:9092/metrics/gauge/set', json=json)
         return self._report(metric, 'g', value, tags, sample_rate)
 
     def increment(self, metric, value=1, tags=None, sample_rate=1):
@@ -208,6 +226,13 @@ class DogStatsd(object):
         >>> statsd.increment('page.views')
         >>> statsd.increment('files.transferred', 124)
         """
+        json = {
+            'name': metric,
+            'description': '',
+            'labels': {},  # self.format_tags_torch(tags) if tags else {},
+            'value': value,
+        }
+        requests.post(f'http://{host}:9092/metrics/gauge/inc', json=json)
         self._report(metric, 'c', value, tags, sample_rate)
 
     def decrement(self, metric, value=1, tags=None, sample_rate=1):
@@ -219,6 +244,13 @@ class DogStatsd(object):
         >>> statsd.decrement('active.connections', 2)
         """
         metric_value = -value if value else value
+        json = {
+            'name': metric,
+            'description': '',
+            'labels': {},  # self.format_tags_torch(tags) if tags else {},
+            'value': -metric_value,
+        }
+        requests.post(f'http://{host}:9092/metrics/gauge/dec', json=json)
         self._report(metric, 'c', metric_value, tags, sample_rate)
 
     def histogram(self, metric, value, tags=None, sample_rate=1):
@@ -228,6 +260,13 @@ class DogStatsd(object):
         >>> statsd.histogram('uploaded.file.size', 1445)
         >>> statsd.histogram('album.photo.count', 26, tags=["gender:female"])
         """
+        json = {
+            'name': metric,
+            'description': '',
+            'labels': {},  # self.format_tags_torch(tags) if tags else {},
+            'value': value,
+        }
+        requests.post(f'http://{host}:9092/metrics/histogram', json=json)
         self._report(metric, 'h', value, tags, sample_rate)
 
     def distribution(self, metric, value, tags=None, sample_rate=1):
@@ -239,6 +278,13 @@ class DogStatsd(object):
 
         This is a beta feature that must be enabled specifically for your organization.
         """
+        json = {
+            'name': metric,
+            'description': '',
+            'labels': {},  # self.format_tags_torch(tags) if tags else {},
+            'value': value,
+        }
+        requests.post(f'http://{host}:9092/metrics/summary', json=json)
         self._report(metric, 'd', value, tags, sample_rate)
 
     def timing(self, metric, value, tags=None, sample_rate=1):

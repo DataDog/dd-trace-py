@@ -54,7 +54,7 @@ class Tracer(object):
         )
 
         # A hook for local debugging. shouldn't be needed or used in production
-        self.debug_logging = False
+        self.debug_logging = True
 
         # globally set tags
         self.tags = {}
