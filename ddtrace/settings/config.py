@@ -42,7 +42,7 @@ class Config(object):
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
-        self._http = HttpConfig()
+        self.http = HttpConfig()
         # Master switch for turning on and off trace search by default
         # this weird invocation of get_env is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
@@ -129,7 +129,7 @@ class Config(object):
         :return: self
         :rtype: HttpConfig
         """
-        self._http.trace_headers(whitelist)
+        self.http.trace_headers(whitelist)
         return self
 
     def header_is_traced(self, header_name):
@@ -139,7 +139,7 @@ class Config(object):
         :type header_name: str
         :rtype: bool
         """
-        return self._http.header_is_traced(header_name)
+        return self.http.header_is_traced(header_name)
 
     def _get_service(self, default=None):
         """
