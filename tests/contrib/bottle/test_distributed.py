@@ -5,12 +5,12 @@ import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_span_http_status_code
 
 SERVICE = 'bottle-app'
 
 
-class TraceBottleDistributedTest(BaseTracerTestCase):
+class TraceBottleDistributedTest(TracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
@@ -56,7 +56,7 @@ class TraceBottleDistributedTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag('http.method') == 'GET'
         # check distributed headers
         assert 123 == s.trace_id
@@ -83,7 +83,7 @@ class TraceBottleDistributedTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag('http.method') == 'GET'
         # check distributed headers
         assert 123 != s.trace_id

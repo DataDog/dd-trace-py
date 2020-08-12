@@ -10,9 +10,9 @@ is a small example showcasing this::
 
     from ddtrace import tracer
 
-    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
+    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
-By default, these will be set to ``localhost`` and ``8126`` respectively.
+By default, these will be set to ``localhost``, ``8126``, and ``False`` respectively.
 
 You can also use a Unix Domain Socket to connect to the agent::
 
@@ -184,12 +184,12 @@ The ``RateSampler`` randomly samples a percentage of traces::
     tracer.sampler = RateSampler(sample_rate)
 
 
-Trace Search & Analytics
+App Analytics
 ------------------------
 
-Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
+Use `App Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and analyzed spans by user-defined tags. An APM event is generated every time a trace is generated.
 
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
+Enabling analyzed spans for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
 
 * :ref:`aiohttp`
 * :ref:`bottle`
@@ -203,75 +203,77 @@ Enabling APM events for all web frameworks can be accomplished by setting the en
 * :ref:`tornado`
 
 
-For most libraries, APM events can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
+For most libraries, analyzed spans can be enabled with the environment variable ``DD_TRACE_{INTEGRATION}_ANALYTICS_ENABLED=true``:
 
-+----------------------+----------------------------------------+
-|       Library        |          Environment Variable          |
-+======================+========================================+
-| :ref:`aiobotocore`   | ``DD_AIOBOTOCORE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |
-+----------------------+----------------------------------------+
-| :ref:`bottle`        | ``DD_BOTTLE_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
-+----------------------+----------------------------------------+
-| :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
-+----------------------+----------------------------------------+
-| :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`flask`         | ``DD_FLASK_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`flask_cache`   | ``DD_FLASK_CACHE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`grpc`          | ``DD_GRPC_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`httplib`       | ``DD_HTTPLIB_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`kombu`         | ``DD_KOMBU_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`molten`        | ``DD_MOLTEN_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pylibmc`       | ``DD_PYLIBMC_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`pylons`        | ``DD_PYLONS_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pymemcache`    | ``DD_PYMEMCACHE_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`pymongo`       | ``DD_PYMONGO_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`redis`         | ``DD_REDIS_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`rediscluster`  | ``DD_REDISCLUSTER_ANALYTICS_ENABLED``  |
-+----------------------+----------------------------------------+
-| :ref:`sqlalchemy`    | ``DD_SQLALCHEMY_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`vertica`       | ``DD_VERTICA_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
++----------------------+----------------------------------------------+
+|       Library        |              Environment Variable            |
++======================+==============================================+
+| :ref:`aiobotocore`   | ``DD_TRACE_AIOBOTOCORE_ANALYTICS_ENABLED``   |
++----------------------+----------------------------------------------+
+| :ref:`aiopg`         | ``DD_TRACE_AIOPG_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`boto`          | ``DD_TRACE_BOTO_ANALYTICS_ENABLED``          |
++----------------------+----------------------------------------------+
+| :ref:`botocore`      | ``DD_TRACE_BOTOCORE_ANALYTICS_ENABLED``      |
++----------------------+----------------------------------------------+
+| :ref:`bottle`        | ``DD_TRACE_BOTTLE_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`cassandra`     | ``DD_TRACE_CASSANDRA_ANALYTICS_ENABLED``     |
++----------------------+----------------------------------------------+
+| :ref:`celery`        | ``DD_TRACE_CELERY_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`elasticsearch` | ``DD_TRACE_ELASTICSEARCH_ANALYTICS_ENABLED`` |
++----------------------+----------------------------------------------+
+| :ref:`falcon`        | ``DD_TRACE_FALCON_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`flask`         | ``DD_TRACE_FLASK_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`flask_cache`   | ``DD_TRACE_FLASK_CACHE_ANALYTICS_ENABLED``   |
++----------------------+----------------------------------------------+
+| :ref:`grpc`          | ``DD_TRACE_GRPC_ANALYTICS_ENABLED``          |
++----------------------+----------------------------------------------+
+| :ref:`httplib`       | ``DD_TRACE_HTTPLIB_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
+| :ref:`kombu`         | ``DD_TRACE_KOMBU_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`molten`        | ``DD_TRACE_MOLTEN_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`pylibmc`       | ``DD_TRACE_PYLIBMC_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
+| :ref:`pylons`        | ``DD_TRACE_PYLONS_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------------+
+| :ref:`pymemcache`    | ``DD_TRACE_PYMEMCACHE_ANALYTICS_ENABLED``    |
++----------------------+----------------------------------------------+
+| :ref:`pymongo`       | ``DD_TRACE_PYMONGO_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
+| :ref:`redis`         | ``DD_TRACE_REDIS_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------------+
+| :ref:`rediscluster`  | ``DD_TRACE_REDISCLUSTER_ANALYTICS_ENABLED``  |
++----------------------+----------------------------------------------+
+| :ref:`sqlalchemy`    | ``DD_TRACE_SQLALCHEMY_ANALYTICS_ENABLED``    |
++----------------------+----------------------------------------------+
+| :ref:`vertica`       | ``DD_TRACE_VERTICA_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------------+
 
 For datastore libraries that extend another, use the setting for the underlying library:
 
-+------------------------+----------------------------------+
-|        Library         |       Environment Variable       |
-+========================+==================================+
-| :ref:`mongoengine`     | ``DD_PYMONGO_ANALYTICS_ENABLED`` |
-+------------------------+----------------------------------+
-| :ref:`mysql-connector` | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`mysqldb`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`psycopg2`        | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`pymysql`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
++------------------------+----------------------------------------+
+|        Library         |          Environment Variable          |
++========================+========================================+
+| :ref:`mongoengine`     | ``DD_TRACE_PYMONGO_ANALYTICS_ENABLED`` |
++------------------------+----------------------------------------+
+| :ref:`mysql-connector` | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`mysqldb`         | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`psycopg2`        | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`pymysql`         | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
+| :ref:`sqllite`         | ``DD_TRACE_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------------+
 
-Where environment variables are not used for configuring the tracer, the instructions for configuring trace analytics is provided in the library documentation:
+Where environment variables are not used for configuring the tracer, the instructions for configuring app analytics are provided in the library documentation:
 
 * :ref:`aiohttp`
 * :ref:`django`
@@ -347,8 +349,26 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-Http layer
+HTTP layer
 ----------
+
+Query String Tracing
+^^^^^^^^^^^^^^^^^^^^
+
+It is possible to store the query string of the URL — the part after the ``?``
+in your URL — in the ``url.query.string`` tag.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.http.trace_query_string = True
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.http.trace_query_string = True
 
 ..  _http-headers-tracing:
 
@@ -423,6 +443,8 @@ for usage.
 +---------------------+----------------------------------------+---------------+
 | `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
 +---------------------+----------------------------------------+---------------+
+| `agent_https`       | use https to connect to the agent      | `False`       |
++---------------------+----------------------------------------+---------------+
 | `agent_port`        | port the Datadog agent is listening on | `8126`        |
 +---------------------+----------------------------------------+---------------+
 | `global_tags`       | tags that will be applied to each span | `{}`          |
@@ -430,6 +452,8 @@ for usage.
 | `sampler`           | see `Sampling`_                        | `AllSampler`  |
 +---------------------+----------------------------------------+---------------+
 | `priority_sampling` | see `Priority Sampling`_               | `True`        |
++---------------------+----------------------------------------+---------------+
+| `uds_path`          | unix socket of agent to connect to     | `None`        |
 +---------------------+----------------------------------------+---------------+
 | `settings`          | see `Advanced Usage`_                  | `{}`          |
 +---------------------+----------------------------------------+---------------+
@@ -508,7 +532,30 @@ the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
 application.
 
 
-**Opentracer API**
+Examples
+^^^^^^^^
+
+**Celery**
+
+Distributed Tracing across celery tasks with OpenTracing.
+
+1. Install Celery OpenTracing:
+
+    pip install Celery-OpenTracing
+
+2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+
+    from celery_opentracing import CeleryTracing
+    from ddtrace.opentracer import set_global_tracer, Tracer
+
+    ddtracer = Tracer()
+    set_global_tracer(ddtracer)
+
+    app = CeleryTracing(app, tracer=ddtracer)
+
+
+Opentracer API
+^^^^^^^^^^^^^^
 
 .. autoclass:: ddtrace.opentracer.Tracer
     :members:
@@ -530,33 +577,11 @@ and database modules without the need for changing your code::
 
   Append command line arguments to your program as usual.
 
-  Usage: [ENV_VARS] ddtrace-run <my_program>
+  Usage: ddtrace-run <my_program>
 
 
-The available environment variables for ``ddtrace-run`` are:
-
-* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and
-  library instrumentation. When false, your application code will not generate
-  any traces.
-* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
-  ``pre-prod``, ``stage``
-* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
-  the tracer
-* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
-  for this program. This value is passed through when setting up middleware for
-  web framework integrations (e.g. pylons, flask, django). For tracing without a
-  web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
-  ``boto:true,redis:false``: override the modules patched for this execution of
-  the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace
-  agent host that the default tracer will attempt to submit to  (default:
-  ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
-  will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: true): enables :ref:`Priority
-  Sampling`
-* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
+The environment variables for ``ddtrace-run`` used to configure the tracer are
+detailed in :ref:`Configuration`.
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
@@ -582,6 +607,20 @@ traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
 
+uWSGI
+-----
+
+The default configuration of uWSGI applications does not include the
+``--enable-threads`` setting which must be set to ``true`` for the
+tracing library to run.  This is noted in their best practices doc_.
+
+  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+
+Example run command:
+
+``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+
+
 API
 ---
 
@@ -600,6 +639,9 @@ API
 
 ``Pin``
 ^^^^^^^
+
+.. _Pin:
+
 .. autoclass:: ddtrace.Pin
     :members:
     :special-members: __init__
@@ -610,6 +652,8 @@ API
 ^^^^^^^^^^^^^
 
 .. autofunction:: ddtrace.monkey.patch_all
+
+.. _patch:
 
 ``patch``
 ^^^^^^^^^

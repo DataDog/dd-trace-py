@@ -12,14 +12,14 @@ instance you are using::
     engine.connect().execute('select count(*) from users')
 """
 # 3p
+import sqlalchemy
 from sqlalchemy.event import listen
 
 # project
 import ddtrace
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import sql as sqlx
-from ...ext import net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, sql as sqlx, net as netx
 from ...pin import Pin
 from ...settings import config
 
@@ -63,13 +63,19 @@ class EngineTracer(object):
         Pin(
             app=self.vendor,
             tracer=tracer,
-            service=self.service,
-            app_type=sqlx.APP_TYPE,
+            service=self.service
         ).onto(engine)
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
-        listen(engine, 'dbapi_error', self._dbapi_error)
+
+        # Determine name of error event to listen for
+        # Ref: https://github.com/DataDog/dd-trace-py/issues/841
+        if sqlalchemy.__version__[0] != "0":
+            error_event = "handle_error"
+        else:
+            error_event = "dbapi_error"
+        listen(engine, error_event, self._handle_db_error)
 
     def _before_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
@@ -80,9 +86,10 @@ class EngineTracer(object):
         span = pin.tracer.trace(
             self.name,
             service=pin.service,
-            span_type=sqlx.TYPE,
+            span_type=SpanTypes.SQL,
             resource=statement,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
@@ -108,7 +115,7 @@ class EngineTracer(object):
         finally:
             span.finish()
 
-    def _dbapi_error(self, conn, cursor, statement, *args):
+    def _handle_db_error(self, *args):
         pin = Pin.get_from(self.engine)
         if not pin or not pin.enabled():
             # don't trace the execution

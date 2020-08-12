@@ -1,16 +1,36 @@
 """
-The gRPC integration traces the client and server using interceptor pattern.
+The gRPC integration traces the client and server using the interceptor pattern.
 
-gRPC will be automatically instrumented with ``patch_all``, or when using
-the ``ddtrace-run`` command.
-gRPC is instrumented on import. To instrument gRPC manually use the
-``patch`` function.::
 
-    import grpc
+Enabling
+~~~~~~~~
+
+The gRPC integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
     from ddtrace import patch
     patch(grpc=True)
 
     # use grpc like usual
+
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.grpc["service_name"]
+
+   The service name reported by default for gRPC client instances.
+
+   This option can also be set with the ``DD_GRPC_SERVICE`` environment
+   variable.
+
+   Default: ``"grpc-client"``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
 
 To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::

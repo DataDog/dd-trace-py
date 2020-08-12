@@ -1,11 +1,11 @@
 import sys
 
-from ddtrace.ext import http as httpx
+from ddtrace.ext import SpanTypes, http as httpx
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...settings import config
 
 
@@ -30,8 +30,9 @@ class TraceMiddleware(object):
         span = self.tracer.trace(
             'falcon.request',
             service=self.service,
-            span_type=httpx.TYPE,
+            span_type=SpanTypes.WEB,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         # set analytics sample rate with global config enabled
         span.set_tag(
@@ -41,6 +42,8 @@ class TraceMiddleware(object):
 
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)
+        if config.falcon.trace_query_string:
+            span.set_tag(httpx.QUERY_STRING, req.query_string)
 
         # Note: any request header set after this line will not be stored in the span
         store_request_headers(req.headers, span, config.falcon)
@@ -89,7 +92,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        config.falcon.hooks._emit('request', span, req, resp)
+        config.falcon.hooks.emit('request', span, req, resp)
 
         # Close the span
         span.finish()

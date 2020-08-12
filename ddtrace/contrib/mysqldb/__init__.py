@@ -1,7 +1,9 @@
 """Instrument mysqlclient / MySQL-python to report MySQL queries.
 
 ``patch_all`` will automatically patch your mysql connection to make it work.
+
 ::
+
     # Make sure to import MySQLdb and not the 'connect' function,
     # otherwise you won't have access to the patched version
     from ddtrace import Pin, patch

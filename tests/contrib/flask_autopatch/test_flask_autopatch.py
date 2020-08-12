@@ -7,7 +7,8 @@ from ddtrace.vendor import wrapt
 from ddtrace.ext import http
 from ddtrace import Pin
 
-from ...test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
+from ... import assert_is_measured, assert_span_http_status_code
 
 
 class FlaskAutopatchTestCase(unittest.TestCase):
@@ -73,24 +74,24 @@ class FlaskAutopatchTestCase(unittest.TestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'test-flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
+        for tag in ['flask.version', 'http.url', 'http.method', 'http.status_code',
+                    'flask.endpoint', 'flask.url_rule']:
+            assert tag in req_span.meta
+
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(req_span, 200)
 
         # Handler span
         handler_span = spans[4]

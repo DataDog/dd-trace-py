@@ -32,13 +32,14 @@ class PeriodicWorkerThread(object):
         self._thread = threading.Thread(target=self._target, name=name)
         self._thread.daemon = daemon
         self._stop = threading.Event()
+        self.started = False
         self.interval = interval
         self.exit_timeout = exit_timeout
         atexit.register(self._atexit)
 
     def _atexit(self):
         self.stop()
-        if self.exit_timeout is not None:
+        if self.exit_timeout is not None and self.started:
             key = 'ctrl-break' if os.name == 'nt' else 'ctrl-c'
             _LOG.debug(
                 'Waiting %d seconds for %s to finish. Hit %s to quit.',
@@ -50,6 +51,7 @@ class PeriodicWorkerThread(object):
         """Start the periodic worker."""
         _LOG.debug('Starting %s thread', self._thread.name)
         self._thread.start()
+        self.started = True
 
     def stop(self):
         """Stop the worker."""

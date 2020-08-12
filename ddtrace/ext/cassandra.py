@@ -1,6 +1,8 @@
+from . import SpanTypes
 
+# [TODO] Deprecated, remove when we remove AppTypes
 # the type of the spans
-TYPE = 'cassandra'
+TYPE = SpanTypes.CASSANDRA
 
 # tags
 CLUSTER = 'cassandra.cluster'

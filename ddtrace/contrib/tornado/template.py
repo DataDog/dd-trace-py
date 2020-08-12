@@ -2,7 +2,7 @@ from tornado import template
 
 from ddtrace import Pin
 
-from ...ext import http
+from ...ext import SpanTypes
 
 
 def generate(func, renderer, args, kwargs):
@@ -24,8 +24,8 @@ def generate(func, renderer, args, kwargs):
         resource = template_name = renderer.name
 
     # trace the original call
-    with pin.tracer.trace('tornado.template', service=pin.service) as span:
-        span.span_type = http.TEMPLATE
-        span.resource = resource
+    with pin.tracer.trace(
+        'tornado.template', service=pin.service, resource=resource, span_type=SpanTypes.TEMPLATE
+    ) as span:
         span.set_meta('tornado.template_name', template_name)
         return func(*args, **kwargs)

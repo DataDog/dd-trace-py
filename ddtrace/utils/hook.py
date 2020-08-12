@@ -54,14 +54,14 @@ def register_post_import_hook(name, hook):
     hooks = _post_import_hooks.get(name, [])
 
     if hook in hooks:
-        log.debug('hook "{}" already exists on module "{}"'.format(hook, name))
+        log.debug('hook "%s" already exists on module "%s"', hook, name)
         return
 
     module = sys.modules.get(name, None)
 
     # If the module has been imported already fire the hook and log a debug msg.
     if module:
-        log.debug('module "{}" already imported, firing hook'.format(name))
+        log.debug('module "%s" already imported, firing hook', name)
         hook(module)
 
     hooks.append(hook)
@@ -86,8 +86,8 @@ def notify_module_loaded(module):
     for hook in hooks:
         try:
             hook(module)
-        except Exception as err:
-            log.warning('hook "{}" for module "{}" failed: {}'.format(hook, name, err))
+        except Exception:
+            log.warning('hook "%s" for module "%s" failed', hook, name, exc_info=True)
 
 
 class _ImportHookLoader(object):
@@ -97,6 +97,7 @@ class _ImportHookLoader(object):
     interest. When a module of interest is imported, then any post import
     hooks which are registered will be invoked.
     """
+
     def load_module(self, fullname):
         module = sys.modules[fullname]
         notify_module_loaded(module)
@@ -151,6 +152,7 @@ class ImportHookFinder:
                 # post import hooks.
                 try:
                     import importlib.util
+
                     loader = importlib.util.find_spec(fullname).loader
                 except (ImportError, AttributeError):
                     loader = importlib.find_loader(fullname, path)

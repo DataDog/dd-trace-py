@@ -4,6 +4,12 @@ __pycache__/
 *$py.class
 
 # C extensions
+ddtrace/profiling/collector/_traceback.c
+ddtrace/profiling/collector/stack.c
+ddtrace/profiling/_build.c
+ddtrace/internal/_encoding.c
+ddtrace/internal/_rand.c
+ddtrace/internal/_queue.c
 *.so
 
 # Distribution / packaging
@@ -94,3 +100,6 @@ ENV/
 *.swp
 # IDEA
 .idea/
+
+# VS Code
+.vscode/

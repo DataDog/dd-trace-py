@@ -12,6 +12,7 @@ class HttpConfig(object):
 
     def __init__(self):
         self._whitelist_headers = set()
+        self.trace_query_string = None
 
     @property
     def is_header_tracing_configured(self):
@@ -45,8 +46,10 @@ class HttpConfig(object):
         :rtype: bool
         """
         normalized_header_name = normalize_header_name(header_name)
-        log.debug('Checking header \'%s\' tracing in whitelist %s', normalized_header_name, self._whitelist_headers)
+        log.debug("Checking header '%s' tracing in whitelist %s", normalized_header_name, self._whitelist_headers)
         return normalized_header_name in self._whitelist_headers
 
     def __repr__(self):
-        return '<HttpConfig traced_headers={}>'.format(self._whitelist_headers)
+        return "<{} traced_headers={} trace_query_string={}>".format(
+            self.__class__.__name__, self._whitelist_headers, self.trace_query_string
+        )

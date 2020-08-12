@@ -12,6 +12,7 @@ def _cached(func):
             _hostname = func()
 
         return _hostname
+
     return wrapper
 
 

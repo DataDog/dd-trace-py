@@ -7,10 +7,10 @@ from ddtrace.contrib.kombu.patch import patch, unpatch
 from ddtrace.contrib.kombu import utils
 from ddtrace.ext import kombu as kombux
 from ..config import RABBITMQ_CONFIG
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 
 
-class TestKombuPatch(BaseTracerTestCase):
+class TestKombuPatch(TracerTestCase):
 
     TEST_SERVICE = 'kombu-patch'
     TEST_PORT = RABBITMQ_CONFIG['port']
@@ -67,9 +67,10 @@ class TestKombuPatch(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
         consumer_span = spans[0]
+        assert_is_measured(consumer_span)
         self.assertEqual(consumer_span.service, self.TEST_SERVICE)
         self.assertEqual(consumer_span.name, kombux.PUBLISH_NAME)
-        self.assertEqual(consumer_span.span_type, 'kombu')
+        self.assertEqual(consumer_span.span_type, 'worker')
         self.assertEqual(consumer_span.error, 0)
         self.assertEqual(consumer_span.get_tag('out.vhost'), '/')
         self.assertEqual(consumer_span.get_tag('out.host'), '127.0.0.1')
@@ -79,9 +80,10 @@ class TestKombuPatch(BaseTracerTestCase):
         self.assertEqual(consumer_span.resource, 'tasks')
 
         producer_span = spans[1]
+        assert_is_measured(producer_span)
         self.assertEqual(producer_span.service, self.TEST_SERVICE)
         self.assertEqual(producer_span.name, kombux.RECEIVE_NAME)
-        self.assertEqual(producer_span.span_type, 'kombu')
+        self.assertEqual(producer_span.span_type, 'worker')
         self.assertEqual(producer_span.error, 0)
         self.assertEqual(producer_span.get_tag('kombu.exchange'), u'tasks')
         self.assertEqual(producer_span.get_tag('kombu.routing_key'), u'tasks')
@@ -114,3 +116,85 @@ class TestKombuPatch(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+
+class TestKombuSettings(TracerTestCase):
+    def setUp(self):
+        super(TestKombuSettings, self).setUp()
+
+        conn = kombu.Connection('amqp://guest:guest@127.0.0.1:{p}//'.format(p=RABBITMQ_CONFIG['port']))
+        conn.connect()
+        producer = conn.Producer()
+        Pin.override(producer, tracer=self.tracer)
+
+        self.conn = conn
+        self.producer = producer
+
+        patch()
+
+    def tearDown(self):
+        unpatch()
+        super(TestKombuSettings, self).tearDown()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The kombu integration should use it as the service name for both
+            the producer and consumer spans.
+        """
+        task_queue = kombu.Queue('tasks', kombu.Exchange('tasks'), routing_key='tasks')
+        to_publish = {'hello': 'world'}
+
+        def process_message(body, message):
+            message.ack()
+
+        self.producer.publish(to_publish,
+                              exchange=task_queue.exchange,
+                              routing_key=task_queue.routing_key,
+                              declare=[task_queue])
+
+        with kombu.Consumer(self.conn, [task_queue], accept=['json'], callbacks=[process_message]) as consumer:
+            Pin.override(consumer, tracer=self.tracer)
+            self.conn.drain_events(timeout=2)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+
+        # Since no parent span exists for the producer it will inherit the
+        # global service name.
+        for span in spans:
+            assert span.service == "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service_producer(self):
+        """
+        When a service name is specified by the user
+            When a parent span with a different service name is provided to the
+            producer
+                The producer should inherit the parent service name, not the
+                global service name.
+        """
+        task_queue = kombu.Queue('tasks', kombu.Exchange('tasks'), routing_key='tasks')
+        to_publish = {'hello': 'world'}
+
+        def process_message(body, message):
+            message.ack()
+
+        with self.tracer.trace("parent", service="parentsvc"):
+            self.producer.publish(to_publish,
+                                  exchange=task_queue.exchange,
+                                  routing_key=task_queue.routing_key,
+                                  declare=[task_queue])
+
+        with kombu.Consumer(self.conn, [task_queue], accept=['json'], callbacks=[process_message]) as consumer:
+            Pin.override(consumer, tracer=self.tracer)
+            self.conn.drain_events(timeout=2)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 3)
+        # Parent and producer spans should have parent service
+        assert spans[0].service == "parentsvc"
+        assert spans[1].service == "parentsvc"
+        # Consumer span should have global service
+        assert spans[2].service == "mysvc"

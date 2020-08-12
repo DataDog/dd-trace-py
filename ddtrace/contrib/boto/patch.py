@@ -3,16 +3,15 @@ from ddtrace.vendor import wrapt
 import inspect
 
 from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
-from ...ext import http, aws
+from ...ext import SpanTypes, http, aws
 from ...utils.wrappers import unwrap
 
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
 
-SPAN_TYPE = 'boto'
 AWS_QUERY_ARGS_NAME = ('operation_name', 'params', 'path', 'verb')
 AWS_AUTH_ARGS_NAME = (
     'method',
@@ -28,25 +27,23 @@ AWS_AUTH_TRACED_ARGS = ['path', 'data', 'host']
 
 
 def patch():
-
-    """ AWSQueryConnection and AWSAuthConnection are two different classes called by
-    different services for connection. For exemple EC2 uses AWSQueryConnection and
-    S3 uses AWSAuthConnection
-    """
     if getattr(boto.connection, '_datadog_patch', False):
         return
     setattr(boto.connection, '_datadog_patch', True)
 
+    # AWSQueryConnection and AWSAuthConnection are two different classes called by
+    # different services for connection.
+    # For exemple EC2 uses AWSQueryConnection and S3 uses AWSAuthConnection
     wrapt.wrap_function_wrapper(
         'boto.connection', 'AWSQueryConnection.make_request', patched_query_request
     )
     wrapt.wrap_function_wrapper(
         'boto.connection', 'AWSAuthConnection.make_request', patched_auth_request
     )
-    Pin(service='aws', app='aws', app_type='web').onto(
+    Pin(service='aws', app='aws').onto(
         boto.connection.AWSQueryConnection
     )
-    Pin(service='aws', app='aws', app_type='web').onto(
+    Pin(service='aws', app='aws').onto(
         boto.connection.AWSAuthConnection
     )
 
@@ -70,8 +67,9 @@ def patched_query_request(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         '{}.command'.format(endpoint_name),
         service='{}.{}'.format(pin.service, endpoint_name),
-        span_type=SPAN_TYPE,
+        span_type=SpanTypes.HTTP,
     ) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
 
         operation_name = None
         if args:
@@ -138,9 +136,9 @@ def patched_auth_request(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         '{}.command'.format(endpoint_name),
         service='{}.{}'.format(pin.service, endpoint_name),
-        span_type=SPAN_TYPE,
+        span_type=SpanTypes.HTTP,
     ) as span:
-
+        span.set_tag(SPAN_MEASURED_KEY)
         if args:
             http_method = args[0]
             span.resource = '%s.%s' % (endpoint_name, http_method.lower())

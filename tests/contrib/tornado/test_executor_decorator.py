@@ -6,6 +6,7 @@ from ddtrace.ext import http
 from tornado import version_info
 
 from .utils import TornadoTestCase
+from ... import assert_span_http_status_code
 
 
 class TestTornadoExecutor(TornadoTestCase):
@@ -27,10 +28,10 @@ class TestTornadoExecutor(TornadoTestCase):
         request_span = traces[1][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
+        assert_span_http_status_code(request_span, 200)
         assert self.get_url('/executor_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
@@ -58,10 +59,10 @@ class TestTornadoExecutor(TornadoTestCase):
         request_span = traces[1][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorSubmitHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
+        assert_span_http_status_code(request_span, 200)
         assert self.get_url('/executor_submit_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
@@ -88,10 +89,10 @@ class TestTornadoExecutor(TornadoTestCase):
         request_span = traces[1][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '500' == request_span.get_tag('http.status_code')
+        assert_span_http_status_code(request_span, 500)
         assert self.get_url('/executor_exception/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'Ouch!' == request_span.get_tag('error.msg')
@@ -125,10 +126,10 @@ class TestTornadoExecutor(TornadoTestCase):
         request_span = traces[1][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorCustomHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
+        assert_span_http_status_code(request_span, 200)
         assert self.get_url('/executor_custom_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
@@ -158,10 +159,10 @@ class TestTornadoExecutor(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorCustomArgsHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '500' == request_span.get_tag('http.status_code')
+        assert_span_http_status_code(request_span, 500)
         assert self.get_url('/executor_custom_args_handler/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'cannot combine positional and keyword args' == request_span.get_tag('error.msg')

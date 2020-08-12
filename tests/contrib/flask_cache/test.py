@@ -4,7 +4,7 @@
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import net
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
+from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 
 # 3rd party
 from flask import Flask
@@ -12,14 +12,13 @@ from flask import Flask
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
-from ...base import BaseTracerTestCase
-from ...util import assert_dict_issuperset
+from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 
 
-class FlaskCacheTest(BaseTracerTestCase):
+class FlaskCacheTest(TracerTestCase):
     SERVICE = 'test-flask-cache'
-    TEST_REDIS_PORT = str(REDIS_CONFIG['port'])
-    TEST_MEMCACHED_PORT = str(MEMCACHED_CONFIG['port'])
+    TEST_REDIS_PORT = REDIS_CONFIG['port']
+    TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
 
     def setUp(self):
         super(FlaskCacheTest, self).setUp()
@@ -34,6 +33,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'get')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -52,6 +52,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'set')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -70,6 +71,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'add')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -88,6 +90,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'delete')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -106,6 +109,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'delete_many')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -124,6 +128,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'clear')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -141,6 +146,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'get_many')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -162,6 +168,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'set_many')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -176,7 +183,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         # test tags and attributes
         with self.cache._TracedCache__trace('flask_cache.cmd') as span:
             self.assertEqual(span.service, self.SERVICE)
-            self.assertEqual(span.span_type, TYPE)
+            self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.meta[CACHE_BACKEND], 'simple')
             self.assertTrue(net.TARGET_HOST not in span.meta)
             self.assertTrue(net.TARGET_PORT not in span.meta)
@@ -193,10 +200,10 @@ class FlaskCacheTest(BaseTracerTestCase):
         # test tags and attributes
         with cache._TracedCache__trace('flask_cache.cmd') as span:
             self.assertEqual(span.service, self.SERVICE)
-            self.assertEqual(span.span_type, TYPE)
+            self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.meta[CACHE_BACKEND], 'redis')
             self.assertEqual(span.meta[net.TARGET_HOST], 'localhost')
-            self.assertEqual(span.meta[net.TARGET_PORT], self.TEST_REDIS_PORT)
+            self.assertEqual(span.metrics[net.TARGET_PORT], self.TEST_REDIS_PORT)
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
@@ -210,10 +217,10 @@ class FlaskCacheTest(BaseTracerTestCase):
         # test tags and attributes
         with cache._TracedCache__trace('flask_cache.cmd') as span:
             self.assertEqual(span.service, self.SERVICE)
-            self.assertEqual(span.span_type, TYPE)
+            self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.meta[CACHE_BACKEND], 'memcached')
             self.assertEqual(span.meta[net.TARGET_HOST], '127.0.0.1')
-            self.assertEqual(span.meta[net.TARGET_PORT], self.TEST_MEMCACHED_PORT)
+            self.assertEqual(span.metrics[net.TARGET_PORT], self.TEST_MEMCACHED_PORT)
 
     def test_simple_cache_get_ot(self):
         """OpenTracing version of test_simple_cache_get."""
@@ -238,6 +245,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         self.assertEqual(ot_span.resource, 'ot_span')
         self.assertEqual(ot_span.service, 'my_svc')
 
+        assert_is_measured(dd_span)
         self.assertEqual(dd_span.service, self.SERVICE)
         self.assertEqual(dd_span.resource, 'get')
         self.assertEqual(dd_span.name, 'flask_cache.cmd')
@@ -278,3 +286,29 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+
+class TestFlaskCacheSettings(TracerTestCase):
+    TEST_REDIS_PORT = REDIS_CONFIG['port']
+    TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
+
+    def setUp(self):
+        super(TestFlaskCacheSettings, self).setUp()
+
+        # create the TracedCache instance for a Flask app
+        Cache = get_traced_cache(self.tracer)
+        app = Flask(__name__)
+        self.cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u'á_complex_operation')
+        spans = self.get_spans()
+
+        for span in spans:
+            span.service == "mysvc"

@@ -16,6 +16,7 @@ class ValueCollector(object):
     Functionality is provided for requiring and importing modules which may or
     may not be installed.
     """
+
     enabled = True
     periodic = False
     required_modules = []
@@ -45,7 +46,7 @@ class ValueCollector(object):
         except ImportError:
             # DEV: disable collector if we cannot load any of the required modules
             self.enabled = False
-            log.warning('Could not import module "{}" for {}. Disabling collector.'.format(module, self))
+            log.warning('Could not import module "%s" for %s. Disabling collector.', module, self)
             return None
         return modules
 
@@ -67,19 +68,12 @@ class ValueCollector(object):
 
         # filter values for keys
         if len(keys) > 0 and isinstance(self.value, list):
-            self.value = [
-                (k, v)
-                for (k, v) in self.value
-                if k in keys
-            ]
+            self.value = [(k, v) for (k, v) in self.value if k in keys]
 
         self.value_loaded = True
         return self.value
 
     def __repr__(self):
-        return '<{}(enabled={},periodic={},required_modules={})>'.format(
-            self.__class__.__name__,
-            self.enabled,
-            self.periodic,
-            self.required_modules,
+        return "<{}(enabled={},periodic={},required_modules={})>".format(
+            self.__class__.__name__, self.enabled, self.periodic, self.required_modules,
         )

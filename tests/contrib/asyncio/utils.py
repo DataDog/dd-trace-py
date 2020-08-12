@@ -4,10 +4,10 @@ from functools import wraps
 
 from ddtrace.contrib.asyncio import context_provider
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 
 
-class AsyncioTestCase(BaseTracerTestCase):
+class AsyncioTestCase(TracerTestCase):
     """
     Base TestCase for asyncio framework that setup a new loop
     for each test, preserving the original (not started) main
