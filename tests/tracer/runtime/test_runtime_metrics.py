@@ -111,7 +111,7 @@ class TestRuntimeWorker(TracerTestCase):
         )
 
         # check to last set of metrics returned to confirm tags were set
-        for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
+        for gauge in received[-1:]:
             self.assertRegexpMatches(gauge, 'service:parent')
             self.assertRegexpMatches(gauge, 'service:child')
             self.assertNotRegexpMatches(gauge, 'service:db')
