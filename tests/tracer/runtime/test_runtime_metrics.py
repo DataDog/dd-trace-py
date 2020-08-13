@@ -88,10 +88,10 @@ class TestRuntimeWorker(TracerTestCase):
                 self.start_span('query', service='db', span_type=SpanTypes.SQL, child_of=child.context)
                 time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
 
-            # Get the socket before it disappears
-            statsd_socket = self.tracer._dogstatsd_client.socket
-            # now stop collection
-            self.tracer.configure(collect_metrics=False)
+                # Get the socket before it disappears
+                statsd_socket = self.tracer._dogstatsd_client.socket
+                # now stop collection
+                self.tracer.configure(collect_metrics=False)
 
         received = [
             s.args[0].decode('utf-8') for s in statsd_socket.send.mock_calls
