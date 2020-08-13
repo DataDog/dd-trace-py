@@ -86,8 +86,7 @@ class TestRuntimeWorker(TracerTestCase):
                 context = root.context
                 child = self.start_span('child', service='child', span_type=SpanTypes.WORKER, child_of=context)
                 self.start_span('query', service='db', span_type=SpanTypes.SQL, child_of=child.context)
-
-            time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
+                time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
 
             # Get the socket before it disappears
             statsd_socket = self.tracer._dogstatsd_client.socket
