@@ -174,17 +174,18 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
         for response in traces_responses:
-            if isinstance(response, Exception) or response.status >= 400:
-                self._log_error_status(response)
-            elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-                result_traces_json = response.get_json()
-                if result_traces_json and "rate_by_service" in result_traces_json:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                    if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
+            if not isinstance(response, PayloadFull):
+                if isinstance(response, Exception) or response.status >= 400:
+                    self._log_error_status(response)
+                elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
+                    result_traces_json = response.get_json()
+                    if result_traces_json and "rate_by_service" in result_traces_json:
+                        if self._priority_sampler:
+                            self._priority_sampler.update_rate_by_service_sample_rates(
+                                result_traces_json["rate_by_service"],
+                            )
+                        if isinstance(self._sampler, BasePrioritySampler):
+                            self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
