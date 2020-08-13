@@ -18,11 +18,7 @@ below:
    * - ``DD_ENV``
      - String
      -
-     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``. Added in ``v0.36.0``.
-   * - ``DATADOG_ENV``
-     - String
-     -
-     - Deprecated: use ``DD_ENV``
+     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``.
    * - ``DD_SERVICE``
      - String
      - (autodetected)
@@ -30,10 +26,6 @@ below:
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
        :ref:`falcon`. Added in ``v0.36.0``.
-   * - ``DD_SERVICE_NAME`` or ``DATADOG_SERVICE_NAME``
-     - String
-     -
-     - Deprecated: use ``DD_SERVICE``.
    * - ``DD_TAGS``
      - String
      -
@@ -48,15 +40,21 @@ below:
      - datadoghq.com
      - Specify which site to use for uploading profiles. Set to
        ``datadoghq.eu`` to use EU site.
-   * - ``DATADOG_TRACE_ENABLED``
+   * - ``DD_TRACE_ENABLED``
      - Boolean
      - True
-     - Enable web framework and library instrumentation. When false, your
-       application code will not generate any traces.
-   * - ``DATADOG_TRACE_DEBUG``
+     - Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
+       generated. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_ENABLED``).
+   * - ``DD_TRACE_DEBUG``
      - Boolean
      - False
-     - Enable debug logging in the tracer
+     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if
+       one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``).
+   * - ``DD_TRACE_<INTEGRATION>_ENABLED``
+     - Boolean
+     - True
+     - Enables <INTEGRATION> to be patched. For example, ``DD_TRACE_DJANGO_ENABLED=false`` will disable the Django
+       integration from being installed. Added in ``v0.41.0``.
    * - ``DATADOG_PATCH_MODULES``
      - String
      -
@@ -77,14 +75,10 @@ below:
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.
-   * - ``DATADOG_TRACE_AGENT_HOSTNAME``
-     - String
-     -
-     - Deprecated: use ``DD_TRACE_AGENT_URL``
-   * - ``DATADOG_TRACE_AGENT_PORT``
-     - Integer
-     -
-     - Deprecated: use ``DD_TRACE_AGENT_URL``
+   * - ``DD_PROFILING_ENABLED``
+     - Boolean
+     - False
+     - Enable Datadog profiling when using ``ddtrace-run``.
    * - ``DD_PROFILING_API_TIMEOUT``
      - Float
      - 10
@@ -102,14 +96,14 @@ below:
      - Float
      - 2
      - The percentage of maximum time the stack profiler can use when computing
-       statistics. Must be greather than 0 and lesser or equal to 100.
+       statistics. Must be greater than 0 and lesser or equal to 100.
    * - ``DD_PROFILING_MAX_FRAMES``
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
-     - 10
+     - 2
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
@@ -126,3 +120,7 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
+   * - ``DD_TRACE_STARTUP_LOGS``
+     - Boolean
+     - True
+     - Enable or disable start up diagnostic logging.

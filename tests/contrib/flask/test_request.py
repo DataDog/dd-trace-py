@@ -7,8 +7,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
 
 from . import BaseFlaskTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
-
+from ... import assert_is_measured, assert_span_http_status_code
 
 base_exception_name = 'builtins.Exception'
 if PY2:

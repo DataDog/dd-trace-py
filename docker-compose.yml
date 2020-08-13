@@ -7,7 +7,7 @@ services:
         ports:
             - "127.0.0.1:9200:9200"
     cassandra:
-        image: spotify/cassandra:latest
+        image: cassandra:3.11.7
         environment:
             - MAX_HEAP_SIZE=512M
             - HEAP_NEWSIZE=256M

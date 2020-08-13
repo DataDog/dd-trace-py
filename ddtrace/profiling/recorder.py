@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import collections
 
+from ddtrace.profiling import _nogevent
 from ddtrace.vendor import attr
 
 
@@ -30,6 +31,7 @@ class Recorder(object):
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
     events = attr.ib(init=False, repr=False)
+    _events_lock = attr.ib(init=False, repr=False, factory=_nogevent.DoubleLock)
 
     def __attrs_post_init__(self):
         self._reset_events()
@@ -51,8 +53,9 @@ class Recorder(object):
         """
         if events:
             event_type = events[0].__class__
-            q = self.events[event_type]
-            q.extend(events)
+            with self._events_lock:
+                q = self.events[event_type]
+                q.extend(events)
 
     def _get_deque_for_event_type(self, event_type):
         return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
@@ -68,6 +71,7 @@ class Recorder(object):
 
         :return: The list of events that has been removed.
         """
-        events = self.events
-        self._reset_events()
+        with self._events_lock:
+            events = self.events
+            self._reset_events()
         return events

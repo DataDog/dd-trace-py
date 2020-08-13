@@ -67,3 +67,12 @@ def test_filename_and_lineno_to_def_oserror():
 def test_filename_and_lineno_to_def_wrong_syntax():
     filename = os.path.join(os.path.dirname(__file__), "_wrong_file")
     assert _line2def.filename_and_lineno_to_def(filename, 8) == ("%s:8" % filename)
+
+
+def test_empty_filename_to_def():
+    assert _line2def.filename_and_lineno_to_def("", 1) == ":1"
+
+
+def test_bracket_filename_to_def():
+    assert _line2def.filename_and_lineno_to_def("<input>", 2) == "<input>:2"
+    assert _line2def.filename_and_lineno_to_def("<>", 2) == "<>:2"

@@ -4,11 +4,10 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ddtrace.span import Span
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured, assert_is_not_measured
+from ... import TracerTestCase, assert_is_measured, assert_is_not_measured
 
 
-class TestTracedCursor(BaseTracerTestCase):
+class TestTracedCursor(TracerTestCase):
 
     def setUp(self):
         super(TestTracedCursor, self).setUp()
@@ -249,7 +248,7 @@ class TestTracedCursor(BaseTracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestFetchTracedCursor(BaseTracerTestCase):
+class TestFetchTracedCursor(TracerTestCase):
 
     def setUp(self):
         super(TestFetchTracedCursor, self).setUp()
@@ -475,7 +474,7 @@ class TestFetchTracedCursor(BaseTracerTestCase):
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
 
-class TestTracedConnection(BaseTracerTestCase):
+class TestTracedConnection(TracerTestCase):
     def setUp(self):
         super(TestTracedConnection, self).setUp()
         self.connection = mock.Mock()

@@ -5,13 +5,12 @@ import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
 
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code
+from ... import TracerTestCase, assert_span_http_status_code
 
 SERVICE = 'bottle-app'
 
 
-class TraceBottleDistributedTest(BaseTracerTestCase):
+class TraceBottleDistributedTest(TracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
