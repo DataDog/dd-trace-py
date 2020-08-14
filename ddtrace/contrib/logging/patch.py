@@ -44,8 +44,8 @@ def _w_makeRecord(func, instance, args, kwargs):
         span = _get_current_span(tracer=ddtrace.config.logging.tracer)
 
     if span:
-        setattr(record, RECORD_ATTR_TRACE_ID, "{}".format(span.trace_id))
-        setattr(record, RECORD_ATTR_SPAN_ID, "{}".format(span.span_id))
+        setattr(record, RECORD_ATTR_TRACE_ID, str(span.trace_id))
+        setattr(record, RECORD_ATTR_SPAN_ID, str(span.span_id))
     else:
         setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO)
         setattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO)
