@@ -86,13 +86,12 @@ class TestRuntimeWorker(TracerTestCase):
                 context = root.context
                 child = self.start_span('child', service='child', span_type=SpanTypes.WORKER, child_of=context)
                 self.start_span('query', service='db', span_type=SpanTypes.SQL, child_of=child.context)
+                time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
 
-            time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
-
-            # Get the socket before it disappears
-            statsd_socket = self.tracer._dogstatsd_client.socket
-            # now stop collection
-            self.tracer.configure(collect_metrics=False)
+                # Get the socket before it disappears
+                statsd_socket = self.tracer._dogstatsd_client.socket
+                # now stop collection
+                self.tracer.configure(collect_metrics=False)
 
         received = [
             s.args[0].decode('utf-8') for s in statsd_socket.send.mock_calls
@@ -111,7 +110,7 @@ class TestRuntimeWorker(TracerTestCase):
         )
 
         # check to last set of metrics returned to confirm tags were set
-        for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
+        for gauge in received[-1:]:
             self.assertRegexpMatches(gauge, 'service:parent')
             self.assertRegexpMatches(gauge, 'service:child')
             self.assertNotRegexpMatches(gauge, 'service:db')
