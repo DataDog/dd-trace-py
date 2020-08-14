@@ -20,6 +20,14 @@ aiohttp
 .. automodule:: ddtrace.contrib.aiohttp
 
 
+.. _asgi:
+
+asgi
+^^^^
+
+.. automodule:: ddtrace.contrib.asgi
+
+
 .. _bottle:
 
 Bottle
@@ -73,6 +81,14 @@ Pyramid
 ^^^^^^^
 
 .. automodule:: ddtrace.contrib.pyramid
+
+
+.. _sanic:
+
+Sanic
+^^^^^
+
+.. automodule:: ddtrace.contrib.sanic
 
 
 .. _tornado:

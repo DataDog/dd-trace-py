@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.41 (05/08/2020)
+
+### Changes
+
+- feat: add asgi integration (#1567)
+- feat(profiling): reduce the default amount of sampling for memory/lock to 2% (#1586)
+- fix(profiling/line2def): handle empty filename (#1585)
+- fix(grpc): GRPC Channel Pin (#1582 -- thanks @munagekar)
+- feat(core): make environment variables consistent with other languages (#1575)
+- fix(profiling,gevent): fix race condition with periodic thread (#1569)
+- fix(core): disable import hooks (#1563)
+- feat(core): set tags from DD_TAGS (#1561)
+- fix(profiling): lock Recorder on reset (#1560)
+- feat(django): add option for using legacy resource format (#1551 -- thanks @tredzko, @jheld)
+- feat(core): add startup logging (#1548)
+- feat(core): add msgpack encoder (#1491)
+
+### Full changeset
+
+https://github.com/DataDog/dd-trace-py/compare/v0.40.0...v0.41.0
+
+
+## 0.40 (17/07/2020)
+
+# Upgrading to 0.40.0
+
+This release includes performance improvements in the core library, updates profiling, and configuration changes to several integrations. This release also adds support for installing on Windows.
+
+## grpc
+
+* Use `ddtrace.config.grpc["service_name"]` to set service name reported by default for gRPC client instances. The ``DD_GRPC_SERVICE`` environment variable can also be used.
+
+## redis
+
+* Use `ddtrace.config.redis["service"]` to set the service name for the `redis` integration. The environment variable `DD_REDIS_SERVICE` can also be used.
+
+## httplib 
+
+* To enable distributed tracing, use `ddtrace.config.httplib["distributed_tracing"]`. By default, distributed tracing for `httplib` is disabled.
+
+# Changes
+
+## Improvements
+
+- fix(monkey): use lock on manual patched module add (#1479 -- thanks @uniq10)
+- core: re-enable custom rng (#1474)
+- core: rewrite queue (#1534)
+- pin: make service optional (#1529)
+- feat(ddtrace-run): allow to enable profiling (#1537)
+- feat(profiling): enable flush on exit by default for Profiler (#1524)
+- fix(grpc): compute service name dynamically (#1530)
+- feat(redis): add global service configuration (#1515)
+- feat(httplib): support distributed tracing (#1522 -- thanks @jirikuncar)
+- refactor(profiling): hide Profiler._schedulers (#1523)
+- feat(profiling): set Datadog-Container-Id when uploading profiles (#1520)
+- feat(profiling/http): emit log message when server returns 400 (#1477)
+- feat(profiling): validate API key format (#1459)
+
+## Bug fixes
+
+- fix(profiling): fix memory leak in Python 2 stack collector (#1568)
+- fix(profiling): disable exception profiling on Windows (#1538)
+- fix(profiling/stack): fix GIL switching (#1475)
+
+## Full changeset
+
+Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.39.0...v0.40.0).
+
+---
+
 ## 0.39 (11/06/2020)
 
 ### Deprecations
