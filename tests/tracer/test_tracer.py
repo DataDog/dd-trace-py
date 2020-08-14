@@ -5,12 +5,13 @@ import contextlib
 import multiprocessing
 import os
 from os import getpid
+import re
 import warnings
-
 from unittest.case import SkipTest
 
 import mock
 import pytest
+from ddtrace.vendor import six
 
 import ddtrace
 from ddtrace.ext import system
@@ -1103,3 +1104,14 @@ def test_runtime_id_fork():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_rum_header():
+    t = ddtrace.Tracer()
+    # There is no active span so there is no rum header
+    assert t.rum_header() == ""
+
+    with t.trace("span") as s:
+        header = t.rum_header()
+        assert header.startswith("<!-- DATADOG;trace-id=%s;trace-time=" % s.trace_id)
+        assert re.match(r"<!-- DATADOG;trace-id=[0-9]+;trace-time=[0-9]+ -->", header)

@@ -4,7 +4,7 @@ import json
 from os import environ, getpid
 import sys
 
-from ddtrace.vendor import debtcollector
+from ddtrace.vendor import debtcollector, six
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
@@ -803,6 +803,14 @@ class Tracer(object):
 
         self.writer.stop()
         self.writer.join(timeout=timeout)
+
+    def rum_header(self):
+        span = self.current_root_span()
+        if not span:
+            return ""
+
+        time = compat.time_ns()
+        return "<!-- DATADOG;trace-id=%s;trace-time=%s -->" % (span.trace_id, time)
 
     @staticmethod
     def _is_agentless_environment():

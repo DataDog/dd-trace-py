@@ -77,6 +77,7 @@ def override_global_config(values):
         "env",
         "version",
         "service",
+        "rum_header_injection",
     ]
 
     # Grab the current values of all keys

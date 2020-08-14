@@ -68,6 +68,7 @@ class Config(object):
             del self.tags["version"]
 
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
+        self.rum_header_injection = asbool(os.getenv("DD_RUM_TRACING"))
 
         self.report_hostname = asbool(get_env("trace", "report_hostname", default=False))
 

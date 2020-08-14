@@ -669,6 +669,12 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
+  wsgi:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^wsgi_contrib'
+
   kombu:
     executor: ddtrace_dev
     docker:
@@ -832,6 +838,7 @@ requires_tests: &requires_tests
   - tracer
   - tornado
   - vertica
+  - wsgi
   - build-docker-ci-image
 
 workflows:
@@ -926,6 +933,7 @@ workflows:
       # tracer
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - deploy_master:
           requires: *requires_tests
