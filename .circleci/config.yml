@@ -782,6 +782,13 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
+
   kombu:
     <<: *contrib_job
     docker:
@@ -938,6 +945,7 @@ requires_tests: &requires_tests
   - tracer
   - tornado
   - vertica
+  - wsgi
   - build-docker-ci-image
 
 workflows:
@@ -1035,6 +1043,7 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - deploy_master:
           filters:

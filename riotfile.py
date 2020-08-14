@@ -303,4 +303,23 @@ suites = [
             ),
         ],
     ),
+    Suite(
+        name="wsgi",
+        command="pytest tests/contrib/wsgi",
+        cases=[
+            Case(
+                pys=[
+                    2.7,
+                    3.5,
+                    3.6,
+                    3.7,
+                    3.8,
+                    3.9,
+                ],
+                pkgs=[
+                    ("WebTest", [""]),
+                ],
+            ),
+        ],
+    ),
 ]
