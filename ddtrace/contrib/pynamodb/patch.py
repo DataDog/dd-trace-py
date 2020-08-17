@@ -11,7 +11,7 @@ import pynamodb.connection.base
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
 from ...ext import SpanTypes
-from ...utils.formats import deep_getattr, get_env
+from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
 
 # Pynamodb connection class

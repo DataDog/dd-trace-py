@@ -814,6 +814,7 @@ requires_tests: &requires_tests
   - pymemcache
   - pymongo
   - pymysql
+  - pynamodb
   - pyramid
   - redis
   - rediscluster
