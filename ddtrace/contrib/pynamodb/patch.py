@@ -17,12 +17,7 @@ from ...utils.wrappers import unwrap
 # Pynamodb connection class
 _PynamoDB_client = pynamodb.connection.base.Connection
 
-if "DD_PYNAMODB_SERVICE" in os.environ:
-    service = os.getenv("DD_PYNAMODB_SERVICE")
-else:
-    service = get_env("pynamodb", "service_name")
-
-config._add("pynamodb", {"service_name": service or "pynamodb",})
+config._add("pynamodb", {"service_name": os.getenv("DD_PYNAMODB_SERVICE") or "pynamodb",})
 
 
 def patch():
@@ -52,8 +47,6 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         span.set_tag(SPAN_MEASURED_KEY)
 
-        operation = None
-
         if args and args[0]:
             operation = args[0]
             span.resource = operation
@@ -65,6 +58,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         else:
             span.resource = "Unknown"
+            operation = None
 
         region_name = deep_getattr(instance, "client.meta.region_name")
 
@@ -76,7 +70,10 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tags(meta)
 
         # set analytics sample rate
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pynamodb.get_analytics_sample_rate())
+        sample_rate = config.pynamodb.get_analytics_sample_rate(use_global_config=True)
+
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         result = original_func(*args, **kwargs)
 
