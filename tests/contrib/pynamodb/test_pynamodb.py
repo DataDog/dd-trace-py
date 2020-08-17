@@ -7,11 +7,11 @@ from ddtrace import Pin
 from ddtrace.contrib.pynamodb.patch import patch, unpatch
 
 # testing
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 from moto.dynamodb import dynamodb_backend
 
 
-class PynamodbTest(BaseTracerTestCase):
+class PynamodbTest(TracerTestCase):
 
     TEST_SERVICE = "pynamodb"
 
@@ -41,6 +41,7 @@ class PynamodbTest(BaseTracerTestCase):
         assert span.service == "pynamodb"
         assert span.resource == "ListTables"
         assert len(spans) == 1
+        assert_is_measured(span)
         assert span.span_type == "http"
         assert span.get_tag("aws.operation") == "ListTables"
         assert span.get_tag("aws.region") == "us-east-1"
@@ -62,6 +63,7 @@ class PynamodbTest(BaseTracerTestCase):
         assert span.service == "pynamodb"
         assert span.resource == "DeleteTable Test"
         assert len(spans) == 1
+        assert_is_measured(span)
         assert span.span_type == "http"
         assert span.get_tag("aws.operation") == "DeleteTable"
         assert span.get_tag("aws.region") == "us-east-1"
@@ -84,6 +86,7 @@ class PynamodbTest(BaseTracerTestCase):
         assert span.service == "pynamodb"
         assert span.resource == "Scan Test"
         assert len(spans) == 1
+        assert_is_measured(span)
         assert span.span_type == "http"
         assert span.get_tag("aws.operation") == "Scan"
         assert span.get_tag("aws.region") == "us-east-1"
@@ -105,6 +108,7 @@ class PynamodbTest(BaseTracerTestCase):
             assert span.service == "pynamodb"
             assert span.resource == "Scan OtherTable"
             assert len(spans) == 1
+            assert_is_measured(span)
             assert span.span_type == "http"
             assert span.get_tag("aws.operation") == "Scan"
             assert span.get_tag("aws.region") == "us-east-1"
