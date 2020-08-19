@@ -2,12 +2,12 @@ from falcon import testing
 
 import ddtrace
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 from .app import get_app
 from .test_suite import FalconTestCase
 
 
-class AutoPatchTestCase(BaseTracerTestCase, testing.TestCase, FalconTestCase):
+class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
 
     # Added because falcon 1.3 and 1.4 test clients (falcon.testing.client.TestClient) expect this property to be
     # defined. It would be initialized in the constructor, but we call it here like in 'TestClient.__init__(self, None)'

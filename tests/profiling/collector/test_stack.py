@@ -266,14 +266,19 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
 
+    quit_thread = threading.Event()
+    span_started = threading.Event()
+
     store = {}
 
     def start_span():
         store["span2"] = t.start_span("thread2")
+        span_started.set()
+        quit_thread.wait()
 
     th = threading.Thread(target=start_span)
     th.start()
-    th.join()
+    span_started.wait()
     if TESTING_GEVENT:
         # We track *real* threads, gevent is using only one in this case
         assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root, store["span2"]}
@@ -281,6 +286,9 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     else:
         assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
         assert c._thread_span_links.get_active_leaf_spans_from_thread_id(th.ident) == {store["span2"]}
+    # Do not quit the thread before we test, otherwise the collector might clean up the thread from the list of spans
+    quit_thread.set()
+    th.join()
 
 
 def test_thread_to_span_multiple(tracer_and_collector):

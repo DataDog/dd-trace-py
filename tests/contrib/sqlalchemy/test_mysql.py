@@ -3,11 +3,10 @@ import pytest
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import MYSQL_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
-class MysqlConnectorTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for mysql-connector engine"""
     VENDOR = 'mysql'
     SQL_DB = 'test'

@@ -19,7 +19,7 @@ from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.payload import Payload
 from ddtrace.span import Span
 from ddtrace.compat import monotonic
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 class MockedLogHandler(logging.Handler):
@@ -275,13 +275,13 @@ class TestAPITransport(TestCase):
         responses = self.api_json.send_traces(traces)
         assert len(responses) == nresponses
         for response in responses:
-            assert response.status == 200
+            assert isinstance(response, Exception) or response.status == 200
 
         # test Msgpack encoder
         responses = self.api_msgpack.send_traces(traces)
         assert len(responses) == nresponses
         for response in responses:
-            assert response.status == 200
+            assert isinstance(response, Exception) or response.status == 200
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -319,7 +319,7 @@ class TestAPITransport(TestCase):
 
         trace = self.tracer.writer.pop()
 
-        self._send_traces_and_check([trace], 0)
+        self._send_traces_and_check([trace], 1)
 
         logged_warnings = log_handler.messages["warning"]
         assert len(logged_warnings) == 1
@@ -348,7 +348,7 @@ class TestAPITransport(TestCase):
 
         traces.append(self.tracer.writer.pop())
 
-        self._send_traces_and_check(traces, 1)
+        self._send_traces_and_check(traces, 2)
 
         logged_warnings = log_handler.messages["warning"]
         assert len(logged_warnings) == 1

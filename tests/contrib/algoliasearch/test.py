@@ -1,11 +1,10 @@
 from ddtrace import config, patch_all
 from ddtrace.contrib.algoliasearch.patch import patch, unpatch, algoliasearch_version
 from ddtrace.pin import Pin
-from tests.base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
-class AlgoliasearchTest(BaseTracerTestCase):
+class AlgoliasearchTest(TracerTestCase):
     def setUp(self):
         super(AlgoliasearchTest, self).setUp()
 
@@ -145,7 +144,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         spans = self.get_spans()
         assert not spans, spans
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user

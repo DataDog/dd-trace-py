@@ -56,5 +56,5 @@ def _create_capture_sampler(collector):
 
 @attr.s
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_CAPTURE_PCT", 5, float))
+    capture_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
     _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)

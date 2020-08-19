@@ -8,15 +8,14 @@ from mako.runtime import Context
 from ddtrace import Pin
 from ddtrace.contrib.mako import patch, unpatch
 from ddtrace.compat import StringIO, to_unicode
-from tests.test_tracer import get_dummy_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.tracer.test_tracer import get_dummy_tracer
+from ... import TracerTestCase, assert_is_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')
 
 
-class MakoTest(BaseTracerTestCase):
+class MakoTest(TracerTestCase):
     def setUp(self):
         patch()
         self.tracer = get_dummy_tracer()
@@ -84,7 +83,7 @@ class MakoTest(BaseTracerTestCase):
         self.assertEqual(spans[0].name, 'mako.template.render')
         self.assertEqual(spans[0].resource, template_name)
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user
