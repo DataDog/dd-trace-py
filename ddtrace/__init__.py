@@ -4,12 +4,14 @@ import pkg_resources
 from .internal.import_hooks import patch as patch_import_hooks
 patch_import_hooks()  # noqa: E402
 
-from .monkey import patch, patch_all
-from .pin import Pin
-from .span import Span
-from .tracer import Tracer
-from .settings import config
-from .utils.deprecation import deprecated
+
+from .monkey import patch, patch_all  # noqa: E402
+from .pin import Pin  # noqa: E402
+from .span import Span  # noqa: E402
+from .tracer import Tracer  # noqa: E402
+from .settings import config  # noqa: E402
+from .utils.deprecation import deprecated  # noqa: E402
+
 
 try:
     __version__ = pkg_resources.get_distribution(__name__).version
