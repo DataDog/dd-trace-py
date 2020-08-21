@@ -2,11 +2,11 @@ import sys
 
 import pkg_resources
 
-from .monkey import patch, patch_all
-from .pin import Pin
-from .span import Span
-from .tracer import Tracer
-from .settings import config
+from .monkey import patch, patch_all  # noqa: E402
+from .pin import Pin  # noqa: E402
+from .span import Span  # noqa: E402
+from .tracer import Tracer  # noqa: E402
+from .settings import config  # noqa: E402
 
 
 try:
