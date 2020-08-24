@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.39 (11/06/2020)
 
 ### Deprecations
@@ -91,6 +97,12 @@ https://github.com/DataDog/dd-trace-py/milestone/57?closed=1
 
 ---
 
+## 0.38.3 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.38.2 (11/06/2020)
 This patch release disables span linkage by default in the profiler which was causing some threading lock up issues in gevent. See #1488 and #1485 for the details.
 
@@ -171,6 +183,12 @@ version. (#1468)
 - update tests to latest versions of libraries (#1434, #1433, #1432, #1424, #1423, #1422, #1421, #1420, #1419, #1418, #1417, #1416, #1412, #1411, #1410, #1409, #1408, #1407, #1406, #1405)
 - circleci: remove unused busybox (#1426)
 
+---
+
+## 0.37.2 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
 
 ---
 
@@ -239,6 +257,12 @@ New environment variables have been added to allow you to easily configure and d
 - aiobotocore: pin to <1.0 (#1330)
 - ci: allow to use latest pytest version (#1326)
 - fix(tests/profiling): use a string with setenv, not an int (#1321)
+
+---
+
+## 0.36.2 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
 
 ---
 
@@ -319,6 +343,12 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 - fix(tests, opentracer): flaky threading test (#1293)
 - build: use latest manylinux images (#1305)
 - feat(wheels): update to manylinux2010 (#1308)
+
+---
+
+## 0.35.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
 
 ---
 
