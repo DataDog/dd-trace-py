@@ -142,8 +142,6 @@ class PynamodbTest(TracerTestCase):
 
         # Global config
         with self.override_config("pynamodb", dict(service="cfg-pynamodb")):
-            from ddtrace import config
-
             dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
             self.conn.list_tables()
             span = self.get_spans()[0]
