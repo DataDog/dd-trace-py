@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.40.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
+## 0.40 (17/07/2020)
+
+# Upgrading to 0.40.0
+
+This release includes performance improvements in the core library, updates profiling, and configuration changes to several integrations. This release also adds support for installing on Windows.
+
+## grpc
+
+* Use `ddtrace.config.grpc["service_name"]` to set service name reported by default for gRPC client instances. The ``DD_GRPC_SERVICE`` environment variable can also be used.
+
+## redis
+
+* Use `ddtrace.config.redis["service"]` to set the service name for the `redis` integration. The environment variable `DD_REDIS_SERVICE` can also be used.
+
+## httplib 
+
+* To enable distributed tracing, use `ddtrace.config.httplib["distributed_tracing"]`. By default, distributed tracing for `httplib` is disabled.
+
+# Changes
+
+## Improvements
+
+- fix(monkey): use lock on manual patched module add (#1479 -- thanks @uniq10)
+- core: re-enable custom rng (#1474)
+- core: rewrite queue (#1534)
+- pin: make service optional (#1529)
+- feat(ddtrace-run): allow to enable profiling (#1537)
+- feat(profiling): enable flush on exit by default for Profiler (#1524)
+- fix(grpc): compute service name dynamically (#1530)
+- feat(redis): add global service configuration (#1515)
+- feat(httplib): support distributed tracing (#1522 -- thanks @jirikuncar)
+- refactor(profiling): hide Profiler._schedulers (#1523)
+- feat(profiling): set Datadog-Container-Id when uploading profiles (#1520)
+- feat(profiling/http): emit log message when server returns 400 (#1477)
+- feat(profiling): validate API key format (#1459)
+
+## Bug fixes
+
+- fix(profiling): fix memory leak in Python 2 stack collector (#1568)
+- fix(profiling): disable exception profiling on Windows (#1538)
+- fix(profiling/stack): fix GIL switching (#1475)
+
+## Full changeset
+
+Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.39.0...v0.40.0).
+
+---
+
+## 0.39.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.39 (11/06/2020)
 
 ### Deprecations
@@ -91,6 +151,12 @@ https://github.com/DataDog/dd-trace-py/milestone/57?closed=1
 
 ---
 
+## 0.38.3 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.38.2 (11/06/2020)
 This patch release disables span linkage by default in the profiler which was causing some threading lock up issues in gevent. See #1488 and #1485 for the details.
 
@@ -171,6 +237,12 @@ version. (#1468)
 - update tests to latest versions of libraries (#1434, #1433, #1432, #1424, #1423, #1422, #1421, #1420, #1419, #1418, #1417, #1416, #1412, #1411, #1410, #1409, #1408, #1407, #1406, #1405)
 - circleci: remove unused busybox (#1426)
 
+---
+
+## 0.37.2 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
 
 ---
 
@@ -239,6 +311,12 @@ New environment variables have been added to allow you to easily configure and d
 - aiobotocore: pin to <1.0 (#1330)
 - ci: allow to use latest pytest version (#1326)
 - fix(tests/profiling): use a string with setenv, not an int (#1321)
+
+---
+
+## 0.36.2 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
 
 ---
 
@@ -319,6 +397,12 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 - fix(tests, opentracer): flaky threading test (#1293)
 - build: use latest manylinux images (#1305)
 - feat(wheels): update to manylinux2010 (#1308)
+
+---
+
+## 0.35.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
 
 ---
 
