@@ -20,7 +20,9 @@ class PynamodbTest(TracerTestCase):
 
         self.conn = Connection(region="us-east-1")
         self.conn.session.set_credentials("aws-access-key", "aws-secret-access-key", "session-token")
+
         super(PynamodbTest, self).setUp()
+        Pin.override(self.conn, tracer=self.tracer)
 
     def tearDown(self):
         super(PynamodbTest, self).tearDown()
@@ -29,7 +31,6 @@ class PynamodbTest(TracerTestCase):
     @mock_dynamodb
     def test_list_tables(self):
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
         self.conn.list_tables()
 
         spans = self.get_spans()
@@ -52,7 +53,6 @@ class PynamodbTest(TracerTestCase):
     @mock_dynamodb
     def test_delete_table(self):
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
         self.conn.delete_table("Test")
         spans = self.get_spans()
 
@@ -74,7 +74,6 @@ class PynamodbTest(TracerTestCase):
     @mock_dynamodb
     def test_scan(self):
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
         self.conn.scan("Test")
 
         spans = self.get_spans()
@@ -96,8 +95,6 @@ class PynamodbTest(TracerTestCase):
 
     @mock_dynamodb
     def test_scan_on_error(self):
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
-
         try:
             self.conn.scan("OtherTable")
         except pynamodb.exceptions.ScanError:
@@ -116,3 +113,65 @@ class PynamodbTest(TracerTestCase):
             assert span.duration >= 0
             assert span.error == 1
             assert span.meta["error.type"] != ""
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @mock_dynamodb
+    def test_user_specified_service(self):
+        from ddtrace import config
+
+        assert config.service == "mysvc"
+
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+
+        self.conn.list_tables()
+
+        span = self.get_spans()[0]
+        assert span.service == "pynamodb"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYNAMODB_SERVICE="mypynamodb"))
+    @mock_dynamodb
+    def test_env_user_specified_pynamodb_service(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self.conn.list_tables()
+
+        span = self.get_spans()[0]
+
+        assert span.service == "mypynamodb", span.service
+
+        self.reset()
+
+        # Global config
+        with self.override_config("pynamodb", dict(service="cfg-pynamodb")):
+            from ddtrace import config
+
+            dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+            self.conn.list_tables()
+            span = self.get_spans()[0]
+
+            assert span.service == "cfg-pynamodb", span.service
+
+        self.reset()
+
+        # Manual override
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        Pin.override(self.conn, service="mypynamodb", tracer=self.tracer)
+        self.conn.list_tables()
+        span = self.get_spans()[0]
+        assert span.service == "mypynamodb", span.service
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"))
+    @mock_dynamodb
+    def test_service_precedence(self):
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self.conn.list_tables()
+        span = self.get_spans()[0]
+        assert span.service == "env-pynamodb", span.service
+
+        self.reset()
+
+        # Manual overide
+        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        Pin.override(self.conn, service="override-pynamodb", tracer=self.tracer)
+        self.conn.list_tables()
+        span = self.get_spans()[0]
+        assert span.service == "override-pynamodb", span.service
