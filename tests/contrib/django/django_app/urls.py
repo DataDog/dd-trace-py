@@ -49,6 +49,4 @@ urlpatterns = [
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),
-    url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
-    url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
 ]

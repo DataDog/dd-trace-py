@@ -8,7 +8,7 @@ specific Django apps like Django Rest Framework (DRF).
 """
 import sys
 
-from inspect import isclass, isfunction, getmro
+from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, six, wrapt
@@ -477,24 +477,9 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
 
 def instrument_view(django, view):
-    """
-    Helper to wrap Django views.
-
-    We want to wrap all lifecycle/http method functions for every class in the MRO for this view
-    """
-    if isfunction(view):
-        return _instrument_view(django, view)
-
-    for cls in reversed(getmro(view)):
-        _instrument_view(django, cls)
-
-    return view
-
-
-def _instrument_view(django, view):
     """Helper to wrap Django views."""
     # All views should be callable, double check before doing anything
-    if not callable(view):
+    if not callable(view) or isinstance(view, wrapt.ObjectProxy):
         return view
 
     # Patch view HTTP methods and lifecycle methods
@@ -534,10 +519,8 @@ def _instrument_view(django, view):
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
-    # If the view itself is not wrapped, wrap it
-    if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
-    return view
+    # Return a wrapped version of this view
+    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
 
 
 @with_traced_module
