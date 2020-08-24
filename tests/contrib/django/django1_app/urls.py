@@ -17,4 +17,6 @@ urlpatterns = [
     url(r"^partial-view/$", views.partial_view, name="partial-view"),
     url(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
     url(r"^error-500/$", views.error_500, name="error-500"),
+    url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
+    url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
 ]

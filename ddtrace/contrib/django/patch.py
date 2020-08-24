@@ -12,7 +12,6 @@ from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, wrapt
-from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
@@ -446,17 +445,13 @@ def instrument_view(django, view):
     for name in list(http_method_names) + list(lifecycle_methods):
         try:
             # View methods can be staticmethods
-            func = getattr_static(view, name, None)
+            func = getattr(view, name, None)
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
-
-            # Set attribute here rather than using wrapt.wrappers.wrap_function_wrapper
-            # since it will not resolve attribute to staticmethods
-            wrapper = wrapt.FunctionWrapper(func, traced_func(django, name=op_name, resource=resource))
-            setattr(view, name, wrapper)
+            wrap(view, name, traced_func(django, name=op_name, resource=resource))
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 
