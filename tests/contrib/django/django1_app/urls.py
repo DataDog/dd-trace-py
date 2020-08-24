@@ -20,6 +20,4 @@ urlpatterns = [
     url(r"^template-view/$", views.template_view, name="template-view"),
     url(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     url(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
-    url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
-    url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
 ]

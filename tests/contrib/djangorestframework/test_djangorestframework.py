@@ -23,11 +23,11 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert_span_http_status_code(sp, 500)
     assert sp.get_tag("http.method") == "GET"
 
-    # the DRF integration should set the traceback on the django.view.dispatch span
+    # the DRF integration should set the traceback on the django.view span
     # (as it's the current span when the exception info is set)
-    view_dispatch_spans = list(test_spans.filter_spans(name="django.view.dispatch"))
-    assert len(view_dispatch_spans) == 1
-    err_span = view_dispatch_spans[0]
+    view_spans = list(test_spans.filter_spans(name="django.view"))
+    assert len(view_spans) == 1
+    err_span = view_spans[0]
     assert err_span.error == 1
     assert err_span.get_tag("error.msg") == "Authentication credentials were not provided."
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
