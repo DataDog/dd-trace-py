@@ -1259,3 +1259,36 @@ def test_user_name_excluded(client, test_spans):
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.meta
     assert root.meta.get("django.user.is_authenticated") == "True"
+
+
+def test_custom_dispatch_template_view(client, test_spans):
+    """
+    Test that a template view with a custom dispatch method inherited from a
+    mixin is called.
+    """
+    resp = client.get("/composed-template-view/")
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom dispatch 2"
+
+    spans = test_spans.get_spans()
+    assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
+        "tests.contrib.django.views.ComposedTemplateView.dispatch",
+    ]
+
+
+def test_custom_dispatch_get_view(client, test_spans):
+    """
+    Test that a get method on a view with a custom dispatch method inherited
+    from a mixin is called.
+    """
+    resp = client.get("/composed-get-view/")
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom get"
+
+    spans = test_spans.get_spans()
+    assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
+        "tests.contrib.django.views.ComposedGetView.dispatch",
+    ]
+    assert [s.resource for s in spans if s.resource.endswith("get")] == [
+        "tests.contrib.django.views.ComposedGetView.get",
+    ]

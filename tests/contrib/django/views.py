@@ -82,3 +82,39 @@ lambda_view = lambda request: function_view(request)  # NOQA
 
 def index(request):
     return HttpResponse("Hello, test app.")
+
+
+class CustomDispatchMixin(View):
+    def dispatch(self, request):
+        self.dispatch_call_counter += 1
+        return super(CustomDispatchMixin, self).dispatch(request)
+
+
+class AnotherCustomDispatchMixin(View):
+    def dispatch(self, request):
+        self.dispatch_call_counter += 1
+        return super(AnotherCustomDispatchMixin, self).dispatch(request)
+
+
+class ComposedTemplateView(TemplateView, CustomDispatchMixin, AnotherCustomDispatchMixin):
+    template_name = "custom_dispatch.html"
+    dispatch_call_counter = 0
+
+    def get_context_data(self, **kwargs):
+        context = super(ComposedTemplateView, self).get_context_data(**kwargs)
+        context["dispatch_call_counter"] = self.dispatch_call_counter
+        return context
+
+
+class CustomGetView(View):
+    def get(self, request):
+        return HttpResponse("custom get")
+
+
+class ComposedGetView(CustomGetView, CustomDispatchMixin):
+    dispatch_call_counter = 0
+
+    def get(self, request):
+        if self.dispatch_call_counter == 1:
+            return super(ComposedGetView, self).get(request)
+        raise Exception("Custom dispatch not called.")
