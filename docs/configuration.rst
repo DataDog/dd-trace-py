@@ -84,14 +84,6 @@ below:
      - 10
      - The timeout in seconds before dropping events if the HTTP API does not
        reply.
-   * - ``DD_API_KEY``
-     - String
-     -
-     - The Datadog API key to use when uploading profiles.
-   * - ``DD_PROFILING_API_URL``
-     - URL
-     - ``https://intake.profile.datadoghq.com/v1/input``
-     - The Datadog API HTTP endpoint to use when uploading events.
    * - ``DD_PROFILING_MAX_TIME_USAGE_PCT``
      - Float
      - 2

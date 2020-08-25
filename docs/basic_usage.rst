@@ -113,16 +113,6 @@ API details of the decorator can be found here:
 Profiler
 ~~~~~~~~
 
-.. note::
-
-  Note that this library does not use the `Datadog agent
-  <https://docs.datadoghq.com/agent/>`_. The profiles are directly sent over
-  HTTP to Datadog's API.
-
-  Therefore, in order to use the profiler and export the profiles to Datadog,
-  you'll need to at least set ``DD_API_KEY`` in your application environment.
-  See :ref:`Configuration` for more details.
-
 Via module
 ----------
 To automatically profile your code, you can import the `ddtrace.profiling.auto` module.
