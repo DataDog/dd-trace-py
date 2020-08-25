@@ -528,8 +528,10 @@ def _instrument_view(django, view):
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
-    # Return a wrapped version of this view
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    # If the view itself is not wrapped, wrap it
+    if not isinstance(view, wrapt.ObjectProxy):
+        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    return view
 
 
 @with_traced_module
