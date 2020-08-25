@@ -580,7 +580,7 @@ def test_simple_view_options(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="django.views.generic.base.View.options", error=0,
+        resource="tests.contrib.django.views.BasicView.options", error=0,
     )
 
 
@@ -1368,7 +1368,7 @@ def test_django_use_handler_resource_format(client, test_spans):
 def test_custom_dispatch_template_view(client, test_spans):
     """
     Test that a template view with a custom dispatch method inherited from a
-        mixin is called and instrumented.
+    mixin is called.
     """
     resp = client.get("/composed-template-view/")
     assert resp.status_code == 200
@@ -1376,16 +1376,14 @@ def test_custom_dispatch_template_view(client, test_spans):
 
     spans = test_spans.get_spans()
     assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
-        "tests.contrib.django.views.CustomDispatchMixin.dispatch",
-        "tests.contrib.django.views.AnotherCustomDispatchMixin.dispatch",
-        "django.views.generic.base.View.dispatch",
+        "tests.contrib.django.views.ComposedTemplateView.dispatch",
     ]
 
 
 def test_custom_dispatch_get_view(client, test_spans):
     """
     Test that a get method on a view with a custom dispatch method inherited
-        from a mixin is called and instrumented.
+    from a mixin is called.
     """
     resp = client.get("/composed-get-view/")
     assert resp.status_code == 200
@@ -1393,10 +1391,8 @@ def test_custom_dispatch_get_view(client, test_spans):
 
     spans = test_spans.get_spans()
     assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
-        "tests.contrib.django.views.CustomDispatchMixin.dispatch",
-        "django.views.generic.base.View.dispatch",
+        "tests.contrib.django.views.ComposedGetView.dispatch",
     ]
     assert [s.resource for s in spans if s.resource.endswith("get")] == [
         "tests.contrib.django.views.ComposedGetView.get",
-        "tests.contrib.django.views.CustomGetView.get",
     ]
