@@ -1,10 +1,12 @@
 import django
+from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
 import os
 import pytest
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -581,7 +583,7 @@ def test_simple_view_options(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.options", error=0,
+        resource="django.views.generic.base.View.options", error=0,
     )
 
 
@@ -1361,7 +1363,9 @@ def test_custom_dispatch_template_view(client, test_spans):
 
     spans = test_spans.get_spans()
     assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
-        "tests.contrib.django.views.ComposedTemplateView.dispatch",
+        "tests.contrib.django.views.CustomDispatchMixin.dispatch",
+        "tests.contrib.django.views.AnotherCustomDispatchMixin.dispatch",
+        "django.views.generic.base.View.dispatch",
     ]
 
 
@@ -1376,8 +1380,40 @@ def test_custom_dispatch_get_view(client, test_spans):
 
     spans = test_spans.get_spans()
     assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
-        "tests.contrib.django.views.ComposedGetView.dispatch",
+        "tests.contrib.django.views.CustomDispatchMixin.dispatch",
+        "django.views.generic.base.View.dispatch",
     ]
     assert [s.resource for s in spans if s.resource.endswith("get")] == [
         "tests.contrib.django.views.ComposedGetView.get",
+        "tests.contrib.django.views.CustomGetView.get",
     ]
+
+
+def test_view_mixin(client, test_spans):
+    from tests.contrib.django import views
+
+    assert views.DISPATCH_CALLED is False
+    resp = client.get("/composed-view/")
+    assert views.DISPATCH_CALLED is True
+
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom dispatch"
+
+
+def test_template_view_patching():
+    """
+    Test to ensure that patching a view does not give it properties it did not have before
+    """
+    # DEV: `vars(cls)` will give you only the properties defined on that class,
+    #      it will not traverse through __mro__ to find the property from a parent class
+
+    # We are not starting with a "dispatch" property
+    assert "dispatch" not in vars(TemplateView)
+
+    # Manually call internal method for patching
+    instrument_view(django, TemplateView)
+    assert "dispatch" not in vars(TemplateView)
+
+    # Patch via `as_view()`
+    TemplateView.as_view()
+    assert "dispatch" not in vars(TemplateView)
