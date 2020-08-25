@@ -8,7 +8,7 @@ specific Django apps like Django Rest Framework (DRF).
 """
 import sys
 
-from inspect import isclass, isfunction
+from inspect import isclass, isfunction, getmro
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, six, wrapt
@@ -476,9 +476,24 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
 
 def instrument_view(django, view):
+    """
+    Helper to wrap Django views.
+
+    We want to wrap all lifecycle/http method functions for every class in the MRO for this view
+    """
+    if isfunction(view):
+        return _instrument_view(django, view)
+
+    for cls in reversed(getmro(view)):
+        _instrument_view(django, cls)
+
+    return view
+
+
+def _instrument_view(django, view):
     """Helper to wrap Django views."""
     # All views should be callable, double check before doing anything
-    if not callable(view) or isinstance(view, wrapt.ObjectProxy):
+    if not callable(view):
         return view
 
     # Patch view HTTP methods and lifecycle methods
@@ -486,7 +501,6 @@ def instrument_view(django, view):
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
     for name in list(http_method_names) + list(lifecycle_methods):
         try:
-            # View methods can be staticmethods
             func = getattr(view, name, None)
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
@@ -514,8 +528,10 @@ def instrument_view(django, view):
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
-    # Return a wrapped version of this view
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    # If the view itself is not wrapped, wrap it
+    if not isinstance(view, wrapt.ObjectProxy):
+        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    return view
 
 
 @with_traced_module
