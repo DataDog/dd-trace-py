@@ -1,10 +1,12 @@
 import django
+from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
 import os
 import pytest
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -1407,3 +1409,22 @@ def test_view_mixin(client, test_spans):
 
     assert resp.status_code == 200
     assert resp.content.strip() == b"custom dispatch"
+
+
+def test_template_view_patching():
+    """
+    Test to ensure that patching a view does not give it properties it did not have before
+    """
+    # DEV: `vars(cls)` will give you only the properties defined on that class,
+    #      it will not traverse through __mro__ to find the property from a parent class
+
+    # We are not starting with a "dispatch" property
+    assert "dispatch" not in vars(TemplateView)
+
+    # Manually call internal method for patching
+    instrument_view(django, TemplateView)
+    assert "dispatch" not in vars(TemplateView)
+
+    # Patch via `as_view()`
+    TemplateView.as_view()
+    assert "dispatch" not in vars(TemplateView)
