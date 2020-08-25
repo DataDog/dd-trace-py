@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
 ## 0.39.1 (25/08/2020)
 
 - reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
@@ -97,6 +103,13 @@ https://github.com/DataDog/dd-trace-py/milestone/57?closed=1
 
 ---
 
+
+## 0.38.4 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
 ## 0.38.3 (25/08/2020)
 
 - reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
@@ -185,6 +198,12 @@ version. (#1468)
 
 ---
 
+## 0.37.3 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
 ## 0.37.2 (25/08/2020)
 
 - reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
@@ -257,6 +276,12 @@ New environment variables have been added to allow you to easily configure and d
 - aiobotocore: pin to <1.0 (#1330)
 - ci: allow to use latest pytest version (#1326)
 - fix(tests/profiling): use a string with setenv, not an int (#1321)
+
+---
+
+## 0.36.3 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
 
 ---
 
@@ -348,7 +373,7 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 
 ## 0.35.1 (25/08/2020)
 
-- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
 
 ---
 
@@ -410,6 +435,12 @@ This release adds:
 ### Changeset
 
 Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.34.1...v0.35.0).
+---
+
+## 0.34.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
 ---
 
 ## 0.34.1 (09/03/2020)
