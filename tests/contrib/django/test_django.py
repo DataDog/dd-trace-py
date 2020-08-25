@@ -1396,3 +1396,14 @@ def test_custom_dispatch_get_view(client, test_spans):
     assert [s.resource for s in spans if s.resource.endswith("get")] == [
         "tests.contrib.django.views.ComposedGetView.get",
     ]
+
+
+def test_view_mixin(client, test_spans):
+    from tests.contrib.django import views
+
+    assert views.DISPATCH_CALLED is False
+    resp = client.get("/composed-view/")
+    assert views.DISPATCH_CALLED is True
+
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom dispatch"
