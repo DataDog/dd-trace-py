@@ -118,3 +118,17 @@ class ComposedGetView(CustomGetView, CustomDispatchMixin):
         if self.dispatch_call_counter == 1:
             return super(ComposedGetView, self).get(request)
         raise Exception("Custom dispatch not called.")
+
+
+DISPATCH_CALLED = False
+
+
+class CustomDispatchView(View):
+    def dispatch(self, request):
+        global DISPATCH_CALLED
+        DISPATCH_CALLED = True
+        return super(CustomDispatchView, self).dispatch(request)
+
+
+class ComposedView(TemplateView, CustomDispatchView):
+    template_name = "custom_dispatch.html"
