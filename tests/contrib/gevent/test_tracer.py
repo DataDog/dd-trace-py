@@ -450,6 +450,8 @@ class TestGeventTracer(TracerTestCase):
         """
 
         # Ensure modules are installed
+        import aiohttp  # noqa
+        import aiobotocore  # noqa
         import botocore  # noqa
         import requests  # noqa
         import elasticsearch  # noqa
