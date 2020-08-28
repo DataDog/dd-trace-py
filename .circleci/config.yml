@@ -327,12 +327,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-ddtracerun$'
 
-  test_utils:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_utils$'
-
   test_logging:
     executor: ddtrace_dev
     steps:
@@ -829,7 +823,6 @@ requires_tests: &requires_tests
   - test_build_py36
   - test_build_py35
   - test_build_py27
-  - test_utils
   - test_logging
   - tracer
   - tornado
@@ -922,7 +915,6 @@ workflows:
       - sanic: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
-      - test_utils: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       # tracer

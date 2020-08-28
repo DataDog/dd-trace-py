@@ -1,24 +1,39 @@
 """
-To trace a request in a ``gevent`` environment, configure the tracer to use the greenlet
-context provider, rather than the default one that relies on a thread-local storaging.
+The gevent integration adds support for tracing across greenlets.
 
-This allows the tracer to pick up a transaction exactly where it left off as greenlets
-yield the context to another one.
+The integration patches the gevent internals to add context management logic.
+It also configures the global tracer instance to use a gevent context
+provider to utilize the context management logic.
 
-The simplest way to trace a ``gevent`` application is to configure the tracer and
-patch ``gevent`` **before importing** the library::
+If custom tracer instances are being used in a gevent application, then
+configure it with::
 
-    # patch before importing gevent
-    from ddtrace import patch, tracer
+    from ddtrace.contrib.gevent import context_provider
+
+    tracer.configure(context_provider=context_provider)
+
+
+Enabling
+~~~~~~~~
+
+The integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
     patch(gevent=True)
 
-    # use gevent as usual with or without the monkey module
-    from gevent import monkey; monkey.patch_thread()
+
+**Note:** these calls need to be performed before calling the gevent patching.
+
+Example of the context propagation::
 
     def my_parent_function():
         with tracer.trace("web.request") as span:
             span.service = "web"
             gevent.spawn(worker_function)
+
 
     def worker_function():
         # then trace its child
@@ -32,7 +47,7 @@ patch ``gevent`` **before importing** the library::
 from ...utils.importlib import require_modules
 
 
-required_modules = ['gevent']
+required_modules = ["gevent"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -42,7 +57,7 @@ with require_modules(required_modules) as missing_modules:
         context_provider = GeventContextProvider()
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'context_provider',
+            "patch",
+            "unpatch",
+            "context_provider",
         ]
