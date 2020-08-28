@@ -75,6 +75,8 @@ _PATCHED_MODULES = set()
 # DEV: This ensures we do not patch a module until it is needed
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
+    "aiohttp": ("aiohttp",),
+    "aiobotocore": ("aiobotocore",),
     "celery": ("celery",),
     "flask": ("flask, "),
     "gevent": ("gevent",),

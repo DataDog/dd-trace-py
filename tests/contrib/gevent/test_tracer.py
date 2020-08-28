@@ -3,6 +3,7 @@ import subprocess
 import gevent
 import gevent.pool
 import ddtrace
+from ddtrace.compat import PY3
 
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.context import Context
@@ -450,8 +451,9 @@ class TestGeventTracer(TracerTestCase):
         """
 
         # Ensure modules are installed
-        import aiohttp  # noqa
-        import aiobotocore  # noqa
+        if PY3:
+            import aiohttp  # noqa
+            import aiobotocore  # noqa
         import botocore  # noqa
         import requests  # noqa
         import elasticsearch  # noqa
