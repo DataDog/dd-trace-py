@@ -1,4 +1,5 @@
 from django.conf.urls import url
+from django.views.generic import TemplateView
 from django.views.decorators.cache import cache_page
 
 from .. import views
@@ -20,4 +21,9 @@ urlpatterns = [
     url(r"^template-view/$", views.template_view, name="template-view"),
     url(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     url(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
+    # This must precede composed tests.
+    url(r"some-static-view/", TemplateView.as_view(template_name="my-template.html")),
+    url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
+    url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
+    url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
 ]

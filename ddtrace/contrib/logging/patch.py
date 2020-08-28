@@ -10,7 +10,7 @@ RECORD_ATTR_SPAN_ID = "dd.span_id"
 RECORD_ATTR_ENV = "dd.env"
 RECORD_ATTR_VERSION = "dd.version"
 RECORD_ATTR_SERVICE = "dd.service"
-RECORD_ATTR_VALUE_ZERO = 0
+RECORD_ATTR_VALUE_ZERO = "0"
 RECORD_ATTR_VALUE_EMPTY = ""
 
 ddtrace.config._add("logging", dict(tracer=None,))  # by default, override here for custom tracer
@@ -44,8 +44,8 @@ def _w_makeRecord(func, instance, args, kwargs):
         span = _get_current_span(tracer=ddtrace.config.logging.tracer)
 
     if span:
-        setattr(record, RECORD_ATTR_TRACE_ID, span.trace_id)
-        setattr(record, RECORD_ATTR_SPAN_ID, span.span_id)
+        setattr(record, RECORD_ATTR_TRACE_ID, str(span.trace_id))
+        setattr(record, RECORD_ATTR_SPAN_ID, str(span.span_id))
     else:
         setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO)
         setattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO)

@@ -1,9 +1,11 @@
 import logging
 
 import ddtrace
-from ddtrace.constants import ENV_KEY, VERSION_KEY
 from ddtrace.compat import StringIO
+from ddtrace.constants import ENV_KEY, VERSION_KEY
 from ddtrace.contrib.logging import patch, unpatch
+from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID, RECORD_ATTR_SPAN_ID
+from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
 from ... import TracerTestCase
@@ -23,6 +25,17 @@ def current_span(tracer=None):
     return tracer.current_span()
 
 
+class AssertFilter(logging.Filter):
+    def filter(self, record):
+        trace_id = getattr(record, RECORD_ATTR_TRACE_ID)
+        assert isinstance(trace_id, six.string_types)
+
+        span_id = getattr(record, RECORD_ATTR_SPAN_ID)
+        assert isinstance(span_id, six.string_types)
+
+        return True
+
+
 def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
     if logger_override is not None:
         logger_to_capture = logger_override
@@ -37,9 +50,12 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
         formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
         logger_to_capture.addHandler(sh)
+        assert_filter = AssertFilter()
+        logger_to_capture.addFilter(assert_filter)
         result = func()
     finally:
         logger_to_capture.removeHandler(sh)
+        logger_to_capture.removeFilter(assert_filter)
 
     return out.getvalue().strip(), result
 
