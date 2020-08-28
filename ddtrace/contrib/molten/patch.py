@@ -11,13 +11,14 @@ from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
+from .. import trace_utils
 from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter, MOLTEN_ROUTE
+
 
 MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
 
 # Configure default configuration
 config._add('molten', dict(
-    service_name=config.service or get_env("molten", "service_name", default="molten"),
     app='molten',
     distributed_tracing=asbool(get_env('molten', 'distributed_tracing', default=True)),
 ))
@@ -30,10 +31,7 @@ def patch():
         return
     setattr(molten, '_datadog_patch', True)
 
-    pin = Pin(
-        service=config.molten['service_name'],
-        app=config.molten['app']
-    )
+    pin = Pin(app=config.molten['app'])
 
     # add pin to module since many classes use __slots__
     pin.onto(molten)
@@ -82,7 +80,12 @@ def patch_app_call(wrapped, instance, args, kwargs):
         if context.trace_id:
             pin.tracer.context_provider.activate(context)
 
-    with pin.tracer.trace('molten.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as span:
+    with pin.tracer.trace(
+        'molten.request',
+        service=trace_utils.int_service(config.molten, pin, "molten"),
+        resource=resource,
+        span_type=SpanTypes.WEB,
+    ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
         span.set_tag(

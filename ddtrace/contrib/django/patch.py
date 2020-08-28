@@ -22,6 +22,7 @@ from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
+from .. import trace_utils
 from .compat import get_resolver, user_is_authenticated
 from . import utils, conf
 
@@ -32,7 +33,6 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        service_name=config._get_service(default="django"),
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
@@ -393,7 +393,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
     else:
         with pin.tracer.trace(
-            "django.request", resource=resource, service=config.django["service_name"], span_type=SpanTypes.HTTP
+            "django.request",
+            resource=resource,
+            service=trace_utils.int_service(config.django, pin, "django"),
+            span_type=SpanTypes.HTTP,
         ) as span:
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
@@ -563,7 +566,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 
 
 def _patch(django):
-    Pin(service=config.django["service_name"]).onto(django)
+    Pin().onto(django)
     wrap(django, "apps.registry.Apps.populate", traced_populate(django))
 
     # DEV: this check will be replaced with import hooks in the future

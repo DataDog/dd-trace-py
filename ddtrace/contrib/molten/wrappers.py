@@ -1,8 +1,11 @@
+from ddtrace import config
 from ddtrace.vendor import wrapt
 import molten
 
 from ... import Pin
 from ...utils.importlib import func_name
+
+from .. import trace_utils
 
 MOLTEN_ROUTE = 'molten.route'
 
@@ -12,7 +15,9 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
+    with pin.tracer.trace(
+        func_name(wrapped), service=trace_utils.int_service(config.molten, pin, "molten"), resource=resource
+    ):
         return wrapped(*args, **kwargs)
 
 
@@ -26,7 +31,9 @@ def trace_func(resource):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
+        with pin.tracer.trace(
+            func_name(wrapped), service=trace_utils.int_service(config.molten, pin, "molten"), resource=resource
+        ):
             return wrapped(*args, **kwargs)
 
     return _trace_func

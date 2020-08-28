@@ -10,11 +10,12 @@ from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from .. import trace_utils
 from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("sanic", dict(service=config._get_service(default="sanic"), distributed_tracing=True))
+config._add("sanic", dict(distributed_tracing=True))
 
 
 def _extract_tags_from_request(request):
@@ -100,7 +101,10 @@ def patch_handle_request(wrapped, instance, args, kwargs):
             ddtrace.tracer.context_provider.activate(context)
 
     span = ddtrace.tracer.trace(
-        "sanic.request", service=config.sanic.service, resource=resource, span_type=SpanTypes.WEB
+        "sanic.request",
+        service=trace_utils.int_service(config.sanic, None, "sanic"),
+        resource=resource,
+        span_type=SpanTypes.WEB,
     )
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:

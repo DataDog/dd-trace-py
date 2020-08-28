@@ -10,6 +10,7 @@ from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
 from ...utils.wrappers import unwrap
+from .. import trace_utils
 from .constants import APP
 
 
@@ -44,7 +45,6 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
         tags[dbx.NAME] = instance.options['database']
 
     pin = Pin(
-        service=config.vertica['service_name'],
         app=APP,
         tags=tags,
         _config=config.vertica['patch']['vertica_python.vertica.cursor.Cursor'],
@@ -56,7 +56,6 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
 config._add(
     'vertica',
     {
-        'service_name': 'vertica',
         'app': 'vertica',
         'patch': {
             'vertica_python.vertica.connection.Connection': {
@@ -169,7 +168,6 @@ def _install_init(patch_item, patch_class, patch_mod, config):
 
         # create and attach a pin with the defaults
         Pin(
-            service=config['service_name'],
             app=config['app'],
             tags=config.get('tags', {}),
             tracer=config.get('tracer', ddtrace.tracer),
@@ -203,7 +201,11 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
             operation_name = conf['operation_name']
             tracer = pin.tracer
-            with tracer.trace(operation_name, service=pin.service, span_type=conf.get('span_type')) as span:
+            with tracer.trace(
+                operation_name,
+                service=trace_utils.ext_service(config, pin, "vertica"),
+                span_type=conf.get("span_type"),
+            ) as span:
                 if conf.get('measured', False):
                     span.set_tag(SPAN_MEASURED_KEY)
                 span.set_tags(pin.tags)
