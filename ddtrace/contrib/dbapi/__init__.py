@@ -9,6 +9,7 @@ from ...pin import Pin
 from ...settings import config
 from ...utils.formats import asbool, get_env
 from ...vendor import wrapt
+from ..trace_utils import ext_service
 
 
 log = get_logger(__name__)
@@ -21,12 +22,14 @@ config._add('dbapi2', dict(
 class TracedCursor(wrapt.ObjectProxy):
     """ TracedCursor wraps a psql cursor and traces its queries. """
 
-    def __init__(self, cursor, pin):
+    def __init__(self, cursor, pin, cfg, default_service):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
         name = pin.app or 'sql'
         self._self_datadog_name = '{}.query'.format(name)
         self._self_last_execute_operation = None
+        self._self_config = cfg or config.dbapi2
+        self._self_default_service = default_service
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -42,9 +45,12 @@ class TracedCursor(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
-        service = pin.service
         measured = name == self._self_datadog_name
-        with pin.tracer.trace(name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
+        cfg = self._self_config
+        default_service = self._self_default_service or "db"
+        with pin.tracer.trace(
+            name, service=ext_service(cfg, pin, default_service), resource=resource, span_type=SpanTypes.SQL
+        ) as s:
             if measured:
                 s.set_tag(SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
@@ -146,7 +152,7 @@ class FetchTracedCursor(TracedCursor):
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, pin=None, cfg=None, default_service=None, cursor_cls=None):
         # Set default cursor class if one was not provided
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
@@ -162,14 +168,17 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
+        self._self_config = cfg or config.dbapi2
+        self._self_default_service = default_service
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
-        service = pin.service
+        config = self._self_config
+        default_service = self._self_default_service or "db"
 
-        with pin.tracer.trace(name, service=service) as s:
+        with pin.tracer.trace(name, service=ext_service(config, pin, default_service)) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -178,9 +187,10 @@ class TracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
         pin = Pin.get_from(self)
+        config = self._self_config
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin)
+        return self._self_cursor_cls(cursor, pin, config, self._self_default_service)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
