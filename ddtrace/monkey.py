@@ -79,6 +79,8 @@ _PATCH_ON_IMPORT = {
     "flask": ("flask, "),
     "gevent": ("gevent",),
     "requests": ("requests",),
+    "botocore": ("botocore",),
+    "elasticsearch": ("elasticsearch",),
 }
 
 
