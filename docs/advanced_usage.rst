@@ -212,7 +212,7 @@ For most libraries, analyzed spans can be enabled with the environment variable 
 +----------------------+----------------------------------------------+
 | :ref:`aiopg`         | ``DD_TRACE_AIOPG_ANALYTICS_ENABLED``         |
 +----------------------+----------------------------------------------+
-| :ref:`boto`          | ``DD_TRACE_BOTO_ANALYTICS_ENABLED``          |
+| :ref:`boto2`          | ``DD_TRACE_BOTO_ANALYTICS_ENABLED``         |
 +----------------------+----------------------------------------------+
 | :ref:`botocore`      | ``DD_TRACE_BOTOCORE_ANALYTICS_ENABLED``      |
 +----------------------+----------------------------------------------+
