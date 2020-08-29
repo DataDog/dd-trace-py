@@ -35,7 +35,7 @@ Splitting Pull Requests
 
 If you discussed your feature within an issue (as advised), there's a great
 chance that the implementation appears doable in several steps. In order to
-facilite the review process, we strongly advise to split your feature
+expedite the review process, we strongly advise to split your feature
 implementation in small pull requests (if that is possible) so they contain a
 very small number of commits (a single commit per pull request being optimal).
 
@@ -62,22 +62,6 @@ The following Python implementations are supported:
 Versions of those implementations that are supported are the Python versions
 that are currently supported by the community.
 
-Libraries Support
-=================
-
-External libraries support is implemented in submodules of the `ddtest.contrib`
-module.
-
-Our goal is to support:
-
-- The latest version of a library.
-- All versions of a library that have been released less than 1 year ago.
-
-Support for older versions of a library will be kept as long as possible as
-long as it can be done without too much pain and backward compatibility — on a
-best effort basis. Therefore, support for old versions of a library might be
-dropped from the testing pipeline at anytime.
-
 Code Style
 ==========
 
@@ -91,14 +75,15 @@ How-to: Write an Integration
 ============================
 
 First off, thank you for writing a new integration! The best way to get started
-writing a new integration is to refer to existing integrations, preferably one
-that instruments a similarly themed library or framework. For example, to write
-a new integration for ``memcached`` we might refer to the existing ``redis``
-integration as a starting point.
+writing a new integration is to refer to existing integrations. Looking at
+a similarly themed library or framework is a great starting point. For example,
+to write a new integration for ``memcached`` we might refer to the existing
+``redis`` integration as a starting point since both of these would generate
+similar spans.
 
-The key focus of an integration is to provide concise, insightful information
+The focal point of an integration is to provide concise, insightful information
 about the library or framework that'll be useful for developers to monitor their
-application.
+application's health and performance.
 
   **Notes**:
     - Every integration must be defined in it's own folder in `ddtrace/contrib <https://github.com/DataDog/dd-trace-py/tree/master/ddtrace/contrib>`_ and contain an ``__init__.py`` file.
@@ -114,23 +99,40 @@ application.
 There are a number of things to keep in mind while writing an integration:
 
 
+Integration Fundamentals
+++++++++++++++++++++++++
+
+Code structure
+~~~~~~~~~~~~~~
+
+All integrations live in ``ddtrace/contrib/`` and contain at least two files,
+``__init__.py`` and ``patch.py``. A skeleton integration is available under
+``templates/integration`` which can be used as a starting point::
+
+    cp -r templates/integration ddtrace/contrib/<integration>
+
+
+It is preferred to keep as much code as possible in ``patch.py``.
+
+
 Preserving Behaviour
-++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~
 
-Arguably the most important aspect of the integration should be that it interferes
-in no way with the expected behaviour of library or application. Attention
+The most important aspect of the integration should be that it interferes
+in no way with the expected behaviour of library or application. Close attention
 should be paid to CPU and memory usage of the integration. It is also unacceptable
-for the integration to raise unhandled exceptions.
+for the integration to raise unhandled exceptions since these would surely crash
+or alter application.
 
 
-Configuration
-+++++++++++++
-TODO?
+Pin API
+~~~~~~~
+The Pin API is used to configure the instrumentation at run-time. This includes
+enabling and disabling the instrumentation and overriding the service name.
 
 
 Library Support
-+++++++++++++++
-
+~~~~~~~~~~~~~~~
 ``ddtrace`` tries to support as many active versions of a library as possible.
 Because of this, it can become tricky to instrument a library due to changing
 features and APIs.
@@ -142,23 +144,8 @@ integration:
     - pulling out the version: `flask version <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L45-L58>`_
     - using it to instrument a later-added feature `flask version usage <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L149-L151>`_
 
-
-Database Integrations
-+++++++++++++++++++++
-
-``ddtrace`` already provides base instrumentation for the Python database API
-(PEP 249) which most database client libraries implement in the
-`ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/dbapi/__init__.py>`_
-module.
-
-Check out some of our existing database integrations for how to use the `dbapi`:
-
-    - `psycopg <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/psycopg>`_
-    - `mysql <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/mysql>`_
-
-
 Exceptions/Errors
-+++++++++++++++++
+~~~~~~~~~~~~~~~~~
 
 Exceptions provide a lot of useful information about errors and the application
 as a whole and are fortunately usually quite easy to deal with. Exceptions are
@@ -175,22 +162,8 @@ dealing with exceptions in ``ddtrace``:
       See the `cassandra exception handling <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/cassandra/session.py#L117-L122>`_
       instrumentation for an example.
 
-
-Logging
-+++++++
-TODO
-- warnings
-- errors
-- info
-
-
-Enable/Disable Logic
-++++++++++++++++++++
-TODO?
-
-
 Distributed Tracing
-+++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~
 
 Some integrations pass information across application boundaries to other
 applications where the request is continued. Datadog and ``ddtrace`` provide
@@ -200,6 +173,36 @@ sense for libraries that send or receive requests across application boundaries.
     - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/requests/connection.py#L85-L88>`_
     - Receiving a propagated trace example: `Django <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/django/middleware.py#L116-L121>`_
 
+
+Web frameworks
+++++++++++++++
+Web frameworks centre around web requests and hence so does the tracing. A
+web framework integration must do the following if possible:
+
+    - Trace the duration of the request.
+    - Report HTTP status codes.
+    - Have an :ref:`internal service` name.
+    - Assign a resource name for a route.
+    - Provide toggleable support for tracing query parameters (defaulting to off).
+    - Support distributed tracing (configurable).
+    - Provide insight to middlewares and views.
+
+Some example web framework integrations::
+    - `flask <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask>`_
+    - `django <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/django>`_
+
+
+Database libraries
+++++++++++++++++++
+``ddtrace`` already provides base instrumentation for the Python database API
+(PEP 249) which most database client libraries implement in the
+`ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/dbapi/__init__.py>`_
+module.
+
+Check out some of our existing database integrations for how to use the `dbapi`:
+
+    - `psycopg <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/psycopg>`_
+    - `mysql <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/mysql>`_
 
 Testing
 +++++++
