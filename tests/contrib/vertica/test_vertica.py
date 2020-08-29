@@ -5,16 +5,16 @@ from ddtrace.vendor import wrapt
 # project
 import ddtrace
 from ddtrace import Pin, config
+from ddtrace.settings.config import _deepmerge
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
-from ddtrace.utils.merge import deepmerge
 
 # testing
-from tests.base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 TEST_TABLE = 'test_table'
 
@@ -51,7 +51,7 @@ def test_conn(request, test_tracer):
     return conn, cur
 
 
-class TestVerticaPatching(BaseTracerTestCase):
+class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
@@ -133,7 +133,7 @@ class TestVerticaPatching(BaseTracerTestCase):
 
 
 @pytest.mark.usefixtures('test_tracer', 'test_conn')
-class TestVertica(BaseTracerTestCase):
+class TestVertica(TracerTestCase):
     def tearDown(self):
         super(TestVertica, self).tearDown()
 
@@ -173,8 +173,8 @@ class TestVertica(BaseTracerTestCase):
 
         # Make a copy of the vertica config first before we merge our settings over
         # DEV: First argument gets merged into the second
-        copy = deepmerge(config.vertica, dict())
-        overrides = deepmerge(routine_config, copy)
+        copy = _deepmerge(config.vertica, dict())
+        overrides = _deepmerge(routine_config, copy)
         with self.override_config('vertica', overrides):
             patch()
             import vertica_python
@@ -204,6 +204,7 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 2
 
         # check all the metadata
+        assert_is_measured(spans[0])
         assert spans[0].service == 'vertica'
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
@@ -211,7 +212,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_metric('out.port') == 5433
         assert spans[0].get_tag('db.name') == 'docker'
         assert spans[0].get_tag('db.user') == 'dbadmin'
 
@@ -231,6 +232,7 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 2
 
         # check all the metadata
+        assert_is_measured(spans[0])
         assert spans[0].service == 'vertica'
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
@@ -238,7 +240,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_metric('out.port') == 5433
 
         assert spans[1].resource == 'SELECT * FROM test_table;'
 
@@ -309,7 +311,7 @@ class TestVertica(BaseTracerTestCase):
         assert spans[1].get_metric('db.rowcount') == -1
         assert spans[2].name == 'vertica.fetchone'
         assert spans[2].get_tag('out.host') == '127.0.0.1'
-        assert spans[2].get_tag('out.port') == '5433'
+        assert spans[2].get_metric('out.port') == 5433
         assert spans[2].get_metric('db.rowcount') == 1
         assert spans[3].name == 'vertica.fetchone'
         assert spans[3].get_metric('db.rowcount') == 2
@@ -373,6 +375,7 @@ class TestVertica(BaseTracerTestCase):
         assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
 
+        assert_is_measured(dd_span)
         assert dd_span.service == 'vertica'
         assert dd_span.span_type == 'sql'
         assert dd_span.name == 'vertica.query'
@@ -380,7 +383,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert dd_span.resource == query
         assert dd_span.get_tag('out.host') == '127.0.0.1'
-        assert dd_span.get_tag('out.port') == '5433'
+        assert dd_span.get_metric('out.port') == 5433
 
     def test_analytics_default(self):
         conn, cur = self.test_conn
@@ -428,3 +431,23 @@ class TestVertica(BaseTracerTestCase):
         spans = self.test_tracer.writer.pop()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The vertica integration should not use it.
+        """
+        # Ensure that the service name was configured
+        with self.override_global_config(dict(service="mysvc")):
+            from ddtrace import config
+            assert config.service == "mysvc"
+            conn, cur = self.test_conn
+            Pin.override(cur, tracer=self.test_tracer)
+            with conn:
+                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.writer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service != "mysvc"

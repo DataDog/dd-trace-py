@@ -3,7 +3,8 @@ import ddtrace
 import webtest
 
 from unittest import TestCase
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
+from ... import assert_span_http_status_code
 
 from ddtrace import compat
 
@@ -48,7 +49,7 @@ class TraceBottleTest(TestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag('http.method') == 'GET'
 
         services = self.tracer.writer.pop_services()
@@ -73,7 +74,7 @@ class TraceBottleTest(TestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
-        assert s.get_tag('http.status_code') == '500'
+        assert_span_http_status_code(s, 500)
         assert s.get_tag('http.method') == 'GET'
 
     def test_bottle_global_tracer(self):
@@ -93,5 +94,5 @@ class TraceBottleTest(TestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /home/'
-        assert s.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag('http.method') == 'GET'

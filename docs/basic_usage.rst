@@ -3,6 +3,9 @@
 Basic Usage
 ===========
 
+Tracer
+~~~~~~
+
 With ``ddtrace`` installed, the application can be instrumented.
 
 
@@ -75,8 +78,8 @@ API details of the decorator can be found here :py:meth:`ddtrace.Tracer.wrap`.
 Context Manager
 ^^^^^^^^^^^^^^^
 
-To trace an arbitrary block of code, you can use the :py:mod:`ddtrace.Span`
-context manager::
+To trace an arbitrary block of code, you can use :py:meth:`ddtrace.Tracer.trace`
+that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
 
   # trace some interesting operation
   with tracer.trace('interesting.operations'):
@@ -105,3 +108,61 @@ API details of the decorator can be found here:
 
 - :py:meth:`ddtrace.Tracer.trace`
 - :py:meth:`ddtrace.Span.finish`.
+
+
+Profiler
+~~~~~~~~
+
+Via module
+----------
+To automatically profile your code, you can import the `ddtrace.profiling.auto` module.
+As soon as it is imported, it will start catching CPU profiling information on
+your behalf::
+
+  import ddtrace.profiling.auto
+
+Via API
+----------
+If you want to control which part of your code should be profiled, you can use
+the `ddtrace.profiling.Profiler` object::
+
+  from ddtrace.profiling import Profiler
+
+  prof = Profiler()
+  prof.start()
+
+  # At shutdown
+  prof.stop()
+
+.. important::
+
+   The profiler has been designed to be always-on. The ``start`` and ``stop``
+   methods are provided in case you need a fine-grained control over the
+   profiler lifecycle. They are not provided for starting and stopping the
+   profiler many times during your application lifecycle. Do not use them for
+   e.g. buildin a context manager.
+
+Via command line
+----------------
+You can run your program with profiling enabled by using the wrapper
+`pyddprofile`. This will automatically enable the profiling of your
+application::
+
+  $ pyddprofile myscript.py
+
+
+Handling `os.fork`
+------------------
+
+When your process forks using `os.fork`, the profiler is stopped in the child
+process.
+
+For Python 3.7 and later on POSIX platforms, a new profiler will be started if
+you enabled the profiler via `pyddprofile` or `ddtrace.profiling.auto`.
+
+If you manually instrument the profiler, or if you rely on Python 3.6 or a
+non-POSIX platform and earlier version, you'll have to manually restart the
+profiler in your child.
+
+The global profiler instrumented by `pyddprofile` and `ddtrace.profiling.auto`
+can be started by calling `ddtrace.profiling.auto.start_profiler`.

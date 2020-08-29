@@ -2,12 +2,15 @@ from ddtrace import Pin, config
 
 from celery import registry
 
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
+from ...propagation.http import HTTPPropagator
 from . import constants as c
 from .utils import tags_from_context, retrieve_task_id, attach_span, detach_span, retrieve_span
 
 log = get_logger(__name__)
+propagator = HTTPPropagator()
 
 
 def trace_prerun(*args, **kwargs):
@@ -26,9 +29,20 @@ def trace_prerun(*args, **kwargs):
         log.debug('no pin found on task or task.app task_id=%s', task_id)
         return
 
+    if config.celery['distributed_tracing']:
+        context = propagator.extract(task.request.get('headers', {}))
+        if context.trace_id:
+            pin.tracer.context_provider.activate(context)
+
     # propagate the `Span` in the current task Context
     service = config.celery['worker_service_name']
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    # set analytics sample rate
+    rate = config.celery.get_analytics_sample_rate()
+    if rate is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+    span.set_tag(SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
 
 
@@ -79,13 +93,32 @@ def trace_before_publish(*args, **kwargs):
     # in the task_after_publish signal
     service = config.celery['producer_service_name']
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    # set analytics sample rate
+    rate = config.celery.get_analytics_sample_rate()
+    if rate is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+    span.set_tag(SPAN_MEASURED_KEY)
     span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag('celery.id', task_id)
     span.set_tags(tags_from_context(kwargs))
+
     # Note: adding tags from `traceback` or `state` calls will make an
     # API call to the backend for the properties so we should rely
     # only on the given `Context`
     attach_span(task, task_id, span, is_publish=True)
+
+    if config.celery['distributed_tracing']:
+        trace_headers = {}
+        propagator.inject(span.context, trace_headers)
+
+        # This weirdness is due to yet another Celery bug concerning
+        # how headers get propagated in async flows
+        # https://github.com/celery/celery/issues/4875
+        task_headers = kwargs.get('headers') or {}
+        task_headers.setdefault('headers', {})
+        task_headers['headers'].update(trace_headers)
+        kwargs['headers'] = task_headers
 
 
 def trace_after_publish(*args, **kwargs):

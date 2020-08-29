@@ -3,6 +3,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracer.utils import init_tracer
+from ... import assert_is_measured, assert_span_http_status_code
 
 
 class FalconTestCase(object):
@@ -18,10 +19,12 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET 404'
-        assert span.get_tag(httpx.STATUS_CODE) == '404'
+        assert_span_http_status_code(span, 404)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/fake_endpoint'
         assert httpx.QUERY_STRING not in span.meta
         assert span.parent_id is None
@@ -38,10 +41,12 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.ResourceException'
-        assert span.get_tag(httpx.STATUS_CODE) == '500'
+        assert_span_http_status_code(span, 500)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/exception'
         assert span.parent_id is None
 
@@ -54,10 +59,12 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
-        assert span.get_tag(httpx.STATUS_CODE) == '200'
+        assert_span_http_status_code(span, 200)
         fqs = ('?' + query_string) if query_string else ''
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/200' + fqs
         if config.falcon.trace_query_string:
@@ -151,10 +158,12 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'POST tests.contrib.falcon.app.resources.Resource201'
-        assert span.get_tag(httpx.STATUS_CODE) == '201'
+        assert_span_http_status_code(span, 201)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/201'
         assert span.parent_id is None
 
@@ -167,10 +176,12 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource500'
-        assert span.get_tag(httpx.STATUS_CODE) == '500'
+        assert_span_http_status_code(span, 500)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/500'
         assert span.parent_id is None
 
@@ -182,10 +193,12 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.ResourceNotFound'
-        assert span.get_tag(httpx.STATUS_CODE) == '404'
+        assert_span_http_status_code(span, 404)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/not_found'
         assert span.parent_id is None
 
@@ -198,9 +211,11 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
-        assert span.get_tag(httpx.STATUS_CODE) == '404'
+        assert_span_http_status_code(span, 404)
         assert span.get_tag(errx.ERROR_TYPE) is None
         assert span.parent_id is None
 
@@ -226,10 +241,11 @@ class FalconTestCase(object):
         assert ot_span.service == 'my_svc'
         assert ot_span.resource == 'ot_span'
 
+        assert_is_measured(dd_span)
         assert dd_span.name == 'falcon.request'
         assert dd_span.service == self._service
         assert dd_span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
-        assert dd_span.get_tag(httpx.STATUS_CODE) == '200'
+        assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_tag(httpx.URL) == 'http://falconframework.org/200'
 
     def test_falcon_request_hook(self):

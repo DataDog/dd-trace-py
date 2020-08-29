@@ -5,7 +5,7 @@ import molten
 
 from ... import Pin, config
 from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
@@ -17,9 +17,9 @@ MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
 
 # Configure default configuration
 config._add('molten', dict(
-    service_name=get_env('molten', 'service_name', 'molten'),
+    service_name=config.service or get_env("molten", "service_name", default="molten"),
     app='molten',
-    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', True)),
+    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', default=True)),
 ))
 
 
@@ -83,6 +83,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
             pin.tracer.context_provider.activate(context)
 
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
         span.set_tag(
             ANALYTICS_SAMPLE_RATE_KEY,

@@ -7,7 +7,7 @@ services:
         ports:
             - "127.0.0.1:9200:9200"
     cassandra:
-        image: spotify/cassandra:latest
+        image: cassandra:3.11.7
         environment:
             - MAX_HEAP_SIZE=512M
             - HEAP_NEWSIZE=256M
@@ -94,7 +94,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: datadog/docker-library:ddtrace_py
+        image: datadog/dd-trace-py:latest
         environment:
             - TOX_SKIP_DIST=True
             - TEST_DATADOG_INTEGRATION=1
@@ -103,15 +103,14 @@ services:
         working_dir: /src
         volumes:
             - ddagent:/tmp/ddagent
-            - ./ddtrace:/src/ddtrace:ro
-            # DEV: Make ddtrace/vendor rw so Tox can build C-extensions
-            - ./ddtrace/vendor:/src/ddtrace/vendor:rw
+            # DEV: Make ddtrace rw so setup.py can build C-extensions
+            - ./ddtrace:/src/ddtrace:rw
             - ./tests:/src/tests:ro
             - ./setup.cfg:/src/setup.cfg:ro
             - ./setup.py:/src/setup.py:ro
             - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
-            - ./docs:/src/docs:ro
+            - ./docs:/src/docs:rw
             - ./pyproject.toml:/src/pyproject.toml:ro
             - ./.ddtox:/src/.tox
             - ./scripts:/src/scripts

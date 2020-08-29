@@ -13,7 +13,7 @@ from redis.exceptions import ConnectionError
 import pytest
 
 # testing
-from ...test_tracer import DummyWriter
+from tests import DummyWriter
 
 
 class FlaskCacheWrapperTest(unittest.TestCase):
@@ -191,7 +191,7 @@ class FlaskCacheWrapperTest(unittest.TestCase):
         assert span.span_type == 'cache'
         assert span.meta[CACHE_BACKEND] == 'redis'
         assert span.meta[net.TARGET_HOST] == '127.0.0.1'
-        assert span.meta[net.TARGET_PORT] == '2230'
+        assert span.metrics[net.TARGET_PORT] == 2230
         assert span.error == 1
 
     def test_memcached_cache_tracing_with_a_wrong_connection(self):
@@ -225,7 +225,7 @@ class FlaskCacheWrapperTest(unittest.TestCase):
         assert span.span_type == 'cache'
         assert span.meta[CACHE_BACKEND] == 'memcached'
         assert span.meta[net.TARGET_HOST] == 'localhost'
-        assert span.meta[net.TARGET_PORT] == '2230'
+        assert span.metrics[net.TARGET_PORT] == 2230
 
         # the pylibmc backend raises an exception and memcached backend does
         # not, so don't test anything about the status.

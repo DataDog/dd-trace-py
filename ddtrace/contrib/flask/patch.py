@@ -1,5 +1,3 @@
-import os
-
 import flask
 import werkzeug
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -7,7 +5,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import compat
 from ddtrace import config, Pin
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -25,8 +23,7 @@ FLASK_VERSION = 'flask.version'
 # Configure default configuration
 config._add('flask', dict(
     # Flask service configuration
-    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
-    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
+    service_name=config._get_service(default="flask"),
     app='flask',
 
     collect_view_args=True,
@@ -283,6 +280,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as s:
+        s.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
         sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:

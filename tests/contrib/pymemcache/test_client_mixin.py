@@ -1,5 +1,4 @@
 # 3p
-import unittest
 import pymemcache
 
 # project
@@ -9,9 +8,8 @@ from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from ddtrace.ext import memcached as memcachedx, net
 from .utils import MockSocket
 
-from tests.test_tracer import get_dummy_tracer
-from ...base import override_config
-
+from tests.tracer.test_tracer import get_dummy_tracer
+from ... import TracerTestCase
 
 _Client = pymemcache.client.base.Client
 
@@ -19,7 +17,7 @@ TEST_HOST = 'localhost'
 TEST_PORT = 117711
 
 
-class PymemcacheClientTestCaseMixin(unittest.TestCase):
+class PymemcacheClientTestCaseMixin(TracerTestCase):
     """ Tests for a patched pymemcache.client.base.Client. """
 
     def get_spans(self):
@@ -34,8 +32,9 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
         self.assertEqual(num_expected, len(spans))
 
         for span, resource, query in zip(spans, resources_expected, queries_expected):
+            self.assert_is_measured(span)
             self.assertEqual(span.get_tag(net.TARGET_HOST), TEST_HOST)
-            self.assertEqual(span.get_tag(net.TARGET_PORT), str(TEST_PORT))
+            self.assertEqual(span.get_metric(net.TARGET_PORT), TEST_PORT)
             self.assertEqual(span.name, memcachedx.CMD)
             self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.service, memcachedx.SERVICE)
@@ -149,7 +148,7 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
         self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with override_config(
+        with self.override_config(
             'pymemcache',
             dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
@@ -162,7 +161,7 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with override_config(
+        with self.override_config(
             'pymemcache',
             dict(analytics_enabled=True)
         ):

@@ -4,10 +4,10 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ddtrace.span import Span
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured, assert_is_not_measured
 
 
-class TestTracedCursor(BaseTracerTestCase):
+class TestTracedCursor(TracerTestCase):
 
     def setUp(self):
         super(TestTracedCursor, self).setUp()
@@ -71,14 +71,17 @@ class TestTracedCursor(BaseTracerTestCase):
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='sql.query'))
+        assert_is_measured(self.get_root_span())
         self.reset()
 
         traced_cursor.executemany('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='sql.query'))
+        assert_is_measured(self.get_root_span())
         self.reset()
 
         traced_cursor.callproc('arg_1', 'arg2')
         self.assert_structure(dict(name='sql.query'))
+        assert_is_measured(self.get_root_span())
         self.reset()
 
         traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
@@ -99,14 +102,17 @@ class TestTracedCursor(BaseTracerTestCase):
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='changed.query'))
+        assert_is_measured(self.get_root_span())
         self.reset()
 
         traced_cursor.executemany('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='changed.query'))
+        assert_is_measured(self.get_root_span())
         self.reset()
 
         traced_cursor.callproc('arg_1', 'arg2')
         self.assert_structure(dict(name='changed.query'))
+        assert_is_measured(self.get_root_span())
         self.reset()
 
         traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
@@ -163,6 +169,8 @@ class TestTracedCursor(BaseTracerTestCase):
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
         span = tracer.writer.pop()[0]  # type: Span
+        # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
+        assert_is_not_measured(span)
         assert span.meta['pin1'] == 'value_pin1', 'Pin tags are preserved'
         assert span.meta['extra1'] == 'value_extra1', 'Extra tags are merged into pin tags'
         assert span.name == 'my_name', 'Span name is respected'
@@ -171,7 +179,7 @@ class TestTracedCursor(BaseTracerTestCase):
         assert span.span_type == 'sql', 'Span has the correct span type'
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
@@ -190,7 +198,7 @@ class TestTracedCursor(BaseTracerTestCase):
         span = tracer.writer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_cursor_analytics_default(self):
         cursor = self.cursor
@@ -240,7 +248,7 @@ class TestTracedCursor(BaseTracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestFetchTracedCursor(BaseTracerTestCase):
+class TestFetchTracedCursor(TracerTestCase):
 
     def setUp(self):
         super(TestFetchTracedCursor, self).setUp()
@@ -408,7 +416,7 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         assert span.span_type == 'sql', 'Span has the correct span type'
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
@@ -427,7 +435,7 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         span = tracer.writer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_fetch_no_analytics(self):
         """ Confirm fetch* methods do not have analytics sample rate metric """
@@ -466,7 +474,7 @@ class TestFetchTracedCursor(BaseTracerTestCase):
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
 
-class TestTracedConnection(BaseTracerTestCase):
+class TestTracedConnection(TracerTestCase):
     def setUp(self):
         super(TestTracedConnection, self).setUp()
         self.connection = mock.Mock()

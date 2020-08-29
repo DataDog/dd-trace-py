@@ -1,6 +1,7 @@
 from ddtrace.ext import http
 
 from . import BaseFlaskTestCase
+from ... import assert_span_http_status_code
 
 
 class FlaskStaticFileTestCase(BaseFlaskTestCase):
@@ -29,7 +30,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'static')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/static/<path:filename>')
         self.assertEqual(req_span.get_tag('flask.view_args.filename'), 'test.txt')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(req_span, 200)
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/static/test.txt')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
 
@@ -70,7 +71,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'static')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/static/<path:filename>')
         self.assertEqual(req_span.get_tag('flask.view_args.filename'), 'unknown-file')
-        self.assertEqual(req_span.get_tag('http.status_code'), '404')
+        assert_span_http_status_code(req_span, 404)
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/static/unknown-file')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
 

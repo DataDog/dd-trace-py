@@ -6,10 +6,10 @@ from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.contrib.consul.patch import patch, unpatch
 
 from ..config import CONSUL_CONFIG
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 
 
-class TestConsulPatch(BaseTracerTestCase):
+class TestConsulPatch(TracerTestCase):
 
     TEST_SERVICE = 'test-consul'
 
@@ -37,6 +37,8 @@ class TestConsulPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'PUT'
@@ -56,6 +58,8 @@ class TestConsulPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'GET'
@@ -75,6 +79,8 @@ class TestConsulPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'DELETE'
@@ -95,6 +101,8 @@ class TestConsulPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'PUT'

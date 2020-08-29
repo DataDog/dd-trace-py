@@ -19,18 +19,27 @@ will produce tracing data. To trace your Celery application, call the patch meth
         def run(self):
             pass
 
+Configuration
+~~~~~~~~~~~~~
+.. py:data:: ddtrace.config.celery['distributed_tracing']
 
-To change Celery service name, you can use the ``Config`` API as follows::
+   Whether or not to pass distributed tracing headers to Celery workers.
 
-    from ddtrace import config
+   Can also be enabled with the ``DD_CELERY_DISTRIBUTED_TRACING`` environment variable.
 
-    # change service names for producers and workers
-    config.celery['producer_service_name'] = 'task-queue'
-    config.celery['worker_service_name'] = 'worker-notify'
+   Default: ``False``
 
-By default, reported service names are:
-    * ``celery-producer`` when tasks are enqueued for processing
-    * ``celery-worker`` when tasks are processed by a Celery process
+.. py:data:: ddtrace.config.celery['producer_service_name']
+
+   Sets service name for producer
+
+   Default: ``'celery-producer'``
+
+.. py:data:: ddtrace.config.celery['worker_service_name']
+
+   Sets service name for worker
+
+   Default: ``'celery-worker'``
 
 """
 from ...utils.importlib import require_modules

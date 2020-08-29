@@ -1,4 +1,4 @@
-import os
+from ddtrace import config
 from ddtrace.vendor import wrapt
 import pylons.wsgiapp
 
@@ -31,8 +31,8 @@ def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
     # set tracing options and create the TraceMiddleware
-    service = os.environ.get('DATADOG_SERVICE_NAME', 'pylons')
-    distributed_tracing = asbool(get_env('pylons', 'distributed_tracing', True))
+    service = config._get_service(default="pylons")
+    distributed_tracing = asbool(get_env('pylons', 'distributed_tracing', default=True))
     Pin(service=service, tracer=tracer).onto(instance)
     traced_app = PylonsTraceMiddleware(instance, tracer, service=service, distributed_tracing=distributed_tracing)
 

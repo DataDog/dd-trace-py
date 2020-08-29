@@ -7,7 +7,7 @@ from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -42,6 +42,7 @@ class PylonsTraceMiddleware(object):
                 self._tracer.context_provider.activate(context)
 
         with self._tracer.trace('pylons.request', service=self._service, span_type=SpanTypes.WEB) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
             # Set the service in tracer.trace() as priority sampling requires it to be
             # set as early as possible when different services share one single agent.
 

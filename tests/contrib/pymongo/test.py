@@ -1,6 +1,5 @@
 # stdlib
 import time
-import unittest
 
 # 3p
 import pymongo
@@ -15,8 +14,8 @@ from ddtrace.contrib.pymongo.patch import patch, unpatch
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...base import override_config
-from ...test_tracer import get_dummy_tracer
+from ... import TracerTestCase, assert_is_measured
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 def test_normalize_filter():
@@ -104,12 +103,13 @@ class PymongoCore(object):
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == 'songs'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = set([
             'drop songs',
@@ -153,12 +153,13 @@ class PymongoCore(object):
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == collection_name
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = [
             'drop here.are.songs',
@@ -218,12 +219,13 @@ class PymongoCore(object):
         spans = writer.pop()
         for span in spans:
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == 'teams'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host'), span.pprint()
-            assert span.meta.get('out.port'), span.pprint()
+            assert span.metrics.get('out.port'), span.pprint()
             assert span.start > start
             assert span.duration < end - start
 
@@ -287,12 +289,13 @@ class PymongoCore(object):
             # ensure the parenting
             assert span.parent_id == ot_span.span_id
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == 'songs'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = set([
             'drop songs',
@@ -312,7 +315,7 @@ class PymongoCore(object):
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_analytics_with_rate(self):
-        with override_config(
+        with TracerTestCase.override_config(
             'pymongo',
             dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
@@ -325,7 +328,7 @@ class PymongoCore(object):
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_analytics_without_rate(self):
-        with override_config(
+        with TracerTestCase.override_config(
             'pymongo',
             dict(analytics_enabled=True)
         ):
@@ -338,7 +341,7 @@ class PymongoCore(object):
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
-class TestPymongoTraceClient(unittest.TestCase, PymongoCore):
+class TestPymongoTraceClient(TracerTestCase, PymongoCore):
     """Test suite for pymongo with the legacy trace interface"""
 
     TEST_SERVICE = 'test-mongo-trace-client'
@@ -350,7 +353,7 @@ class TestPymongoTraceClient(unittest.TestCase, PymongoCore):
         return tracer, client
 
 
-class TestPymongoPatchDefault(unittest.TestCase, PymongoCore):
+class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
 
     TEST_SERVICE = mongox.SERVICE
@@ -391,7 +394,7 @@ class TestPymongoPatchDefault(unittest.TestCase, PymongoCore):
         assert client
 
 
-class TestPymongoPatchConfigured(unittest.TestCase, PymongoCore):
+class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     """Test suite for pymongo with a configured patched library"""
 
     TEST_SERVICE = 'test-mongo-trace-client'
@@ -443,3 +446,21 @@ class TestPymongoPatchConfigured(unittest.TestCase, PymongoCore):
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The pymongo integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        tracer = get_dummy_tracer()
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        client["testdb"].drop_collection("whatever")
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"

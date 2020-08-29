@@ -5,7 +5,8 @@ from ddtrace import config
 from ddtrace.ext import errors
 from ddtrace.compat import to_unicode
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ... import utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from . import constants
@@ -18,7 +19,15 @@ def create_server_interceptor(pin):
             return continuation(handler_call_details)
 
         rpc_method_handler = continuation(handler_call_details)
-        return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+
+        # continuation returns an RpcMethodHandler instance if the RPC is
+        # considered serviced, or None otherwise
+        # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
+
+        if rpc_method_handler:
+            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+
+        return rpc_method_handler
 
     return _ServerInterceptor(interceptor_function)
 
@@ -66,9 +75,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span = tracer.trace(
             'grpc',
             span_type=SpanTypes.GRPC,
-            service=self._pin.service,
+            service=utils.integration_service(config.grpc_server, self._pin),
             resource=self._handler_call_details.method,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         method_path = self._handler_call_details.method
         method_package, method_service, method_name = parse_method_path(method_path)

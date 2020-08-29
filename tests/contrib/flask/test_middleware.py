@@ -10,7 +10,8 @@ from ddtrace.ext import http, errors
 
 from tests.opentracer.utils import init_tracer
 from .web import create_app
-from ...test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
+from ... import assert_span_http_status_code
 
 
 class TestFlask(TestCase):
@@ -110,7 +111,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == 'GET'
 
         services = self.tracer.writer.pop_services()
@@ -137,7 +138,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == 'GET'
 
         t = by_name['flask.template']
@@ -165,7 +166,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '202'
+        assert_span_http_status_code(s, 202)
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_template_err(self):
@@ -189,7 +190,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 1
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert_span_http_status_code(s, 500)
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_template_render_err(self):
@@ -213,7 +214,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 1
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert_span_http_status_code(s, 500)
         assert s.meta.get(http.METHOD) == 'GET'
         t = by_name['flask.template']
         assert t.get_tag('flask.template') == 'render_err.html'
@@ -239,7 +240,7 @@ class TestFlask(TestCase):
         assert s.resource == 'error'
         assert s.start >= start
         assert s.duration <= end - start
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert_span_http_status_code(s, 500)
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_fatal(self):
@@ -264,7 +265,7 @@ class TestFlask(TestCase):
         assert s.resource == 'fatal'
         assert s.start >= start
         assert s.duration <= end - start
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert_span_http_status_code(s, 500)
         assert s.meta.get(http.METHOD) == 'GET'
         assert 'ZeroDivisionError' in s.meta.get(errors.ERROR_TYPE), s.meta
         assert 'by zero' in s.meta.get(errors.ERROR_MSG)
@@ -289,7 +290,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == 'GET'
         assert s.meta.get(http.URL) == u'http://localhost/üŋïĉóđē'
 
@@ -311,7 +312,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '404'
+        assert_span_http_status_code(s, 404)
         assert s.meta.get(http.METHOD) == 'GET'
         assert s.meta.get(http.URL) == u'http://localhost/404/üŋïĉóđē'
 
@@ -348,7 +349,7 @@ class TestFlask(TestCase):
         assert s.service == 'test.flask.service'
         assert s.resource == 'overridden'
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_success_200_ot(self):
@@ -382,5 +383,5 @@ class TestFlask(TestCase):
         assert dd_span.start >= start
         assert dd_span.duration <= end - start
         assert dd_span.error == 0
-        assert dd_span.meta.get(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(dd_span, 200)
         assert dd_span.meta.get(http.METHOD) == 'GET'

@@ -5,7 +5,7 @@ from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...settings import config
 
 
@@ -32,6 +32,7 @@ class TraceMiddleware(object):
             service=self.service,
             span_type=SpanTypes.WEB,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         # set analytics sample rate with global config enabled
         span.set_tag(
@@ -91,7 +92,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        config.falcon.hooks._emit('request', span, req, resp)
+        config.falcon.hooks.emit('request', span, req, resp)
 
         # Close the span
         span.finish()

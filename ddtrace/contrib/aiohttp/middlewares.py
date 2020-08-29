@@ -2,7 +2,7 @@ import asyncio
 
 from ..asyncio import context_provider
 from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -45,6 +45,7 @@ def trace_middleware(app, handler):
             service=service,
             span_type=SpanTypes.WEB,
         )
+        request_span.set_tag(SPAN_MEASURED_KEY)
 
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
@@ -107,7 +108,7 @@ def on_prepare(request, response):
     # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
     if trace_query_string is None:
-        trace_query_string = config._http.trace_query_string
+        trace_query_string = config.http.trace_query_string
     if trace_query_string:
         request_span.set_tag(http.QUERY_STRING, request.query_string)
     request_span.finish()
@@ -131,7 +132,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
     # configure datadog settings
     app[CONFIG_KEY] = {
         'tracer': tracer,
-        'service': service,
+        'service': config._get_service(default=service),
         'distributed_tracing_enabled': True,
         'analytics_enabled': None,
         'analytics_sample_rate': 1.0,

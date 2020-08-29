@@ -3,7 +3,7 @@ import kombu
 from ddtrace.vendor import wrapt
 
 # project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, kombu as kombux
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
@@ -21,8 +21,9 @@ from .utils import (
 )
 
 # kombu default settings
+
 config._add('kombu', {
-    'service_name': get_env('kombu', 'service_name', DEFAULT_SERVICE)
+    "service_name": config.service or get_env("kombu", "service_name", default=DEFAULT_SERVICE),
 })
 
 propagator = HTTPPropagator()
@@ -45,9 +46,19 @@ def patch():
     # *  extracts/normalizes things like exchange
     _w('kombu', 'Producer._publish', traced_publish)
     _w('kombu', 'Consumer.receive', traced_receive)
+
+    # We do not provide a service for producer spans since they represent
+    # external calls to another service.
+    # Instead the service should be inherited from the parent.
+    if config.service:
+        prod_service = None
+    # DEV: backwards-compatibility for users who set a kombu service
+    else:
+        prod_service = get_env("kombu", "service_name", default=DEFAULT_SERVICE)
+
     Pin(
-        service=config.kombu['service_name'],
-        app='kombu'
+        service=prod_service,
+        app="kombu",
     ).onto(kombu.messaging.Producer)
 
     Pin(
@@ -79,6 +90,7 @@ def traced_receive(func, instance, args, kwargs):
     if context.trace_id:
         pin.tracer.context_provider.activate(context)
     with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+        s.set_tag(SPAN_MEASURED_KEY)
         # run the command
         exchange = message.delivery_info['exchange']
         s.resource = exchange
@@ -100,6 +112,7 @@ def traced_publish(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+        s.set_tag(SPAN_MEASURED_KEY)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s.set_tag(kombux.EXCHANGE, exchange_name)

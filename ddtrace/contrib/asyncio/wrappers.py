@@ -2,7 +2,6 @@ import ddtrace
 
 from .compat import asyncio_current_task
 from .provider import CONTEXT_ATTR
-from ...context import Context
 
 
 def wrapped_create_task(wrapped, instance, args, kwargs):
@@ -23,13 +22,7 @@ def wrapped_create_task(wrapped, instance, args, kwargs):
 
     ctx = getattr(current_task, CONTEXT_ATTR, None)
     if ctx:
-        # current task has a context, so parent a new context to the base context
-        new_ctx = Context(
-            trace_id=ctx.trace_id,
-            span_id=ctx.span_id,
-            sampling_priority=ctx.sampling_priority,
-        )
-        setattr(new_task, CONTEXT_ATTR, new_ctx)
+        setattr(new_task, CONTEXT_ATTR, ctx.clone())
 
     return new_task
 

@@ -109,7 +109,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             self.assertEqual(span.service, 'flask')
             self.assertEqual(span.name, 'tests.contrib.flask.{}'.format(signal_name))
             self.assertEqual(span.resource, 'tests.contrib.flask.{}'.format(signal_name))
-            self.assertEqual(set(span.meta.keys()), set(['system.pid', 'flask.signal']))
+            self.assertEqual(set(span.meta.keys()), set(['flask.signal', "runtime-id"]))
             self.assertEqual(span.meta['flask.signal'], signal_name)
 
     def test_signals_multiple(self):
@@ -144,7 +144,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_a.service, 'flask')
         self.assertEqual(span_a.name, 'tests.contrib.flask.request_started_a')
         self.assertEqual(span_a.resource, 'tests.contrib.flask.request_started_a')
-        self.assertEqual(set(span_a.meta.keys()), set(['system.pid', 'flask.signal']))
+        self.assertEqual(set(span_a.meta.keys()), set(['flask.signal', "runtime-id"]))
         self.assertEqual(span_a.meta['flask.signal'], 'request_started')
 
         # Assert the span that was created
@@ -152,7 +152,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_b.service, 'flask')
         self.assertEqual(span_b.name, 'tests.contrib.flask.request_started_b')
         self.assertEqual(span_b.resource, 'tests.contrib.flask.request_started_b')
-        self.assertEqual(set(span_b.meta.keys()), set(['system.pid', 'flask.signal']))
+        self.assertEqual(set(span_b.meta.keys()), set(['flask.signal', "runtime-id"]))
         self.assertEqual(span_b.meta['flask.signal'], 'request_started')
 
     def test_signals_pin_disabled(self):
