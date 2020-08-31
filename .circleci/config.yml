@@ -780,6 +780,7 @@ requires_tests: &requires_tests
   - aiobotocore
   - aiohttp
   - aiopg
+  - asyncpg
   - asyncio
   - algoliasearch
   - asgi
@@ -877,7 +878,6 @@ workflows:
       - aiobotocore: *requires_pre_test
       - aiohttp: *requires_pre_test
       - aiopg: *requires_pre_test
-      - asyncpg: *requires_pre_test
       - asyncpg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
