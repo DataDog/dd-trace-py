@@ -13,6 +13,7 @@ from ...pin import Pin
 from ...ext import SpanTypes
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
+from .. import trace_utils
 
 # Pynamodb connection class
 _PynamoDB_client = pynamodb.connection.base.Connection
@@ -42,7 +43,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
-        "pynamodb.command", service=config.pynamodb["service_name"], span_type=SpanTypes.HTTP
+        "pynamodb.command", service=trace_utils.ext_service(config.pynamodb, pin, "pynamodb"), span_type=SpanTypes.HTTP
     ) as span:
 
         span.set_tag(SPAN_MEASURED_KEY)
