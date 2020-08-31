@@ -5,22 +5,19 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-busybox_image: &busybox_image busybox:latest
 cimg_base_image: &cimg_base_image cimg/base:2020.01
+python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
-# The circleci/python:3.4 images are broken, we cannot do `pip install <package>`
-# https://github.com/circleci/circleci-images/issues/466
-python34_image: &python34_image python:3.4
 python27_image: &python27_image circleci/python:2.7
-ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
-cassandra_image: &cassandra_image spotify/cassandra:latest
+cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
@@ -30,6 +27,9 @@ mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+
+orbs:
+  win: circleci/windows@2.2.0
 
 machine_executor: &machine_executor
   machine:
@@ -81,11 +81,7 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
-      # We should be doing `pip install tox`
-      # But since ddtrace_py image has already tox, we need to force the
-      # upgrade here
-      # FIXME: remove tox from the base image
-      - run: pip install -U tox virtualenv
+      - run: pip install -U tox
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -106,14 +102,6 @@ commands:
           key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
           paths:
             - ".tox"
-
-  save_results:
-    description: "Persist tox *.results files to /tmp directory"
-    steps:
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - "*.results"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -137,36 +125,24 @@ commands:
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_results
       - save_tox_cache
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
     steps:
       - checkout
-
-      # Install required dependencies
-      # DEV: `pyopenssl` needed until the following PR is released
-      #      https://github.com/pypa/twine/pull/447
-      # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel cython
-      # Ensure we didn't cache from previous runs
-      - run: rm -rf build/ dist/
-      # Manually build any extensions to ensure they succeed
-      - run: python setup.py build_ext --force
-      # Ensure source package will build
-      - run: python setup.py sdist
-      # Ensure wheel will build
-      - run: python setup.py bdist_wheel
-      # Ensure package long description is valid and will render
-      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
-      - run: twine check dist/*
-
+      - run:
+          name: Run test build
+          command: .circleci/scripts/test_build.sh
 
 executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
+    resource_class: *resource_class
+  python38-alpine:
+    docker:
+      - image: *python38-alpine_image
     resource_class: *resource_class
   python38:
     docker:
@@ -183,10 +159,6 @@ executors:
   python35:
     docker:
       - image: *python35_image
-    resource_class: *resource_class
-  python34:
-    docker:
-      - image: *python34_image
     resource_class: *resource_class
   python27:
     docker:
@@ -239,7 +211,6 @@ jobs:
       - checkout
       - setup_tox
       - run: tox -e 'black' --result-json /tmp/black.results
-      - save_results
 
   flake8:
     executor: python38
@@ -247,7 +218,6 @@ jobs:
       - checkout
       - setup_tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
-      - save_results
 
   build-docker-ci-image:
     executor: cimg_base
@@ -258,6 +228,11 @@ jobs:
       - run: |
           docker build .
 
+  test_build_alpine:
+    executor: python38-alpine
+    steps:
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
+      - test_build
   test_build_py38:
     executor: python38
     steps:
@@ -274,26 +249,39 @@ jobs:
     executor: python35
     steps:
       - test_build
-  test_build_py34:
-    executor: python34
-    steps:
-      - test_build
   test_build_py27:
     executor: python27
     steps:
       - test_build
+  test_build_win_py38: &test_build_win
+    executor:
+      name: win/default
+      size: *resource_class
+      shell: bash.exe
+    environment:
+      PYTHON_VERSION: 3.8.3
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - test_build
+  test_build_win_py37:
+    <<: *test_build_win
+    environment:
+      PYTHON_VERSION: 3.7.7
+  test_build_win_py36:
+    <<: *test_build_win
+    environment:
+      PYTHON_VERSION: 3.6.8
+  test_build_win_py35:
+    <<: *test_build_win
+    environment:
+      PYTHON_VERSION: 3.5.4
 
   tracer:
     executor: ddtrace_dev
     steps:
       - run_tox_scenario:
           pattern: '^py..-tracer'
-
-  internal:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-internal'
 
   opentracer:
     executor: ddtrace_dev
@@ -339,12 +327,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-ddtracerun$'
 
-  test_utils:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_utils$'
-
   test_logging:
     executor: ddtrace_dev
     steps:
@@ -368,6 +350,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^aiohttp_contrib-'
+
+  asgi:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^asgi_contrib-'
 
   tornado:
     executor: ddtrace_dev
@@ -588,6 +576,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^requests_gevent_contrib-'
 
+  sanic:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^sanic_contrib-'
+
   sqlalchemy:
     executor: ddtrace_dev
     docker:
@@ -695,12 +689,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^sqlite3_contrib-'
 
-  unit_tests:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^unit_tests-'
-
   benchmarks:
     executor: ddtrace_dev
     steps:
@@ -715,7 +703,6 @@ jobs:
           path: /tmp/test-reports
       - store_artifacts:
           path: /tmp/test-reports
-      - save_results
       - save_tox_cache
 
   build_wheels:
@@ -783,28 +770,72 @@ jobs:
       - deploy_docs:
           s3_dir: *s3_dir_prod
 
-  verify_all_tests_ran:
-    executor: python38
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - setup_tox
-      - run: ls /tmp/workspace/*
-        # debug: shows how many time each test was executed
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq -c | sort -rn
-        # list all executed test
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | grep -v .package | sed 's/"//g' | sort | uniq | tee all_executed_tests
-        # list all tests in tox.ini
-      - run: tox -l | grep -v -E "^(wait$|\.)" | sort > all_tests
-        # checks that all tests were executed
-      - run: diff -u all_tests all_executed_tests
-
-
 requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
+
+requires_tests: &requires_tests
+  - build_docs
+  - aiobotocore
+  - aiohttp
+  - aiopg
+  - asyncio
+  - algoliasearch
+  - asgi
+  - benchmarks
+  - boto
+  - bottle
+  - cassandra
+  - celery
+  - consul
+  - dbapi
+  - ddtracerun
+  - dogpile_cache
+  - django
+  - djangorestframework
+  - elasticsearch
+  - falcon
+  - flask
+  - futures
+  - gevent
+  - grpc
+  - httplib
+  - integration
+  - profile
+  - jinja2
+  - kombu
+  - mako
+  - molten
+  - mongoengine
+  - mysqlconnector
+  - mysqldb
+  - mysqlpython
+  - opentracer
+  - psycopg
+  - pylibmc
+  - pylons
+  - pymemcache
+  - pymongo
+  - pymysql
+  - pyramid
+  - redis
+  - rediscluster
+  - requests
+  - requestsgevent
+  - sqlalchemy
+  - sqlite3
+  - test_build_alpine
+  - test_build_py38
+  - test_build_py37
+  - test_build_py36
+  - test_build_py35
+  - test_build_py27
+  - test_logging
+  - tracer
+  - tornado
+  - vertica
+  - build-docker-ci-image
 
 workflows:
   version: 2
@@ -830,11 +861,16 @@ workflows:
       - flake8
 
       # Test building the package
+      - test_build_alpine: *requires_pre_test
       - test_build_py38: *requires_pre_test
       - test_build_py37: *requires_pre_test
       - test_build_py36: *requires_pre_test
       - test_build_py35: *requires_pre_test
       - test_build_py27: *requires_pre_test
+      - test_build_win_py38: *requires_pre_test
+      - test_build_win_py37: *requires_pre_test
+      - test_build_win_py36: *requires_pre_test
+      - test_build_win_py35: *requires_pre_test
       - build_wheels: *requires_pre_test
 
       # Integration test suites
@@ -842,8 +878,10 @@ workflows:
       - aiohttp: *requires_pre_test
       - aiopg: *requires_pre_test
       - asyncpg: *requires_pre_test
+      - asyncpg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
+      - asgi: *requires_pre_test
       - benchmarks: *requires_pre_test
       - boto: *requires_pre_test
       - bottle: *requires_pre_test
@@ -863,7 +901,6 @@ workflows:
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
-      - internal: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
@@ -885,92 +922,22 @@ workflows:
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
+      - sanic: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
-      - test_utils: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       # tracer
       - tracer: *requires_pre_test
-      - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
-      - verify_all_tests_ran:
-          requires:
-            # Individual tests do not need this to start running
-            - build_docs
-
-            # flake8 dependent jobs
-            - aiobotocore
-            - aiohttp
-            - aiopg
-            - asyncpg
-            - asyncio
-            - algoliasearch
-            - benchmarks
-            - boto
-            - bottle
-            - cassandra
-            - celery
-            - consul
-            - dbapi
-            - ddtracerun
-            - dogpile_cache
-            - django
-            - djangorestframework
-            - elasticsearch
-            - falcon
-            - flask
-            - futures
-            - gevent
-            - grpc
-            - httplib
-            - integration
-            - internal
-            - profile
-            - jinja2
-            - kombu
-            - mako
-            - molten
-            - mongoengine
-            - mysqlconnector
-            - mysqldb
-            - mysqlpython
-            - opentracer
-            - psycopg
-            - pylibmc
-            - pylons
-            - pymemcache
-            - pymongo
-            - pymysql
-            - pyramid
-            - redis
-            - rediscluster
-            - requests
-            - requestsgevent
-            - sqlalchemy
-            - sqlite3
-            - test_build_py38
-            - test_build_py37
-            - test_build_py36
-            - test_build_py35
-            - test_build_py27
-            - test_utils
-            - test_logging
-            - tracer
-            - tornado
-            - unit_tests
-            - vertica
-            - build-docker-ci-image
       - deploy_master:
-          requires:
-            - verify_all_tests_ran
+          requires: *requires_tests
           filters:
             branches:
               only: master
       - deploy_staging:
-          requires:
-            - verify_all_tests_ran
+          requires: *requires_tests
           filters:
             branches:
               only: staging

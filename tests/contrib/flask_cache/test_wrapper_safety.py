@@ -13,7 +13,7 @@ from redis.exceptions import ConnectionError
 import pytest
 
 # testing
-from ...test_tracer import DummyWriter
+from tests import DummyWriter
 
 
 class FlaskCacheWrapperTest(unittest.TestCase):

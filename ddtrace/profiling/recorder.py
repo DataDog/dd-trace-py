@@ -1,40 +1,40 @@
 # -*- encoding: utf-8 -*-
 import collections
 
-from ddtrace.profiling import _attr
+from ddtrace.profiling import _nogevent
 from ddtrace.vendor import attr
+
+
+class _defaultdictkey(dict):
+    """A variant of defaultdict that calls default_factory with the missing key as argument."""
+
+    def __init__(self, default_factory=None):
+        self.default_factory = default_factory
+
+    def __missing__(self, key):
+        if self.default_factory:
+            v = self[key] = self.default_factory(key)
+            return v
+        raise KeyError(key)
 
 
 @attr.s(slots=True, eq=False)
 class Recorder(object):
     """An object that records program activity."""
 
+    _DEFAULT_MAX_EVENTS = 32768
+
+    default_max_events = attr.ib(default=_DEFAULT_MAX_EVENTS)
+    """The maximum number of events for an event type if one is not specified."""
+
+    max_events = attr.ib(factory=dict)
+    """A dict of {event_type_class: max events} to limit the number of events to record."""
+
     events = attr.ib(init=False, repr=False)
-    max_size = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_EVENTS", 49152, int))
-    event_filters = attr.ib(factory=lambda: collections.defaultdict(list), repr=False)
+    _events_lock = attr.ib(init=False, repr=False, factory=_nogevent.DoubleLock)
 
     def __attrs_post_init__(self):
         self._reset_events()
-
-    def add_event_filter(self, event_type, filter_fn):
-        """Add an event filter function.
-
-        A filter function must accept a lists of events as argument and returns a list of events that should be pushed
-        into the recorder.
-
-        :param event_type: A class of event.
-        :param filter_fn: A filter function to append.
-
-        """
-        self.event_filters[event_type].append(filter_fn)
-
-    def remove_event_filter(self, event_type, filter_fn):
-        """Remove an event filter from the recorder.
-
-        :param event_type: A class of event.
-        :param filter_fn: The filter function to remove.
-        """
-        self.event_filters[event_type].remove(filter_fn)
 
     def push_event(self, event):
         """Push an event in the recorder.
@@ -53,13 +53,15 @@ class Recorder(object):
         """
         if events:
             event_type = events[0].__class__
-            for filter_fn in self.event_filters[event_type]:
-                events = filter_fn(events)
-            q = self.events[event_type]
-            q.extend(events)
+            with self._events_lock:
+                q = self.events[event_type]
+                q.extend(events)
+
+    def _get_deque_for_event_type(self, event_type):
+        return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
 
     def _reset_events(self):
-        self.events = collections.defaultdict(lambda: collections.deque(maxlen=self.max_size))
+        self.events = _defaultdictkey(self._get_deque_for_event_type)
 
     def reset(self):
         """Reset the recorder.
@@ -69,6 +71,7 @@ class Recorder(object):
 
         :return: The list of events that has been removed.
         """
-        events = self.events
-        self._reset_events()
+        with self._events_lock:
+            events = self.events
+            self._reset_events()
         return events

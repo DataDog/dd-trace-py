@@ -213,10 +213,11 @@ class API(object):
             for trace in traces:
                 try:
                     payload.add_trace(trace)
-                except PayloadFull:
+                except PayloadFull as e:
                     # Is payload full or is the trace too big?
                     # If payload is not empty, then using a new Payload might allow us to fit the trace.
                     # Let's flush the Payload and try to put the trace in a new empty Payload.
+                    # If payload is empty, then the trace was larger than the max payload size
                     if not payload.empty:
                         responses.append(self._flush(payload))
                         # Create a new payload
@@ -224,9 +225,13 @@ class API(object):
                         try:
                             # Add the trace that we were unable to add in that iteration
                             payload.add_trace(trace)
-                        except PayloadFull:
+                        except PayloadFull as e:
                             # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                            log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
+                            log.warning('Trace is too big to fit in a payload, dropping it')
+                            responses.append(e)
+                    else:
+                        log.warning('Trace is larger than the max payload size, dropping it')
+                        responses.append(e)
 
             # Check that the Payload is not empty:
             # it could be empty if the last trace was too big to fit.

@@ -2,18 +2,20 @@
 import binascii
 import datetime
 import gzip
-import logging
 import os
 import platform
-import uuid
 
-from ddtrace.utils import deprecation
+import tenacity
+
+from ddtrace.internal.runtime import container
+from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
 from ddtrace.vendor.six.moves.urllib import error
 from ddtrace.vendor.six.moves.urllib import request
 
 import ddtrace
+from ddtrace.internal import runtime
 from ddtrace.profiling import _attr
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
@@ -21,75 +23,37 @@ from ddtrace.vendor import attr
 from ddtrace.profiling.exporter import pprof
 
 
-LOG = logging.getLogger(__name__)
-
-
-RUNTIME_ID = str(uuid.uuid4()).encode()
 HOSTNAME = platform.node()
 PYTHON_IMPLEMENTATION = platform.python_implementation().encode()
 PYTHON_VERSION = platform.python_version().encode()
 
 
-class InvalidEndpoint(exporter.ExportError):
-    pass
-
-
-class RequestFailed(exporter.ExportError):
-    """Failed HTTP request."""
-
-    def __init__(self, response, content):
-        """Create a new failed request embedding response and content."""
-        self.response = response
-        self.content = content
-        super(RequestFailed, self).__init__(
-            "Error status code received from endpoint: %d: %s" % (response.status, content)
-        )
-
-
 class UploadFailed(exporter.ExportError):
     """Upload failure."""
 
-    def __init__(self, exception):
+    def __init__(self, exception, msg=None):
         """Create a failed upload error based on raised exceptions."""
         self.exception = exception
-        super(UploadFailed, self).__init__("Unable to upload: " + _traceback.format_exception(exception))
-
-
-def _get_api_key():
-    legacy = _attr.from_env("DD_PROFILING_API_KEY", "", str)()
-    if legacy:
-        deprecation.deprecation("DD_PROFILING_API_KEY", "Use DD_API_KEY")
-        return legacy
-    return _attr.from_env("DD_API_KEY", "", str)()
-
-
-ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
-
-
-def _get_endpoint():
-    legacy = _attr.from_env("DD_PROFILING_API_URL", "", str)()
-    if legacy:
-        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
-        return legacy
-    site = _attr.from_env("DD_SITE", "datadoghq.com", str)()
-    return ENDPOINT_TEMPLATE.format(site)
-
-
-def _get_service_name():
-    for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
-        service_name = os.environ.get(service_name_var)
-        if service_name is not None:
-            return service_name
+        msg = _traceback.format_exception(exception) if msg is None else msg
+        super(UploadFailed, self).__init__("Unable to upload profile: " + msg)
 
 
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib(factory=_get_endpoint, type=str)
-    api_key = attr.ib(factory=_get_api_key, type=str)
+    endpoint = attr.ib()
+    api_key = attr.ib(default=None)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
-    service_name = attr.ib(factory=_get_service_name)
+    service = attr.ib(default=None)
+    env = attr.ib(default=None)
+    version = attr.ib(default=None)
+    max_retry_delay = attr.ib(default=None)
+    _container_info = attr.ib(factory=container.get_container_info, repr=False)
+
+    def __attrs_post_init__(self):
+        if self.max_retry_delay is None:
+            self.max_retry_delay = self.timeout * 3
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -125,38 +89,33 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         return content_type, body
 
-    @staticmethod
-    def _get_tags(service):
+    def _get_tags(self, service):
         tags = {
             "service": service.encode("utf-8"),
             "host": HOSTNAME.encode("utf-8"),
-            "runtime-id": RUNTIME_ID,
+            "runtime-id": runtime.get_runtime_id().encode("ascii"),
             "language": b"python",
             "runtime": PYTHON_IMPLEMENTATION,
             "runtime_version": PYTHON_VERSION,
             "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
 
-        version = os.environ.get("DD_VERSION")
-        if version:
-            tags["version"] = version
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
 
-        env = os.environ.get("DD_ENV")
-        if env:
-            tags["env"] = env
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
 
-        user_tags = os.getenv("DD_PROFILING_TAGS")
-        if user_tags:
-            for tag in user_tags.split(","):
-                try:
-                    key, value = tag.split(":", 1)
-                except ValueError:
-                    LOG.error("Malformed tag in DD_PROFILING_TAGS: %s", tag)
-                else:
-                    if isinstance(value, six.text_type):
-                        value = value.encode("utf-8")
-                    tags[key] = value
+        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
+        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
+        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
+
+    @staticmethod
+    def _retry_on_http_5xx(exception):
+        if isinstance(exception, error.HTTPError):
+            return 500 <= exception.code < 600
+        return True
 
     def export(self, events, start_time_ns, end_time_ns):
         """Export events to an HTTP endpoint.
@@ -165,19 +124,22 @@ class PprofHTTPExporter(pprof.PprofExporter):
         :param start_time_ns: The start time of recording.
         :param end_time_ns: The end time of recording.
         """
-        if not self.endpoint:
-            raise InvalidEndpoint("Endpoint is empty")
+        if self.api_key:
+            headers = {
+                "DD-API-KEY": self.api_key.encode(),
+            }
+        else:
+            headers = {}
 
-        common_headers = {
-            "DD-API-KEY": self.api_key.encode(),
-        }
+        if self._container_info and self._container_info.container_id:
+            headers["Datadog-Container-Id"] = self._container_info.container_id
 
         profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         s = six.BytesIO()
         with gzip.GzipFile(fileobj=s, mode="wb") as gz:
             gz.write(profile.SerializeToString())
         fields = {
-            "runtime-id": RUNTIME_ID,
+            "runtime-id": runtime.get_runtime_id().encode("ascii"),
             "recording-start": (
                 datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
@@ -190,16 +152,34 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "chunk-data": s.getvalue(),
         }
 
-        service_name = self.service_name or os.path.basename(profile.string_table[profile.mapping[0].filename])
+        service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
-        content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service_name),)
-        headers = common_headers.copy()
+        content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service),)
         headers["Content-Type"] = content_type
 
         # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)
         req = request.Request(self.endpoint, data=body, headers=headers)
 
+        retry = tenacity.Retrying(
+            # Retry after 1s, 2s, 4s, 8s with some randomness
+            wait=tenacity.wait_random_exponential(multiplier=0.5),
+            stop=tenacity.stop_after_delay(self.max_retry_delay),
+            retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError))
+            & tenacity.retry_if_exception(self._retry_on_http_5xx),
+        )
+
         try:
-            request.urlopen(req)
-        except (error.HTTPError, error.URLError, http_client.HTTPException) as e:
-            raise UploadFailed(e)
+            retry(request.urlopen, req, timeout=self.timeout)
+        except tenacity.RetryError as e:
+            raise UploadFailed(e.last_attempt.exception())
+        except error.HTTPError as e:
+            if e.code == 400:
+                msg = "Server returned 400, check your API key"
+            elif e.code == 404 and not self.api_key:
+                msg = (
+                    "Datadog Agent is not accepting profiles. "
+                    "Agent-based profiling deployments require Datadog Agent >= 7.20"
+                )
+            else:
+                msg = None
+            raise UploadFailed(e, msg)

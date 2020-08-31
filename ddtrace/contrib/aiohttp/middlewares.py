@@ -97,7 +97,7 @@ async def trace_middleware_2x(request, handler, app=None):
     request_span.set_tag(http.URL, request.url.with_query(None))
     trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
     if trace_query_string is None:
-        trace_query_string = config._http.trace_query_string
+        trace_query_string = config.http.trace_query_string
     if trace_query_string:
         request_span.set_tag(http.QUERY_STRING, request.query_string)
 

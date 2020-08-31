@@ -37,9 +37,9 @@ Configuration
 
 .. py:data:: ddtrace.config.django['analytics_enabled']
 
-   Whether to generate APM events for Django in Trace Search & Analytics.
+   Whether to analyze spans for Django in App Analytics.
 
-   Can also be enabled with the ``DD_DJANGO_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_TRACE_DJANGO_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 
@@ -69,6 +69,14 @@ Configuration
 
    Default: ``''``
 
+.. py:data:: ddtrace.config.django['instrument_middleware']
+
+   Whether or not to instrument middleware.
+
+   Can also be enabled with the ``DD_DJANGO_INSTRUMENT_MIDDLEWARE`` environment variable.
+
+   Default: ``True``
+
 .. py:data:: ddtrace.config.django['instrument_databases']
 
    Whether or not to instrument databases.
@@ -92,6 +100,12 @@ Configuration
    Whether or not to include the authenticated user's username as a tag on the root request span.
 
    Default: ``True``
+
+.. py:data:: ddtrace.config.django['use_handler_resource_format']
+
+   Whether or not to use the legacy resource format `"{method} {handler}"`.
+
+   The default resource format for Django >= 2.2.0 is otherwise `"{method} {urlpattern}"`.
 
 
 Example::
@@ -157,7 +171,7 @@ The mapping from old configuration settings to new ones.
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``TRACE_QUERY_STRING``      | ``config.django['trace_query_string']``                                                                                 |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``TAGS``                    | ``DD_TRACE_GLOBAL_TAGS`` environment variable or ``tracer.set_tags()``                                                  |
+| ``TAGS``                    | ``DD_TAGS`` environment variable or ``tracer.set_tags()``                                                               |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``TRACER``                  | N/A - if a particular tracer is required for the Django integration use ``Pin.override(Pin.get_from(django), tracer=)`` |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
@@ -215,6 +229,8 @@ After::
    import django
    patch_all()
    Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 
 .. __: https://www.djangoproject.com/
 """  # noqa: E501

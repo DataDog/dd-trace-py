@@ -1,3 +1,5 @@
+import os
+
 import grpc
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -15,12 +17,23 @@ config._add('grpc_server', dict(
     distributed_tracing_enabled=True,
 ))
 
+
+# Precedence for the service name:
+# 1) DD_GRPC_SERVICE if defined; or
+# 2) For compatibility, the globally set service + "-grpc-client"; or
+# 3) The fall-back "grpc-client"
+if "DD_GRPC_SERVICE" in os.environ:
+    service = os.getenv("DD_GRPC_SERVICE")
+elif config._get_service():
+    service = "{}-{}".format(config._get_service(), constants.GRPC_SERVICE_CLIENT)
+else:
+    service = constants.GRPC_SERVICE_CLIENT
+
+
 # TODO[tbutt]: keeping name for client config unchanged to maintain backwards
 # compatibility but should change in future
 config._add('grpc', dict(
-    service_name='{}-{}'.format(
-        config._get_service(), constants.GRPC_SERVICE_CLIENT
-    ) if config._get_service() else constants.GRPC_SERVICE_CLIENT,
+    service_name=service,
     distributed_tracing_enabled=True,
 ))
 
@@ -40,7 +53,7 @@ def _patch_client():
         return
     setattr(constants.GRPC_PIN_MODULE_CLIENT, '__datadog_patch', True)
 
-    Pin(service=config.grpc.service_name).onto(constants.GRPC_PIN_MODULE_CLIENT)
+    Pin().onto(constants.GRPC_PIN_MODULE_CLIENT)
 
     _w('grpc', 'insecure_channel', _client_channel_interceptor)
     _w('grpc', 'secure_channel', _client_channel_interceptor)
@@ -65,7 +78,7 @@ def _patch_server():
         return
     setattr(constants.GRPC_PIN_MODULE_SERVER, '__datadog_patch', True)
 
-    Pin(service=config.grpc_server.service_name).onto(constants.GRPC_PIN_MODULE_SERVER)
+    Pin().onto(constants.GRPC_PIN_MODULE_SERVER)
 
     _w('grpc', 'server', _server_constructor_interceptor)
 
@@ -85,7 +98,7 @@ def _unpatch_server():
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
+    pin = Pin.get_from(channel)
     if not pin or not pin.enabled():
         return channel
 

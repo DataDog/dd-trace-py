@@ -354,7 +354,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
     def test_event_loop_unpatch(self):
         # ensures that the event loop can be unpatched
         unpatch()
-        assert isinstance(self.tracer._context_provider, DefaultContextProvider)
+        assert isinstance(self.tracer.context_provider, DefaultContextProvider)
         assert asyncio.BaseEventLoop.create_task == _orig_create_task
 
     def test_event_loop_double_patch(self):
@@ -396,6 +396,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # if multiple coroutines have nested tracing, they must belong
         # to the same trace
         ot_tracer = init_tracer('asyncio_svc', self.tracer)
+
         @asyncio.coroutine
         def coro():
             # another traced coroutine

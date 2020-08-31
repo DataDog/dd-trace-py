@@ -6,7 +6,7 @@ from aiohttp.test_utils import AioHTTPTestCase
 
 from .app.web import setup_app
 from ddtrace.contrib.asyncio import context_provider
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 
 
 if pkg_resources.parse_version(aiohttp.__version__) >= pkg_resources.parse_version('3.3.0'):
@@ -15,7 +15,7 @@ else:
     AIOHTTP_33x = False
 
 
-class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
+class TraceTestCase(TracerTestCase, AioHTTPTestCase):
     """
     Base class that provides a valid ``aiohttp`` application with
     the async tracer.

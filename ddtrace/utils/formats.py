@@ -1,6 +1,10 @@
 import os
+import logging
 
 from .deprecation import deprecation
+
+
+log = logging.getLogger(__name__)
 
 
 def get_env(*parts, **kwargs):
@@ -78,14 +82,31 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
-def flatten_dict(d, sep=".", prefix=""):
-    """
-    Returns a normalized dict of depth 1 with keys in order of embedding
+def parse_tags_str(tags_str):
+    """Parse a string of tags typically provided via environment variables.
 
+    The expected string is of the form::
+        "key1:value1,key2:value2"
+
+    :param tags_str: A string of the above form to parse tags from.
+    :return: A dict containing the tags that were parsed.
     """
-    # adapted from https://stackoverflow.com/a/19647596
-    return (
-        {prefix + sep + k if prefix else k: v for kk, vv in d.items() for k, v in flatten_dict(vv, sep, kk).items()}
-        if isinstance(d, dict)
-        else {prefix: d}
-    )
+    parsed_tags = {}
+    if not tags_str:
+        return parsed_tags
+
+    for tag in tags_str.split(","):
+        try:
+            key, value = tag.split(":", 1)
+
+            # Validate the tag
+            if key == "" or value == "" or value.endswith(":"):
+                raise ValueError
+        except ValueError:
+            log.error(
+                "Malformed tag in tag pair '%s' from tag string '%s'.", tag, tags_str,
+            )
+        else:
+            parsed_tags[key] = value
+
+    return parsed_tags

@@ -1,15 +1,35 @@
 from copy import deepcopy
+import os
 
 from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.deprecation import get_service_legacy
-from ..utils.formats import asbool
-from ..utils.merge import deepmerge
+from ..utils.formats import asbool, get_env, parse_tags_str
 from .http import HttpConfig
 from .integration import IntegrationConfig
-from ..utils.formats import get_env
 
 log = get_logger(__name__)
+
+
+# Borrowed from: https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data#20666342
+def _deepmerge(source, destination):
+    """
+    Merge the first provided ``dict`` into the second.
+
+    :param dict source: The ``dict`` to merge into ``destination``
+    :param dict destination: The ``dict`` that should get updated
+    :rtype: dict
+    :returns: ``destination`` modified
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            _deepmerge(value, node)
+        else:
+            destination[key] = value
+
+    return destination
 
 
 class Config(object):
@@ -18,34 +38,40 @@ class Config(object):
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
-        self._http = HttpConfig()
+        self.http = HttpConfig()
         # Master switch for turning on and off trace search by default
         # this weird invocation of get_env is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = get_env('analytics', 'enabled', default=False)
+        legacy_config_value = get_env("analytics", "enabled", default=False)
 
-        self.analytics_enabled = asbool(
-            get_env('trace', 'analytics_enabled', default=legacy_config_value)
-        )
+        self.analytics_enabled = asbool(get_env("trace", "analytics_enabled", default=legacy_config_value))
 
+        self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
+
+        self.env = os.getenv("DD_ENV") or self.tags.get("env")
         # DEV: we don't use `self._get_service()` here because {DD,DATADOG}_SERVICE and
         # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
-        self.service = get_env("service")
+        self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
+        self.version = os.getenv("DD_VERSION") or self.tags.get("version")
 
-        self.env = get_env("env")
-        self.version = get_env("version")
+        # The service tag corresponds to span.service and should not be
+        # included in the global tags.
+        if self.service and "service" in self.tags:
+            del self.tags["service"]
+
+        # The version tag should not be included on all spans.
+        if self.version and "version" in self.tags:
+            del self.tags["version"]
+
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
 
-        self.report_hostname = asbool(
-            get_env('trace', 'report_hostname', default=False)
-        )
+        self.report_hostname = asbool(get_env("trace", "report_hostname", default=False))
 
-        self.health_metrics_enabled = asbool(
-            get_env('trace', 'health_metrics_enabled', default=False)
-        )
+        self.health_metrics_enabled = asbool(get_env("trace", "health_metrics_enabled", default=False))
 
     def __getattr__(self, name):
         if name not in self._config:
@@ -61,7 +87,7 @@ class Config(object):
         """
         pin = Pin.get_from(obj)
         if pin is None:
-            log.debug('No configuration found for %s', obj)
+            log.debug("No configuration found for %s", obj)
             return {}
 
         return pin._config
@@ -91,7 +117,7 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
+            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
         else:
             self._config[integration] = IntegrationConfig(self, integration, settings)
 
@@ -103,7 +129,7 @@ class Config(object):
         :return: self
         :rtype: HttpConfig
         """
-        self._http.trace_headers(whitelist)
+        self.http.trace_headers(whitelist)
         return self
 
     def header_is_traced(self, header_name):
@@ -113,7 +139,7 @@ class Config(object):
         :type header_name: str
         :rtype: bool
         """
-        return self._http.header_is_traced(header_name)
+        return self.http.header_is_traced(header_name)
 
     def _get_service(self, default=None):
         """
@@ -135,5 +161,5 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ', '.join(self._config.keys())
-        return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
+        integrations = ", ".join(self._config.keys())
+        return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)

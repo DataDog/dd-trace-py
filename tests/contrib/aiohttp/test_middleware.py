@@ -7,8 +7,8 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.utils import init_tracer
 from .utils import TraceTestCase, AIOHTTP_33x
 from .app.web import setup_app, noop_middleware
+from ... import assert_span_http_status_code
 from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
-from ...utils import assert_span_http_status_code
 
 
 class TestTraceMiddleware(TraceTestCase):

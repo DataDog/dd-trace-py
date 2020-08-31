@@ -10,8 +10,8 @@ from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
-from ...utils import assert_is_measured
 from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
+from ... import assert_is_measured
 
 
 class TestAiohttpSafety(TraceTestCase):

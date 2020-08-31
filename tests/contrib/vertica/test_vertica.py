@@ -5,17 +5,16 @@ from ddtrace.vendor import wrapt
 # project
 import ddtrace
 from ddtrace import Pin, config
+from ddtrace.settings.config import _deepmerge
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
-from ddtrace.utils.merge import deepmerge
 
 # testing
-from tests.base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
-from ...utils import assert_is_measured
+from tests.tracer.test_tracer import get_dummy_tracer
 
 TEST_TABLE = 'test_table'
 
@@ -52,7 +51,7 @@ def test_conn(request, test_tracer):
     return conn, cur
 
 
-class TestVerticaPatching(BaseTracerTestCase):
+class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
@@ -134,7 +133,7 @@ class TestVerticaPatching(BaseTracerTestCase):
 
 
 @pytest.mark.usefixtures('test_tracer', 'test_conn')
-class TestVertica(BaseTracerTestCase):
+class TestVertica(TracerTestCase):
     def tearDown(self):
         super(TestVertica, self).tearDown()
 
@@ -174,8 +173,8 @@ class TestVertica(BaseTracerTestCase):
 
         # Make a copy of the vertica config first before we merge our settings over
         # DEV: First argument gets merged into the second
-        copy = deepmerge(config.vertica, dict())
-        overrides = deepmerge(routine_config, copy)
+        copy = _deepmerge(config.vertica, dict())
+        overrides = _deepmerge(routine_config, copy)
         with self.override_config('vertica', overrides):
             patch()
             import vertica_python

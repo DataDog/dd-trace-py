@@ -9,7 +9,7 @@ from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from ddtrace import Pin
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -18,7 +18,7 @@ _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split('.')])
 
 
-class GrpcTestCase(BaseTracerTestCase):
+class GrpcTestCase(TracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
         patch()
@@ -440,8 +440,16 @@ class GrpcTestCase(BaseTracerTestCase):
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_server_service_name(self):
+    def test_unknown_servicer(self):
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError) as exception_context:
+                stub.SayHelloUnknown(HelloRequest(name='unknown'))
+            rpc_error = exception_context.exception
+            assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_app_service_name(self):
         """
         When a service name is specified by the user
             It should be used for grpc server spans
@@ -451,7 +459,7 @@ class GrpcTestCase(BaseTracerTestCase):
         from ddtrace import config
         assert config.service == "mysvc"
 
-        channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
+        channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
         stub1 = HelloStub(channel1)
         stub1.SayHello(HelloRequest(name="test"))
         channel1.close()
@@ -461,6 +469,39 @@ class GrpcTestCase(BaseTracerTestCase):
 
         self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_config_override(self):
+        """
+        When a service name is specified by the user in config.grpc{_server}
+            It should be used in grpc client spans
+            It should be used in grpc server spans
+        """
+        with self.override_config("grpc", dict(service_name="myclientsvc")):
+            with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                stub1 = HelloStub(channel1)
+                stub1.SayHello(HelloRequest(name="test"))
+                channel1.close()
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+
+        self._check_server_span(spans[0], "myserversvc", "SayHello", "unary")
+        self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
+    def test_client_service_name_config_env_override(self):
+        """
+        When a service name is specified by the user in the DD_GRPC_SERVICE env var
+            It should be used in grpc client spans
+        """
+        channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+        stub1 = HelloStub(channel1)
+        stub1.SayHello(HelloRequest(name="test"))
+        channel1.close()
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
 
 
 class _HelloServicer(HelloServicer):
@@ -514,6 +555,9 @@ class _HelloServicer(HelloServicer):
         # response for dangling request
         if last_request is not None:
             yield HelloReply(message='{}'.format(last_request.name))
+
+    def SayHelloUnknown(self, request, context):
+        yield HelloReply(message='unknown')
 
 
 class _CustomException(Exception):

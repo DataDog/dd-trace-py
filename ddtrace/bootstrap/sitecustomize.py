@@ -2,22 +2,16 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-
+import logging
 import os
 import imp
 import sys
-import logging
 
-from ddtrace.utils.formats import asbool, get_env
+from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 from ddtrace.internal.logger import get_logger
 from ddtrace import config, constants
+from ddtrace.tracer import debug_mode, DD_LOG_FORMAT
 
-DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
-    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-    if config.logs_injection
-    else ""
-)
 
 if config.logs_injection:
     # immediately patch logging if trace id injected
@@ -25,18 +19,17 @@ if config.logs_injection:
 
     patch(logging=True)
 
-debug = os.environ.get("DATADOG_TRACE_DEBUG")
-
-# Set here a default logging format for basicConfig
 
 # DEV: Once basicConfig is called here, future calls to it cannot be used to
 # change the formatter since it applies the formatter to the root handler only
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
-if debug and debug.lower() == "true":
-    logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
-else:
-    logging.basicConfig(format=DD_LOG_FORMAT)
+# Debug mode from the tracer will do a basicConfig so only need to do this otherwise
+if not debug_mode:
+    if config.logs_injection:
+        logging.basicConfig(format=DD_LOG_FORMAT)
+    else:
+        logging.basicConfig()
 
 log = get_logger(__name__)
 
@@ -54,49 +47,34 @@ def update_patched_modules():
     modules_to_patch = os.environ.get("DATADOG_PATCH_MODULES")
     if not modules_to_patch:
         return
-    for patch in modules_to_patch.split(","):
-        if len(patch.split(":")) != 2:
-            log.debug("skipping malformed patch instruction")
-            continue
 
-        module, should_patch = patch.split(":")
-        if should_patch.lower() not in ["true", "false"]:
-            log.debug("skipping malformed patch instruction for %s", module)
-            continue
-
-        EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == "true"})
-
-
-def add_global_tags(tracer):
-    tags = {}
-    for tag in os.environ.get("DD_TRACE_GLOBAL_TAGS", "").split(","):
-        tag_name, _, tag_value = tag.partition(":")
-        if not tag_name or not tag_value:
-            log.debug("skipping malformed tracer tag")
-            continue
-
-        tags[tag_name] = tag_value
-    tracer.set_tags(tags)
+    modules = parse_tags_str(modules_to_patch)
+    for module, should_patch in modules.items():
+        EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
 
 
 try:
     from ddtrace import tracer
 
-    patch = True
-
     # Respect DATADOG_* environment variables in global tracer configuration
     # TODO: these variables are deprecated; use utils method and update our documentation
     # correct prefix should be DD_*
-    enabled = os.environ.get("DATADOG_TRACE_ENABLED")
     hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME"))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
+    profiling = asbool(os.environ.get("DD_PROFILING_ENABLED", False))
+
+    if profiling:
+        import ddtrace.profiling.auto  # noqa: F401
 
     opts = {}
 
-    if enabled and enabled.lower() == "false":
-        opts["enabled"] = False
+    if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
+        patch = True
+    else:
         patch = False
+        opts["enabled"] = False
+
     if hostname:
         opts["hostname"] = hostname
     if port:
@@ -119,7 +97,8 @@ try:
         tracer.set_tags({constants.ENV_KEY: os.environ["DATADOG_ENV"]})
 
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
-        add_global_tags(tracer)
+        env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
+        tracer.set_tags(parse_tags_str(env_tags))
 
     # Ensure sitecustomize.py is properly called if available in application directories:
     # * exclude `bootstrap_dir` from the search

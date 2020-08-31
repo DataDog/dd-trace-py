@@ -7,7 +7,7 @@ services:
         ports:
             - "127.0.0.1:9200:9200"
     cassandra:
-        image: spotify/cassandra:latest
+        image: cassandra:3.11.7
         environment:
             - MAX_HEAP_SIZE=512M
             - HEAP_NEWSIZE=256M
@@ -94,7 +94,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: datadog/docker-library:ddtrace_py
+        image: datadog/dd-trace-py:latest
         environment:
             - TOX_SKIP_DIST=True
             - TEST_DATADOG_INTEGRATION=1

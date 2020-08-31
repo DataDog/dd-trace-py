@@ -1,7 +1,8 @@
 import os
+import platform
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 
 # ORDER MATTERS
@@ -100,6 +101,20 @@ def get_exts_for(name):
         return []
 
 
+if sys.byteorder == "big":
+    encoding_macros = [("__BIG_ENDIAN__", "1")]
+else:
+    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
+
+
+if platform.uname()[0] != "Windows":
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+else:
+    encoding_libraries = ["ws2_32"]
+    extra_compile_args = []
+
+
 # Base `setup()` kwargs without any C-extension registering
 setup(
     **dict(
@@ -115,15 +130,17 @@ setup(
         python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
         # enum34 is an enum backport for earlier versions of python
         # funcsigs backport required for vendored debtcollector
-        # encoding using msgpack
-        install_requires=["enum34; python_version<'3.4'", "funcsigs>=1.0.0; python_version=='2.7'", "msgpack>=0.5.0",],
+        install_requires=[
+            "enum34; python_version<'3.4'",
+            "funcsigs>=1.0.0; python_version=='2.7'",
+            "protobuf>=3",
+            "intervaltree",
+            "tenacity>=5",
+        ],
         extras_require={
             # users can include opentracing by having:
             # install_requires=['ddtrace[opentracing]', ...]
             "opentracing": ["opentracing>=2.0.0"],
-            # TODO: remove me when everything is updated to `profiling`
-            "profile": ["protobuf>=3", "intervaltree",],
-            "profiling": ["protobuf>=3", "intervaltree",],
         },
         # plugin tox
         tests_require=["tox", "flake8"],
@@ -143,14 +160,27 @@ setup(
             "Programming Language :: Python :: 3.8",
         ],
         use_scm_version=True,
-        setup_requires=["setuptools_scm", "cython"],
+        setup_requires=["setuptools_scm[toml]>=4", "cython"],
         ext_modules=cythonize(
             [
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
+                ),
+                Extension(
+                    "ddtrace.internal._encoding",
+                    ["ddtrace/internal/_encoding.pyx"],
+                    include_dirs=["."],
+                    libraries=encoding_libraries,
+                    define_macros=encoding_macros,
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._queue", sources=["ddtrace/internal/_queue.pyx"], language="c",
+                ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
                     sources=["ddtrace/profiling/collector/stack.pyx"],
                     language="c",
-                    extra_compile_args=["-DPy_BUILD_CORE"],
+                    extra_compile_args=extra_compile_args,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._traceback",
@@ -166,6 +196,7 @@ setup(
                 "PY_MINOR_VERSION": sys.version_info.minor,
                 "PY_MICRO_VERSION": sys.version_info.micro,
             },
+            force=True,
         )
         + get_exts_for("wrapt")
         + get_exts_for("psutil"),

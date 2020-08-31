@@ -15,7 +15,7 @@ def test_repr():
     test_collector._test_repr(
         collector_threading.LockCollector,
         "LockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(max_size=49152), capture_pct=5.0, nframes=64)",
+        "recorder=Recorder(default_max_events=32768, max_events={}), capture_pct=2.0, nframes=64)",
     )
 
 

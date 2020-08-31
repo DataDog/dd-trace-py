@@ -10,7 +10,7 @@ from molten import DependencyInjector
 from ddtrace import Pin
 from ddtrace.contrib.molten import patch, unpatch
 
-from ...test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 class Settings(dict):
