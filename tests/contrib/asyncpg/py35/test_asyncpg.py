@@ -12,7 +12,7 @@ from ddtrace import Pin
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 # Update to asyncpg way
