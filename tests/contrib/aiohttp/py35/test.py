@@ -10,7 +10,7 @@ from ddtrace.contrib.asyncio.patch import patch as aio_patch, \
     unpatch as aio_unpatch
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ..utils import TraceTestCase
-from ....utils.span import TestSpan
+from .... import TestSpan
 
 
 class AIOHttpTest(TraceTestCase):
