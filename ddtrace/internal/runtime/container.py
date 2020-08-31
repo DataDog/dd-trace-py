@@ -1,3 +1,4 @@
+import os
 import re
 
 from ..logger import get_logger
@@ -92,18 +93,19 @@ def get_container_info(pid="self"):
     :returns: The cgroup file info if found, or else None
     :rtype: :class:`CGroupInfo` | None
     """
+
+    cgroup_file = "/proc/{0}/cgroup".format(pid)
+
+    if not os.path.exists(cgroup_file):
+        # If the cgroup file does not exist then this is likely not a container
+        # which is a valid use-case so pass.
+        return
+
     try:
-        cgroup_file = "/proc/{0}/cgroup".format(pid)
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and info.container_id:
                     return info
-    except FileNotFoundError:
-        # If the cgroup file does not exist then this is likely not a container
-        # which is a valid use-case so pass.
-        pass
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)
-
-    return None
