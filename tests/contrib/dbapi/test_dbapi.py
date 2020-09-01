@@ -185,6 +185,7 @@ class TestTracedCursor(TracerTestCase):
     def test_cfg_service(self):
         cursor = self.cursor
         tracer = self.tracer
+        cursor.rowcount = 123
         pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
         cfg = AttrDict(service="cfg-service")
         traced_cursor = TracedCursor(cursor, pin, cfg, None)
@@ -199,6 +200,7 @@ class TestTracedCursor(TracerTestCase):
     def test_default_service(self):
         cursor = self.cursor
         tracer = self.tracer
+        cursor.rowcount = 123
         pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
         cfg = AttrDict(service=None)
         traced_cursor = TracedCursor(cursor, pin, cfg, "default-svc")
