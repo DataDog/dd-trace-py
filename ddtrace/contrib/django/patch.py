@@ -33,6 +33,7 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
+        _default_service="django",
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
@@ -395,7 +396,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(
             "django.request",
             resource=resource,
-            service=trace_utils.int_service(config.django, pin, "django"),
+            service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.HTTP,
         ) as span:
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)

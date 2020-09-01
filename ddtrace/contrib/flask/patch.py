@@ -24,6 +24,7 @@ FLASK_VERSION = 'flask.version'
 # Configure default configuration
 config._add('flask', dict(
     # Flask service configuration
+    _default_service="flask",
     app='flask',
 
     collect_view_args=True,
@@ -277,7 +278,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace(
         "flask.request",
-        service=trace_utils.int_service(config.flask, pin, "flask"),
+        service=trace_utils.int_service(pin, config.flask),
         resource=resource,
         span_type=SpanTypes.WEB,
     ) as s:
@@ -469,7 +470,7 @@ def request_tracer(name):
         except Exception:
             log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
-        with pin.tracer.trace('flask.{}'.format(name), service=trace_utils.int_service(config.flask, pin, "flask")):
+        with pin.tracer.trace('flask.{}'.format(name), service=trace_utils.int_service(pin, config.flask, pin)):
             return wrapped(*args, **kwargs)
     return _traced_request
 

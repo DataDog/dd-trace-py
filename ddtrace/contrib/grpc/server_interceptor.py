@@ -75,7 +75,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span = tracer.trace(
             'grpc',
             span_type=SpanTypes.GRPC,
-            service=trace_utils.int_service(config.grpc_server, self._pin, default=constants.GRPC_SERVICE_SERVER),
+            service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
         )
         span.set_tag(SPAN_MEASURED_KEY)

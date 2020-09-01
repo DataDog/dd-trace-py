@@ -156,7 +156,7 @@ class _ClientInterceptor(
         span = tracer.trace(
             "grpc",
             span_type=SpanTypes.GRPC,
-            service=trace_utils.ext_service(config.grpc, self._pin, constants.GRPC_SERVICE_CLIENT),
+            service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
 

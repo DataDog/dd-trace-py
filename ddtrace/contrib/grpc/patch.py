@@ -11,6 +11,7 @@ from .server_interceptor import create_server_interceptor
 
 
 config._add('grpc_server', dict(
+    _default_service=constants.GRPC_SERVICE_SERVER,
     distributed_tracing_enabled=True,
 ))
 
@@ -18,6 +19,7 @@ config._add('grpc_server', dict(
 # TODO[tbutt]: keeping name for client config unchanged to maintain backwards
 # compatibility but should change in future
 config._add('grpc', dict(
+    _default_service=constants.GRPC_SERVICE_CLIENT,
     distributed_tracing_enabled=True,
 ))
 

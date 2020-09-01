@@ -18,6 +18,7 @@ try:
 
     # Default configuration
     config._add('algoliasearch', dict(
+        _default_service=SERVICE_NAME,
         collect_query_text=False
     ))
 except ImportError:
@@ -101,7 +102,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         return func(*wrapt_args, **wrapt_kwargs)
 
     with pin.tracer.trace(
-        'algoliasearch.search', service=trace_utils.ext_service(config.algoliasearch, pin, SERVICE_NAME)
+        'algoliasearch.search', service=trace_utils.ext_service(pin, config.algoliasearch)
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 

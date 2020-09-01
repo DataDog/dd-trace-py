@@ -56,6 +56,7 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
 config._add(
     'vertica',
     {
+        "_default_service": "vertica",
         'app': 'vertica',
         'patch': {
             'vertica_python.vertica.connection.Connection': {
@@ -203,7 +204,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
             tracer = pin.tracer
             with tracer.trace(
                 operation_name,
-                service=trace_utils.ext_service(config, pin, "vertica"),
+                service=trace_utils.ext_service(pin, config),
                 span_type=conf.get("span_type"),
             ) as span:
                 if conf.get('measured', False):

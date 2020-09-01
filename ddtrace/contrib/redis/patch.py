@@ -11,7 +11,7 @@ from .. import trace_utils
 from .util import format_command_args, _extract_conn_tags
 
 
-config._add("redis", dict())
+config._add("redis", dict(_default_service="redis"))
 
 
 def patch():
@@ -66,7 +66,7 @@ def traced_execute_command(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(config.redis, pin, default="redis"), span_type=SpanTypes.REDIS
+        redisx.CMD, service=trace_utils.ext_service(pin, config.redis, pin), span_type=SpanTypes.REDIS
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         query = format_command_args(args)
@@ -100,10 +100,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     resource = "\n".join(cmds)
     tracer = pin.tracer
     with tracer.trace(
-        redisx.CMD,
-        resource=resource,
-        service=trace_utils.ext_service(config.redis, pin, default="redis"),
-        span_type=SpanTypes.REDIS,
+        redisx.CMD, resource=resource, service=trace_utils.ext_service(pin, config.redis), span_type=SpanTypes.REDIS,
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag(redisx.RAWCMD, resource)

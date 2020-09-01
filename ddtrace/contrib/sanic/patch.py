@@ -15,7 +15,7 @@ from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("sanic", dict(distributed_tracing=True))
+config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
 
 
 def _extract_tags_from_request(request):
@@ -102,7 +102,7 @@ def patch_handle_request(wrapped, instance, args, kwargs):
 
     span = ddtrace.tracer.trace(
         "sanic.request",
-        service=trace_utils.int_service(config.sanic, None, "sanic"),
+        service=trace_utils.int_service(None, config.sanic),
         resource=resource,
         span_type=SpanTypes.WEB,
     )
