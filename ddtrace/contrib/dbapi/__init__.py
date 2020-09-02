@@ -15,6 +15,7 @@ from ..trace_utils import ext_service
 log = get_logger(__name__)
 
 config._add('dbapi2', dict(
+    _default_service="db",
     trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', default=False)),
 ))
 
@@ -22,14 +23,13 @@ config._add('dbapi2', dict(
 class TracedCursor(wrapt.ObjectProxy):
     """ TracedCursor wraps a psql cursor and traces its queries. """
 
-    def __init__(self, cursor, pin, cfg, default_service):
+    def __init__(self, cursor, pin, cfg):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
         name = pin.app or 'sql'
         self._self_datadog_name = '{}.query'.format(name)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
-        self._self_default_service = default_service
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -47,9 +47,8 @@ class TracedCursor(wrapt.ObjectProxy):
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
         cfg = self._self_config
-        default_service = self._self_default_service or "db"
         with pin.tracer.trace(
-            name, service=ext_service(cfg, pin, default_service), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
                 s.set_tag(SPAN_MEASURED_KEY)
@@ -152,7 +151,7 @@ class FetchTracedCursor(TracedCursor):
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None, cfg=None, default_service=None, cursor_cls=None):
+    def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
         # Set default cursor class if one was not provided
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
@@ -169,16 +168,14 @@ class TracedConnection(wrapt.ObjectProxy):
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
         self._self_config = cfg or config.dbapi2
-        self._self_default_service = default_service
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         config = self._self_config
-        default_service = self._self_default_service or "db"
 
-        with pin.tracer.trace(name, service=ext_service(config, pin, default_service)) as s:
+        with pin.tracer.trace(name, service=ext_service(pin, config)) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -190,7 +187,7 @@ class TracedConnection(wrapt.ObjectProxy):
         config = self._self_config
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, config, self._self_default_service)
+        return self._self_cursor_cls(cursor, pin, config)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
