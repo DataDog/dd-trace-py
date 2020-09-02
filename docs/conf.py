@@ -17,13 +17,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
-import os
-import sys
 from datetime import datetime
-
-
-# append the ddtrace path to syspath
-sys.path.insert(0, os.path.abspath(".."))
 
 
 # -- General configuration ------------------------------------------------
@@ -140,7 +134,7 @@ html_theme = "alabaster"
 # documentation.
 #
 html_theme_options = {
-    "description": "Datadog's Python tracing client",
+    "description": "Datadog's Python APM client",
 }
 
 # Add any paths that contain custom themes here, relative to this directory.

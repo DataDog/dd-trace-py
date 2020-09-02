@@ -46,7 +46,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         bp = flask.Blueprint('not-pinned', __name__)
         self.app.register_blueprint(bp)
         pin = Pin.get_from(bp)
-        self.assertEqual(pin.service, 'flask')
+        self.assertNotEqual(pin.service, 'flask-bp')
 
     def test_blueprint_add_url_rule(self):
         """

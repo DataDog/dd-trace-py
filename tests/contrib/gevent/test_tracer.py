@@ -1,21 +1,24 @@
+import subprocess
+
 import gevent
 import gevent.pool
 import ddtrace
+from ddtrace.compat import PY3
 
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch, unpatch
 from ddtrace.ext.priority import USER_KEEP
 
-from unittest import TestCase
 from opentracing.scope_managers.gevent import GeventScopeManager
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
+from tests import TracerTestCase
 
 from .utils import silence_errors
 
 
-class TestGeventTracer(TestCase):
+class TestGeventTracer(TracerTestCase):
     """
     Ensures that greenlets are properly traced when using
     the default Tracer.
@@ -436,3 +439,33 @@ class TestGeventTracer(TestCase):
 
         spans = self.tracer.writer.pop()
         self._assert_spawn_multiple_greenlets(spans)
+
+    def test_ddtracerun(self):
+        """
+        Regression test case for the following issue.
+
+        ddtrace-run imports all available modules in order to patch them.
+        However, gevent depends on the ssl module not being imported when it
+        goes to monkeypatch. Modules that import ssl include botocore, requests
+        and elasticsearch.
+        """
+
+        # Ensure modules are installed
+        if PY3:
+            import aiohttp  # noqa
+            import aiobotocore  # noqa
+        import botocore  # noqa
+        import requests  # noqa
+        import elasticsearch  # noqa
+
+        p = subprocess.Popen(
+            ["ddtrace-run", "python", "tests/contrib/gevent/monkeypatch.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        p.wait()
+        stdout, stderr = p.stdout.read(), p.stderr.read()
+        assert p.returncode == 0, stderr
+        assert b"Test success" in stdout
+        assert b"RecursionError" not in stderr
