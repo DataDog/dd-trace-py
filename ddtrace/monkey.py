@@ -91,6 +91,10 @@ class PatchException(Exception):
     pass
 
 
+class ModuleNotFoundException(PatchException):
+    pass
+
+
 def _on_import_factory(module, raise_errors=True):
     """Factory to create an import hook for the provided module name"""
 
@@ -171,6 +175,10 @@ def patch_module(module, raise_errors=True):
     """
     try:
         return _patch_module(module)
+    except ModuleNotFoundException:
+        if raise_errors:
+            raise
+        return False
     except Exception:
         if raise_errors:
             raise
@@ -198,14 +206,15 @@ def _patch_module(module):
 
         try:
             imported_module = importlib.import_module(path)
-            imported_module.patch()
         except ImportError:
             # if the import fails, the integration is not available
             raise PatchException("integration '%s' not available" % path)
-        except AttributeError:
+        else:
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
-            raise PatchException("module '%s' not installed" % module)
+            if not hasattr(imported_module, "patch"):
+                raise ModuleNotFoundException("module '%s' not installed" % module)
 
-        _PATCHED_MODULES.add(module)
-        return True
+            imported_module.patch()
+            _PATCHED_MODULES.add(module)
+            return True
