@@ -46,7 +46,8 @@ class TracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
-        cfg = self._self_config
+        cfg = _get_config(self._self_config)
+
         with pin.tracer.trace(
             name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL
         ) as s:
@@ -148,6 +149,14 @@ class FetchTracedCursor(TracedCursor):
                                   *args, **kwargs)
 
 
+def _get_config(new_cfg):
+    # Need to backwards support the dbapi2 config entry
+    # but give precedence to the given config.
+    cfg = config.dbapi2.copy()
+    cfg.update(new_cfg)
+    return cfg
+
+
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
@@ -173,9 +182,9 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
-        config = self._self_config
+        cfg = _get_config(self._self_config)
 
-        with pin.tracer.trace(name, service=ext_service(pin, config)) as s:
+        with pin.tracer.trace(name, service=ext_service(pin, cfg)) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -184,10 +193,10 @@ class TracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
         pin = Pin.get_from(self)
-        config = self._self_config
+        cfg = _get_config(self._self_config)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, config)
+        return self._self_cursor_cls(cursor, pin, cfg)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
