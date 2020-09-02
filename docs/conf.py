@@ -134,7 +134,7 @@ html_theme = "alabaster"
 # documentation.
 #
 html_theme_options = {
-    "description": "Datadog's Python tracing client",
+    "description": "Datadog's Python APM client",
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
