@@ -1,8 +1,7 @@
 from ddtrace.vendor import wrapt
 import mysql.connector
 
-from ddtrace import config
-from ddtrace import Pin
+from ddtrace import config, Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ...ext import net, db
 
