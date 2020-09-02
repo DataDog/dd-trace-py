@@ -4,11 +4,16 @@ import MySQLdb
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 # project
-from ddtrace import Pin
+from ddtrace import config, Pin
 from ddtrace.contrib.dbapi import TracedConnection
 
 from ...ext import net, db
 from ...utils.wrappers import unwrap as _u
+
+
+config._add("mysqldb", dict(
+    _default_service="mysql",
+))
 
 KWPOS_BY_TAG = {
     net.TARGET_HOST: ('host', 0),
@@ -55,9 +60,9 @@ def patch_conn(conn, *args, **kwargs):
             for t, (k, p) in KWPOS_BY_TAG.items()
             if k in kwargs or len(args) > p}
     tags[net.TARGET_PORT] = conn.port
-    pin = Pin(service='mysql', app='mysql', tags=tags)
+    pin = Pin(app='mysql', tags=tags)
 
     # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin)
+    wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)
     pin.onto(wrapped)
     return wrapped
