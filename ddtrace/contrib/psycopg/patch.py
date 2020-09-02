@@ -8,7 +8,9 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
 
 
-config._add("psycopg", dict())
+config._add("psycopg", dict(
+    _default_service="postgres"
+))
 
 # Original connect method
 _connect = psycopg2.connect
@@ -68,7 +70,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
             if config.dbapi2.trace_fetch_methods:
                 cursor_cls = Psycopg2FetchTracedCursor
 
-        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, "postgres", cursor_cls=cursor_cls)
+        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
 
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):

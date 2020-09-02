@@ -350,7 +350,6 @@ class PsycopgCore(TracerTestCase):
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
-        print(spans[0].service)
         assert spans[0].service == "mysvc"
 
 
