@@ -468,7 +468,7 @@ class GrpcTestCase(TracerTestCase):
         spans = self.get_spans_with_sync_and_assert(size=2)
 
         self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
-        self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
+        self._check_client_span(spans[1], "grpc-client", "SayHello", "unary")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):
