@@ -4,6 +4,8 @@ from ddtrace.settings import config
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from .. import trace_utils
+
 DD_PATCH_ATTR = '_datadog_patch'
 
 SERVICE_NAME = 'algoliasearch'
@@ -16,7 +18,7 @@ try:
 
     # Default configuration
     config._add('algoliasearch', dict(
-        service_name=config.service or SERVICE_NAME,
+        _default_service=SERVICE_NAME,
         collect_query_text=False
     ))
 except ImportError:
@@ -32,9 +34,7 @@ def patch():
 
     setattr(algoliasearch, '_datadog_patch', True)
 
-    pin = Pin(
-        service=config.algoliasearch.service_name, app=APP_NAME
-    )
+    pin = Pin(app=APP_NAME)
 
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
         _w(algoliasearch.index, 'Index.search', _patched_search)
@@ -101,7 +101,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     if not pin or not pin.enabled():
         return func(*wrapt_args, **wrapt_kwargs)
 
-    with pin.tracer.trace('algoliasearch.search', service=pin.service) as span:
+    with pin.tracer.trace(
+        'algoliasearch.search', service=trace_utils.ext_service(pin, config.algoliasearch)
+    ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not span.sampled:
