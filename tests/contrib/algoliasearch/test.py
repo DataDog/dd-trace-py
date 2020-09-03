@@ -148,7 +148,7 @@ class AlgoliasearchTest(TracerTestCase):
     def test_user_specified_service(self):
         """
         When a service name is specified by the user
-            The algoliasearch integration should use it as the service name
+            The algoliasearch integration shouldn't use it as the service name
         """
         patch_all()
         Pin.override(self.index, tracer=self.tracer)
@@ -157,5 +157,5 @@ class AlgoliasearchTest(TracerTestCase):
         self.reset()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service == "mysvc"
+        assert spans[0].service == "algoliasearch"
         unpatch()

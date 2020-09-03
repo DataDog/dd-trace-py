@@ -30,8 +30,10 @@ def _extract_service_name(session, span, hostname=None):
         return hostname
 
     service_name = cfg["service_name"]
-    if service_name == DEFAULT_SERVICE and span._parent is not None and span._parent.service is not None:
+    if service_name is None and span._parent is not None and span._parent.service is not None:
         service_name = span._parent.service
+    elif service_name is None:
+        service_name = DEFAULT_SERVICE
     return service_name
 
 
