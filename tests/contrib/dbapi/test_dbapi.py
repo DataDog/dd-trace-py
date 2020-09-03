@@ -226,6 +226,21 @@ class TestTracedCursor(TracerTestCase):
         span = tracer.writer.pop()[0]  # type: Span
         assert span.service == "default-svc"
 
+    def test_service_cfg_and_pin(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 123
+        pin = Pin("pin-svc", app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        cfg = AttrDict(_default_service="cfg-svc")
+        traced_cursor = TracedCursor(cursor, pin, cfg)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.service == "pin-svc"
+
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         tracer = self.tracer
