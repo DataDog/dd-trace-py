@@ -59,6 +59,14 @@ Configuration
 
    Default: ``'django'``
 
+.. py:data:: ddtrace.config.django['database_service_name']
+
+   A string reported as the service name of the Django app database layer.
+
+   Can also be configured via the ``DD_DJANGO_DATABASE_SERVICE_NAME`` environment variable.
+
+   Default: ``''``
+
 .. py:data:: ddtrace.config.django['database_service_name_prefix']
 
    A string to be prepended to the service name reported for your Django app database layer.

@@ -36,6 +36,7 @@ config._add(
         _default_service="django",
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
+        database_service_name=get_env("django", "database_service_name", default=""),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,
@@ -87,9 +88,14 @@ def with_traced_module(func):
 
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
-        database_prefix = config.django.database_service_name_prefix
         alias = getattr(conn, "alias", "default")
-        service = "{}{}{}".format(database_prefix, alias, "db")
+
+        if config.django.database_service_name:
+            service = config.django.database_service_name
+        else:
+            database_prefix = config.django.database_service_name_prefix
+            service = "{}{}{}".format(database_prefix, alias, "db")
+
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
         tags = {
