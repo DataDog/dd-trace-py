@@ -123,6 +123,7 @@ class TraceMiddleware:
         except Exception:
             (exc_type, exc_val, exc_tb) = sys.exc_info()
             span.set_exc_info(exc_type, exc_val, exc_tb)
+            span.set_tag(http.STATUS_CODE, 500)
             reraise(exc_type, exc_val, exc_tb)
         finally:
             span.finish()
