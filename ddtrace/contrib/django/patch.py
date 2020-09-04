@@ -52,40 +52,6 @@ config._add(
 propagator = HTTPPropagator()
 
 
-def with_traced_module(func):
-    """Helper for providing tracing essentials (module and pin) for tracing
-    wrappers.
-
-    This helper enables tracing wrappers to dynamically be disabled when the
-    corresponding pin is disabled.
-
-    Usage::
-
-        @with_traced_module
-        def my_traced_wrapper(django, pin, func, instance, args, kwargs):
-            # Do tracing stuff
-            pass
-
-        def patch():
-            import django
-            wrap(django.somefunc, my_traced_wrapper(django))
-    """
-
-    def with_mod(mod):
-        def wrapper(wrapped, instance, args, kwargs):
-            pin = Pin._find(instance, mod)
-            if pin and not pin.enabled():
-                return wrapped(*args, **kwargs)
-            elif not pin:
-                log.debug("Pin not found for traced method %r", wrapped)
-                return wrapped(*args, **kwargs)
-            return func(mod, pin, wrapped, instance, args, kwargs)
-
-        return wrapper
-
-    return with_mod
-
-
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
@@ -106,7 +72,7 @@ def patch_conn(django, conn):
         return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
-        conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))
+        conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
 
 
 def instrument_dbs(django):
@@ -156,7 +122,7 @@ def _set_request_tags(django, span, request):
                 span.set_tag("django.user.name", username)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
     if not config.django.instrument_caches:
         return func(*args, **kwargs)
@@ -191,7 +157,7 @@ def instrument_caches(django):
                 log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_populate(django, pin, func, instance, args, kwargs):
     """django.apps.registry.Apps.populate is the method used to populate all the apps.
 
@@ -258,7 +224,7 @@ def traced_func(django, name, resource=None):
         with pin.tracer.trace(name, resource=resource):
             return func(*args, **kwargs)
 
-    return with_traced_module(wrapped)(django)
+    return trace_utils.with_traced_module(wrapped)(django)
 
 
 def traced_process_exception(django, name, resource=None):
@@ -272,10 +238,10 @@ def traced_process_exception(django, name, resource=None):
                 span.set_traceback()
             return resp
 
-    return with_traced_module(wrapped)(django)
+    return trace_utils.with_traced_module(wrapped)(django)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all middlewares."""
     settings_middleware = []
@@ -327,7 +293,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_get_response(django, pin, func, instance, args, kwargs):
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
@@ -466,7 +432,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     """Instrument django.template.base.Template.render for tracing template rendering."""
     template_name = getattr(instance, "name", None)
@@ -544,7 +510,7 @@ def _instrument_view(django, view):
     return view
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
@@ -559,7 +525,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_as_view(django, pin, func, instance, args, kwargs):
     """
     Wrapper for django's View.as_view class method
