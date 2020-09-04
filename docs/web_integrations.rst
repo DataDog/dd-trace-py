@@ -52,6 +52,12 @@ Falcon
 .. automodule:: ddtrace.contrib.falcon
 
 
+FastAPI
+^^^^^^^
+
+.. automodule:: ddtrace.contrib.fastapi
+
+
 .. _flask:
 
 Flask
@@ -89,6 +95,12 @@ Sanic
 ^^^^^
 
 .. automodule:: ddtrace.contrib.sanic
+
+
+Starlette
+^^^^^^^^^
+
+.. automodule:: ddtrace.contrib.starlette
 
 
 .. _tornado:
