@@ -357,6 +357,18 @@ jobs:
       - run_tox_scenario:
           pattern: '^asgi_contrib-'
 
+  starlette:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^starlette_contrib-'
+
+  fastapi:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^fastapi_contrib-'
+
   tornado:
     executor: ddtrace_dev
     steps:
@@ -786,6 +798,7 @@ requires_tests: &requires_tests
   - djangorestframework
   - elasticsearch
   - falcon
+  - fastapi
   - flask
   - futures
   - gevent
@@ -815,6 +828,7 @@ requires_tests: &requires_tests
   - requestsgevent
   - sqlalchemy
   - sqlite3
+  - starlette
   - test_build_alpine
   - test_build_py38
   - test_build_py37
@@ -883,6 +897,7 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
+      - fastapi: *requires_pre_test
       - flask: *requires_pre_test
       - futures: *requires_pre_test
       - gevent: *requires_pre_test
@@ -913,6 +928,7 @@ workflows:
       - sanic: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
+      - starlette: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       # tracer
