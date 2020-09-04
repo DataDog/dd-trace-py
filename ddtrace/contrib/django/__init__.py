@@ -59,13 +59,23 @@ Configuration
 
    Default: ``'django'``
 
+.. py:data:: ddtrace.config.django['database_service_name']
+
+   A string reported as the service name of the Django app database layer.
+
+   Can also be configured via the ``DD_DJANGO_DATABASE_SERVICE_NAME`` environment variable.
+
+   Takes precedence over database_service_name_prefix.
+
+   Default: ``''``
+
 .. py:data:: ddtrace.config.django['database_service_name_prefix']
 
    A string to be prepended to the service name reported for your Django app database layer.
 
    Can also be configured via the ``DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX`` environment variable.
 
-   The database service name is the name of the database appended with 'db'.
+   The database service name is the name of the database appended with 'db'. Has a lower precedence than database_service_name.
 
    Default: ``''``
 
