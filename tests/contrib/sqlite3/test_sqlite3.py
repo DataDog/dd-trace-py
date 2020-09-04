@@ -2,6 +2,8 @@
 import sqlite3
 import time
 
+import pytest
+
 # project
 import ddtrace
 from ddtrace import Pin
@@ -77,12 +79,8 @@ class TestSQLite(TracerTestCase):
 
             # run a query with an error and ensure all is well
             q = 'select * from some_non_existant_table'
-            try:
+            with pytest.raises(Exception):
                 db.execute(q)
-            except Exception:
-                pass
-            else:
-                assert 0, 'should have an error'
 
             self.assert_structure(
                 dict(name='sqlite.query', span_type='sql', resource=q, service=service, error=1),
@@ -209,7 +207,7 @@ class TestSQLite(TracerTestCase):
         self.assert_structure(
             dict(name='sqlite_op', service='sqlite_svc'),
             (
-                dict(name='sqlite.query', span_type='sql', resource=q, error=0),
+                dict(name='sqlite.query', service="sqlite", span_type='sql', resource=q, error=0),
             )
         )
         assert_is_measured(self.get_spans()[1])
@@ -334,7 +332,7 @@ class TestSQLite(TracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_app_service(self):
         """
         When a user specifies a service for the app
             The sqlite3 integration should not use it.
@@ -353,3 +351,16 @@ class TestSQLite(TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         assert span.service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SQLITE_SERVICE="my-svc"))
+    def test_user_specified_service(self):
+        q = "select * from sqlite_master"
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert span.service == "my-svc"
