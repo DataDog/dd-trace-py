@@ -97,7 +97,7 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return dbapi.TracedCursor(func(*args, **kwargs), pin)
+        return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))
