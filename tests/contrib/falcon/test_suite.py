@@ -28,6 +28,7 @@ class FalconTestCase(object):
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/fake_endpoint'
         assert httpx.QUERY_STRING not in span.meta
         assert span.parent_id is None
+        assert span.error == 0
 
     def test_exception(self):
         try:
@@ -49,6 +50,7 @@ class FalconTestCase(object):
         assert_span_http_status_code(span, 500)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/exception'
         assert span.parent_id is None
+        assert span.error == 1
 
     def test_200(self, query_string=''):
         out = self.simulate_get('/200', query_string=query_string)
@@ -73,6 +75,7 @@ class FalconTestCase(object):
             assert httpx.QUERY_STRING not in span.meta
         assert span.parent_id is None
         assert span.span_type == 'web'
+        assert span.error == 0
 
     def test_200_qs(self):
         return self.test_200('foo=bar')
@@ -166,6 +169,7 @@ class FalconTestCase(object):
         assert_span_http_status_code(span, 201)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/201'
         assert span.parent_id is None
+        assert span.error == 0
 
     def test_500(self):
         out = self.simulate_get('/500')
@@ -184,6 +188,7 @@ class FalconTestCase(object):
         assert_span_http_status_code(span, 500)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/500'
         assert span.parent_id is None
+        assert span.error == 1
 
     def test_404_exception(self):
         out = self.simulate_get('/not_found')
@@ -201,6 +206,7 @@ class FalconTestCase(object):
         assert_span_http_status_code(span, 404)
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/not_found'
         assert span.parent_id is None
+        assert span.error == 0
 
     def test_404_exception_no_stacktracer(self):
         # it should not have the stacktrace when a 404 exception is raised
@@ -218,6 +224,7 @@ class FalconTestCase(object):
         assert_span_http_status_code(span, 404)
         assert span.get_tag(errx.ERROR_TYPE) is None
         assert span.parent_id is None
+        assert span.error == 0
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
@@ -247,6 +254,7 @@ class FalconTestCase(object):
         assert dd_span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_tag(httpx.URL) == 'http://falconframework.org/200'
+        assert dd_span.error == 0
 
     def test_falcon_request_hook(self):
         @config.falcon.hooks.on('request')
@@ -267,6 +275,8 @@ class FalconTestCase(object):
         assert span.name == 'falcon.request'
 
         assert span.get_tag('my.custom') == 'tag'
+
+        assert span.error == 0
 
     def test_http_header_tracing(self):
         with self.override_config('falcon', {}):
