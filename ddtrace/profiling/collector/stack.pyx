@@ -453,16 +453,21 @@ class _ThreadSpanLinks(object):
         return {span for span in alive_spans if not span.finished}
 
 
+def _default_min_interval_time():
+    if six.PY2:
+        return 0.01
+    return sys.getswitchinterval() * 2
+
+
 @attr.s(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
-    # This is the minimum amount of time the thread will sleep between polling interval,
-    # no matter how fast the computer is.
-    MIN_INTERVAL_TIME = 0.01    # sleep at least 10 ms
-
     # This need to be a real OS thread in order to catch
     _real_thread = True
-    _interval = attr.ib(default=MIN_INTERVAL_TIME, repr=False)
+    _interval = attr.ib(factory=_default_min_interval_time, init=False, repr=False)
+    # This is the minimum amount of time the thread will sleep between polling interval,
+    # no matter how fast the computer is.
+    min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
     max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
@@ -496,7 +501,7 @@ class StackCollector(collector.PeriodicCollector):
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
-        return max(interval / 1e9, self.MIN_INTERVAL_TIME)
+        return max(interval / 1e9, self.min_interval_time)
 
     def collect(self):
         # Compute wall time
