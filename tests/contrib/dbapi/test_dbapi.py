@@ -4,6 +4,7 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ddtrace.span import Span
+from ddtrace.utils.attrdict import AttrDict
 from ... import TracerTestCase, assert_is_measured, assert_is_not_measured
 
 
@@ -19,7 +20,7 @@ class TestTracedCursor(TracerTestCase):
         cursor.execute.return_value = '__result__'
 
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
         # DEV: We always pass through the result
         assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
@@ -30,7 +31,7 @@ class TestTracedCursor(TracerTestCase):
         cursor.executemany.return_value = '__result__'
 
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
         # DEV: We always pass through the result
         assert '__result__' == traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
@@ -40,7 +41,7 @@ class TestTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.fetchone.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
         cursor.fetchone.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
@@ -49,7 +50,7 @@ class TestTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.fetchall.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
         cursor.fetchall.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
@@ -58,7 +59,7 @@ class TestTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.fetchmany.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
         cursor.fetchmany.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
@@ -67,7 +68,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', tracer=tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='sql.query'))
@@ -98,7 +99,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', app='changed', tracer=tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='changed.query'))
@@ -133,7 +134,7 @@ class TestTracedCursor(TracerTestCase):
 
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
 
         assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
@@ -162,7 +163,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
 
         def method():
             pass
@@ -181,6 +182,65 @@ class TestTracedCursor(TracerTestCase):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
 
+    def test_cfg_service(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 123
+        pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        cfg = AttrDict(service="cfg-service")
+        traced_cursor = TracedCursor(cursor, pin, cfg)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.service == 'cfg-service'
+
+    def test_default_service(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 123
+        pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        traced_cursor = TracedCursor(cursor, pin, None)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.service == "db"
+
+    def test_default_service_cfg(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 123
+        pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        cfg = AttrDict(_default_service="default-svc")
+        traced_cursor = TracedCursor(cursor, pin, cfg)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.service == "default-svc"
+
+    def test_service_cfg_and_pin(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 123
+        pin = Pin("pin-svc", app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        cfg = AttrDict(_default_service="cfg-svc")
+        traced_cursor = TracedCursor(cursor, pin, cfg)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.service == "pin-svc"
+
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         tracer = self.tracer
@@ -189,7 +249,7 @@ class TestTracedCursor(TracerTestCase):
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
         pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
 
         def method():
             pass
@@ -206,7 +266,7 @@ class TestTracedCursor(TracerTestCase):
         cursor.execute.return_value = '__result__'
 
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, {})
         # DEV: We always pass through the result
         assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
@@ -223,7 +283,7 @@ class TestTracedCursor(TracerTestCase):
             cursor.execute.return_value = '__result__'
 
             pin = Pin('pin_name', tracer=self.tracer)
-            traced_cursor = TracedCursor(cursor, pin)
+            traced_cursor = TracedCursor(cursor, pin, {})
             # DEV: We always pass through the result
             assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
@@ -240,7 +300,7 @@ class TestTracedCursor(TracerTestCase):
             cursor.execute.return_value = '__result__'
 
             pin = Pin('pin_name', tracer=self.tracer)
-            traced_cursor = TracedCursor(cursor, pin)
+            traced_cursor = TracedCursor(cursor, pin, {})
             # DEV: We always pass through the result
             assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
@@ -260,7 +320,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.execute.return_value = '__result__'
 
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
@@ -270,7 +330,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.executemany.return_value = '__result__'
 
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
@@ -279,7 +339,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.fetchone.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
         cursor.fetchone.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
@@ -288,7 +348,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.fetchall.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
         cursor.fetchall.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
@@ -297,7 +357,7 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.rowcount = 0
         cursor.fetchmany.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
         assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
         cursor.fetchmany.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
@@ -306,7 +366,7 @@ class TestFetchTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', tracer=tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='sql.query'))
@@ -337,7 +397,7 @@ class TestFetchTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', app='changed', tracer=tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         self.assert_structure(dict(name='changed.query'))
@@ -372,7 +432,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
@@ -401,7 +461,7 @@ class TestFetchTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         def method():
             pass
@@ -426,7 +486,7 @@ class TestFetchTracedCursor(TracerTestCase):
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
         pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        traced_cursor = FetchTracedCursor(cursor, pin)
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         def method():
             pass
@@ -447,7 +507,7 @@ class TestFetchTracedCursor(TracerTestCase):
             cursor.rowcount = 0
             cursor.fetchone.return_value = '__result__'
             pin = Pin('pin_name', tracer=self.tracer)
-            traced_cursor = FetchTracedCursor(cursor, pin)
+            traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
 
             span = self.tracer.writer.pop()[0]
@@ -457,7 +517,7 @@ class TestFetchTracedCursor(TracerTestCase):
             cursor.rowcount = 0
             cursor.fetchall.return_value = '__result__'
             pin = Pin('pin_name', tracer=self.tracer)
-            traced_cursor = FetchTracedCursor(cursor, pin)
+            traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
 
             span = self.tracer.writer.pop()[0]
@@ -467,7 +527,7 @@ class TestFetchTracedCursor(TracerTestCase):
             cursor.rowcount = 0
             cursor.fetchmany.return_value = '__result__'
             pin = Pin('pin_name', tracer=self.tracer)
-            traced_cursor = FetchTracedCursor(cursor, pin)
+            traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
 
             span = self.tracer.writer.pop()[0]

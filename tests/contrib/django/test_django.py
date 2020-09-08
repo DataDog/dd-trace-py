@@ -1075,6 +1075,34 @@ def test_database_service_prefix_can_be_overridden(test_spans):
     assert span.service == "my-defaultdb"
 
 
+@pytest.mark.django_db
+def test_database_service_can_be_overridden(test_spans):
+    with override_config("django", dict(database_service_name="django-db")):
+        from django.contrib.auth.models import User
+
+        User.objects.count()
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "django-db"
+
+
+@pytest.mark.django_db
+def test_database_service_prefix_precedence(test_spans):
+    with override_config("django", dict(database_service_name="django-db", database_service_name_prefix="my-")):
+        from django.contrib.auth.models import User
+
+        User.objects.count()
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "django-db"
+
+
 def test_cache_service_can_be_overridden(test_spans):
     cache = django.core.cache.caches["default"]
 
