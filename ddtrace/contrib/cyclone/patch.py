@@ -1,10 +1,11 @@
 """
 """
-import contextvars
 import functools
+from ddtrace.vendor import contextvars
 
 from ddtrace import config, Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ddtrace.context import Context
 from ddtrace.ext import http, SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -21,6 +22,9 @@ log = get_logger(__name__)
 
 @trace_utils.with_traced_module
 def traced__execute(cyclone, pin, func, instance, args, kwargs):
+    ctx = pin.tracer.get_call_context()
+    if ctx:
+        pin.tracer.context_provider.activate(Context())
     try:
         if config.cyclone.distributed_tracing_enabled:
             propagator = HTTPPropagator()
@@ -102,10 +106,6 @@ def traced__handle_request_exception(cyclone, pin, func, instance, args, kwargs)
 def deferred_init(func, instance, args, kwargs):
     ctx = contextvars.copy_context()
     instance.__ctx = ctx
-    from ddtrace.internal.context_manager import _DD_CONTEXTVAR
-    from ddtrace.context import Context
-
-    _DD_CONTEXTVAR.set(Context())
     return func(*args, **kwargs)
 
 

@@ -20,6 +20,26 @@ def mk_app():
             self.set_header("resp-header", "test-value")
             self.write("Hello, world")
 
+    class TraceHandler(cyclone.web.RequestHandler):
+        def get(self):
+            from ddtrace import tracer
+
+            with tracer.trace("child"):
+                pass
+
+    class AsyncTraceHandler(cyclone.web.RequestHandler):
+        @cyclone.web.asynchronous
+        def get(self):
+            from ddtrace import tracer
+
+            with tracer.trace("child"):
+                pass
+
+            reactor.callLater(0.1, self.done)
+
+        def done(self):
+            self.finish("done")
+
     class ErrHandler(cyclone.web.RequestHandler):
         def get(self):
             raise Exception("uh oh!")
@@ -33,7 +53,15 @@ def mk_app():
         def done(self):
             self.finish("done")
 
-    app = cyclone.web.Application([(r"/", RootHandler), (r"/error", ErrHandler), (r"/async-sleep", AsyncHandler)])
+    app = cyclone.web.Application(
+        [
+            (r"/", RootHandler),
+            (r"/error", ErrHandler),
+            (r"/async-sleep", AsyncHandler),
+            (r"/trace", TraceHandler),
+            (r"/async-trace", AsyncTraceHandler),
+        ]
+    )
     return app
 
 
@@ -185,3 +213,16 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         # This will fail until twisted context propagation is supported.
         assert s1.trace_id != s2.trace_id
         assert len({s1.trace_id, s2.trace_id, s3.trace_id}) == 3
+
+    @inlineCallbacks
+    def test_handler_trace(self):
+        with self.override_global_tracer(tracer=self.tracer):
+            resp = yield self.client.get("/trace")
+            assert resp.get_status() == 200
+
+        spans = self.test_spans.get_spans()
+        assert len(spans) == 2
+
+        s1, s2 = spans
+        assert s1.trace_id == s2.trace_id
+        assert s2.parent_id == s1.span_id

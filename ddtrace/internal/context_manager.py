@@ -7,6 +7,7 @@ from ..context import Context
 
 log = get_logger(__name__)
 
+
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 
@@ -51,4 +52,13 @@ class ContextVarContextManager(BaseContextManager):
         _DD_CONTEXTVAR.set(None)
 
 
+<<<<<<< HEAD
+=======
+if CONTEXTVARS_IS_AVAILABLE:
+    DefaultContextManager = ContextVarContextManager
+else:
+    DefaultContextManager = ThreadLocalContext
+
+
+>>>>>>> d70a5f19... backport context vars; fix context activation
 DefaultContextManager = ContextVarContextManager
