@@ -7,7 +7,7 @@ import httpx
 import pytest
 from sanic import Sanic
 from sanic.exceptions import ServerError
-from sanic.response import json, stream
+from sanic.response import json, stream, text
 
 import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -57,6 +57,14 @@ def app(tracer):
     @app.route("/error")
     async def error(request):
         raise ServerError("Something bad happened", status_code=500)
+
+    @app.route("/invalid")
+    async def invalid(request):
+        return "This should fail"
+
+    @app.exception(ServerError)
+    def handler_exception(request, exception):
+        return text(exception.args[0], exception.status_code)
 
     yield app
 
@@ -228,3 +236,22 @@ async def test_multiple_requests(tracer, client):
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
+
+
+@pytest.mark.asyncio
+async def test_invalid_response_type(tracer, client):
+    response = await client.get("/invalid")
+    assert response.status_code == 500
+    assert response.text == "Invalid response type"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.search("/invalid$", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "500"
