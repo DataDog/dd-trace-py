@@ -1,7 +1,35 @@
 import abc
 from ddtrace.vendor import six
 
-from .internal.context_manager import DefaultContextManager
+from ddtrace.context import Context
+from .internal.context_manager import DefaultContextManager, _DD_CONTEXTVAR
+
+
+def get_call_context():
+    """
+    Return the current active ``Context`` for this traced execution. This method is
+    automatically called in the ``tracer.trace()``, but it can be used in the application
+    code during manual instrumentation like::
+
+        from ddtrace import tracer
+
+        async def web_handler(request):
+            context = tracer.get_call_context()
+            # use the context if needed
+            # ...
+
+    This method makes use of a ``ContextProvider`` that is automatically set during the tracer
+    initialization, or while using a library instrumentation.
+    """
+    ctx = _DD_CONTEXTVAR.get()
+    if not ctx:
+        ctx = Context()
+        _DD_CONTEXTVAR.set(ctx)
+    return ctx
+
+
+def set_call_context(ctx):
+    return _DD_CONTEXTVAR.set(ctx)
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):

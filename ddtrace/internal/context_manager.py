@@ -2,18 +2,15 @@ import abc
 import threading
 from ddtrace.vendor import six
 
+from ddtrace.compat import contextvars
 from .logger import get_logger
 from ..context import Context
 
 log = get_logger(__name__)
 
-try:
-    from contextvars import ContextVar
+_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
-    _DD_CONTEXTVAR = ContextVar("datadog_contextvar", default=None)
-    CONTEXTVARS_IS_AVAILABLE = True
-except ImportError:
-    CONTEXTVARS_IS_AVAILABLE = False
+CONTEXTVARS_IS_AVAILABLE = True
 
 
 class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
@@ -101,7 +98,4 @@ class ContextVarContextManager(BaseContextManager):
         _DD_CONTEXTVAR.set(None)
 
 
-if CONTEXTVARS_IS_AVAILABLE:
-    DefaultContextManager = ContextVarContextManager
-else:
-    DefaultContextManager = ThreadLocalContext
+DefaultContextManager = ContextVarContextManager

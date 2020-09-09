@@ -183,3 +183,9 @@ def get_connection_response(conn):
         return conn.getresponse(buffering=True)
     else:
         return conn.getresponse()
+
+
+try:
+    import contextvars  # noqa
+except ImportError:
+    from ddtrace.vendor import contextvars  # noqa
