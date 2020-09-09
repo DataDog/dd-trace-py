@@ -1,8 +1,28 @@
 import abc
+import sys
 from ddtrace.vendor import six
 
 from ddtrace.context import Context
 from .internal.context_manager import DefaultContextManager, _DD_CONTEXTVAR
+
+
+try:
+    import asyncio
+except ImportError:
+    ASYNCIO = False
+else:
+    ASYNCIO = True
+
+
+try:
+    import gevent
+except ImportError:
+    GEVENT = False
+else:
+    GEVENT = True
+
+
+USE_LEGACY = sys.version_info < (3, 7, 0)
 
 
 def get_call_context():
@@ -21,15 +41,54 @@ def get_call_context():
     This method makes use of a ``ContextProvider`` that is automatically set during the tracer
     initialization, or while using a library instrumentation.
     """
-    ctx = _DD_CONTEXTVAR.get()
-    if not ctx:
-        ctx = Context()
+    if USE_LEGACY and ASYNCIO:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            return None
+        else:
+            task = asyncio.Task.current_task(loop=loop)
+            if task is None:
+                return Context()
+
+            ctx = getattr(task, "__dd_ctx", None)
+            if ctx is not None:
+                return ctx
+
+            ctx = Context()
+            setattr(task, "__dd_ctx", ctx)
+            return ctx
+    elif USE_LEGACY and GEVENT:
+        current_g = gevent.getcurrent()
+        if current_g is not None:
+            return getattr(current_g, "__dd_ctx", None)
+        else:
+            ctx = Context()
+            setattr(current_g, "__dd_ctx", ctx)
+            return ctx
+    else:
+        ctx = _DD_CONTEXTVAR.get()
+        if not ctx:
+            ctx = Context()
         _DD_CONTEXTVAR.set(ctx)
-    return ctx
+        return ctx
 
 
 def set_call_context(ctx):
-    return _DD_CONTEXTVAR.set(ctx)
+    if USE_LEGACY and ASYNCIO:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            pass
+        else:
+            task = asyncio.Task.current_task(loop=loop)
+            setattr(task, "__dd_ctx", ctx)
+    elif USE_LEGACY and GEVENT:
+        current_g = gevent.getcurrent()
+        if current_g is not None:
+            setattr(current_g, "__dd_ctx", ctx)
+    else:
+        _DD_CONTEXTVAR.set(ctx)
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -41,6 +100,7 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     * the ``active`` method, that returns the current active ``Context``
     * the ``activate`` method, that sets the current active ``Context``
     """
+
     @abc.abstractmethod
     def _has_active_context(self):
         pass
@@ -66,6 +126,7 @@ class DefaultContextProvider(BaseContextProvider):
     thread-local storage. It is suitable for synchronous programming and
     Python WSGI frameworks.
     """
+
     def __init__(self, reset_context_manager=True):
         self._local = DefaultContextManager(reset=reset_context_manager)
 
