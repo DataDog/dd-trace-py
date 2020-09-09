@@ -1,5 +1,8 @@
 """
 """
+import contextvars
+import functools
+
 from ddtrace import config, Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ddtrace.ext import http, SpanTypes
@@ -96,6 +99,34 @@ def traced__handle_request_exception(cyclone, pin, func, instance, args, kwargs)
         return func(*args, **kwargs)
 
 
+def deferred_init(func, instance, args, kwargs):
+    ctx = contextvars.copy_context()
+    instance.__ctx = ctx
+    from ddtrace.internal.context_manager import _DD_CONTEXTVAR
+    from ddtrace.context import Context
+
+    _DD_CONTEXTVAR.set(Context())
+    return func(*args, **kwargs)
+
+
+def deferred_callback(func, instance, args, kwargs):
+    callback = args[0] or kwargs.pop("callback")
+    ctx = instance.__ctx
+
+    @functools.wraps(callback)
+    def _callback(*args, **kwargs):
+        # contextvars throws a RuntimeError if the function that is run is
+        # called recursively so skip if this is the case
+        if ctx != contextvars.copy_context():
+            return ctx.run(callback, *args, **kwargs)
+        else:
+            return callback(*args, **kwargs)
+
+    newargs = list(args)
+    newargs[0] = _callback
+    return func(*tuple(newargs), **kwargs)
+
+
 def patch():
     import cyclone
 
@@ -108,6 +139,10 @@ def patch():
     trace_utils.wrap(
         "cyclone.web", "RequestHandler._handle_request_exception", traced__handle_request_exception(cyclone)
     )
+
+    trace_utils.wrap("twisted.internet.defer", "Deferred.__init__", deferred_init)
+    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_callback)
+    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallback", deferred_callback)
 
     setattr(cyclone, "__datadog_patch", True)
 

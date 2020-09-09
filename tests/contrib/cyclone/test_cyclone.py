@@ -159,15 +159,29 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
             assert span.get_tag("http.request.headers.my-header") == "test-value"
             assert span.get_tag("http.response.headers.resp-header") == "test-value"
 
+    @inlineCallbacks
+    def test_distributed_tracing_receive(self):
+        resp = yield self.client.get(
+            "/",
+            headers={"x-datadog-trace-id": "1234321", "x-datadog-parent-id": "12", "x-datadog-sampling-priority": 2,},
+        )
+        assert resp.get_status() == 200
+
+        span = self.test_spans.find_span(name="cyclone.request")
+        span.assert_matches(trace_id=1234321, parent_id=12, metrics={"_sampling_priority_v1": 2})
+
     def test_concurrent_requests(self):
-        self.client.get("/async-sleep?k=1")
-        self.client.get("/async-sleep?k=2")
+        self.client.get("/async-sleep?k=1"),
+        self.client.get("/async-sleep?k=2"),
+        self.client.get("/async-sleep?k=3"),
+
         reactor.callLater(0.5, reactor.stop)
         reactor.run()
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 2
+        assert len(spans) == 3
 
-        s1, s2 = spans
+        s1, s2, s3 = spans
         # This will fail until twisted context propagation is supported.
         assert s1.trace_id != s2.trace_id
+        assert len({s1.trace_id, s2.trace_id, s3.trace_id}) == 3
