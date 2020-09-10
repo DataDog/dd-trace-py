@@ -188,11 +188,15 @@ def _patch_render(tracer):
     # fall back to patching  global method
     _render = flask.templating._render
 
+    if hasattr(_render, "__dd_patched"):
+        return
+
     def _traced_render(template, context, app):
         with tracer.trace('flask.template', span_type=SpanTypes.TEMPLATE) as span:
             span.set_tag('flask.template', template.name or 'string')
             return _render(template, context, app)
 
+    setattr(_traced_render, "__dd_patched", True)
     flask.templating._render = _traced_render
 
 
