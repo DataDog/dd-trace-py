@@ -14,7 +14,7 @@ from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .internal import _rand
-from .provider import DefaultContextProvider, get_call_context, set_call_context
+from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
@@ -214,7 +214,7 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return get_call_context()
+        return self.context_provider.active(*args, **kwargs)
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("dogstatsd_host", "Use `dogstatsd_url` instead",
@@ -546,7 +546,7 @@ class Tracer(object):
         # they will share the seed and generate the same random numbers.
         _rand.seed()
 
-        ctx = get_call_context()
+        ctx = self.get_call_context()
         # The spans remaining in the context can not and will not be finished
         # in this new process. So we need to copy out the trace metadata needed
         # to continue the trace.
@@ -557,7 +557,7 @@ class Tracer(object):
             span_id=ctx._parent_span_id,
             trace_id=ctx._parent_trace_id,
         )
-        set_call_context(new_ctx)
+        self.context_provider.activate(new_ctx)
 
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
@@ -630,7 +630,7 @@ class Tracer(object):
 
         # retrieve the Context using the context provider and create
         # a new Span that could be a root or a nested span
-        context = get_call_context()
+        context = self.get_call_context()
         return self.start_span(
             name,
             child_of=context,
@@ -653,7 +653,7 @@ class Tracer(object):
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        ctx = get_call_context()
+        ctx = self.get_call_context()
         if ctx:
             return ctx.get_current_root_span()
         return None
@@ -663,7 +663,7 @@ class Tracer(object):
         Return the active span for the current call context or ``None``
         if no spans are available.
         """
-        ctx = get_call_context()
+        ctx = self.get_call_context()
         if ctx:
             return ctx.get_current_span()
         return None

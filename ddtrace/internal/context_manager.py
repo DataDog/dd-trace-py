@@ -10,7 +10,12 @@ log = get_logger(__name__)
 
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
-CONTEXTVARS_IS_AVAILABLE = True
+try:
+    import contextvars
+except ImportError:
+    CONTEXTVARS_IS_AVAILABLE = False
+else:
+    CONTEXTVARS_IS_AVAILABLE = True
 
 
 class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
