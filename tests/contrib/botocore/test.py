@@ -104,7 +104,7 @@ class BotocoreTest(TracerTestCase):
         params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
         s3 = self.session.create_client('s3', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
-        s3.create_bucket(Bucket='mybucket')
+        s3.create_bucket(Bucket='mybucket', region="us-east-1")
         s3.put_object(**params)
 
         spans = self.get_spans()
