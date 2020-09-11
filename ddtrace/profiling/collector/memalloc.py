@@ -26,6 +26,9 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
     capture_pct = attr.ib(default=None)
     """The capture percentage."""
 
+    nevents = attr.ib(default=None)
+    """The total number of allocation events sampled."""
+
 
 @attr.s
 class MemoryCollector(collector.PeriodicCollector):
@@ -67,6 +70,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     nframes=nframes,
                     size=size,
                     capture_pct=capture_pct,
+                    nevents=alloc_count,
                 )
                 for (stack, nframes, thread_id), size in events
                 # TODO: this should be implemented in _memalloc directly so we have more space for samples
