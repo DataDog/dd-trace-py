@@ -1,5 +1,9 @@
 # Changelog
 
+- fix(flask): make template patching idempotent
+
+---
+
 ## 0.41.2 (25/08/2020)
 
 - Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
