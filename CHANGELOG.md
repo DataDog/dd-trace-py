@@ -1,5 +1,24 @@
 # Changelog
 
+- fix(flask): make template patching idempotent
+
+---
+
+## 0.42.0 (14/09/2020)
+
+- feat(django): add database_service_name config option
+- feat: add global service name configuration for dbapi integrations
+- fix(falcon): set span error for 5xx responses
+- fix(core): always store span_type as str on span
+- feat(pymongo): trace tcp connections
+- fix(logging): cast span_id and trace_id as string when adding to the record. 
+- fix(gevent): patch ssl modules on import
+- feat(core): add trace_utils module
+- fix(core): expose http setting on global config
+- feat(core): consolidate fork checks
+
+---
+
 ## 0.41.2 (25/08/2020)
 
 - Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
