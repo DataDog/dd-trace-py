@@ -188,6 +188,8 @@ def _patch_render(tracer):
     # fall back to patching  global method
     _render = flask.templating._render
 
+    # If the method has already been patched and we're patching again then
+    # we have to patch again with the new tracer reference.
     if hasattr(_render, "__dd_orig"):
         _render = getattr(_render, "__dd_orig")
 
