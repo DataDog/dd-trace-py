@@ -1,5 +1,9 @@
 # Changelog
 
+- fix(flask): make template patching idempotent
+
+---
+
 ## 0.42.0 (14/09/2020)
 
 - feat(django): add database_service_name config option
@@ -13,7 +17,7 @@
 - fix(core): expose http setting on global config
 - feat(core): consolidate fork checks
 
---- 
+---
 
 ## 0.41.2 (25/08/2020)
 
