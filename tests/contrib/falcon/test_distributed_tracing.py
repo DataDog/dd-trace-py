@@ -45,7 +45,6 @@ class DistributedTracingTestCase(testing.TestCase):
         self.api = get_app(tracer=self.tracer, distributed_tracing=False)
         if(self.version[0] != '1'):
             self.client = testing.TestClient(self.api)
-        
         headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',

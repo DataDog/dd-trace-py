@@ -18,7 +18,6 @@ class FalconTestCase(object):
         else:
             out = self.client.simulate_get('/fake_endpoint')
             assert out.status[:3] == "404"
-        
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1

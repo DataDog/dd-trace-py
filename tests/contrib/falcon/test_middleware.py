@@ -18,4 +18,3 @@ class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         self.version = falcon.__version__
         if(self.version[0] != '1'):
             self.client = testing.TestClient(self.api)
-        
