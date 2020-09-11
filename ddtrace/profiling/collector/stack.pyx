@@ -2,7 +2,6 @@
 from __future__ import absolute_import
 
 import collections
-import logging
 import sys
 import threading
 import weakref
@@ -18,8 +17,6 @@ from ddtrace.utils import formats
 from ddtrace.vendor import attr
 from ddtrace.vendor import six
 
-
-_LOG = logging.getLogger(__name__)
 
 
 if _nogevent.is_module_patched("threading"):
