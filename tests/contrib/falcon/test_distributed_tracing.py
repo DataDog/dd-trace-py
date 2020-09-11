@@ -43,6 +43,9 @@ class DistributedTracingTestCase(testing.TestCase):
     def test_distributred_tracing_disabled(self):
         self.tracer = get_dummy_tracer()
         self.api = get_app(tracer=self.tracer, distributed_tracing=False)
+        if(self.version[0] != '1'):
+            self.client = testing.TestClient(self.api)
+        
         headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
