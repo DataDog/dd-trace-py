@@ -2,7 +2,6 @@
 Trace queries to botocore api done via a pynamodb client
 """
 
-import os
 from ddtrace.vendor import wrapt
 from ddtrace import config
 import pynamodb.connection.base
