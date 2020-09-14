@@ -1,5 +1,6 @@
 # Changelog
 
+- feat(core): backport contextvars
 - fix(flask): make template patching idempotent
 
 ---
