@@ -34,18 +34,18 @@ def test_int_service(config, pin, config_val, default, global_service, expected)
     if global_service:
         config.service = global_service
 
-    assert trace_utils.int_service(config.myint, pin, default) == expected
+    assert trace_utils.int_service(pin, config.myint, default) == expected
 
 
 def test_int_service_integration(config):
     pin = Pin()
     tracer = Tracer()
-    assert trace_utils.int_service(config.myint, pin) is None
+    assert trace_utils.int_service(pin, config.myint) is None
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(config.myint, pin) is None
+        assert trace_utils.int_service(pin, config.myint) is None
 
-        with tracer.trace("something", service=trace_utils.int_service(config.myint, pin)) as s:
+        with tracer.trace("something", service=trace_utils.int_service(pin, config.myint)) as s:
             assert s.service == "global-svc"
 
 
@@ -62,4 +62,4 @@ def test_ext_service(config, pin, config_val, default, expected):
     if config_val:
         config.myint.service = config_val
 
-    assert trace_utils.ext_service(config.myint, pin, default) == expected
+    assert trace_utils.ext_service(pin, config.myint, default) == expected

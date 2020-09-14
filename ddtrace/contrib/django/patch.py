@@ -22,6 +22,7 @@ from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
+from .. import trace_utils
 from .compat import get_resolver, user_is_authenticated
 from . import utils, conf
 
@@ -32,9 +33,10 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        service_name=config._get_service(default="django"),
+        _default_service="django",
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
+        database_service_name=get_env("django", "database_service_name", default=""),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,
@@ -86,9 +88,14 @@ def with_traced_module(func):
 
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
-        database_prefix = config.django.database_service_name_prefix
         alias = getattr(conn, "alias", "default")
-        service = "{}{}{}".format(database_prefix, alias, "db")
+
+        if config.django.database_service_name:
+            service = config.django.database_service_name
+        else:
+            database_prefix = config.django.database_service_name_prefix
+            service = "{}{}{}".format(database_prefix, alias, "db")
+
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
         tags = {
@@ -96,7 +103,7 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return dbapi.TracedCursor(func(*args, **kwargs), pin)
+        return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))
@@ -393,7 +400,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
     else:
         with pin.tracer.trace(
-            "django.request", resource=resource, service=config.django["service_name"], span_type=SpanTypes.HTTP
+            "django.request",
+            resource=resource,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.HTTP,
         ) as span:
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
@@ -563,7 +573,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 
 
 def _patch(django):
-    Pin(service=config.django["service_name"]).onto(django)
+    Pin().onto(django)
     wrap(django, "apps.registry.Apps.populate", traced_populate(django))
 
     # DEV: this check will be replaced with import hooks in the future

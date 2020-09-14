@@ -112,7 +112,7 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=2.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
@@ -128,7 +128,7 @@ def test_new_interval():
     new_interval = c._compute_new_interval(200000)
     assert new_interval == 0.01
     new_interval = c._compute_new_interval(1)
-    assert new_interval == c.MIN_INTERVAL_TIME
+    assert new_interval == c.min_interval_time
 
 
 # Function to use for stress-test of polling
@@ -174,8 +174,8 @@ def test_stress_threads():
         % (
             NB_THREADS,
             MAX_FN_NUM,
-            1 / stack.StackCollector.MIN_INTERVAL_TIME,
-            100 * exectime_per_collect / stack.StackCollector.MIN_INTERVAL_TIME,
+            1 / s.min_interval_time,
+            100 * exectime_per_collect / s.min_interval_time,
         )
     )
     for t in threads:

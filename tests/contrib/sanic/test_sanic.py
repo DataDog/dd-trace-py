@@ -13,7 +13,7 @@ import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sanic import patch, unpatch
 from ddtrace.propagation import http as http_propagation
-from tests import BaseTestCase, override_config, override_http_config
+from tests import override_config, override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -228,12 +228,3 @@ async def test_multiple_requests(tracer, client):
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
-
-
-class SanicConfigTestCase(BaseTestCase):
-    @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_global_config(self):
-        from ddtrace import config
-        from ddtrace.contrib.sanic import patch  # noqa: F401
-
-        assert config.sanic.service == "mysvc"

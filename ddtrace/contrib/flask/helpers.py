@@ -1,5 +1,7 @@
-from ddtrace import Pin
+from ddtrace import Pin, config
 import flask
+
+from .. import trace_utils
 
 
 def get_current_app():
@@ -25,7 +27,7 @@ def simple_tracer(name, span_type=None):
     """Generate a simple tracer that wraps the function call with `with tracer.trace()`"""
     @with_instance_pin
     def wrapper(pin, wrapped, instance, args, kwargs):
-        with pin.tracer.trace(name, service=pin.service, span_type=span_type):
+        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask, pin), span_type=span_type):
             return wrapped(*args, **kwargs)
     return wrapper
 
