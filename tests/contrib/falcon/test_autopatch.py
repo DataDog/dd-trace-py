@@ -1,4 +1,5 @@
 from falcon import testing
+import falcon as falcon
 
 import ddtrace
 
@@ -29,6 +30,10 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         # reconfigure the global tracer since the autopatch mode
         # uses it
         self.api = get_app(tracer=None)
+
+        self.version = falcon.__version__
+        if(self.version[0] != '1'):
+            self.client = testing.TestClient(self.api)
 
     def tearDown(self):
         super(AutoPatchTestCase, self).tearDown()
