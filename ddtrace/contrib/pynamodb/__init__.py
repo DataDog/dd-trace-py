@@ -17,7 +17,7 @@ Or use :ref:`patch()<patch>` to manually enable the integration::
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.pynamodb["service_name"]
+.. py:data:: ddtrace.config.pynamodb["service"]
    The service name reported by default for the PynamoDB instance.
    This option can also be set with the ``DD_PYNAMODB_SERVICE`` environment
    variable.
