@@ -43,7 +43,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     with pin.tracer.trace(
-        "pynamodb.command", service=trace_utils.ext_service(config.pynamodb, pin, "pynamodb"), span_type=SpanTypes.HTTP
+        "pynamodb.command", service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"), span_type=SpanTypes.HTTP
     ) as span:
 
         span.set_tag(SPAN_MEASURED_KEY)
