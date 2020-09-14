@@ -1,6 +1,6 @@
 import abc
 import threading
-from ddtrace.vendor import six
+from ddtrace.vendor import debtcollector, six
 
 from ddtrace.compat import contextvars
 from .logger import get_logger
@@ -39,6 +39,7 @@ class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
+@debtcollector.removals.removed_class("ThreadLocalContext")
 class ThreadLocalContext(BaseContextManager):
     """
     ThreadLocalContext can be used as a tracer global reference to create
