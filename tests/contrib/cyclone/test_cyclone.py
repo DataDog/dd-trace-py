@@ -4,7 +4,7 @@ Cyclone provides unittest style helpers so stick to a unittest style suite.
 
 import cyclone
 import cyclone.web
-from cyclone.testing import CycloneTestCase
+from .testcase import CycloneTestCase
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
 
