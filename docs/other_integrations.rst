@@ -89,3 +89,10 @@ Mako
 ------
 
 .. automodule:: ddtrace.contrib.mako
+
+.. _pynamodb:
+
+PynamoDB
+---------
+
+.. automodule:: ddtrace.contrib.pynamodb
