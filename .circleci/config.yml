@@ -210,14 +210,14 @@ jobs:
     steps:
       - checkout
       - setup_tox
-      - run: tox -e 'black' --result-json /tmp/black.results
+      - run: tox -e black
 
   flake8:
     executor: python38
     steps:
       - checkout
       - setup_tox
-      - run: tox -e 'flake8' --result-json /tmp/flake8.results
+      - run: tox -e flake8
 
   build-docker-ci-image:
     executor: cimg_base
@@ -688,11 +688,7 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
-      - store_test_results:
-          path: /tmp/test-reports
-      - store_artifacts:
-          path: /tmp/test-reports
+            tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
       - save_tox_cache
 
   build_wheels:
