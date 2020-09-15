@@ -9,6 +9,8 @@ import random
 import time
 import unittest
 
+import pytest
+
 from ddtrace.vendor import contextvars
 
 
@@ -28,8 +30,9 @@ class ContextTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             contextvars.ContextVar()
 
-        with self.assertRaisesRegex(TypeError, "must be a str"):
+        with pytest.raises(TypeError) as e:
             contextvars.ContextVar(1)
+        assert "must be a str" in str(e.value)
 
         c = contextvars.ContextVar("a")
         self.assertNotEqual(hash(c), hash("a"))
@@ -66,12 +69,17 @@ class ContextTest(unittest.TestCase):
     def test_context_typerrors_1(self):
         ctx = contextvars.Context()
 
-        with self.assertRaisesRegex(TypeError, "ContextVar key was expected"):
+        with pytest.raises(TypeError) as e:
             ctx[1]
-        with self.assertRaisesRegex(TypeError, "ContextVar key was expected"):
+        assert "ContextVar key was expected" in str(e.value)
+
+        with pytest.raises(TypeError):
             1 in ctx
-        with self.assertRaisesRegex(TypeError, "ContextVar key was expected"):
+        assert "ContextVar key was expected" in str(e.value)
+
+        with pytest.raises(TypeError) as e:
             ctx.get(1)
+        assert "ContextVar key was expected" in str(e.value)
 
     def test_context_get_context_1(self):
         ctx = contextvars.copy_context()
@@ -80,7 +88,7 @@ class ContextTest(unittest.TestCase):
     def test_context_run_1(self):
         ctx = contextvars.Context()
 
-        with self.assertRaisesRegex(TypeError, "missing 1 required"):
+        with pytest.raises(TypeError):
             ctx.run()
 
     def test_context_run_2(self):
@@ -175,8 +183,9 @@ class ContextTest(unittest.TestCase):
         ctx = contextvars.Context()
 
         def fun():
-            with self.assertRaisesRegex(RuntimeError, "is already entered"):
+            with pytest.raises(RuntimeError) as e:
                 ctx.run(fun)
+            assert "is already entered" in str(e.value)
 
         ctx.run(fun)
 
@@ -205,16 +214,18 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(c.get(None), 42)
 
         c.set("spam2")
-        with self.assertRaisesRegex(RuntimeError, "has already been used"):
+        with pytest.raises(RuntimeError) as e:
             c.reset(t)
+        assert "has already been used" in str(e.value)
         self.assertEqual(c.get(), "spam2")
 
         ctx1 = contextvars.copy_context()
         self.assertIn(c, ctx1)
 
         c.reset(t0)
-        with self.assertRaisesRegex(RuntimeError, "has already been used"):
+        with pytest.raises(RuntimeError):
             c.reset(t0)
+        assert "has already been used" in str(e.value)
         self.assertIsNone(c.get(None))
 
         self.assertIn(c, ctx1)
@@ -240,8 +251,9 @@ class ContextTest(unittest.TestCase):
         v2 = contextvars.ContextVar("v2")
 
         t1 = v1.set(42)
-        with self.assertRaisesRegex(ValueError, "by a different"):
+        with pytest.raises(ValueError) as e:
             v2.reset(t1)
+        assert "by a different" in str(e.value)
 
     @isolated_context
     def test_context_getset_3(self):
@@ -275,8 +287,9 @@ class ContextTest(unittest.TestCase):
 
         tok = ctx.run(c.set, 1)
 
-        with self.assertRaisesRegex(ValueError, "different Context"):
+        with pytest.raises(ValueError) as e:
             c.reset(tok)
+        assert "different Context" in str(e.value)
 
     @isolated_context
     def test_context_getset_5(self):
