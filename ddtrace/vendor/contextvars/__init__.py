@@ -31,7 +31,7 @@ class Context(Mapping):
 
     def copy(self):
         new = Context()
-        new._data = self._data
+        new._data = self._data.copy()
         return new
 
     def __getitem__(self, var):
@@ -102,9 +102,9 @@ class ContextVar(object):
 
         ctx = token._context
         if token._old_value is Token.MISSING:
-            ctx._data = ctx._data.delete(token._var)
+            del ctx._data[token._var]
         else:
-            ctx._data = ctx._data.set(token._var, token._old_value)
+            ctx._data[token._var] = token._old_value
 
         token._used = True
 
