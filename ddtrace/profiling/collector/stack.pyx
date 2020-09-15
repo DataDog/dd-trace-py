@@ -133,17 +133,7 @@ ELSE:
 
 
 @event.event_class
-class StackBasedEvent(event.SampleEvent):
-    thread_id = attr.ib(default=None)
-    thread_name = attr.ib(default=None)
-    thread_native_id = attr.ib(default=None)
-    frames = attr.ib(default=None)
-    nframes = attr.ib(default=None)
-    trace_ids = attr.ib(default=None)
-
-
-@event.event_class
-class StackSampleEvent(StackBasedEvent):
+class StackSampleEvent(event.StackBasedEvent):
     """A sample storing executions frames for a thread."""
 
     # Wall clock
@@ -153,7 +143,7 @@ class StackSampleEvent(StackBasedEvent):
 
 
 @event.event_class
-class StackExceptionSampleEvent(StackBasedEvent):
+class StackExceptionSampleEvent(event.StackBasedEvent):
     """A a sample storing raised exceptions and their stack frames."""
 
     exc_type = attr.ib(default=None)
