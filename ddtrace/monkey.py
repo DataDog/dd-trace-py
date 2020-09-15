@@ -58,6 +58,7 @@ PATCH_MODULES = {
     "mako": True,
     "flask": True,
     "kombu": False,
+    "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": False,
     "pylons": False,
