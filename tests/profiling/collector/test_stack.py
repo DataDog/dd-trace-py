@@ -12,6 +12,7 @@ from ddtrace.vendor import six
 from ddtrace.profiling import _nogevent
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import _threading
 
 from . import test_collector
 
@@ -243,7 +244,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 237, "test_exception_collection")]
+    assert e.frames == [(__file__, 238, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -415,13 +416,13 @@ def test_thread_time_cache():
 
     if stack.FEATURES["cpu-time"]:
         assert set(tt._get_last_thread_time().keys()) == set(
-            (pthread_id, stack.get_thread_native_id(pthread_id)) for pthread_id in threads
+            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
         )
 
     lock.release()
 
     threads = {
-        main_thread_id: stack.get_thread_native_id(main_thread_id),
+        main_thread_id: _threading.get_thread_native_id(main_thread_id),
     }
 
     cpu_time = tt(threads)
@@ -430,5 +431,5 @@ def test_thread_time_cache():
 
     if stack.FEATURES["cpu-time"]:
         assert set(tt._get_last_thread_time().keys()) == set(
-            (pthread_id, stack.get_thread_native_id(pthread_id)) for pthread_id in threads
+            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
         )
