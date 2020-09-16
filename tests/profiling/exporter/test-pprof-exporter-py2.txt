@@ -20,19 +20,19 @@ sample_type {
 }
 sample_type {
   type: 15
-  unit: 11
+  unit: 9
 }
 sample_type {
   type: 16
-  unit: 9
-}
-sample_type {
-  type: 17
   unit: 11
 }
 sample_type {
-  type: 18
+  type: 17
   unit: 9
+}
+sample_type {
+  type: 18
+  unit: 11
 }
 sample_type {
   type: 19
@@ -106,11 +106,11 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   value: 2
   value: 8231780
   value: 2
   value: 7202807
-  value: 0
   value: 0
   value: 0
   label {
@@ -165,11 +165,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -200,11 +200,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -297,11 +297,11 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   value: 1
   value: 74890
   value: 1
   value: 65528
-  value: 0
   value: 0
   value: 0
   label {
@@ -326,11 +326,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -422,11 +422,11 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   value: 1
   value: 7483940
   value: 1
   value: 6548447
-  value: 0
   value: 0
   value: 0
   label {
@@ -450,11 +450,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -547,11 +547,11 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   value: 1
   value: 48390
   value: 1
   value: 42341
-  value: 0
   value: 0
   value: 0
   label {
@@ -608,11 +608,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -671,11 +671,11 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   value: 1
   value: 74830
   value: 1
   value: 65476
-  value: 0
   value: 0
   value: 0
   label {
@@ -699,11 +699,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -794,11 +794,11 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   value: 1
   value: 1748390
   value: 1
   value: 1529841
-  value: 0
   value: 0
   value: 0
   label {
@@ -853,11 +853,11 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
   value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 0
   value: 0
   label {
@@ -981,11 +981,11 @@ string_table: "cpu-time"
 string_table: "nanoseconds"
 string_table: "wall-time"
 string_table: "uncaught-exceptions"
+string_table: "exception-samples"
 string_table: "lock-acquire"
 string_table: "lock-acquire-wait"
 string_table: "lock-release"
 string_table: "lock-release-hold"
-string_table: "exception-samples"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"
@@ -994,14 +994,14 @@ string_table: "67892304"
 string_table: "thread name"
 string_table: "MainThread"
 string_table: "exception type"
-string_table: "builtins.OSError"
-string_table: "builtins.ValueError"
+string_table: "exceptions.IOError"
+string_table: "exceptions.ValueError"
 string_table: "lock name"
 string_table: "foobar.py:12"
 string_table: "thread native id"
 string_table: "123987"
 string_table: "trace id"
-string_table: "builtins.TypeError"
+string_table: "exceptions.TypeError"
 string_table: "1322219321"
 string_table: "343332"
 string_table: "time"
