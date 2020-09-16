@@ -59,6 +59,7 @@ PATCH_MODULES = {
     "flask": True,
     "kombu": False,
     "starlette": True,
+    "uvloop": True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": False,
     "pylons": False,
