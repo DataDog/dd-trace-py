@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
-    "asyncio": False,
+    "asyncio": True,
     "boto": True,
     "botocore": True,
     "bottle": False,
