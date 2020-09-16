@@ -11,22 +11,21 @@ def patch():
     """Patches current loop `create_task()` method to enable spawned tasks to
     parent to the base task context.
     """
-    if getattr(asyncio, '_datadog_patch', False):
+    if getattr(asyncio, "_datadog_patch", False):
         return
-    setattr(asyncio, '_datadog_patch', True)
+    setattr(asyncio, "_datadog_patch", True)
 
-    loop = asyncio.get_event_loop()
-    if CONTEXTVARS_IS_AVAILABLE:
-        _w(loop, 'create_task', wrapped_create_task_contextvars)
-    else:
-        _w(loop, 'create_task', wrapped_create_task)
+    _w(
+        asyncio.BaseEventLoop,
+        "create_task",
+        wrapped_create_task_contextvars if CONTEXTVARS_IS_AVAILABLE else wrapped_create_task,
+    )
 
 
 def unpatch():
     """Remove tracing from patched modules."""
 
-    if getattr(asyncio, '_datadog_patch', False):
-        setattr(asyncio, '_datadog_patch', False)
+    if getattr(asyncio, "_datadog_patch", False):
+        setattr(asyncio, "_datadog_patch", False)
 
-    loop = asyncio.get_event_loop()
-    _u(loop, 'create_task')
+    _u(asyncio.BaseEventLoop, "create_task")
