@@ -2,7 +2,7 @@ import asyncio
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...internal.context_manager import CONTEXTVARS_IS_AVAILABLE
+from ...compat import CONTEXTVARS_IS_AVAILABLE
 from .wrappers import wrapped_create_task, wrapped_create_task_contextvars
 from ...utils.wrappers import unwrap as _u
 
