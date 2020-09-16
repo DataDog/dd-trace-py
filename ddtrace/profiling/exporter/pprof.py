@@ -361,35 +361,15 @@ class PprofExporter(exporter.Exporter):
                 thread_id, thread_name, frames, nframes, exc_type_name, list(ue_events)
             )
 
-        sample_types = (
-            ("cpu-samples", "count"),
-            ("cpu-time", "nanoseconds"),
-            ("wall-time", "nanoseconds"),
-            ("uncaught-exceptions", "count"),
-            ("lock-acquire", "count"),
-            ("lock-acquire-wait", "nanoseconds"),
-            ("lock-release", "count"),
-            ("lock-release-hold", "nanoseconds"),
-        )
-
-        # Handle StackExceptionSampleEvent
-        if stack.FEATURES["stack-exceptions"]:
-            sample_types += (("exception-samples", "count"),)
-
-            for (
-                (thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name),
-                se_events,
-            ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
-                converter.convert_stack_exception_event(
-                    thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name, list(se_events)
-                )
-
-        if tracemalloc:
-            sample_types += (
-                ("alloc-samples", "count"),
-                ("alloc-space", "bytes"),
+        for (
+            (thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name),
+            se_events,
+        ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
+            converter.convert_stack_exception_event(
+                thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name, list(se_events)
             )
 
+        if tracemalloc:
             # Handle MemorySampleEvent
             # Merge all the memory snapshots
             traces = []
@@ -416,6 +396,20 @@ class PprofExporter(exporter.Exporter):
             period = None
 
         duration_ns = end_time_ns - start_time_ns
+
+        sample_types = (
+            ("cpu-samples", "count"),
+            ("cpu-time", "nanoseconds"),
+            ("wall-time", "nanoseconds"),
+            ("uncaught-exceptions", "count"),
+            ("exception-samples", "count"),
+            ("lock-acquire", "count"),
+            ("lock-acquire-wait", "nanoseconds"),
+            ("lock-release", "count"),
+            ("lock-release-hold", "nanoseconds"),
+            ("alloc-samples", "count"),
+            ("alloc-space", "bytes"),
+        )
 
         return converter._build_profile(
             start_time_ns=start_time_ns,
