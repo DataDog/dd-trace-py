@@ -11,17 +11,18 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+import urllib
 
 from cyclone.httpserver import HTTPRequest, HTTPConnection
 from cyclone.web import decode_signed_value
 from cyclone.httputil import HTTPHeaders
-import urllib
 from twisted.test import proto_helpers
 from twisted.internet.defer import inlineCallbacks, returnValue
-from http.cookies import SimpleCookie
+
+from ddtrace.vendor import six
 
 
-class DecodingSimpleCookie(SimpleCookie):
+class DecodingSimpleCookie(six.moves.http_cookies.SimpleCookie):
     def __init__(self, app, *args, **kwargs):
         self.app = app
 
