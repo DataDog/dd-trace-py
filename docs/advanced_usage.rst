@@ -539,11 +539,11 @@ Examples
 
 Distributed Tracing across celery tasks with OpenTracing.
 
-1. Install Celery OpenTracing:
+1. Install Celery OpenTracing::
 
     pip install Celery-OpenTracing
 
-2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+2. Replace your Celery app with the version that comes with Celery-OpenTracing::
 
     from celery_opentracing import CeleryTracing
     from ddtrace.opentracer import set_global_tracer, Tracer

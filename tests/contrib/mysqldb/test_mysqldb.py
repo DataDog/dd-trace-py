@@ -12,7 +12,6 @@ from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 class MySQLCore(object):
     """Base test case for MySQL drivers"""
     conn = None
-    TEST_SERVICE = 'test-mysql'
 
     def setUp(self):
         super(MySQLCore, self).setUp()
@@ -49,7 +48,7 @@ class MySQLCore(object):
 
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
@@ -73,7 +72,7 @@ class MySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "mysql"
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
@@ -98,7 +97,7 @@ class MySQLCore(object):
 
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
@@ -122,7 +121,7 @@ class MySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "mysql"
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
@@ -267,7 +266,7 @@ class MySQLCore(object):
         # can expect the next to the last closed span to be our proc.
         span = spans[-2]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
@@ -302,7 +301,7 @@ class MySQLCore(object):
         assert ot_span.name == 'mysql_op'
 
         assert_is_measured(dd_span)
-        assert dd_span.service == self.TEST_SERVICE
+        assert dd_span.service == "mysql"
         assert dd_span.name == 'mysql.query'
         assert dd_span.span_type == 'sql'
         assert dd_span.error == 0
@@ -337,7 +336,7 @@ class MySQLCore(object):
             assert ot_span.name == 'mysql_op'
 
             assert_is_measured(dd_span)
-            assert dd_span.service == self.TEST_SERVICE
+            assert dd_span.service == "mysql"
             assert dd_span.name == 'mysql.query'
             assert dd_span.span_type == 'sql'
             assert dd_span.error == 0
@@ -357,7 +356,7 @@ class MySQLCore(object):
         spans = writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'MySQLdb.connection.commit'
 
     def test_rollback(self):
@@ -367,7 +366,7 @@ class MySQLCore(object):
         spans = writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'MySQLdb.connection.rollback'
 
     def test_analytics_default(self):
@@ -457,10 +456,9 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
-            assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
+            pin.clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -477,10 +475,9 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
-            assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
+            pin.clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -497,7 +494,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn = self._connect_with_kwargs()
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(conn)
+            pin.clone(tracer=self.tracer).onto(conn)
             conn.ping()
 
             cursor = conn.cursor()
@@ -508,7 +505,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert len(spans) == 1
 
             span = spans[0]
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "mysql"
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
@@ -529,3 +526,29 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn.close()
 
         patch()
+
+    def test_user_pin_override(self):
+        conn, tracer = self._get_conn_tracer()
+        pin = Pin.get_from(conn)
+        pin.clone(service="pin-svc", tracer=self.tracer).onto(conn)
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1')
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+
+        span = spans[0]
+        assert span.service == "pin-svc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc"))
+    def test_user_specified_service_integration(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = writer.pop()
+
+        assert spans[0].service == "mysvc"

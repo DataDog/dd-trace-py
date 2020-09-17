@@ -12,9 +12,12 @@ class FalconTestCase(object):
     and automatic instrumentation.
     """
     def test_404(self):
-        out = self.simulate_get('/fake_endpoint')
-        assert out.status_code == 404
-
+        if(self.version[0] == '1'):
+            out = self.simulate_get('/fake_endpoint')
+            assert out.status_code == 404
+        else:
+            out = self.client.simulate_get('/fake_endpoint')
+            assert out.status[:3] == "404"
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -32,7 +35,10 @@ class FalconTestCase(object):
 
     def test_exception(self):
         try:
-            self.simulate_get('/exception')
+            if(self.version[0] == '1'):
+                self.simulate_get('/exception')
+            else:
+                self.client.simulate_get('/exception')
         except Exception:
             pass
         else:
@@ -53,8 +59,13 @@ class FalconTestCase(object):
         assert span.error == 1
 
     def test_200(self, query_string=''):
-        out = self.simulate_get('/200', query_string=query_string)
-        assert out.status_code == 200
+        if(self.version[0] == '1'):
+            out = self.simulate_get('/200', query_string=query_string)
+            assert out.status_code == 200
+        else:
+            out = self.client.simulate_get('/200', query_string=query_string)
+            assert out.status[:3] == "200"
+
         assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
@@ -98,8 +109,12 @@ class FalconTestCase(object):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics_enabled=True)):
-            out = self.simulate_get('/200')
-            self.assertEqual(out.status_code, 200)
+            if(self.version[0] == '1'):
+                out = self.simulate_get('/200')
+                self.assertEqual(out.status_code, 200)
+            else:
+                out = self.client.simulate_get('/200')
+                self.assertEqual(out.status[:3], "200")
             self.assertEqual(out.content.decode('utf-8'), 'Success')
 
             self.assert_structure(
@@ -114,8 +129,12 @@ class FalconTestCase(object):
         """
         with self.override_global_config(dict(analytics_enabled=True)):
             with self.override_config('falcon', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                out = self.simulate_get('/200')
-                self.assertEqual(out.status_code, 200)
+                if(self.version[0] == '1'):
+                    out = self.simulate_get('/200')
+                    self.assertEqual(out.status_code, 200)
+                else:
+                    out = self.client.simulate_get('/200')
+                    self.assertEqual(out.status[:3], "200")
                 self.assertEqual(out.content.decode('utf-8'), 'Success')
 
                 self.assert_structure(
@@ -129,8 +148,12 @@ class FalconTestCase(object):
                 We expect the root span to not include tag
         """
         with self.override_global_config(dict(analytics_enabled=False)):
-            out = self.simulate_get('/200')
-            self.assertEqual(out.status_code, 200)
+            if(self.version[0] == '1'):
+                out = self.simulate_get('/200')
+                self.assertEqual(out.status_code, 200)
+            else:
+                out = self.client.simulate_get('/200')
+                self.assertEqual(out.status[:3], "200")
             self.assertEqual(out.content.decode('utf-8'), 'Success')
 
             root = self.get_root_span()
@@ -144,8 +167,12 @@ class FalconTestCase(object):
         """
         with self.override_global_config(dict(analytics_enabled=False)):
             with self.override_config('falcon', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                out = self.simulate_get('/200')
-                self.assertEqual(out.status_code, 200)
+                if(self.version[0] == '1'):
+                    out = self.simulate_get('/200')
+                    self.assertEqual(out.status_code, 200)
+                else:
+                    out = self.client.simulate_get('/200')
+                    self.assertEqual(out.status[:3], "200")
                 self.assertEqual(out.content.decode('utf-8'), 'Success')
 
                 self.assert_structure(
@@ -153,8 +180,12 @@ class FalconTestCase(object):
                 )
 
     def test_201(self):
-        out = self.simulate_post('/201')
-        assert out.status_code == 201
+        if(self.version[0] == '1'):
+            out = self.simulate_post('/201')
+            assert out.status_code == 201
+        else:
+            out = self.client.simulate_post('/201')
+            assert out.status[:3] == "201"
         assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
@@ -172,8 +203,12 @@ class FalconTestCase(object):
         assert span.error == 0
 
     def test_500(self):
-        out = self.simulate_get('/500')
-        assert out.status_code == 500
+        if(self.version[0] == '1'):
+            out = self.simulate_get('/500')
+            assert out.status_code == 500
+        else:
+            out = self.client.simulate_get('/500')
+            assert out.status[:3] == "500"
         assert out.content.decode('utf-8') == 'Failure'
 
         traces = self.tracer.writer.pop_traces()
@@ -191,8 +226,12 @@ class FalconTestCase(object):
         assert span.error == 1
 
     def test_404_exception(self):
-        out = self.simulate_get('/not_found')
-        assert out.status_code == 404
+        if(self.version[0] == '1'):
+            out = self.simulate_get('/not_found')
+            assert out.status_code == 404
+        else:
+            out = self.client.simulate_get('/not_found')
+            assert out.status[:3] == "404"
 
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
@@ -210,8 +249,12 @@ class FalconTestCase(object):
 
     def test_404_exception_no_stacktracer(self):
         # it should not have the stacktrace when a 404 exception is raised
-        out = self.simulate_get('/not_found')
-        assert out.status_code == 404
+        if(self.version[0] == '1'):
+            out = self.simulate_get('/not_found')
+            assert out.status_code == 404
+        else:
+            out = self.client.simulate_get('/not_found')
+            assert out.status[:3] == "404"
 
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
@@ -230,10 +273,14 @@ class FalconTestCase(object):
         """OpenTracing version of test_200."""
         ot_tracer = init_tracer('my_svc', self.tracer)
 
-        with ot_tracer.start_active_span('ot_span'):
-            out = self.simulate_get('/200')
-
-        assert out.status_code == 200
+        if(self.version[0] == '1'):
+            with ot_tracer.start_active_span('ot_span'):
+                out = self.simulate_get('/200')
+            assert out.status_code == 200
+        else:
+            with ot_tracer.start_active_span('ot_span'):
+                out = self.client.simulate_get('/200')
+            assert out.status[:3] == "200"
         assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
@@ -261,8 +308,12 @@ class FalconTestCase(object):
         def on_falcon_request(span, request, response):
             span.set_tag('my.custom', 'tag')
 
-        out = self.simulate_get('/200')
-        assert out.status_code == 200
+        if(self.version[0] == '1'):
+            out = self.simulate_get('/200')
+            assert out.status_code == 200
+        else:
+            out = self.client.simulate_get('/200')
+            assert out.status[:3] == "200"
         assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
@@ -281,7 +332,10 @@ class FalconTestCase(object):
     def test_http_header_tracing(self):
         with self.override_config('falcon', {}):
             config.falcon.http.trace_headers(['my-header', 'my-response-header'])
-            self.simulate_get('/200', headers={'my-header': 'my_value'})
+            if(self.version[0] == '1'):
+                self.simulate_get('/200', headers={'my-header': 'my_value'})
+            else:
+                self.client.simulate_get('/200', headers={'my-header': 'my_value'})
             traces = self.tracer.writer.pop_traces()
 
         assert len(traces) == 1

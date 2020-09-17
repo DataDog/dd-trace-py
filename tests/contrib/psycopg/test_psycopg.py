@@ -327,7 +327,7 @@ class PsycopgCore(TracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_user_specified_app_service(self):
         """
         When a user specifies a service for the app
             The psycopg integration should not use it.
@@ -342,6 +342,15 @@ class PsycopgCore(TracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
 
 
 def test_backwards_compatibilty_v3():
