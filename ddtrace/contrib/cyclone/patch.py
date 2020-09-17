@@ -1,11 +1,10 @@
 """
 """
 import functools
-from ddtrace.vendor import contextvars
 
 from ddtrace import config, Pin
+from ddtrace.compat import contextvars
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ddtrace.context import Context
 from ddtrace.ext import http, SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -22,9 +21,6 @@ log = get_logger(__name__)
 
 @trace_utils.with_traced_module
 def traced__execute(cyclone, pin, func, instance, args, kwargs):
-    ctx = pin.tracer.get_call_context()
-    if ctx:
-        pin.tracer.context_provider.activate(Context())
     try:
         if config.cyclone.distributed_tracing_enabled:
             propagator = HTTPPropagator()
@@ -103,24 +99,30 @@ def traced__handle_request_exception(cyclone, pin, func, instance, args, kwargs)
         return func(*args, **kwargs)
 
 
-def deferred_init(func, instance, args, kwargs):
+@trace_utils.with_traced_module
+def deferred_init(cyclone, pin, func, instance, args, kwargs):
+    # Create a new context for this Deferred
     ctx = contextvars.copy_context()
     instance.__ctx = ctx
     return func(*args, **kwargs)
 
 
-def deferred_callback(func, instance, args, kwargs):
+@trace_utils.with_traced_module
+def deferred_callback(cyclone, pin, func, instance, args, kwargs):
     callback = args[0] or kwargs.pop("callback")
     ctx = instance.__ctx
 
     @functools.wraps(callback)
     def _callback(*args, **kwargs):
-        # contextvars throws a RuntimeError if the function that is run is
-        # called recursively so skip if this is the case
-        if ctx != contextvars.copy_context():
+        # TODO: contextvars throws a RuntimeError if the context is already
+        #  active, however it doesn't provide a way to check whether this is
+        #  the case or not. This duck typing of the exception is not ideal
+        #  but it will have to do until we can think of something better.
+        try:
             return ctx.run(callback, *args, **kwargs)
-        else:
-            return callback(*args, **kwargs)
+        except RuntimeError as e:
+            if "cannot enter context" in str(e):
+                return callback(*args, **kwargs)
 
     newargs = list(args)
     newargs[0] = _callback
@@ -134,15 +136,15 @@ def patch():
         return
 
     Pin().onto(cyclone)
-    trace_utils.wrap("cyclone.web", "RequestHandler._execute", traced__execute(cyclone))
+    trace_utils.wrap("cyclone.web", "RequestHandler._execute_handler", traced__execute(cyclone))
     trace_utils.wrap("cyclone.web", "RequestHandler.on_finish", traced_on_finish(cyclone))
     trace_utils.wrap(
         "cyclone.web", "RequestHandler._handle_request_exception", traced__handle_request_exception(cyclone)
     )
 
-    trace_utils.wrap("twisted.internet.defer", "Deferred.__init__", deferred_init)
-    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_callback)
-    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallback", deferred_callback)
+    trace_utils.wrap("twisted.internet.defer", "Deferred.__init__", deferred_init(cyclone))
+    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_callback(cyclone))
+    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallback", deferred_callback(cyclone))
 
     setattr(cyclone, "__datadog_patch", True)
 
@@ -153,7 +155,7 @@ def unpatch():
     if not getattr(cyclone, "__datadog_patch", False):
         return
 
-    trace_utils.unwrap(cyclone.web.RequestHandler, "_execute")
+    trace_utils.unwrap(cyclone.web.RequestHandler, "_execute_handler")
     trace_utils.unwrap(cyclone.web.RequestHandler, "on_finish")
 
     setattr(cyclone, "__datadog_patch", False)

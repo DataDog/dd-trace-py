@@ -29,9 +29,7 @@ class DecodingSimpleCookie(SimpleCookie):
 
         if value is None and name in self:
             value = self[name].value
-        return decode_signed_value(
-            self.app.settings["cookie_secret"],
-            name, value, max_age_days=max_age_days)
+        return decode_signed_value(self.app.settings["cookie_secret"], name, value, max_age_days=max_age_days)
 
 
 class Client(object):
@@ -39,49 +37,139 @@ class Client(object):
         self.app = app
         self.cookies = DecodingSimpleCookie(self.app)
 
-    def get(self, uri, params=None, version="HTTP/1.0", headers=None,
-            body=None, remote_ip=None, protocol=None, host=None,
-            files=None, connection=None):
+    def get(
+        self,
+        uri,
+        params=None,
+        version="HTTP/1.0",
+        headers=None,
+        body=None,
+        remote_ip=None,
+        protocol=None,
+        host=None,
+        files=None,
+        connection=None,
+    ):
         return self.request(
-            "GET", uri, params=params, version=version, headers=headers,
-            body=body, remote_ip=remote_ip, protocol=protocol, host=host,
-            files=files, connection=connection
+            "GET",
+            uri,
+            params=params,
+            version=version,
+            headers=headers,
+            body=body,
+            remote_ip=remote_ip,
+            protocol=protocol,
+            host=host,
+            files=files,
+            connection=connection,
         )
 
-    def put(self, uri, params=None, version="HTTP/1.0", headers=None,
-            body=None, remote_ip=None, protocol=None, host=None,
-            files=None, connection=None):
+    def put(
+        self,
+        uri,
+        params=None,
+        version="HTTP/1.0",
+        headers=None,
+        body=None,
+        remote_ip=None,
+        protocol=None,
+        host=None,
+        files=None,
+        connection=None,
+    ):
         return self.request(
-            "PUT", uri, params=params, version=version, headers=headers,
-            body=body, remote_ip=remote_ip, protocol=protocol, host=host,
-            files=files, connection=connection
+            "PUT",
+            uri,
+            params=params,
+            version=version,
+            headers=headers,
+            body=body,
+            remote_ip=remote_ip,
+            protocol=protocol,
+            host=host,
+            files=files,
+            connection=connection,
         )
 
-    def post(self, uri, params=None, version="HTTP/1.0", headers=None,
-             body=None, remote_ip=None, protocol=None, host=None,
-             files=None, connection=None):
+    def post(
+        self,
+        uri,
+        params=None,
+        version="HTTP/1.0",
+        headers=None,
+        body=None,
+        remote_ip=None,
+        protocol=None,
+        host=None,
+        files=None,
+        connection=None,
+    ):
         return self.request(
-            "POST", uri, params=params, version=version, headers=headers,
-            body=body, remote_ip=remote_ip, protocol=protocol, host=host,
-            files=files, connection=connection
+            "POST",
+            uri,
+            params=params,
+            version=version,
+            headers=headers,
+            body=body,
+            remote_ip=remote_ip,
+            protocol=protocol,
+            host=host,
+            files=files,
+            connection=connection,
         )
 
-    def delete(self, uri, params=None, version="HTTP/1.0", headers=None,
-               body=None, remote_ip=None, protocol=None, host=None,
-               files=None, connection=None):
+    def delete(
+        self,
+        uri,
+        params=None,
+        version="HTTP/1.0",
+        headers=None,
+        body=None,
+        remote_ip=None,
+        protocol=None,
+        host=None,
+        files=None,
+        connection=None,
+    ):
         return self.request(
-            "DELETE", uri, params=params, version=version, headers=headers,
-            body=body, remote_ip=remote_ip, protocol=protocol, host=host,
-            files=files, connection=connection
+            "DELETE",
+            uri,
+            params=params,
+            version=version,
+            headers=headers,
+            body=body,
+            remote_ip=remote_ip,
+            protocol=protocol,
+            host=host,
+            files=files,
+            connection=connection,
         )
 
-    def head(self, uri, params=None, version="HTTP/1.0", headers=None,
-             body=None, remote_ip=None, protocol=None, host=None,
-             files=None, connection=None):
+    def head(
+        self,
+        uri,
+        params=None,
+        version="HTTP/1.0",
+        headers=None,
+        body=None,
+        remote_ip=None,
+        protocol=None,
+        host=None,
+        files=None,
+        connection=None,
+    ):
         return self.request(
-            "HEAD", uri, params=params, version=version, headers=headers,
-            body=body, remote_ip=remote_ip, protocol=protocol, host=host,
-            files=files, connection=connection
+            "HEAD",
+            uri,
+            params=params,
+            version=version,
+            headers=headers,
+            body=body,
+            remote_ip=remote_ip,
+            protocol=protocol,
+            host=host,
+            files=files,
+            connection=connection,
         )
 
     @inlineCallbacks
@@ -89,20 +177,19 @@ class Client(object):
         params = kwargs.pop("params", {}) or {}
         if method in ["GET", "HEAD", "OPTIONS"] and params:
             uri = uri + "?" + urllib.parse.urlencode(params)
-        elif method in ["POST", "PATCH", "PUT"] \
-                and params and not kwargs['body']:
-            kwargs['body'] = urllib.parse.urlencode(params)
-        connection = kwargs.pop('connection')
+        elif method in ["POST", "PATCH", "PUT"] and params and not kwargs["body"]:
+            kwargs["body"] = urllib.parse.urlencode(params)
+        connection = kwargs.pop("connection")
         if not connection:
             connection = HTTPConnection()
             connection.xheaders = False
-            kwargs['connection'] = connection
+            kwargs["connection"] = connection
         connection.factory = self.app
         cookie_value = self.cookies.output(header="")
         if cookie_value.strip():
-            if kwargs['headers'] is None:
-                kwargs['headers'] = {}
-            kwargs['headers']['Cookie'] = cookie_value.strip()
+            if kwargs["headers"] is None:
+                kwargs["headers"] = {}
+            kwargs["headers"]["Cookie"] = cookie_value.strip()
         request = HTTPRequest(method, uri, *args, **kwargs)
         for k, p in params.items():
             request.arguments.setdefault(k, []).append(p)

@@ -226,3 +226,19 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         s1, s2 = spans
         assert s1.trace_id == s2.trace_id
         assert s2.parent_id == s1.span_id
+
+    @inlineCallbacks
+    def test_handler_multi(self):
+        self.tracer.get_call_context()
+        resp = yield self.client.get("/")
+        assert resp.get_status() == 200
+        resp = yield self.client.get("/")
+        assert resp.get_status() == 200
+
+        spans = self.test_spans.get_spans()
+        assert len(spans) == 2
+
+        s1, s2 = spans
+        assert s1.trace_id != s2.trace_id
+        assert s1.parent_id is None
+        assert s2.parent_id is None
