@@ -687,7 +687,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         spans = self.get_spans()
 
-        if flask_version >= (0, 12, 0):
+        if flask_version >= (0, 12):
             self.assertEqual(len(spans), 11)
 
             # Assert the order of the spans created
