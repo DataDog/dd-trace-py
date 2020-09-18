@@ -635,13 +635,15 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   redis:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^redis_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
 
   rediscluster:
     executor: ddtrace_dev
