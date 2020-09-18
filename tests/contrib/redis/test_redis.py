@@ -297,6 +297,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         us = self.r.get("cheese")
         assert us is None
 
+    @snapshot()
     def test_analytics_without_rate(self):
         with self.override_config("redis", dict(analytics_enabled=True)):
             us = self.r.get("cheese")
