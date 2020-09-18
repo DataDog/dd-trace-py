@@ -15,6 +15,7 @@ from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
+from ddtrace.vendor import six
 
 
 TEST_EVENTS = {
@@ -415,14 +416,10 @@ def test_ppprof_exporter():
     exp._get_program_name = mock.Mock()
     exp._get_program_name.return_value = "bonjour"
     exports = exp.export(TEST_EVENTS, 1, 7)
-    if tracemalloc:
-        if stack.FEATURES["stack-exceptions"]:
-            filename = "test-pprof-exporter_tracemalloc+stack-exceptions.txt"
-        else:
-            filename = "test-pprof-exporter_tracemalloc.txt"
+    if six.PY2:
+        filename = "test-pprof-exporter-py2.txt"
     else:
         filename = "test-pprof-exporter.txt"
-
     with open(os.path.join(os.path.dirname(__file__), filename)) as f:
         assert f.read() == str(exports), filename
 
@@ -499,19 +496,19 @@ sample_type {
 }
 sample_type {
   type: 12
-  unit: 8
+  unit: 6
 }
 sample_type {
   type: 13
-  unit: 6
-}
-sample_type {
-  type: 14
   unit: 8
 }
 sample_type {
-  type: 15
+  type: 14
   unit: 6
+}
+sample_type {
+  type: 15
+  unit: 8
 }
 sample_type {
   type: 16
@@ -587,11 +584,11 @@ string_table: "cpu-time"
 string_table: "nanoseconds"
 string_table: "wall-time"
 string_table: "uncaught-exceptions"
+string_table: "exception-samples"
 string_table: "lock-acquire"
 string_table: "lock-acquire-wait"
 string_table: "lock-release"
 string_table: "lock-release-hold"
-string_table: "exception-samples"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"

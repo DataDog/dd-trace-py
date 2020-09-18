@@ -7,7 +7,7 @@ from ddtrace.profile import bootstrap
 from ddtrace.profile import collector  # noqa
 from ddtrace.profile.collector import stack
 
-for running_collector in bootstrap.profiler.collectors:
+for running_collector in bootstrap.profiler._collectors:
     if isinstance(running_collector, stack.StackCollector):
         break
 else:

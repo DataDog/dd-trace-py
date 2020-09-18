@@ -214,6 +214,13 @@ Pylons
 .. automodule:: ddtrace.contrib.pylons
 
 
+.. _pynamodb:
+
+PynamoDB
+^^^^^^^^
+.. automodule:: ddtrace.contrib.pynamodb
+
+
 .. _pymemcache:
 
 pymemcache

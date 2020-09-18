@@ -1,36 +1,15 @@
 import asyncio
 import random
 import re
-import sys
 
 import httpx
 import pytest
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.propagation import http as http_propagation
 from sanic import Sanic
 from sanic.exceptions import ServerError
 from sanic.response import json, stream
-
-import ddtrace
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.sanic import patch, unpatch
-from ddtrace.propagation import http as http_propagation
-from tests import BaseTestCase, override_config, override_http_config
-from tests.tracer.test_tracer import get_dummy_tracer
-
-
-@pytest.fixture
-def tracer():
-    original_tracer = ddtrace.tracer
-    tracer = get_dummy_tracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
-    setattr(ddtrace, "tracer", tracer)
-    patch()
-    yield tracer
-    setattr(ddtrace, "tracer", original_tracer)
-    unpatch()
+from tests import override_config, override_http_config
 
 
 @pytest.fixture
@@ -228,12 +207,3 @@ async def test_multiple_requests(tracer, client):
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
-
-
-class SanicConfigTestCase(BaseTestCase):
-    @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_global_config(self):
-        from ddtrace import config
-        from ddtrace.contrib.sanic import patch  # noqa: F401
-
-        assert config.sanic.service == "mysvc"

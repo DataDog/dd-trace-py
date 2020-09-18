@@ -1,12 +1,12 @@
 .. include:: ./shared.rst
 
-Datadog Python Trace and Profile Client
-=======================================
+Datadog Python APM Client
+=========================
 
-``ddtrace`` is Datadog's Python tracing and profiling client. It is used to
-profile code and trace requests as they flow across web servers, databases and
-microservices. This enables developers to have greater visibility into
-bottlenecks and troublesome requests in their application.
+``ddtrace`` is Datadog's Python APM client. It is used to profile code and
+trace requests as they flow across web servers, databases and microservices.
+This enables developers to have greater visibility into bottlenecks and
+troublesome requests in their application.
 
 Getting Started
 ---------------
@@ -103,6 +103,8 @@ contacting support.
 | :ref:`pymemcache`                                | >= 1.3        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pymongo`                                   | >= 3.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pynamodb`                                  | >= 4.0        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pyramid`                                   | >= 1.7        | No             |
 +--------------------------------------------------+---------------+----------------+

@@ -10,11 +10,12 @@ from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from .. import trace_utils
 from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("sanic", dict(service=config._get_service(default="sanic"), distributed_tracing=True))
+config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
 
 
 def _extract_tags_from_request(request):
@@ -83,7 +84,7 @@ def unpatch():
     setattr(sanic, "__datadog_patch", False)
 
 
-def patch_handle_request(wrapped, instance, args, kwargs):
+async def patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
     request = kwargs.get("request", args[0])
     write_callback = kwargs.get("write_callback", args[1])
@@ -100,7 +101,10 @@ def patch_handle_request(wrapped, instance, args, kwargs):
             ddtrace.tracer.context_provider.activate(context)
 
     span = ddtrace.tracer.trace(
-        "sanic.request", service=config.sanic.service, resource=resource, span_type=SpanTypes.WEB
+        "sanic.request",
+        service=trace_utils.int_service(None, config.sanic),
+        resource=resource,
+        span_type=SpanTypes.WEB,
     )
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
@@ -116,4 +120,4 @@ def patch_handle_request(wrapped, instance, args, kwargs):
     if stream_callback is not None:
         stream_callback = _wrap_response_callback(span, stream_callback)
 
-    return wrapped(request, write_callback, stream_callback, **kwargs)
+    return await wrapped(request, write_callback, stream_callback, **kwargs)
