@@ -2,14 +2,8 @@ import gzip
 import os
 import subprocess
 
-try:
-    import tracemalloc
-except ImportError:
-    tracemalloc = None
-
 import pytest
 
-from ddtrace.profiling.collector import stack
 from ddtrace.profiling.exporter import pprof_pb2
 
 
@@ -41,13 +35,7 @@ def check_pprof_file(filename):
         content = f.read()
     p = pprof_pb2.Profile()
     p.ParseFromString(content)
-    if tracemalloc:
-        if stack.FEATURES["stack-exceptions"]:
-            assert len(p.sample_type) == 11
-        else:
-            assert len(p.sample_type) == 10
-    else:
-        assert len(p.sample_type) == 8
+    assert len(p.sample_type) == 11
     assert p.string_table[p.sample_type[0].type] == "cpu-samples"
 
 
