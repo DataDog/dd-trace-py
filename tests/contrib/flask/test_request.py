@@ -709,7 +709,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             )
         else:
             self.assertEqual(len(spans), 10)
-
             # Assert the order of the spans created
             self.assertListEqual(
                 [

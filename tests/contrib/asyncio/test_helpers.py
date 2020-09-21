@@ -2,7 +2,7 @@ import asyncio
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
+from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio import helpers
 from .utils import AsyncioTestCase, mark_asyncio
 

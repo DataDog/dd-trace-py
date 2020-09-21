@@ -168,7 +168,7 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
 
 
 @pytest.mark.skipif(
-    ddtrace.internal.context_manager.CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider"
+    ddtrace.compat.CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider"
 )
 class TestUtilsAsyncio(object):
     """Test the util routines of the opentracer with asyncio specific
