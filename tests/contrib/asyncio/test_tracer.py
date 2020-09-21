@@ -2,6 +2,7 @@ import asyncio
 import pytest
 import time
 
+from ddtrace.vendor import wrapt
 
 from ddtrace.context import Context
 from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
@@ -214,13 +215,17 @@ class TestAsyncioPropagation(AsyncioTestCase):
     """Ensure that asyncio context propagation works between different tasks"""
     def setUp(self):
         # patch asyncio event loop
-        super(TestAsyncioPropagation, self).setUp()
         patch()
+        super(TestAsyncioPropagation, self).setUp()
 
     def tearDown(self):
         # unpatch asyncio event loop
-        super(TestAsyncioPropagation, self).tearDown()
         unpatch()
+        super(TestAsyncioPropagation, self).tearDown()
+
+    def test_patch_new_loop(self):
+        loop = asyncio.new_event_loop()
+        self.assertTrue(isinstance(loop.create_task, wrapt.BoundFunctionWrapper))
 
     @mark_asyncio
     def test_tasks_chaining(self):
