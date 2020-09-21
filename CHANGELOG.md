@@ -1,5 +1,6 @@
 # Changelog
 
+- fix(asyncio): patch base event loop class
 - fix(sanic): fix patching for sanic async http server (#1659)
 - fix(flask): make template patching idempotent
 
