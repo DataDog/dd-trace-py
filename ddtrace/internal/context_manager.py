@@ -1,6 +1,5 @@
 import abc
-import threading
-from ddtrace.vendor import debtcollector, six
+from ddtrace.vendor import six
 
 from ddtrace.compat import contextvars
 from .logger import get_logger
