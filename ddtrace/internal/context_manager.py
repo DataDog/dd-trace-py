@@ -32,12 +32,6 @@ class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
 
 
 class ContextVarContextManager(BaseContextManager):
-    """
-    _ContextVarContext can be used in place of the ThreadLocalContext for Python
-    3.7 and above to manage different ``Context`` objects for each thread and
-    async task.
-    """
-
     def _has_active_context(self):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
