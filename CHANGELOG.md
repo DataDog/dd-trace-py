@@ -1,6 +1,7 @@
 # Changelog
 
 - feat(core): backport contextvars
+- fix(sanic): fix patching for sanic async http server (#1659)
 - fix(flask): make template patching idempotent
 
 ---
