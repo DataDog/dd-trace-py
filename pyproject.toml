@@ -30,7 +30,6 @@ exclude = '''
       | aiohttp
       | aiopg
       | algoliasearch
-      | asyncio
       | boto
       | botocore
       | bottle
@@ -111,7 +110,6 @@ exclude = '''
       | aiohttp
       | aiopg
       | algoliasearch
-      | asyncio
       | boto
       | botocore
       | bottle
