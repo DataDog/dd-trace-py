@@ -148,10 +148,7 @@ Indices and tables
 
     installation_quickstart
     configuration
-    web_integrations
-    db_integrations
-    async_integrations
-    other_integrations
+    integrations
     basic_usage
     advanced_usage
     contributing
