@@ -106,7 +106,7 @@ exclude = '''
   )
   | tests/
   (
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp

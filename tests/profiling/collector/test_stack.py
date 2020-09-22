@@ -172,12 +172,7 @@ def test_stress_threads():
     print("%.3f ms per call" % (1000.0 * exectime_per_collect))
     print(
         "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
-        % (
-            NB_THREADS,
-            MAX_FN_NUM,
-            1 / s.min_interval_time,
-            100 * exectime_per_collect / s.min_interval_time,
-        )
+        % (NB_THREADS, MAX_FN_NUM, 1 / s.min_interval_time, 100 * exectime_per_collect / s.min_interval_time,)
     )
     for t in threads:
         t.join()
