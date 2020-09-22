@@ -137,7 +137,7 @@ class DatadogSettings(object):
         return val
 
     def __check_user_settings(self, user_settings):
-        SETTINGS_DOC = "http://pypi.datadoghq.com/trace/docs/#module-ddtrace.contrib.django"
+        SETTINGS_DOC = "https://ddtrace.readthedocs.io/en/stable/integrations.html#django"
         for setting in REMOVED_SETTINGS:
             if setting in user_settings:
                 raise RuntimeError('The "{}" setting has been removed, check "{}".'.format(setting, SETTINGS_DOC))
