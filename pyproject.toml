@@ -80,7 +80,6 @@ exclude = '''
       | sqlite3
       | tornado
       | util.py
-      | vertica
     )
     | ext/
     (
@@ -155,7 +154,6 @@ exclude = '''
       | sqlite3
       | test_utils.py
       | tornado
-      | vertica
     )
     | ddtrace_run.py
     | profiling/_ast_test_file.py
