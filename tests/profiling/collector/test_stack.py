@@ -239,7 +239,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 238, "test_exception_collection")]
+    assert e.frames == [(__file__, 233, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
