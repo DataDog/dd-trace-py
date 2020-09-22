@@ -5,7 +5,7 @@ import time
 from ddtrace.vendor import wrapt
 
 from ddtrace.context import Context
-from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
+from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.provider import DefaultContextProvider
 from ddtrace.contrib.asyncio.patch import patch, unpatch
 from ddtrace.contrib.asyncio.helpers import set_call_context
