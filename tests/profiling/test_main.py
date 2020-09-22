@@ -62,6 +62,7 @@ def test_call_script_pprof_output_interval(tmp_path, monkeypatch):
 
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
     subp = subprocess.Popen(
