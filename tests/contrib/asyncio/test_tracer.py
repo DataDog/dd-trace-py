@@ -225,7 +225,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
 
     def test_patch_new_loop(self):
         loop = asyncio.new_event_loop()
-        self.assertTrue(isinstance(loop.create_task, wrapt.BoundFunctionWrapper))
+        self.assertIsInstance(loop.create_task, wrapt.BoundFunctionWrapper)
 
     @mark_asyncio
     def test_tasks_chaining(self):
