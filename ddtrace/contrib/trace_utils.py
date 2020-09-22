@@ -2,9 +2,46 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 
+from ddtrace import Pin
 from ddtrace.internal.logger import get_logger
+import ddtrace.utils.wrappers
+from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
+
+wrap = wrapt.wrap_function_wrapper
+unwrap = ddtrace.utils.wrappers.unwrap
+
+
+def with_traced_module(func):
+    """Helper for providing tracing essentials (module and pin) for tracing
+    wrappers.
+    This helper enables tracing wrappers to dynamically be disabled when the
+    corresponding pin is disabled.
+    Usage::
+        @with_traced_module
+        def my_traced_wrapper(django, pin, func, instance, args, kwargs):
+            # Do tracing stuff
+            pass
+        def patch():
+            import django
+            wrap(django.somefunc, my_traced_wrapper(django))
+    """
+
+    def with_mod(mod):
+        def wrapper(wrapped, instance, args, kwargs):
+            pin = Pin._find(instance, mod)
+            if pin and not pin.enabled():
+                return wrapped(*args, **kwargs)
+            elif not pin:
+                log.debug("Pin not found for traced method %r", wrapped)
+                return wrapped(*args, **kwargs)
+            return func(mod, pin, wrapped, instance, args, kwargs)
+
+        return wrapper
+
+    return with_mod
 
 
 def int_service(pin, config, default=None):

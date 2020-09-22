@@ -371,6 +371,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^tornado_contrib-'
 
+  twisted:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^twisted_contrib-'
+
   bottle:
     executor: ddtrace_dev
     steps:
@@ -838,6 +844,7 @@ requires_tests: &requires_tests
   - test_logging
   - tracer
   - tornado
+  - twisted
   - vertica
   - build-docker-ci-image
 
@@ -931,6 +938,7 @@ workflows:
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
+      - twisted: *requires_pre_test
       # tracer
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
