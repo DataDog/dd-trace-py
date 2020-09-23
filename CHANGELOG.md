@@ -1,5 +1,6 @@
 # Changelog
 
+- test(sanic): run tests for multiple versions
 - fix(asyncio): patch base event loop class
 - fix(vertica): use strings in `__all__`
 - feat(core): backport contextvars
