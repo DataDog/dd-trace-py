@@ -2,7 +2,6 @@
 from __future__ import absolute_import
 
 import collections
-import logging
 import sys
 import threading
 import weakref
@@ -13,26 +12,11 @@ from ddtrace.profiling import _periodic
 from ddtrace.profiling import _nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
 from ddtrace.vendor import six
-
-
-_LOG = logging.getLogger(__name__)
-
-
-if _nogevent.is_module_patched("threading"):
-    # NOTE: bold assumption: this module is always imported by the MainThread.
-    # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
-    # We don't have the choice has we can't access the original MainThread
-    _main_thread_id = _nogevent.thread_get_ident()
-else:
-    from ddtrace.vendor.six.moves._thread import get_ident as _thread_get_ident
-    if six.PY2:
-        _main_thread_id = threading._MainThread().ident
-    else:
-        _main_thread_id = threading.main_thread().ident
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -107,7 +91,7 @@ IF UNAME_SYSNAME == "Linux":
 
             # We should now be safe doing more Pythonic stuff and maybe releasing the GIL
             for pthread_id, cpu_time in zip(pthread_ids, cpu_times):
-                thread_native_id = get_thread_native_id(pthread_id)
+                thread_native_id = _threading.get_thread_native_id(pthread_id)
                 key = pthread_id, thread_native_id
                 # Do a max(0, …) here just in case the result is < 0:
                 # This should never happen, but it can happen if the one chance in a billion happens:
@@ -143,23 +127,13 @@ ELSE:
             else:
                 cpu_time //= nb_threads
             return {
-                (pthread_id, get_thread_native_id(pthread_id)): cpu_time
+                (pthread_id, _threading.get_thread_native_id(pthread_id)): cpu_time
                 for pthread_id in pthread_ids
             }
 
 
 @event.event_class
-class StackBasedEvent(event.SampleEvent):
-    thread_id = attr.ib(default=None)
-    thread_name = attr.ib(default=None)
-    thread_native_id = attr.ib(default=None)
-    frames = attr.ib(default=None)
-    nframes = attr.ib(default=None)
-    trace_ids = attr.ib(default=None)
-
-
-@event.event_class
-class StackSampleEvent(StackBasedEvent):
+class StackSampleEvent(event.StackBasedEvent):
     """A sample storing executions frames for a thread."""
 
     # Wall clock
@@ -169,7 +143,7 @@ class StackSampleEvent(StackBasedEvent):
 
 
 @event.event_class
-class StackExceptionSampleEvent(StackBasedEvent):
+class StackExceptionSampleEvent(event.StackBasedEvent):
     """A a sample storing raised exceptions and their stack frames."""
 
     exc_type = attr.ib(default=None)
@@ -240,51 +214,6 @@ ELSE:
         PyObject* _PyThread_CurrentFrames()
 
 
-
-cdef get_thread_name(thread_id):
-    # This is a special case for gevent:
-    # When monkey patching, gevent replaces all active threads by their greenlet equivalent.
-    # This means there's no chance to find the MainThread in the list of _active threads.
-    # Therefore we special case the MainThread that way.
-    # If native threads are started using gevent.threading, they will be inserted in threading._active
-    # so we will find them normally.
-    if thread_id == _main_thread_id:
-        return "MainThread"
-
-    # Try to look if this is one of our periodic threads
-    try:
-        return _periodic.PERIODIC_THREADS[thread_id].name
-    except KeyError:
-        # Since we own the GIL, we can safely run this and assume no change will happen,
-        # without bothering to lock anything
-        try:
-            return threading._active[thread_id].name
-        except KeyError:
-            try:
-                return threading._limbo[thread_id].name
-            except KeyError:
-                return "Anonymous Thread %d" % thread_id
-
-
-cpdef get_thread_native_id(thread_id):
-    try:
-        thread_obj = threading._active[thread_id]
-    except KeyError:
-        # This should not happen, unless somebody started a thread without
-        # using the `threading` module.
-        # In that case, well… just use the thread_id as native_id 🤞
-        return thread_id
-    else:
-        # We prioritize using native ids since we expect them to be surely unique for a program. This is less true
-        # for hashes since they are relative to the memory address which can easily be the same across different
-        # objects.
-        try:
-            return thread_obj.native_id
-        except AttributeError:
-            # Python < 3.8
-            return hash(thread_obj)
-
-
 cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
 
@@ -334,7 +263,7 @@ cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
         (
             pthread_id,
             native_thread_id,
-            get_thread_name(pthread_id),
+            _threading.get_thread_name(pthread_id),
             running_threads[pthread_id],
             current_exceptions.get(pthread_id),
             thread_span_links.get_active_leaf_spans_from_thread_id(pthread_id) if thread_span_links else set(),
@@ -456,16 +385,21 @@ class _ThreadSpanLinks(object):
         return {span for span in alive_spans if not span.finished}
 
 
+def _default_min_interval_time():
+    if six.PY2:
+        return 0.01
+    return sys.getswitchinterval() * 2
+
+
 @attr.s(slots=True)
 class StackCollector(collector.PeriodicCollector):
     """Execution stacks collector."""
-    # This is the minimum amount of time the thread will sleep between polling interval,
-    # no matter how fast the computer is.
-    MIN_INTERVAL_TIME = 0.01    # sleep at least 10 ms
-
     # This need to be a real OS thread in order to catch
     _real_thread = True
-    _interval = attr.ib(default=MIN_INTERVAL_TIME, repr=False)
+    _interval = attr.ib(factory=_default_min_interval_time, init=False, repr=False)
+    # This is the minimum amount of time the thread will sleep between polling interval,
+    # no matter how fast the computer is.
+    min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
     max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
@@ -499,7 +433,7 @@ class StackCollector(collector.PeriodicCollector):
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
-        return max(interval / 1e9, self.MIN_INTERVAL_TIME)
+        return max(interval / 1e9, self.min_interval_time)
 
     def collect(self):
         # Compute wall time

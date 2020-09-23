@@ -47,12 +47,12 @@ called before** importing stdlib functions.
 from ...utils.importlib import require_modules
 
 
-required_modules = ['asyncio']
+required_modules = ["asyncio"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .provider import AsyncioContextProvider
-        from ...internal.context_manager import CONTEXTVARS_IS_AVAILABLE
+        from ...compat import CONTEXTVARS_IS_AVAILABLE
         from ...provider import DefaultContextProvider
 
         if CONTEXTVARS_IS_AVAILABLE:
@@ -63,10 +63,4 @@ with require_modules(required_modules) as missing_modules:
         from .helpers import set_call_context, ensure_future, run_in_executor
         from .patch import patch
 
-        __all__ = [
-            'context_provider',
-            'set_call_context',
-            'ensure_future',
-            'run_in_executor',
-            'patch'
-        ]
+        __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch"]

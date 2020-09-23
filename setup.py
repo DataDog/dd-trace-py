@@ -79,13 +79,13 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
@@ -185,6 +185,11 @@ setup(
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._traceback",
                     sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._threading",
+                    sources=["ddtrace/profiling/collector/_threading.pyx"],
                     language="c",
                 ),
                 Cython.Distutils.Extension(

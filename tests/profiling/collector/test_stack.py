@@ -12,6 +12,7 @@ from ddtrace.vendor import six
 from ddtrace.profiling import _nogevent
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import _threading
 
 from . import test_collector
 
@@ -112,7 +113,7 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=2.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
@@ -128,7 +129,7 @@ def test_new_interval():
     new_interval = c._compute_new_interval(200000)
     assert new_interval == 0.01
     new_interval = c._compute_new_interval(1)
-    assert new_interval == c.MIN_INTERVAL_TIME
+    assert new_interval == c.min_interval_time
 
 
 # Function to use for stress-test of polling
@@ -171,12 +172,7 @@ def test_stress_threads():
     print("%.3f ms per call" % (1000.0 * exectime_per_collect))
     print(
         "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
-        % (
-            NB_THREADS,
-            MAX_FN_NUM,
-            1 / stack.StackCollector.MIN_INTERVAL_TIME,
-            100 * exectime_per_collect / stack.StackCollector.MIN_INTERVAL_TIME,
-        )
+        % (NB_THREADS, MAX_FN_NUM, 1 / s.min_interval_time, 100 * exectime_per_collect / s.min_interval_time,)
     )
     for t in threads:
         t.join()
@@ -243,7 +239,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 237, "test_exception_collection")]
+    assert e.frames == [(__file__, 233, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -415,13 +411,13 @@ def test_thread_time_cache():
 
     if stack.FEATURES["cpu-time"]:
         assert set(tt._get_last_thread_time().keys()) == set(
-            (pthread_id, stack.get_thread_native_id(pthread_id)) for pthread_id in threads
+            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
         )
 
     lock.release()
 
     threads = {
-        main_thread_id: stack.get_thread_native_id(main_thread_id),
+        main_thread_id: _threading.get_thread_native_id(main_thread_id),
     }
 
     cpu_time = tt(threads)
@@ -430,5 +426,5 @@ def test_thread_time_cache():
 
     if stack.FEATURES["cpu-time"]:
         assert set(tt._get_last_thread_time().keys()) == set(
-            (pthread_id, stack.get_thread_native_id(pthread_id)) for pthread_id in threads
+            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
         )

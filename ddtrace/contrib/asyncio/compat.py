@@ -6,4 +6,5 @@ if sys.version_info >= (3, 7, 0):
     from asyncio import current_task as asyncio_current_task
 else:
     import asyncio
+
     asyncio_current_task = asyncio.Task.current_task

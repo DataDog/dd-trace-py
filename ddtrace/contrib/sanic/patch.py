@@ -92,7 +92,7 @@ def unpatch():
     setattr(sanic, "__datadog_patch", False)
 
 
-def patch_handle_request(wrapped, instance, args, kwargs):
+async def patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
     request = kwargs.get("request", args[0])
     write_callback = kwargs.get("write_callback", args[1])
@@ -128,4 +128,4 @@ def patch_handle_request(wrapped, instance, args, kwargs):
     if stream_callback is not None:
         stream_callback = _wrap_response_callback(span, stream_callback)
 
-    return wrapped(request, write_callback, stream_callback, **kwargs)
+    return await wrapped(request, write_callback, stream_callback, **kwargs)

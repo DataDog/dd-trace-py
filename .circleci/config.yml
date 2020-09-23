@@ -210,14 +210,14 @@ jobs:
     steps:
       - checkout
       - setup_tox
-      - run: tox -e 'black' --result-json /tmp/black.results
+      - run: tox -e black
 
   flake8:
     executor: python38
     steps:
       - checkout
       - setup_tox
-      - run: tox -e 'flake8' --result-json /tmp/flake8.results
+      - run: tox -e flake8
 
   build-docker-ci-image:
     executor: cimg_base
@@ -305,6 +305,14 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^py..-integration'
+
+  vendor:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-vendor'
 
   futures:
     executor: ddtrace_dev
@@ -555,6 +563,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^pymongo_contrib-'
 
+  pynamodb:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^pynamodb_contrib-'
+
   pyramid:
     executor: ddtrace_dev
     steps:
@@ -629,13 +643,15 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   redis:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^redis_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
 
   rediscluster:
     executor: ddtrace_dev
@@ -688,11 +704,7 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
-      - store_test_results:
-          path: /tmp/test-reports
-      - store_artifacts:
-          path: /tmp/test-reports
+            tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
       - save_tox_cache
 
   build_wheels:
@@ -792,6 +804,7 @@ requires_tests: &requires_tests
   - grpc
   - httplib
   - integration
+  - vendor
   - profile
   - jinja2
   - kombu
@@ -808,6 +821,7 @@ requires_tests: &requires_tests
   - pymemcache
   - pymongo
   - pymysql
+  - pynamodb
   - pyramid
   - redis
   - rediscluster
@@ -889,6 +903,7 @@ workflows:
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
+      - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
@@ -905,6 +920,7 @@ workflows:
       - pymemcache: *requires_pre_test
       - pymongo: *requires_pre_test
       - pymysql: *requires_pre_test
+      - pynamodb: *requires_pre_test      
       - pyramid: *requires_pre_test
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test

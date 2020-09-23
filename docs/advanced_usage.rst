@@ -212,7 +212,7 @@ For most libraries, analyzed spans can be enabled with the environment variable 
 +----------------------+----------------------------------------------+
 | :ref:`aiopg`         | ``DD_TRACE_AIOPG_ANALYTICS_ENABLED``         |
 +----------------------+----------------------------------------------+
-| :ref:`boto`          | ``DD_TRACE_BOTO_ANALYTICS_ENABLED``          |
+| :ref:`boto2`          | ``DD_TRACE_BOTO_ANALYTICS_ENABLED``         |
 +----------------------+----------------------------------------------+
 | :ref:`botocore`      | ``DD_TRACE_BOTOCORE_ANALYTICS_ENABLED``      |
 +----------------------+----------------------------------------------+
@@ -539,11 +539,11 @@ Examples
 
 Distributed Tracing across celery tasks with OpenTracing.
 
-1. Install Celery OpenTracing:
+1. Install Celery OpenTracing::
 
     pip install Celery-OpenTracing
 
-2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+2. Replace your Celery app with the version that comes with Celery-OpenTracing::
 
     from celery_opentracing import CeleryTracing
     from ddtrace.opentracer import set_global_tracer, Tracer

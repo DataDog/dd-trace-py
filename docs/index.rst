@@ -104,6 +104,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pymongo`                                   | >= 3.0        | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`pynamodb`                                  | >= 4.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`pyramid`                                   | >= 1.7        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`redis`                                     | >= 2.6        | Yes            |
@@ -146,10 +148,7 @@ Indices and tables
 
     installation_quickstart
     configuration
-    web_integrations
-    db_integrations
-    async_integrations
-    other_integrations
+    integrations
     basic_usage
     advanced_usage
     contributing
