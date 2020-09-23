@@ -24,17 +24,17 @@ def app(tracer):
 
 
 @pytest.fixture
-async def sanic_http_server(app, unused_tcp_port, event_loop):
+async def sanic_http_server(app, unused_port, loop):
     """Fixture for using sanic async HTTP server rather than a asgi async server used by test client"""
-    server = await app.create_server(debug=True, host="0.0.0.0", port=unused_tcp_port, return_asyncio_server=True)
+    server = await app.create_server(debug=True, host="0.0.0.0", port=unused_port, return_asyncio_server=True)
     yield server
     server.close()
     await server.wait_closed()
 
 
 @pytest.mark.asyncio
-async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_tcp_port):
-    url = "http://0.0.0.0:{}/hello".format(unused_tcp_port)
+async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_port):
+    url = "http://0.0.0.0:{}/hello".format(unused_port)
     async with httpx.AsyncClient() as client:
         responses = await asyncio.gather(client.get(url), client.get(url),)
 
