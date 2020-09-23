@@ -1,5 +1,8 @@
 # Changelog
 
+- fix(asyncio): patch base event loop class
+- fix(vertica): use strings in `__all__`
+- feat(core): backport contextvars
 - fix(sanic): fix patching for sanic async http server (#1659)
 - fix(flask): make template patching idempotent
 

@@ -30,7 +30,6 @@ exclude = '''
       | aiohttp
       | aiopg
       | algoliasearch
-      | asyncio
       | boto
       | botocore
       | bottle
@@ -80,7 +79,6 @@ exclude = '''
       | sqlite3
       | tornado
       | util.py
-      | vertica
     )
     | ext/
     (
@@ -106,13 +104,12 @@ exclude = '''
   )
   | tests/
   (
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp
       | aiopg
       | algoliasearch
-      | asyncio
       | boto
       | botocore
       | bottle
@@ -155,7 +152,6 @@ exclude = '''
       | sqlite3
       | test_utils.py
       | tornado
-      | vertica
     )
     | ddtrace_run.py
     | profiling/_ast_test_file.py
