@@ -42,6 +42,10 @@ def app(tracer):
     async def invalid(request):
         return "This should fail"
 
+    @app.route("/empty")
+    async def empty(request):
+        pass
+
     @app.exception(ServerError)
     def handler_exception(request, exception):
         return text(exception.args[0], exception.status_code)
@@ -219,7 +223,7 @@ async def test_multiple_requests(tracer, client):
 
 
 @pytest.mark.asyncio
-async def test_invalid_response_type(tracer, client):
+async def test_invalid_response_type_str(tracer, client):
     response = await client.get("/invalid")
     assert response.status_code == 500
     assert response.text == "Invalid response type"
@@ -233,5 +237,24 @@ async def test_invalid_response_type(tracer, client):
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
     assert re.search("/invalid$", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "500"
+
+
+@pytest.mark.asyncio
+async def test_invalid_response_type_empty(tracer, client):
+    response = await client.get("/empty")
+    assert response.status_code == 500
+    assert response.text == "Invalid response type"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.search("/empty$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
