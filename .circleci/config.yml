@@ -306,6 +306,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-integration'
 
+  vendor:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-vendor'
+
   futures:
     executor: ddtrace_dev
     steps:
@@ -796,6 +804,7 @@ requires_tests: &requires_tests
   - grpc
   - httplib
   - integration
+  - vendor
   - profile
   - jinja2
   - kombu
@@ -894,6 +903,7 @@ workflows:
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
+      - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test

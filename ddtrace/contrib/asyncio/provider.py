@@ -4,7 +4,7 @@ from ...context import Context
 from ...provider import DefaultContextProvider
 
 # Task attribute used to set/get the Context instance
-CONTEXT_ATTR = '__datadog_context'
+CONTEXT_ATTR = "__datadog_context"
 
 
 class AsyncioContextProvider(DefaultContextProvider):
@@ -18,6 +18,7 @@ class AsyncioContextProvider(DefaultContextProvider):
     it uses a thread-local storage when the ``Context`` is propagated to
     a different thread, than the one that is running the async loop.
     """
+
     def activate(self, context, loop=None):
         """Sets the scoped ``Context`` for the current running ``Task``.
         """

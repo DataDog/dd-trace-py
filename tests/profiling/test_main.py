@@ -62,13 +62,14 @@ def test_call_script_pprof_output_interval(tmp_path, monkeypatch):
 
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
     subp = subprocess.Popen(
         ["python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py")], stdout=subprocess.PIPE
     )
-    assert subp.wait() == 0
     stdout, stderr = subp.communicate()
+    assert subp.wait() == 0
     child_pid = stdout.decode().strip()
     check_pprof_file(filename + "." + str(subp.pid) + ".1")
     check_pprof_file(filename + "." + str(child_pid) + ".1")
