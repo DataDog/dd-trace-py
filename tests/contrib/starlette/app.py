@@ -1,17 +1,19 @@
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
-from ddtrace.contrib.starlette import TraceMiddleware
 
 app = Starlette()
+
 
 async def homepage(request):
     response = "Success"
     return PlainTextResponse(response)
 
+
 async def success(request):
     response = "Success"
     return PlainTextResponse(response)
+
 
 async def error(request):
     """
@@ -19,14 +21,6 @@ async def error(request):
     """
     raise RuntimeError("Server error")
 
-'''
-async def not_found(request, exc):
-    """
-    Return an HTTP 404 page.
-    """
-    response = "Not Found"
-    return PlainTextResponse(response)
-'''
 
 async def server_error(request, exc):
     """
@@ -34,6 +28,7 @@ async def server_error(request, exc):
     """
     response = "Server error"
     return PlainTextResponse(response)
+
 
 def get_app(tracer):
     # add resource routing

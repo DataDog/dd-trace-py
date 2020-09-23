@@ -10,4 +10,4 @@ with require_modules(required_modules) as missing_modules:
         from .patch import patch, unpatch
         from .middleware import TraceMiddleware
 
-        __all__ = ["TraceMiddleWare","patch", "unpatch"]
+        __all__ = ["TraceMiddleware","patch", "unpatch"]

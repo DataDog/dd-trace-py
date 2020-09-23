@@ -68,7 +68,7 @@ def _extract_headers(scope):
 
 class TraceMiddleware:
     """
-    Starlette application middleware that traces the requests. 
+    Starlette application middleware that traces the requests.
     Built based on ASGI middleware.
 
     Args:
@@ -96,7 +96,7 @@ class TraceMiddleware:
         resource = "{} {}".format(scope["method"], scope["path"])
 
         service_name = config.starlette.service_name
-        if service_name == None:
+        if service_name is None:
             service_name = "unnamed-starlette-app"
         span = self.tracer.trace(
             name="starlette.request", service=service_name, resource=resource, span_type=SpanTypes.HTTP,

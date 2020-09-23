@@ -11,6 +11,7 @@ log = get_logger(__name__)
 
 config._add("starlette", dict(service_name=config._get_service(default="starlette"), distributed_tracing=True))
 
+
 def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
