@@ -148,7 +148,6 @@ DISPATCH_CALLED = False
 
 
 class CustomDispatchView(View):
-
     def dispatch(self, request):
         global DISPATCH_CALLED
         DISPATCH_CALLED = True
