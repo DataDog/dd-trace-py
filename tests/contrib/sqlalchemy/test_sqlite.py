@@ -3,11 +3,10 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from .mixins import SQLAlchemyTestMixin
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
-class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for the SQLite engine"""
     VENDOR = 'sqlite'
     SQL_DB = ':memory:'

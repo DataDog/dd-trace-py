@@ -4,10 +4,10 @@ from ddtrace.contrib.tornado import patch, unpatch
 from ddtrace.compat import reload_module
 
 from .web import app, compat
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 
 
-class TornadoTestCase(BaseTracerTestCase, AsyncHTTPTestCase):
+class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
     """
     Generic TornadoTestCase where the framework is globally patched
     and unpatched before/after each test. A dummy tracer is provided

@@ -8,11 +8,10 @@ specific Django apps like Django Rest Framework (DRF).
 """
 import sys
 
-from inspect import isclass, isfunction
+from inspect import isclass, isfunction, getmro
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, six, wrapt
-from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
@@ -23,6 +22,7 @@ from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
+from .. import trace_utils
 from .compat import get_resolver, user_is_authenticated
 from . import utils, conf
 
@@ -33,9 +33,10 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        service_name=config._get_service(default="django"),
+        _default_service="django",
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
+        database_service_name=get_env("django", "database_service_name", default=""),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,
@@ -87,9 +88,14 @@ def with_traced_module(func):
 
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
-        database_prefix = config.django.database_service_name_prefix
         alias = getattr(conn, "alias", "default")
-        service = "{}{}{}".format(database_prefix, alias, "db")
+
+        if config.django.database_service_name:
+            service = config.django.database_service_name
+        else:
+            database_prefix = config.django.database_service_name_prefix
+            service = "{}{}{}".format(database_prefix, alias, "db")
+
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
         tags = {
@@ -97,7 +103,7 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return dbapi.TracedCursor(func(*args, **kwargs), pin)
+        return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))
@@ -394,7 +400,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
     else:
         with pin.tracer.trace(
-            "django.request", resource=resource, service=config.django["service_name"], span_type=SpanTypes.HTTP
+            "django.request",
+            resource=resource,
+            service=trace_utils.int_service(pin, config.django),
+            span_type=SpanTypes.HTTP,
         ) as span:
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
@@ -477,9 +486,24 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
 
 def instrument_view(django, view):
+    """
+    Helper to wrap Django views.
+
+    We want to wrap all lifecycle/http method functions for every class in the MRO for this view
+    """
+    if isfunction(view):
+        return _instrument_view(django, view)
+
+    for cls in reversed(getmro(view)):
+        _instrument_view(django, cls)
+
+    return view
+
+
+def _instrument_view(django, view):
     """Helper to wrap Django views."""
     # All views should be callable, double check before doing anything
-    if not callable(view) or isinstance(view, wrapt.ObjectProxy):
+    if not callable(view):
         return view
 
     # Patch view HTTP methods and lifecycle methods
@@ -487,18 +511,13 @@ def instrument_view(django, view):
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
     for name in list(http_method_names) + list(lifecycle_methods):
         try:
-            # View methods can be staticmethods
-            func = getattr_static(view, name, None)
+            func = getattr(view, name, None)
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
-
-            # Set attribute here rather than using wrapt.wrappers.wrap_function_wrapper
-            # since it will not resolve attribute to staticmethods
-            wrapper = wrapt.FunctionWrapper(func, traced_func(django, name=op_name, resource=resource))
-            setattr(view, name, wrapper)
+            wrap(view, name, traced_func(django, name=op_name, resource=resource))
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 
@@ -519,8 +538,10 @@ def instrument_view(django, view):
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
-    # Return a wrapped version of this view
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    # If the view itself is not wrapped, wrap it
+    if not isinstance(view, wrapt.ObjectProxy):
+        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    return view
 
 
 @with_traced_module
@@ -552,7 +573,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 
 
 def _patch(django):
-    Pin(service=config.django["service_name"]).onto(django)
+    Pin().onto(django)
     wrap(django, "apps.registry.Apps.populate", traced_populate(django))
 
     # DEV: this check will be replaced with import hooks in the future

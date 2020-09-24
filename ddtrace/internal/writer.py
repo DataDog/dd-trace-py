@@ -12,6 +12,7 @@ from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..encoding import JSONEncoderV2
+from ..payload import PayloadFull
 from . import _queue
 
 log = get_logger(__name__)
@@ -173,17 +174,18 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
         for response in traces_responses:
-            if isinstance(response, Exception) or response.status >= 400:
-                self._log_error_status(response)
-            elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-                result_traces_json = response.get_json()
-                if result_traces_json and "rate_by_service" in result_traces_json:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                    if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
+            if not isinstance(response, PayloadFull):
+                if isinstance(response, Exception) or response.status >= 400:
+                    self._log_error_status(response)
+                elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
+                    result_traces_json = response.get_json()
+                    if result_traces_json and "rate_by_service" in result_traces_json:
+                        if self._priority_sampler:
+                            self._priority_sampler.update_rate_by_service_sample_rates(
+                                result_traces_json["rate_by_service"],
+                            )
+                        if isinstance(self._sampler, BasePrioritySampler):
+                            self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
@@ -201,8 +203,15 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._histogram_with_total("datadog.tracer.api.requests", len(traces_responses))
 
             self._histogram_with_total(
-                "datadog.tracer.api.errors", len(list(t for t in traces_responses if isinstance(t, Exception)))
+                "datadog.tracer.api.errors",
+                len(list(t for t in traces_responses if isinstance(t, Exception) and not isinstance(t, PayloadFull))),
             )
+
+            self._histogram_with_total(
+                "datadog.tracer.api.traces_payloadfull",
+                len(list(t for t in traces_responses if isinstance(t, PayloadFull))),
+            )
+
             for status, grouped_responses in itertools.groupby(
                 sorted((t for t in traces_responses if not isinstance(t, Exception)), key=lambda r: r.status),
                 key=lambda r: r.status,

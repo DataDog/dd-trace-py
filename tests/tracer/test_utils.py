@@ -1,8 +1,13 @@
+from functools import partial
 import mock
 import os
 import unittest
 import warnings
 
+import pytest
+
+from ddtrace.utils import time
+from ddtrace.utils.importlib import func_name
 from ddtrace.utils.deprecation import deprecation, deprecated, format_message
 from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 
@@ -143,3 +148,111 @@ class TestUtils(unittest.TestCase):
                 mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key3", "key,key2,key3"),
             ]
         )
+
+
+def test_no_states():
+    watch = time.StopWatch()
+    with pytest.raises(RuntimeError):
+        watch.stop()
+
+
+def test_start_stop():
+    watch = time.StopWatch()
+    watch.start()
+    watch.stop()
+
+
+def test_start_stop_elapsed():
+    watch = time.StopWatch()
+    watch.start()
+    watch.stop()
+    e = watch.elapsed()
+    assert e > 0
+    watch.start()
+    assert watch.elapsed() != e
+
+
+def test_no_elapsed():
+    watch = time.StopWatch()
+    with pytest.raises(RuntimeError):
+        watch.elapsed()
+
+
+def test_elapsed():
+    watch = time.StopWatch()
+    watch.start()
+    watch.stop()
+    assert watch.elapsed() > 0
+
+
+def test_context_manager():
+    with time.StopWatch() as watch:
+        pass
+    assert watch.elapsed() > 0
+
+
+class SomethingCallable(object):
+    """
+    A dummy class that implements __call__().
+    """
+
+    value = 42
+
+    def __call__(self):
+        return "something"
+
+    def me(self):
+        return self
+
+    @staticmethod
+    def add(a, b):
+        return a + b
+
+    @classmethod
+    def answer(cls):
+        return cls.value
+
+
+def some_function():
+    """
+    A function doing nothing.
+    """
+    return "nothing"
+
+
+def minus(a, b):
+    return a - b
+
+
+minus_two = partial(minus, b=2)  # partial funcs need special handling (no module)
+
+# disabling flake8 test below, yes, declaring a func like this is bad, we know
+plus_three = lambda x: x + 3  # noqa: E731
+
+
+class TestContrib(object):
+    """
+    Ensure that contrib utility functions handles corner cases
+    """
+
+    def test_func_name(self):
+        # check that func_name works on anything callable, not only funcs.
+        assert "nothing" == some_function()
+        assert "tests.tracer.test_utils.some_function" == func_name(some_function)
+
+        f = SomethingCallable()
+        assert "something" == f()
+        assert "tests.tracer.test_utils.SomethingCallable" == func_name(f)
+
+        assert f == f.me()
+        assert "tests.tracer.test_utils.me" == func_name(f.me)
+        assert 3 == f.add(1, 2)
+        assert "tests.tracer.test_utils.add" == func_name(f.add)
+        assert 42 == f.answer()
+        assert "tests.tracer.test_utils.answer" == func_name(f.answer)
+
+        assert "tests.tracer.test_utils.minus" == func_name(minus)
+        assert 5 == minus_two(7)
+        assert "partial" == func_name(minus_two)
+        assert 10 == plus_three(7)
+        assert "tests.tracer.test_utils.<lambda>" == func_name(plus_three)

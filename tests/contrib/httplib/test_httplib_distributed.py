@@ -7,11 +7,11 @@ from ddtrace.compat import httplib
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 from .test_httplib import SOCKET, HTTPLibBaseMixin
 
 
-class TestHTTPLibDistributed(HTTPLibBaseMixin, BaseTracerTestCase):
+class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
     def setUp(self):
         super(TestHTTPLibDistributed, self).setUp()
         self.httplib_request = b''

@@ -11,7 +11,7 @@ from ddtrace.ext import http, errors
 from tests.opentracer.utils import init_tracer
 from .web import create_app
 from tests.tracer.test_tracer import get_dummy_tracer
-from ...utils import assert_span_http_status_code
+from ... import assert_span_http_status_code
 
 
 class TestFlask(TestCase):

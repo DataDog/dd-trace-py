@@ -13,11 +13,10 @@ from ddtrace.ext import http
 from .app import create_app
 
 from ...opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
-class PyramidBase(BaseTracerTestCase):
+class PyramidBase(TracerTestCase):
     """Base Pyramid test application"""
 
     def setUp(self):

@@ -5,7 +5,7 @@ from ddtrace.profiling import _service
 from ddtrace.profiling import bootstrap
 from ddtrace.profiling.collector import stack
 
-for running_collector in bootstrap.profiler.collectors:
+for running_collector in bootstrap.profiler._collectors:
     if isinstance(running_collector, stack.StackCollector):
         break
 else:

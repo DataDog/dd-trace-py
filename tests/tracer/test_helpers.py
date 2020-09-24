@@ -2,11 +2,10 @@ import mock
 
 from ddtrace import helpers
 
-from tests.base import BaseTracerTestCase
-from tests.util import override_global_tracer
+from tests import TracerTestCase, override_global_tracer
 
 
-class HelpersTestCase(BaseTracerTestCase):
+class HelpersTestCase(TracerTestCase):
     """Test suite for ``ddtrace`` helpers"""
     def test_correlation_identifiers(self):
         # ensures the right correlation identifiers are

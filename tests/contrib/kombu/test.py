@@ -7,11 +7,10 @@ from ddtrace.contrib.kombu.patch import patch, unpatch
 from ddtrace.contrib.kombu import utils
 from ddtrace.ext import kombu as kombux
 from ..config import RABBITMQ_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
-class TestKombuPatch(BaseTracerTestCase):
+class TestKombuPatch(TracerTestCase):
 
     TEST_SERVICE = 'kombu-patch'
     TEST_PORT = RABBITMQ_CONFIG['port']
@@ -119,7 +118,7 @@ class TestKombuPatch(BaseTracerTestCase):
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestKombuSettings(BaseTracerTestCase):
+class TestKombuSettings(TracerTestCase):
     def setUp(self):
         super(TestKombuSettings, self).setUp()
 
@@ -137,7 +136,7 @@ class TestKombuSettings(BaseTracerTestCase):
         unpatch()
         super(TestKombuSettings, self).tearDown()
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user
@@ -167,7 +166,7 @@ class TestKombuSettings(BaseTracerTestCase):
         for span in spans:
             assert span.service == "mysvc"
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_producer(self):
         """
         When a service name is specified by the user

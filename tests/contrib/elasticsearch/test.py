@@ -12,11 +12,10 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
 from ..config import ELASTICSEARCH_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code
+from ... import TracerTestCase, assert_span_http_status_code
 
 
-class ElasticsearchTest(BaseTracerTestCase):
+class ElasticsearchTest(TracerTestCase):
     """
     Elasticsearch integration test suite.
     Need a running ElasticSearch
@@ -58,7 +57,7 @@ class ElasticsearchTest(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
@@ -77,7 +76,7 @@ class ElasticsearchTest(BaseTracerTestCase):
         assert spans
         assert len(spans) == 3
         span = spans[0]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.error == 0
         assert span.get_tag("elasticsearch.method") == "PUT"
         assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
@@ -90,7 +89,7 @@ class ElasticsearchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
         assert span.get_tag("elasticsearch.method") == "POST"
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
@@ -104,7 +103,7 @@ class ElasticsearchTest(BaseTracerTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.resource == "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
         assert span.get_tag("elasticsearch.method") == "GET"
         assert span.get_tag("elasticsearch.url") == "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
@@ -130,7 +129,7 @@ class ElasticsearchTest(BaseTracerTestCase):
             spans = writer.pop()
             assert spans
             span = spans[0]
-            BaseTracerTestCase.assert_is_measured(span)
+            TracerTestCase.assert_is_measured(span)
             assert_span_http_status_code(span, 404)
 
         # Raise error 400, the index 10 is created twice
@@ -142,7 +141,7 @@ class ElasticsearchTest(BaseTracerTestCase):
             spans = writer.pop()
             assert spans
             span = spans[-1]
-            BaseTracerTestCase.assert_is_measured(span)
+            TracerTestCase.assert_is_measured(span)
             assert_span_http_status_code(span, 400)
 
         # Drop the index, checking it won't raise exception on success or failure
@@ -177,7 +176,7 @@ class ElasticsearchTest(BaseTracerTestCase):
         assert ot_span.service == "my_svc"
         assert ot_span.resource == "ot_span"
 
-        BaseTracerTestCase.assert_is_measured(dd_span)
+        TracerTestCase.assert_is_measured(dd_span)
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.name == "elasticsearch.query"
         assert dd_span.span_type == "elasticsearch"
@@ -187,7 +186,7 @@ class ElasticsearchTest(BaseTracerTestCase):
         assert dd_span.resource == "PUT /%s" % self.ES_INDEX
 
 
-class ElasticsearchPatchTest(BaseTracerTestCase):
+class ElasticsearchPatchTest(TracerTestCase):
     """
     Elasticsearch integration test suite.
     Need a running ElasticSearch.
@@ -231,7 +230,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
@@ -250,7 +249,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 3
         span = spans[0]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.error == 0
         assert span.get_tag("elasticsearch.method") == "PUT"
         assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
@@ -264,7 +263,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
         assert span.get_tag("elasticsearch.method") == "POST"
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
@@ -283,7 +282,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 4
         span = spans[-1]
-        BaseTracerTestCase.assert_is_measured(span)
+        TracerTestCase.assert_is_measured(span)
         assert span.resource == "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
         assert span.get_tag("elasticsearch.method") == "GET"
         assert span.get_tag("elasticsearch.url") == "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
@@ -372,7 +371,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

@@ -17,10 +17,7 @@ from ddtrace import Pin
 # testing
 from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
-from ...utils.tracer import DummyTracer
-
+from ... import TracerTestCase, DummyTracer, assert_is_measured
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import SQL
@@ -28,7 +25,7 @@ if PSYCOPG2_VERSION >= (2, 7):
 TEST_PORT = POSTGRES_CONFIG['port']
 
 
-class PsycopgCore(BaseTracerTestCase):
+class PsycopgCore(TracerTestCase):
 
     # default service
     TEST_SERVICE = 'postgres'
@@ -329,8 +326,8 @@ class PsycopgCore(BaseTracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_app_service(self):
         """
         When a user specifies a service for the app
             The psycopg integration should not use it.
@@ -345,6 +342,15 @@ class PsycopgCore(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
 
 
 def test_backwards_compatibilty_v3():
