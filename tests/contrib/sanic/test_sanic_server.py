@@ -6,6 +6,9 @@ import pytest
 from sanic import Sanic
 from sanic.response import json
 
+# Handle naming of asynchronous client in older httpx versions used in sanic 19.12
+httpx_client = getattr(httpx, "AsyncClient", getattr(httpx, "Client"))
+
 
 @pytest.fixture
 def app(tracer):
@@ -35,7 +38,7 @@ async def sanic_http_server(app, unused_port, loop):
 @pytest.mark.asyncio
 async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_port):
     url = "http://0.0.0.0:{}/hello".format(unused_port)
-    async with httpx.AsyncClient() as client:
+    async with httpx_client() as client:
         responses = await asyncio.gather(client.get(url), client.get(url),)
 
     assert len(responses) == 2
