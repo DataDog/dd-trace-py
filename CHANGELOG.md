@@ -1,5 +1,6 @@
 # Changelog
 
+- fix(asyncio): enable patch by default
 - fix(asyncio): patch base event loop class
 - fix(vertica): use strings in `__all__`
 - feat(core): backport contextvars
