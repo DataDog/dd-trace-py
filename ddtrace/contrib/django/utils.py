@@ -1,4 +1,4 @@
-from ...compat import parse
+from ...compat import parse, to_unicode
 from ...internal.logger import get_logger
 
 
@@ -88,6 +88,16 @@ def get_request_uri(request):
 
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    return parse.urlunparse(
-        parse.ParseResult(scheme=request.scheme, netloc=host, path=request.path, params="", query="", fragment="",)
-    )
+    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path)
+    urlparts_omit = ["params", "query", "fragment"]
+
+    # DEV: If all url parts are byte strings then return uri should be a byte
+    # string, otherwise cast all parts as strings to avoid mixing bytes and
+    # string as arguments
+    if all(isinstance(val, bytes) or val is None for val in urlparts.values()):
+        urlparts.update((k, b"") for k in urlparts_omit)
+    else:
+        urlparts = {k: to_unicode(v) for (k, v) in urlparts.items()}
+        urlparts.update((k, "") for k in urlparts_omit)
+
+    return parse.urlunparse(parse.ParseResult(**urlparts))
