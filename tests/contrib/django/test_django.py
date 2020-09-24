@@ -1474,12 +1474,37 @@ def test_helper_get_request_uri():
     request.META = {"HTTP_HOST": "testserver"}
     assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
 
+    request = django.http.HttpRequest()
+    request.path = "/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": b"testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+
+    request = django.http.HttpRequest()
+    request.path = b"/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": b"testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+
     # Also test for when all url parts are bytes. This can be the case with
     # ASGIRequest which allows a scope's scheme to be a byte string.
     class _HttpRequest(django.http.HttpRequest):
         @property
         def scheme(self):
             return b"http"
+
+    request = _HttpRequest()
+    request.path = "/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": "testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+
+    request = _HttpRequest()
+    request.path = b"/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": "testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+
+    request = _HttpRequest()
+    request.path = "/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": b"testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
 
     request = _HttpRequest()
     request.path = b"/;some/?awful/=path/foo:bar/"
