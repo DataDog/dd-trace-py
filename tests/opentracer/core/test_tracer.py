@@ -76,7 +76,10 @@ class TestTracerConfig(object):
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""
         config = {
-            "global_tags": {"tag1": "value1", "tag2": 2,},
+            "global_tags": {
+                "tag1": "value1",
+                "tag2": 2,
+            },
         }
 
         tracer = Tracer(service_name="mysvc", config=config)

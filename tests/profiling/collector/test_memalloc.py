@@ -163,7 +163,8 @@ def test_memory_collector():
 
 
 @pytest.mark.parametrize(
-    "ignore_profiler", (True, False),
+    "ignore_profiler",
+    (True, False),
 )
 def test_memory_collector_ignore_profiler(ignore_profiler):
     r = recorder.Recorder()

@@ -39,7 +39,10 @@ async def sanic_http_server(app, unused_port, loop):
 async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_port):
     url = "http://0.0.0.0:{}/hello".format(unused_port)
     async with httpx_client() as client:
-        responses = await asyncio.gather(client.get(url), client.get(url),)
+        responses = await asyncio.gather(
+            client.get(url),
+            client.get(url),
+        )
 
     assert len(responses) == 2
     assert [r.status_code for r in responses] == [200] * 2

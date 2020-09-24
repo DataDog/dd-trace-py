@@ -203,4 +203,7 @@ class TestUtilsGevent(object):
 
     def test_tracer_context_provider_config(self):
         tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=GeventScopeManager())
-        assert isinstance(tracer._dd_tracer.context_provider, ddtrace.contrib.gevent.provider.GeventContextProvider,)
+        assert isinstance(
+            tracer._dd_tracer.context_provider,
+            ddtrace.contrib.gevent.provider.GeventContextProvider,
+        )

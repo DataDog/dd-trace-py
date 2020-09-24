@@ -20,8 +20,19 @@ from tests.tracer.test_tracer import get_dummy_tracer
         {"server": ("dev", None)},
         {"http_version": "1.0", "asgi": {}},
         {"http_version": "1.0", "asgi": {"version": "3.2"}},
-        {"http_version": "1.0", "asgi": {"spec_version": "2.1",}},
-        {"http_version": "1.0", "asgi": {"version": "3.2", "spec_version": "2.1",}},
+        {
+            "http_version": "1.0",
+            "asgi": {
+                "spec_version": "2.1",
+            },
+        },
+        {
+            "http_version": "1.0",
+            "asgi": {
+                "version": "3.2",
+                "spec_version": "2.1",
+            },
+        },
     ]
 )
 def scope(request):

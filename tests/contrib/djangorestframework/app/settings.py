@@ -21,7 +21,9 @@ ROOT_URLCONF = "tests.contrib.djangorestframework.app.views"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [os.path.join(BASE_DIR, "app", "templates"),],
+        "DIRS": [
+            os.path.join(BASE_DIR, "app", "templates"),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -84,6 +86,8 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAdminUser",],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAdminUser",
+    ],
     "EXCEPTION_HANDLER": "tests.contrib.djangorestframework.app.exceptions.custom_exception_handler",
 }

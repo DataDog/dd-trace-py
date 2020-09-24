@@ -76,7 +76,13 @@ class CGroupInfo(object):
 
     def __repr__(self):
         return "{}(id={!r}, groups={!r}, path={!r}, container_id={!r}, controllers={!r}, pod_id={!r})".format(
-            self.__class__.__name__, self.id, self.groups, self.path, self.container_id, self.controllers, self.pod_id,
+            self.__class__.__name__,
+            self.id,
+            self.groups,
+            self.path,
+            self.container_id,
+            self.controllers,
+            self.pod_id,
         )
 
 

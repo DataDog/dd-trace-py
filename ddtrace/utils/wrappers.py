@@ -19,7 +19,7 @@ def unwrap(obj, attr):
 
 @deprecated("`wrapt` library is used instead", version="1.0.0")
 def safe_patch(patchable, key, patch_func, service, meta, tracer):
-    """ takes patch_func (signature: takes the orig_method that is
+    """takes patch_func (signature: takes the orig_method that is
     wrapped in the monkey patch == UNBOUND + service and meta) and
     attach the patched result to patchable at patchable.key
 

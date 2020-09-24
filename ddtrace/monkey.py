@@ -166,7 +166,10 @@ def patch(raise_errors=True, **patch_modules):
 
     patched_modules = get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)", len(patched_modules), len(modules), ",".join(patched_modules),
+        "patched %s/%s modules (%s)",
+        len(patched_modules),
+        len(modules),
+        ",".join(patched_modules),
     )
 
 

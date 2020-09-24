@@ -103,7 +103,10 @@ class TestWorkers(TestCase):
         # Write a first trace so we get a _worker
         self.tracer.trace("client.testing").finish()
         worker = self.tracer.writer
-        worker._log_error_status = mock.Mock(worker._log_error_status, wraps=worker._log_error_status,)
+        worker._log_error_status = mock.Mock(
+            worker._log_error_status,
+            wraps=worker._log_error_status,
+        )
         self.tracer.trace("client.testing").finish()
 
         # one send is expected
@@ -116,7 +119,10 @@ class TestWorkers(TestCase):
         # Write a first trace so we get a _worker
         self.tracer.trace("client.testing").finish()
         worker = self.tracer.writer
-        worker._log_error_status = mock.Mock(worker._log_error_status, wraps=worker._log_error_status,)
+        worker._log_error_status = mock.Mock(
+            worker._log_error_status,
+            wraps=worker._log_error_status,
+        )
         self.tracer.trace("client.testing").finish()
 
         # one send is expected
@@ -497,7 +503,10 @@ class TestConfigure(TestCase):
 
 def test_debug_mode():
     p = subprocess.Popen(
-        [sys.executable, "-c", "import ddtrace"], env=dict(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        [sys.executable, "-c", "import ddtrace"],
+        env=dict(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     p.wait()
     assert p.stdout.read() == b""

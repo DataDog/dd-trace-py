@@ -16,8 +16,8 @@ DEFAULT_SERVICE = "elasticsearch"
 @deprecated(message="Use patching instead (see the docs).", version="1.0.0")
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
     class TracedTransport(elasticsearch.Transport):
-        """ Extend elasticseach transport layer to allow Datadog
-            tracer to catch any performed request.
+        """Extend elasticseach transport layer to allow Datadog
+        tracer to catch any performed request.
         """
 
         _datadog_tracer = datadog_tracer
