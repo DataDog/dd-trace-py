@@ -204,6 +204,32 @@ async def test_asgi_error(scope, tracer):
 
 
 @pytest.mark.asyncio
+async def test_asgi_error_custom(scope, tracer):
+    class _TraceMiddleware(TraceMiddleware):
+        @staticmethod
+        def handle_exception_span(exc, span):
+            span.set_tag("http.status_code", 501)
+
+    app = _TraceMiddleware(error_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+    with pytest.raises(RuntimeError):
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.status_code") == "501"
+    assert request_span.get_tag("error.msg") == "Test"
+    assert request_span.get_tag("error.type") == "builtins.RuntimeError"
+    assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
+    _check_span_tags(scope, request_span)
+
+
+@pytest.mark.asyncio
 async def test_distributed_tracing(scope, tracer):
     app = TraceMiddleware(basic_app, tracer=tracer)
     headers = [

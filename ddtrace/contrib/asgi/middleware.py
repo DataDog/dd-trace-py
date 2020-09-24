@@ -77,6 +77,11 @@ class TraceMiddleware:
         tracer: Custom tracer. Defaults to the global tracer.
     """
 
+    @staticmethod
+    def handle_exception_span(exc, span):
+        """Handle exception for span"""
+        span.set_tag(http.STATUS_CODE, 500)
+
     def __init__(self, app, tracer=global_tracer):
         self.app = guarantee_single_callable(app)
         self.tracer = tracer
@@ -120,10 +125,10 @@ class TraceMiddleware:
 
         try:
             return await self.app(scope, receive, wrapped_send)
-        except Exception:
+        except Exception as exc:
             (exc_type, exc_val, exc_tb) = sys.exc_info()
             span.set_exc_info(exc_type, exc_val, exc_tb)
-            span.set_tag(http.STATUS_CODE, 500)
+            self.handle_exception_span(exc, span)
             reraise(exc_type, exc_val, exc_tb)
         finally:
             span.finish()
