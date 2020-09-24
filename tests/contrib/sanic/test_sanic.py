@@ -94,8 +94,8 @@ def integration_http_config(request):
 
 
 @pytest.fixture
-def client(loop, app, test_client):
-    return loop.run_until_complete(test_client(app, protocol=HttpProtocol))
+def client(loop, app, sanic_client):
+    return loop.run_until_complete(sanic_client(app, protocol=HttpProtocol))
 
 
 async def test_basic_app(tracer, client, integration_config, integration_http_config):
