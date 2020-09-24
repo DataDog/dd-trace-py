@@ -7,6 +7,7 @@ import pytest
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -1460,3 +1461,25 @@ def test_template_view_patching():
     # Patch via `as_view()`
     TemplateView.as_view()
     assert "dispatch" not in vars(TemplateView)
+
+
+def test_helper_get_request_uri():
+    request = django.http.HttpRequest()
+    request.path = "/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": "testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+
+    request = django.http.HttpRequest()
+    request.path = b"/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": "testserver"}
+    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+
+    class _HttpRequest(django.http.HttpRequest):
+        @property
+        def scheme(self):
+            return b"http"
+
+    request = _HttpRequest()
+    request.path = b"/;some/?awful/=path/foo:bar/"
+    request.META = {"HTTP_HOST": b"testserver"}
+    assert get_request_uri(request) == b"http://testserver/;some/?awful/=path/foo:bar/"
