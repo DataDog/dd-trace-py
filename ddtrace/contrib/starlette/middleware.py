@@ -87,7 +87,7 @@ class TraceMiddleware:
 
         headers = _extract_headers(scope)
 
-        if config.starlette.distributed_tracing:
+        if self._distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
             if context.trace_id:

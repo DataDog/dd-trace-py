@@ -1,6 +1,7 @@
 import asyncio
 import nest_asyncio
 import sys
+import os
 
 import httpx
 import pytest
@@ -9,7 +10,7 @@ from ddtrace.propagation import http as http_propagation
 from starlette.testclient import TestClient
 from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
-from app import get_app
+from app import get_app, file_clean_up
 
 
 @pytest.fixture
@@ -173,5 +174,45 @@ async def test_multiple_requests(app, tracer):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+
+@pytest.mark.asyncio
+async def test_streaming_response(app, client, tracer):    
+    app.add_middleware(TraceMiddleware, tracer=tracer)
+    r = client.get("/stream")
+
+    assert r.status_code == 200
+
+    assert r.text.endswith("streaming")
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "starlette.request"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/stream"
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "200"
+
+@pytest.mark.asyncio
+async def test_file_response(app, client, tracer):    
+    app.add_middleware(TraceMiddleware, tracer=tracer)
+    r = client.get("/file")
+
+    assert r.status_code == 200
+    assert r.text == "Datadog is the best!"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "starlette.request"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/file"
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "200"
+    file_clean_up()
 
 nest_asyncio.apply()
