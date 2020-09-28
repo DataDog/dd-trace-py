@@ -93,6 +93,7 @@ def get_request_uri(request):
     # DEV: urllib.parse._coerce_args uses the scheme to determine whether the
     # types of all url parts are string or byte string so we should prepare the
     # url parts here accordingly
+    # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
     if not (
         isinstance(urlparts["scheme"], bytes)
         and all(isinstance(value, bytes) or value is None for value in urlparts.values())
