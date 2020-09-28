@@ -5,11 +5,12 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings import config
+from ...settings import config
 
 from ...compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
+from .. import trace_utils
 
 log = get_logger(__name__)
 
@@ -95,11 +96,11 @@ class TraceMiddleware:
 
         resource = "{} {}".format(scope["method"], scope["path"])
 
-        service_name = config.starlette.service_name
-        if service_name is None:
-            service_name = "unnamed-starlette-app"
         span = self.tracer.trace(
-            name="starlette.request", service=service_name, resource=resource, span_type=SpanTypes.HTTP,
+            name="starlette.request",
+            service=trace_utils.int_service(None, config.starlette),
+            resource=resource,
+            span_type=SpanTypes.HTTP
         )
 
         sample_rate = config.starlette.get_analytics_sample_rate(use_global_config=True)

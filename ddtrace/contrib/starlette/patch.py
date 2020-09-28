@@ -9,7 +9,7 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("starlette", dict(service_name=config._get_service(default="starlette"), distributed_tracing=True))
+config._add("starlette", dict(_default_service="unnamed-starlette-app", distributed_tracing=True))
 
 
 def patch():

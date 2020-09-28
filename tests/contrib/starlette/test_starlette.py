@@ -1,7 +1,6 @@
 import asyncio
 import nest_asyncio
 import sys
-import os
 
 import httpx
 import pytest
@@ -48,21 +47,20 @@ async def test_200(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/200"
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
 
 
 @pytest.mark.asyncio
-async def test_200_query_string(app, tracer):
+async def test_200_query_string(app, client, tracer):
     with override_http_config("starlette", dict(trace_query_string=True)):
         app.add_middleware(TraceMiddleware, tracer=tracer)
-        async with httpx.AsyncClient(app=app) as client:
-            r = await client.get("http://testserver/?foo=bar")
+        r = client.get("?foo=bar")
 
     assert r.status_code == 200
     assert r.text == "Success"
@@ -71,12 +69,56 @@ async def test_200_query_string(app, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "foo=bar"
+
+
+@pytest.mark.asyncio
+async def test_200_multi_query_string(app, client, tracer):
+    with override_http_config("starlette", dict(trace_query_string=True)):
+        app.add_middleware(TraceMiddleware, tracer=tracer)
+        r = client.get("?foo=bar&x=y")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.name == "starlette.request"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/"
+    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
+
+
+@pytest.mark.asyncio
+async def test_201(app, client, tracer):
+    app.add_middleware(TraceMiddleware, tracer=tracer)
+    r = client.post("/201")
+
+    assert r.status_code == 201
+    assert r.text == "Created"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.name == "starlette.request"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "POST"
+    assert request_span.get_tag("http.url") == "http://testserver/201"
+    assert request_span.get_tag("http.status_code") == "201"
+    assert request_span.get_tag("http.query.string") is None
 
 
 @pytest.mark.asyncio
@@ -91,6 +133,7 @@ async def test_404(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -108,6 +151,7 @@ async def test_500error(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
@@ -135,6 +179,7 @@ async def test_distributed_tracing(app, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -164,19 +209,22 @@ async def test_multiple_requests(app, tracer):
     assert len(spans[1]) == 1
 
     r1_span = spans[0][0]
+    assert r1_span.service == "unnamed-starlette-app"
     assert r1_span.name == "starlette.request"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
 
     r2_span = spans[0][0]
+    assert r2_span.service == "unnamed-starlette-app"
     assert r2_span.name == "starlette.request"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
 
+
 @pytest.mark.asyncio
-async def test_streaming_response(app, client, tracer):    
+async def test_streaming_response(app, client, tracer):
     app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.get("/stream")
 
@@ -188,6 +236,7 @@ async def test_streaming_response(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -195,8 +244,9 @@ async def test_streaming_response(app, client, tracer):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
 
+
 @pytest.mark.asyncio
-async def test_file_response(app, client, tracer):    
+async def test_file_response(app, client, tracer):
     app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.get("/file")
 
@@ -207,6 +257,7 @@ async def test_file_response(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
+    assert request_span.service == "unnamed-starlette-app"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
