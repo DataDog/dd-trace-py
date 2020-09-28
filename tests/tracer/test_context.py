@@ -447,3 +447,16 @@ class TestTracingContext(BaseTestCase):
         assert cloned_ctx._dd_origin == ctx._dd_origin
         assert cloned_ctx._current_span == ctx._current_span
         assert cloned_ctx._trace == []
+
+    def test_items(self):
+        ctx = Context()
+        assert ctx.get_ctx_item("trace_deferreds") is None
+        ctx.set_ctx_item("trace_deferreds", True)
+        assert ctx.get_ctx_item("trace_deferreds") is True
+
+        ctx.set_ctx_item("trace_deferreds", False)
+        assert ctx.get_ctx_item("trace_deferreds") is False
+
+        with ctx.override_ctx_item("trace_deferreds", True):
+            assert ctx.get_ctx_item("trace_deferreds") is True
+        assert ctx.get_ctx_item("trace_deferreds") is False

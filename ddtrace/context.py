@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import threading
 
@@ -44,6 +45,7 @@ class Context(object):
         self._parent_span_id = span_id
         self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
+        self._ctx = {}
 
     @property
     def trace_id(self):
@@ -68,6 +70,23 @@ class Context(object):
         """Set sampling priority."""
         with self._lock:
             self._sampling_priority = value
+
+    def set_ctx_item(self, key, val):
+        with self._lock:
+            self._ctx[key] = val
+
+    def get_ctx_item(self, key, default=None):
+        with self._lock:
+            return self._ctx.get(key, default)
+
+    @contextlib.contextmanager
+    def override_ctx_item(self, key, val):
+        prev = self.get_ctx_item(key)
+        try:
+            self.set_ctx_item(key, val)
+            yield
+        finally:
+            self.set_ctx_item(key, prev)
 
     def clone(self):
         """
