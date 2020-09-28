@@ -88,16 +88,15 @@ def get_request_uri(request):
 
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path)
-    urlparts_omit = ["params", "query", "fragment"]
+    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
 
-    # DEV: If all url parts are byte strings then return uri should be a byte
-    # string, otherwise cast all parts as strings to avoid mixing bytes and
-    # string as arguments
-    if all(isinstance(val, bytes) or val is None for val in urlparts.values()):
-        urlparts.update((k, b"") for k in urlparts_omit)
-    else:
-        urlparts = {k: to_unicode(v) for (k, v) in urlparts.items()}
-        urlparts.update((k, "") for k in urlparts_omit)
+    # DEV: urllib.parse._coerce_args uses the scheme to determine whether the
+    # types of all url parts are string or byte string so we should prepare the
+    # url parts here accordingly
+    if not (
+        isinstance(urlparts["scheme"], bytes)
+        and all(isinstance(value, bytes) or value is None for value in urlparts.values())
+    ):
+        urlparts.update({k: to_unicode(v) for (k, v) in urlparts.items() if v is not None})
 
     return parse.urlunparse(parse.ParseResult(**urlparts))
