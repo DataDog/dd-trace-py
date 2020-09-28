@@ -1,6 +1,7 @@
 # Changelog
 
 - fix(asgi): set http status when exception raised
+- fix(rediscluster): support rediscluster==2.1.0
 - fix(asyncio): enable patch by default
 - fix(asyncio): patch base event loop class
 - fix(vertica): use strings in `__all__`
