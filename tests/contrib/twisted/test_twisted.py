@@ -1,10 +1,13 @@
 import twisted
-from twisted.internet import reactor, task
+from twisted.enterprise import adbapi
+from twisted.internet import reactor, task, defer
 from twisted.web import client
 
+from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
 
 from tests import TracerTestCase
+from ..config import MYSQL_CONFIG
 
 
 class TestTwisted(TracerTestCase):
@@ -17,10 +20,14 @@ class TestTwisted(TracerTestCase):
     def setUp(self):
         super(TestTwisted, self).setUp()
         patch()
+        pin = Pin.get_from(twisted)
+        self.original_tracer = pin.tracer
+        Pin.override(twisted, tracer=self.tracer)
 
     def tearDown(self):
-        super(TestTwisted, self).tearDown()
+        Pin.override(twisted, tracer=self.original_tracer)
         unpatch()
+        super(TestTwisted, self).tearDown()
 
     @TracerTestCase.run_in_subprocess
     def test_propagation_1(self):
@@ -203,3 +210,24 @@ class TestTwisted(TracerTestCase):
         reactor.callLater(0.01, reactor.stop)
         reactor.run()
         assert isinstance(d.result, twisted.python.failure.Failure)
+
+    @TracerTestCase.run_in_subprocess
+    def test_connectionpool(self):
+        dbpool = adbapi.ConnectionPool("MySQLdb", **MYSQL_CONFIG)
+
+        def cb(data):
+            try:
+                assert data == ((1,),)
+            finally:
+                reactor.stop()
+
+        d = dbpool.runQuery("SELECT 1").addCallback(cb)
+        reactor.callLater(0.5, reactor.stop)
+        reactor.run()
+        assert not isinstance(d.result, twisted.python.failure.Failure)
+
+        spans = self.get_spans()
+        assert len(spans) > 0
+        (s,) = spans
+        assert s.name == "runQuery"
+        assert s.get_tag("deferred") is not None

@@ -373,8 +373,11 @@ jobs:
 
   twisted:
     executor: ddtrace_dev
+    docker:
+      - *mysql_server
     steps:
       - run_tox_scenario:
+          wait: mysql
           pattern: '^twisted_contrib-'
 
   bottle:

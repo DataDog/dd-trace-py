@@ -30,7 +30,7 @@ def with_traced_module(func):
     """
 
     def with_mod(mod):
-        def wrapper(wrapped, instance, args, kwargs):
+        def traced_mod_wrapper(wrapped, instance, args, kwargs):
             pin = Pin._find(instance, mod)
             if pin and not pin.enabled():
                 return wrapped(*args, **kwargs)
@@ -39,7 +39,7 @@ def with_traced_module(func):
                 return wrapped(*args, **kwargs)
             return func(mod, pin, wrapped, instance, args, kwargs)
 
-        return wrapper
+        return traced_mod_wrapper
 
     return with_mod
 
