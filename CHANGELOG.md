@@ -1,5 +1,6 @@
 # Changelog
 
+- fix(django): avoid mixing str and non-str args for uri helper
 - fix(asyncio): enable patch by default
 - fix(asyncio): patch base event loop class
 - fix(vertica): use strings in `__all__`
