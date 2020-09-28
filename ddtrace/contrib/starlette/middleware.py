@@ -100,7 +100,7 @@ class TraceMiddleware:
             name="starlette.request",
             service=trace_utils.int_service(None, config.starlette),
             resource=resource,
-            span_type=SpanTypes.HTTP
+            span_type=SpanTypes.HTTP,
         )
 
         sample_rate = config.starlette.get_analytics_sample_rate(use_global_config=True)
