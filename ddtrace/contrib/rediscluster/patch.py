@@ -26,9 +26,9 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
-        _w('rediscluster', 'RedisCluster.execute_command', traced_execute_command)
-        _w('rediscluster', 'RedisCluster.pipeline', traced_pipeline)
-        _w('rediscluster', 'ClusterPipeline.execute', traced_execute_pipeline)
+        _w('rediscluster', 'client.RedisCluster.execute_command', traced_execute_command)
+        _w('rediscluster', 'client.RedisCluster.pipeline', traced_pipeline)
+        _w('rediscluster', 'pipeline.ClusterPipeline.execute', traced_execute_pipeline)
         Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(rediscluster.RedisCluster)
     else:
         _w('rediscluster', 'StrictRedisCluster.execute_command', traced_execute_command)
@@ -42,9 +42,9 @@ def unpatch():
         setattr(rediscluster, '_datadog_patch', False)
 
         if REDISCLUSTER_VERSION >= (2, 0, 0):
-            unwrap(rediscluster.RedisCluster, 'execute_command')
-            unwrap(rediscluster.RedisCluster, 'pipeline')
-            unwrap(rediscluster.ClusterPipeline, 'execute')
+            unwrap(rediscluster.client.RedisCluster, 'execute_command')
+            unwrap(rediscluster.client.RedisCluster, 'pipeline')
+            unwrap(rediscluster.pipeline.ClusterPipeline, 'execute')
         else:
             unwrap(rediscluster.StrictRedisCluster, 'execute_command')
             unwrap(rediscluster.StrictRedisCluster, 'pipeline')

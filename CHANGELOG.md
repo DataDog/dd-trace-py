@@ -1,6 +1,7 @@
 # Changelog
 
 - fix(django): avoid mixing str and non-str args for uri helper
+- fix(rediscluster): support rediscluster==2.1.0
 - fix(asyncio): enable patch by default
 - fix(asyncio): patch base event loop class
 - fix(vertica): use strings in `__all__`
