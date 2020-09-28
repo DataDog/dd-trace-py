@@ -28,8 +28,6 @@ if config.logs_injection:
 if not debug_mode:
     if config.logs_injection:
         logging.basicConfig(format=DD_LOG_FORMAT)
-    else:
-        logging.basicConfig()
 
 log = get_logger(__name__)
 

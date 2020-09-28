@@ -7,6 +7,7 @@
 - feat(core): backport contextvars
 - fix(sanic): fix patching for sanic async http server (#1659)
 - fix(flask): make template patching idempotent
+- fix(ddtrace-run): Do not call logging.basicConfig (and thereby create a StreamHandler on the Root logger) if we are not using DataDog's logs_injection functionality
 
 ---
 

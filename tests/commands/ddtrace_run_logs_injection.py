@@ -12,4 +12,6 @@ if __name__ == "__main__":
             "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
             " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s]" not in logging.root.handlers[0].formatter._fmt
         )
+
+        assert len(logging.root.handlers) == 0
     print("Test success")
