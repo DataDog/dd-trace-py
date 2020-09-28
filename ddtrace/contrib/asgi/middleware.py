@@ -68,6 +68,11 @@ def _extract_headers(scope):
     return {}
 
 
+def _default_handle_exception_span(exc, span):
+    """Default handler for exception for span"""
+    span.set_tag(http.STATUS_CODE, 500)
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -77,14 +82,10 @@ class TraceMiddleware:
         tracer: Custom tracer. Defaults to the global tracer.
     """
 
-    @staticmethod
-    def handle_exception_span(exc, span):
-        """Handle exception for span"""
-        span.set_tag(http.STATUS_CODE, 500)
-
-    def __init__(self, app, tracer=global_tracer):
+    def __init__(self, app, tracer=global_tracer, handle_exception_span=_default_handle_exception_span):
         self.app = guarantee_single_callable(app)
         self.tracer = tracer
+        self.handle_exception_span = handle_exception_span
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":

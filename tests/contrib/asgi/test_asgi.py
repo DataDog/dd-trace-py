@@ -205,12 +205,10 @@ async def test_asgi_error(scope, tracer):
 
 @pytest.mark.asyncio
 async def test_asgi_error_custom(scope, tracer):
-    class _TraceMiddleware(TraceMiddleware):
-        @staticmethod
-        def handle_exception_span(exc, span):
-            span.set_tag("http.status_code", 501)
+    def custom_handle_exception_span(exc, span):
+        span.set_tag("http.status_code", 501)
 
-    app = _TraceMiddleware(error_app, tracer=tracer)
+    app = TraceMiddleware(error_app, tracer=tracer, handle_exception_span=custom_handle_exception_span)
     instance = ApplicationCommunicator(app, scope)
     with pytest.raises(RuntimeError):
         await instance.send_input({"type": "http.request", "body": b""})
