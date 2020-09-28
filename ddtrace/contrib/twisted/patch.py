@@ -3,10 +3,20 @@ import sys
 
 from ddtrace.vendor import six
 
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.compat import contextvars
+from ddtrace.utils.formats import asbool, get_env
 
 from .. import trace_utils
+
+
+config._add(
+    "twisted",
+    dict(
+        distributed_tracing=asbool(get_env("twisted", "distributed_tracing", default=True)),
+        split_by_domain=asbool(get_env("twisted", "split_by_domain", default=False)),
+    ),
+)
 
 
 def deferred_init(func, instance, args, kwargs):
@@ -21,7 +31,6 @@ def deferred_callback(func, instance, args, kwargs):
 
     @functools.wraps(callback)
     def _callback(*args, **kwargs):
-
         # ctx.run could raise a RuntimeError if the context is already
         # activated. This should not happen in practice even if there
         # is a recursive callback since the wrapper will not be called
@@ -35,8 +44,6 @@ def deferred_callback(func, instance, args, kwargs):
         # version when addCallbacks is called.
         # When the function is invoked the recursive callback(n-1) call
         # will not call the wrapping code again.
-        #
-        #
         ctx = instance.__ctx
         try:
             return ctx.run(callback, *args, **kwargs)

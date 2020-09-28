@@ -1,5 +1,6 @@
 import twisted
 from twisted.internet import reactor, task
+from twisted.web import client
 
 from ddtrace.contrib.twisted import patch, unpatch
 
@@ -28,7 +29,7 @@ class TestTwisted(TracerTestCase):
 
         s1 = self.tracer.trace("s1")
 
-        task.deferLater(reactor, 0.001, cb)
+        task.deferLater(reactor, 0, cb)
         reactor.callLater(0.01, reactor.stop)
         reactor.run()
         s1.finish()
@@ -50,8 +51,8 @@ class TestTwisted(TracerTestCase):
             self.tracer.trace("s3").finish()
 
         with self.tracer.trace("s1"):
-            task.deferLater(reactor, 0.001, cb1)
-            task.deferLater(reactor, 0.001, cb2)
+            task.deferLater(reactor, 0, cb1)
+            task.deferLater(reactor, 0, cb2)
             reactor.callLater(0.01, reactor.stop)
             reactor.run()
 
@@ -72,8 +73,8 @@ class TestTwisted(TracerTestCase):
         def cb2():
             self.tracer.trace("s2").finish()
 
-        task.deferLater(reactor, 0.001, cb1)
-        task.deferLater(reactor, 0.001, cb2)
+        task.deferLater(reactor, 0, cb1)
+        task.deferLater(reactor, 0, cb2)
         reactor.callLater(0.01, reactor.stop)
         reactor.run()
 
@@ -95,7 +96,7 @@ class TestTwisted(TracerTestCase):
             self.tracer.trace("cb").finish()
             return s
 
-        d = task.deferLater(reactor, 0.001, fn).addCallback(cb).addCallback(cb)
+        d = task.deferLater(reactor, 0, fn).addCallback(cb).addCallback(cb)
         reactor.callLater(0.01, reactor.stop)
         reactor.run()
         s = d.result
@@ -115,7 +116,7 @@ class TestTwisted(TracerTestCase):
         def cb(_):
             self.tracer.trace("cb").finish()
 
-        task.deferLater(reactor, 0.001, fn).addCallback(cb).addCallback(cb)
+        task.deferLater(reactor, 0, fn).addCallback(cb).addCallback(cb)
         reactor.callLater(0.01, reactor.stop)
         reactor.run()
 
@@ -152,8 +153,8 @@ class TestTwisted(TracerTestCase):
             s = self.tracer.trace("s2")
             return task.deferLater(reactor, 0.005, close_span, s)
 
-        task.deferLater(reactor, 0.001, fn1)
-        task.deferLater(reactor, 0.001, fn2)
+        task.deferLater(reactor, 0, fn1)
+        task.deferLater(reactor, 0, fn2)
         reactor.callLater(0.01, reactor.stop)
         reactor.run()
 
@@ -170,7 +171,7 @@ class TestTwisted(TracerTestCase):
         def fn1():
             return 3
 
-        d = task.deferLater(reactor, 0.001, fn1)
+        d = task.deferLater(reactor, 0, fn1)
 
         def fn2(args):
             def fn():
@@ -192,7 +193,7 @@ class TestTwisted(TracerTestCase):
         def fn1():
             return 3
 
-        d = task.deferLater(reactor, 0.001, fn1)
+        d = task.deferLater(reactor, 0, fn1)
 
         def fn2(_):
             raise RuntimeError
