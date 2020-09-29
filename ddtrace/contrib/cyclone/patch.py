@@ -1,9 +1,6 @@
 """
 """
-import functools
-
 from ddtrace import config, Pin
-from ddtrace.compat import contextvars
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ddtrace.ext import http, SpanTypes
 from ddtrace.internal.logger import get_logger
@@ -139,36 +136,6 @@ def traced_template_generate(cyclone, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def deferred_init(cyclone, pin, func, instance, args, kwargs):
-    # Create a new context for this Deferred
-    ctx = contextvars.copy_context()
-    instance.__ctx = ctx
-    return func(*args, **kwargs)
-
-
-@trace_utils.with_traced_module
-def deferred_callback(cyclone, pin, func, instance, args, kwargs):
-    callback = args[0] or kwargs.pop("callback")
-    ctx = instance.__ctx
-
-    @functools.wraps(callback)
-    def _callback(*args, **kwargs):
-        # TODO: contextvars throws a RuntimeError if the context is already
-        #  active, however it doesn't provide a way to check whether this is
-        #  the case or not. This duck typing of the exception is not ideal
-        #  but it will have to do until we can think of something better.
-        try:
-            return ctx.run(callback, *args, **kwargs)
-        except RuntimeError as e:
-            if "cannot enter context" in str(e):
-                return callback(*args, **kwargs)
-
-    newargs = list(args)
-    newargs[0] = _callback
-    return func(*tuple(newargs), **kwargs)
-
-
 def patch():
     import cyclone
 
@@ -187,10 +154,6 @@ def patch():
     trace_utils.wrap("cyclone.web", "RequestHandler.render_string", traced_requesthandler_render_string(cyclone))
     trace_utils.wrap("cyclone.web", "UIModule.render", traced_uimodule_render(cyclone))
     trace_utils.wrap("cyclone.template", "Template.generate", traced_template_generate(cyclone))
-
-    trace_utils.wrap("twisted.internet.defer", "Deferred.__init__", deferred_init(cyclone))
-    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_callback(cyclone))
-    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallback", deferred_callback(cyclone))
 
     setattr(cyclone, "__datadog_patch", True)
 

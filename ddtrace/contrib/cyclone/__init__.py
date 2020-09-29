@@ -43,6 +43,9 @@ To configure the Cyclone integration on a per-client basis use the
 
     import cyclone
     from ddtrace import Pin
+
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 from ...utils.importlib import require_modules
 
