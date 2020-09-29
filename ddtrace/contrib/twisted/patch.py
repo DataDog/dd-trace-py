@@ -33,7 +33,7 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
         name = ddctx.get_ctx_item("deferred_name")
         if not name:
             # If a name isn't provided, go up two frames to get to the functi    on that's creating the deferred
-            # <fn we care about>
+            # <fn we care about that creates the deferred>
             # wrapper (from with_traced_module)
             # Deferred.__init__
             # This wrapper  (currentframe())
@@ -50,6 +50,15 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
 def deferred_callback(twisted, pin, func, instance, args, kwargs):
     span = getattr(instance, "__ddspan", None)
     if span and not span.finished:
+        span.set_tag("called", instance.called)
+        for n, cb in enumerate(instance.callbacks):
+            # cb is a tuple of
+            # (
+            #   (callback, callbackArgs, callbackKWArgs),
+            #   (errback, errbackArgs, errbackKWArgs)
+            # )
+            span.set_tag("callback.%d" % n, cb[0][0])
+            span.set_tag("errback.%d" % n, cb[1][0])
         span.finish()
 
     return func(*args, **kwargs)
@@ -99,6 +108,26 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
+def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwargs):
+    f = args[1]
+
+    ctx = pin.tracer.get_call_context()
+
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        prev_ctx = pin.tracer.get_call_context()
+        try:
+            pin.tracer.context_provider.activate(ctx)
+            return f(*args, **kwargs)
+        finally:
+            pin.tracer.context_provider.activate(prev_ctx)
+
+    newargs = list(args)
+    newargs[1] = wrapper
+    return func(*tuple(newargs), **kwargs)
+
+
+@trace_utils.with_traced_module
 def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
     ctx = pin.tracer.get_call_context()
     with ctx.override_ctx_item("trace_deferreds", True):
@@ -119,6 +148,9 @@ def patch():
     trace_utils.wrap("twisted.internet.defer", "Deferred.errback", deferred_errback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_addCallbacks(twisted))
     trace_utils.wrap("twisted.enterprise.adbapi", "ConnectionPool.runQuery", connectionpool_runquery(twisted))
+    trace_utils.wrap(
+        "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
+    )
 
 
 def unpatch():
@@ -132,5 +164,6 @@ def unpatch():
     trace_utils.unwrap(twisted.internet.defer.Deferred, "errback")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "addCallbacks")
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "runQuery")
+    trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
 
     setattr(twisted, "__datadog_patch", False)

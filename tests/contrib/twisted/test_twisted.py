@@ -1,10 +1,10 @@
 import twisted
 from twisted.enterprise import adbapi
-from twisted.internet import reactor, task, defer
-from twisted.web import client
+from twisted.internet import reactor, task
 
 from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
+from ddtrace.contrib.mysqldb import patch as mysql_patch
 
 from tests import TracerTestCase
 from ..config import MYSQL_CONFIG
@@ -20,6 +20,7 @@ class TestTwisted(TracerTestCase):
     def setUp(self):
         super(TestTwisted, self).setUp()
         patch()
+        mysql_patch()
         pin = Pin.get_from(twisted)
         self.original_tracer = pin.tracer
         Pin.override(twisted, tracer=self.tracer)
@@ -226,8 +227,19 @@ class TestTwisted(TracerTestCase):
         reactor.run()
         assert not isinstance(d.result, twisted.python.failure.Failure)
 
+        self.assert_trace_count(1)
         spans = self.get_spans()
-        assert len(spans) > 0
-        (s,) = spans
-        assert s.name == "runQuery"
-        assert s.get_tag("deferred") is not None
+        assert len(spans) == 3
+        s1, s2, s3 = spans
+        assert s1.name == "runQuery"
+        assert s1.get_tag("deferred") is not None
+        assert s1.get_tag("callback.0") is not None
+        assert s1.get_tag("errback.0") is not None
+        assert "cb" in s1.get_tag("callback.0")
+        assert "passthru" in s1.get_tag("errback.0")
+
+        assert s2.name == "mysql.query"
+        assert s2.parent_id == s1.span_id
+
+        assert s3.name == "MySQLdb.connection.commit"
+        assert s3.parent_id == s1.span_id
