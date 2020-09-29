@@ -52,11 +52,11 @@ RUN \
   pyenv install 2.7.17 \
   && pyenv install 3.5.9 \
   && pyenv install 3.6.9 \
-  && pyenv install 3.7.7 \
-  && pyenv install 3.8.3 \
+  && pyenv install 3.7.9 \
+  && pyenv install 3.8.5 \
   && pyenv install 3.9-dev \
   # Order matters: first version is the global one
-  && pyenv global 3.8.3 2.7.17 3.5.9 3.6.9 3.7.7 3.9-dev \
+  && pyenv global 3.8.5 2.7.17 3.5.9 3.6.9 3.7.9 3.9-dev \
   && pip install --upgrade pip
 
 RUN pip install tox
