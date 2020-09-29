@@ -212,6 +212,15 @@ jobs:
       - setup_tox
       - run: tox -e black
 
+  cformat:
+    executor: ddtrace_dev
+    steps:
+      - checkout
+      # TODO: remove me once this the docker image is rebuilt
+      - run: apt-get update
+      - run: apt-get install --yes clang-format
+      - run: scripts/cformat.sh
+
   flake8:
     executor: python38
     steps:
@@ -787,6 +796,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
+    - cformat
 
 requires_tests: &requires_tests
   - build_docs
@@ -875,6 +885,7 @@ workflows:
       - build_docs
       - black
       - flake8
+      - cformat
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
