@@ -1,6 +1,7 @@
 # Changelog
 
 - fix(django): avoid mixing str and non-str args for uri helper
+- fix(asgi): set http status when exception raised
 - fix(rediscluster): support rediscluster==2.1.0
 - fix(asyncio): enable patch by default
 - fix(asyncio): patch base event loop class
@@ -8,6 +9,7 @@
 - feat(core): backport contextvars
 - fix(sanic): fix patching for sanic async http server (#1659)
 - fix(flask): make template patching idempotent
+- fix(core): Do not rate limit log lines when in debug
 
 ---
 
