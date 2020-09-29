@@ -79,13 +79,13 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
@@ -114,6 +114,12 @@ else:
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
 
+if sys.version_info[:2] >= (3, 4):
+    ext_modules = [
+        Extension("ddtrace.profiling.collector._memalloc", sources=["ddtrace/profiling/collector/_memalloc.c"],),
+    ]
+else:
+    ext_modules = []
 
 # Base `setup()` kwargs without any C-extension registering
 setup(
@@ -161,7 +167,8 @@ setup(
         ],
         use_scm_version=True,
         setup_requires=["setuptools_scm[toml]>=4", "cython"],
-        ext_modules=cythonize(
+        ext_modules=ext_modules
+        + cythonize(
             [
                 Cython.Distutils.Extension(
                     "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
@@ -185,6 +192,11 @@ setup(
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._traceback",
                     sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._threading",
+                    sources=["ddtrace/profiling/collector/_threading.pyx"],
                     language="c",
                 ),
                 Cython.Distutils.Extension(

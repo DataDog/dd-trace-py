@@ -50,6 +50,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asgi`                                      | >= 2.0        | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`asyncio`                                   |               | Yes [5]_       |
++--------------------------------------------------+---------------+----------------+
 | :ref:`boto2`                                     | >= 2.29.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`botocore`                                  | >= 1.4.51     | Yes            |
@@ -104,6 +106,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pymongo`                                   | >= 3.0        | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`pynamodb`                                  | >= 4.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`pyramid`                                   | >= 1.7        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`redis`                                     | >= 2.6        | Yes            |
@@ -133,6 +137,8 @@ contacting support.
 
 .. [4] only in Python 3.7 and above.
 
+.. [5] Activating the legacy context provider is required in Python < 3.7. See
+       :ref:`asyncio` for more details.
 
 Indices and tables
 ==================
@@ -146,10 +152,7 @@ Indices and tables
 
     installation_quickstart
     configuration
-    web_integrations
-    db_integrations
-    async_integrations
-    other_integrations
+    integrations
     basic_usage
     advanced_usage
     contributing

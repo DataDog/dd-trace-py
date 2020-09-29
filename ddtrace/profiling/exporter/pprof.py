@@ -14,6 +14,7 @@ from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 from ddtrace.profiling.collector import exceptions
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -137,6 +138,21 @@ class _PprofConverter(object):
         self._location_values[location_key]["cpu-samples"] = len(samples)
         self._location_values[location_key]["cpu-time"] = sum(s.cpu_time_ns for s in samples)
         self._location_values[location_key]["wall-time"] = sum(s.wall_time_ns for s in samples)
+
+    def convert_memalloc_event(self, thread_id, thread_native_id, thread_name, frames, nframes, events):
+        location_key = (
+            self._to_locations(frames, nframes),
+            (("thread id", str(thread_id)), ("thread native id", str(thread_native_id)), ("thread name", thread_name),),
+        )
+
+        nevents = len(events)
+        sampling_ratio_avg = sum(event.capture_pct for event in events) / nevents / 100.0
+        total_alloc = sum(event.nevents for event in events)
+        number_of_alloc = total_alloc * sampling_ratio_avg
+        average_alloc_size = sum(event.size for event in events) / float(nevents)
+
+        self._location_values[location_key]["alloc-samples"] = nevents
+        self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
 
     def convert_lock_acquire_event(self, lock_name, thread_id, thread_name, frames, nframes, events, sampling_ratio):
         location_key = (
@@ -361,35 +377,15 @@ class PprofExporter(exporter.Exporter):
                 thread_id, thread_name, frames, nframes, exc_type_name, list(ue_events)
             )
 
-        sample_types = (
-            ("cpu-samples", "count"),
-            ("cpu-time", "nanoseconds"),
-            ("wall-time", "nanoseconds"),
-            ("uncaught-exceptions", "count"),
-            ("lock-acquire", "count"),
-            ("lock-acquire-wait", "nanoseconds"),
-            ("lock-release", "count"),
-            ("lock-release-hold", "nanoseconds"),
-        )
-
-        # Handle StackExceptionSampleEvent
-        if stack.FEATURES["stack-exceptions"]:
-            sample_types += (("exception-samples", "count"),)
-
-            for (
-                (thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name),
-                se_events,
-            ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
-                converter.convert_stack_exception_event(
-                    thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name, list(se_events)
-                )
-
-        if tracemalloc:
-            sample_types += (
-                ("alloc-samples", "count"),
-                ("alloc-space", "bytes"),
+        for (
+            (thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name),
+            se_events,
+        ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
+            converter.convert_stack_exception_event(
+                thread_id, thread_native_id, thread_name, trace_id, frames, nframes, exc_type_name, list(se_events)
             )
 
+        if tracemalloc:
             # Handle MemorySampleEvent
             # Merge all the memory snapshots
             traces = []
@@ -409,6 +405,15 @@ class PprofExporter(exporter.Exporter):
                 for stats in tracemalloc.Snapshot(traces, traceback_limit).statistics("traceback"):
                     converter.convert_memory_event(stats, sampling_ratio_avg)
 
+        if memalloc._memalloc:
+            for (
+                (thread_id, thread_native_id, thread_name, trace_id, frames, nframes),
+                memalloc_events,
+            ) in self._group_stack_events(events.get(memalloc.MemoryAllocSampleEvent, [])):
+                converter.convert_memalloc_event(
+                    thread_id, thread_native_id, thread_name, frames, nframes, list(memalloc_events),
+                )
+
         # Compute some metadata
         if nb_event:
             period = int(sum_period / nb_event)
@@ -416,6 +421,20 @@ class PprofExporter(exporter.Exporter):
             period = None
 
         duration_ns = end_time_ns - start_time_ns
+
+        sample_types = (
+            ("cpu-samples", "count"),
+            ("cpu-time", "nanoseconds"),
+            ("wall-time", "nanoseconds"),
+            ("uncaught-exceptions", "count"),
+            ("exception-samples", "count"),
+            ("lock-acquire", "count"),
+            ("lock-acquire-wait", "nanoseconds"),
+            ("lock-release", "count"),
+            ("lock-release-hold", "nanoseconds"),
+            ("alloc-samples", "count"),
+            ("alloc-space", "bytes"),
+        )
 
         return converter._build_profile(
             start_time_ns=start_time_ns,

@@ -1,36 +1,16 @@
 import asyncio
 import random
 import re
-import sys
 
 import httpx
 import pytest
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.propagation import http as http_propagation
 from sanic import Sanic
 from sanic.exceptions import ServerError
-from sanic.response import json, stream
+from sanic.response import json, stream, text
 
-import ddtrace
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.sanic import patch, unpatch
-from ddtrace.propagation import http as http_propagation
 from tests import override_config, override_http_config
-from tests.tracer.test_tracer import get_dummy_tracer
-
-
-@pytest.fixture
-def tracer():
-    original_tracer = ddtrace.tracer
-    tracer = get_dummy_tracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-
-        tracer.configure(context_provider=AsyncioContextProvider())
-    setattr(ddtrace, "tracer", tracer)
-    patch()
-    yield tracer
-    setattr(ddtrace, "tracer", original_tracer)
-    unpatch()
 
 
 @pytest.fixture
@@ -57,6 +37,18 @@ def app(tracer):
     @app.route("/error")
     async def error(request):
         raise ServerError("Something bad happened", status_code=500)
+
+    @app.route("/invalid")
+    async def invalid(request):
+        return "This should fail"
+
+    @app.route("/empty")
+    async def empty(request):
+        pass
+
+    @app.exception(ServerError)
+    def handler_exception(request, exception):
+        return text(exception.args[0], exception.status_code)
 
     yield app
 
@@ -228,3 +220,41 @@ async def test_multiple_requests(tracer, client):
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
+
+
+@pytest.mark.asyncio
+async def test_invalid_response_type_str(tracer, client):
+    response = await client.get("/invalid")
+    assert response.status_code == 500
+    assert response.text == "Invalid response type"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.search("/invalid$", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "500"
+
+
+@pytest.mark.asyncio
+async def test_invalid_response_type_empty(tracer, client):
+    response = await client.get("/empty")
+    assert response.status_code == 500
+    assert response.text == "Invalid response type"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "sanic.request"
+    assert request_span.service == "sanic"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.method") == "GET"
+    assert re.search("/empty$", request_span.get_tag("http.url"))
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "500"

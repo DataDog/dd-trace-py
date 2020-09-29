@@ -11,10 +11,12 @@ import mock
 import pytest
 
 from ddtrace.profiling.collector import exceptions
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
+from ddtrace.vendor import six
 
 
 TEST_EVENTS = {
@@ -147,6 +149,86 @@ TEST_EVENTS = {
             frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
             nframes=3,
             exc_type=IOError,
+        ),
+    ],
+    memalloc.MemoryAllocSampleEvent: [
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=1,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            size=34,
+            capture_pct=44,
+            nframes=3,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=2,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
+            size=99,
+            capture_pct=100,
+            nframes=3,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=3,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            size=340,
+            capture_pct=50,
+            nframes=4,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=4,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            size=44,
+            capture_pct=33,
+            nframes=6,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=5,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            trace_ids=set([1322219321]),
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            size=68,
+            capture_pct=50,
+            nframes=3,
+            nevents=2048,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=6,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            size=24,
+            capture_pct=90,
+            nframes=3,
+            nevents=2048,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=7,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
+            size=12,
+            capture_pct=100,
+            nframes=3,
+            nevents=2048,
         ),
     ],
     stack.StackSampleEvent: [
@@ -415,14 +497,10 @@ def test_ppprof_exporter():
     exp._get_program_name = mock.Mock()
     exp._get_program_name.return_value = "bonjour"
     exports = exp.export(TEST_EVENTS, 1, 7)
-    if tracemalloc:
-        if stack.FEATURES["stack-exceptions"]:
-            filename = "test-pprof-exporter_tracemalloc+stack-exceptions.txt"
-        else:
-            filename = "test-pprof-exporter_tracemalloc.txt"
+    if six.PY2:
+        filename = "test-pprof-exporter-py2.txt"
     else:
         filename = "test-pprof-exporter.txt"
-
     with open(os.path.join(os.path.dirname(__file__), filename)) as f:
         assert f.read() == str(exports), filename
 
@@ -499,19 +577,19 @@ sample_type {
 }
 sample_type {
   type: 12
-  unit: 8
+  unit: 6
 }
 sample_type {
   type: 13
-  unit: 6
-}
-sample_type {
-  type: 14
   unit: 8
 }
 sample_type {
-  type: 15
+  type: 14
   unit: 6
+}
+sample_type {
+  type: 15
+  unit: 8
 }
 sample_type {
   type: 16
@@ -587,11 +665,11 @@ string_table: "cpu-time"
 string_table: "nanoseconds"
 string_table: "wall-time"
 string_table: "uncaught-exceptions"
+string_table: "exception-samples"
 string_table: "lock-acquire"
 string_table: "lock-acquire-wait"
 string_table: "lock-release"
 string_table: "lock-release-hold"
-string_table: "exception-samples"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"

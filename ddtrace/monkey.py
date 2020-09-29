@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
-    "asyncio": False,
+    "asyncio": True,
     "boto": True,
     "botocore": True,
     "bottle": False,
@@ -65,6 +65,7 @@ PATCH_MODULES = {
     "pyramid": False,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "pynamodb": True,
 }
 
 _LOCK = threading.Lock()

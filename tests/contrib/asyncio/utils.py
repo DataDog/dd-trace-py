@@ -13,6 +13,7 @@ class AsyncioTestCase(TracerTestCase):
     for each test, preserving the original (not started) main
     loop.
     """
+
     def setUp(self):
         super(AsyncioTestCase, self).setUp()
 
@@ -38,6 +39,7 @@ def mark_asyncio(f):
     as an asynchronous coroutine. This uses the event loop set in the
     ``TestCase`` class, and runs the loop until it's completed.
     """
+
     @wraps(f)
     def wrapper(*args, **kwargs):
         coro = asyncio.coroutine(f)
@@ -45,4 +47,5 @@ def mark_asyncio(f):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(future)
         loop.close()
+
     return wrapper
