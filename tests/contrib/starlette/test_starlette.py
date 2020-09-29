@@ -4,7 +4,8 @@ import sys
 
 import httpx
 import pytest
-from ddtrace.contrib.starlette import TraceMiddleware
+import ddtrace
+from ddtrace.contrib.starlette import patch, unpatch
 from ddtrace.propagation import http as http_propagation
 from starlette.testclient import TestClient
 from tests import override_http_config
@@ -14,18 +15,23 @@ from app import get_app, file_clean_up
 
 @pytest.fixture
 def tracer():
+    original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
 
         tracer.configure(context_provider=AsyncioContextProvider())
+    setattr(ddtrace, "tracer", tracer)
+    patch()
     yield tracer
+    setattr(ddtrace, "tracer", original_tracer)
+    unpatch()
 
 
 @pytest.fixture
 async def app(tracer):
-    app = get_app(tracer)
+    app = get_app()
     yield app
 
 
@@ -37,7 +43,6 @@ async def client(app):
 
 @pytest.mark.asyncio
 async def test_200(app, client, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.get("/200")
 
     assert r.status_code == 200
@@ -47,7 +52,7 @@ async def test_200(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -59,7 +64,6 @@ async def test_200(app, client, tracer):
 @pytest.mark.asyncio
 async def test_200_query_string(app, client, tracer):
     with override_http_config("starlette", dict(trace_query_string=True)):
-        app.add_middleware(TraceMiddleware, tracer=tracer)
         r = client.get("?foo=bar")
 
     assert r.status_code == 200
@@ -69,7 +73,7 @@ async def test_200_query_string(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -81,7 +85,6 @@ async def test_200_query_string(app, client, tracer):
 @pytest.mark.asyncio
 async def test_200_multi_query_string(app, client, tracer):
     with override_http_config("starlette", dict(trace_query_string=True)):
-        app.add_middleware(TraceMiddleware, tracer=tracer)
         r = client.get("?foo=bar&x=y")
 
     assert r.status_code == 200
@@ -91,7 +94,7 @@ async def test_200_multi_query_string(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -102,7 +105,6 @@ async def test_200_multi_query_string(app, client, tracer):
 
 @pytest.mark.asyncio
 async def test_201(app, client, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.post("/201")
 
     assert r.status_code == 201
@@ -112,7 +114,7 @@ async def test_201(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
@@ -123,7 +125,6 @@ async def test_201(app, client, tracer):
 
 @pytest.mark.asyncio
 async def test_404(app, client, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.get("/404")
 
     assert r.status_code == 404
@@ -133,7 +134,7 @@ async def test_404(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -143,7 +144,6 @@ async def test_404(app, client, tracer):
 
 @pytest.mark.asyncio
 async def test_500error(app, client, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     with pytest.raises(RuntimeError):
         client.get("/500")
 
@@ -151,7 +151,7 @@ async def test_500error(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
@@ -164,7 +164,6 @@ async def test_500error(app, client, tracer):
 
 @pytest.mark.asyncio
 async def test_distributed_tracing(app, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
         (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
@@ -179,7 +178,7 @@ async def test_distributed_tracing(app, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -192,7 +191,6 @@ async def test_distributed_tracing(app, tracer):
 @pytest.mark.asyncio
 async def test_multiple_requests(app, tracer):
     with override_http_config("starlette", dict(trace_query_string=True)):
-        app.add_middleware(TraceMiddleware, tracer=tracer)
         async with httpx.AsyncClient(app=app) as client:
             responses = await asyncio.gather(
                 client.get("http://testserver/", params={"sleep": True}),
@@ -209,14 +207,14 @@ async def test_multiple_requests(app, tracer):
     assert len(spans[1]) == 1
 
     r1_span = spans[0][0]
-    assert r1_span.service == "unnamed-starlette-app"
+    assert r1_span.service == "starlette"
     assert r1_span.name == "starlette.request"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
 
     r2_span = spans[0][0]
-    assert r2_span.service == "unnamed-starlette-app"
+    assert r2_span.service == "starlette"
     assert r2_span.name == "starlette.request"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
@@ -225,7 +223,6 @@ async def test_multiple_requests(app, tracer):
 
 @pytest.mark.asyncio
 async def test_streaming_response(app, client, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.get("/stream")
 
     assert r.status_code == 200
@@ -236,7 +233,7 @@ async def test_streaming_response(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -247,7 +244,6 @@ async def test_streaming_response(app, client, tracer):
 
 @pytest.mark.asyncio
 async def test_file_response(app, client, tracer):
-    app.add_middleware(TraceMiddleware, tracer=tracer)
     r = client.get("/file")
 
     assert r.status_code == 200
@@ -257,7 +253,7 @@ async def test_file_response(app, client, tracer):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
-    assert request_span.service == "unnamed-starlette-app"
+    assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"

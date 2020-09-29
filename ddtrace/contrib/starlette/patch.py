@@ -9,7 +9,9 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("starlette", dict(_default_service="unnamed-starlette-app", distributed_tracing=True))
+config._add(
+    "starlette", dict(_default_service="starlette", request_span_name="starlette.request", distributed_tracing=True)
+)
 
 
 def patch():
@@ -30,11 +32,8 @@ def unpatch():
 
 
 def traced_init(wrapped, instance, args, kwargs):
-    # FIXME: we'll need to set the config.asgi values based on what's been set for config.starlette
-    # what we want is config.asgi["service_name"] to inherit from config.starlette
-
     mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware))
+    mw.insert(0, Middleware(TraceMiddleware, config=config.starlette))
     kwargs.update({"middleware": mw})
 
     wrapped(*args, **kwargs)

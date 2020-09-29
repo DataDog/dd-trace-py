@@ -48,15 +48,15 @@ async def file(request):
     file_ptr = open("file.txt", "w+")
     file_ptr.write("Datadog is the best!")
     file_ptr.close()
-    response = FileResponse("file.txt")
-    return response
+    return FileResponse("file.txt")
 
 
 def file_clean_up():
     os.remove("file.txt")
+    return
 
 
-def get_app(tracer):
+def get_app():
     # add resource routing
 
     routes = [
