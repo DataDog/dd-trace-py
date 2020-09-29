@@ -72,15 +72,22 @@ class Context(object):
             self._sampling_priority = value
 
     def set_ctx_item(self, key, val):
+        """Set a context item.
+        """
         with self._lock:
             self._ctx[key] = val
 
     def get_ctx_item(self, key, default=None):
+        """Get a context item for `key` falling back to `default` if no value
+        exists.
+        """
         with self._lock:
             return self._ctx.get(key, default)
 
     @contextlib.contextmanager
     def override_ctx_item(self, key, val):
+        """Temporarily override a context item.
+        """
         prev = self.get_ctx_item(key)
         try:
             self.set_ctx_item(key, val)

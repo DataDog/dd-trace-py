@@ -1,5 +1,6 @@
 # Changelog
 
+- feat(core): add context items
 - fix(rediscluster): support rediscluster==2.1.0
 - fix(asyncio): enable patch by default
 - fix(asyncio): patch base event loop class
