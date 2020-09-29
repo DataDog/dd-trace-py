@@ -96,6 +96,8 @@ def get_request_uri(request):
     # Unless all url parts are bytes, we must then cast to strings to avoid the
     # TypeError
     if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
-        urlparts.update({k: to_unicode(v) for (k, v) in urlparts.items() if v is not None})
+        for (key, value) in urlparts.items():
+            if value is not None and isinstance(value, binary_type):
+                urlparts[key] = to_unicode(value)
 
     return parse.urlunparse(parse.ParseResult(**urlparts))
