@@ -113,7 +113,8 @@ class DDLogger(logging.Logger):
         :type record: ``logging.LogRecord``
         """
         # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
-        if not self.rate_limit:
+        # If the logging is in debug, then do not apply any limits to any log
+        if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:
             super(DDLogger, self).handle(record)
             return
 
