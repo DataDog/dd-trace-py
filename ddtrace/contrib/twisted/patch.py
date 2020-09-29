@@ -111,7 +111,17 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
 def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwargs):
     f = args[1]
 
-    ctx = pin.tracer.get_call_context()
+    ctx = pin.tracer.get_call_context().clone()
+
+    # Due to an oversight in Context, whenever a span is closed
+    # the parent is set as the active. However in async tracing the child
+    # can outlive the parent...
+
+    # In this case the handler method will probably close, setting the parent
+    # to the request span. However there may be child spans still open
+    # (like runQuery).
+    # To get around this we have to clone the context and handle them
+    # separately.
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
@@ -131,7 +141,7 @@ def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwar
 def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
     ctx = pin.tracer.get_call_context()
     with ctx.override_ctx_item("trace_deferreds", True):
-        with ctx.override_ctx_item("deferred_name", "runQuery"):
+        with ctx.override_ctx_item("deferred_name", "twisted.runQuery"):
             return func(*args, **kwargs)
 
 
