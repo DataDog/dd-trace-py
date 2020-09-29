@@ -1,3 +1,4 @@
+import itertools
 import django
 from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
@@ -1463,50 +1464,28 @@ def test_template_view_patching():
     assert "dispatch" not in vars(TemplateView)
 
 
-def test_helper_get_request_uri():
-    request = django.http.HttpRequest()
-    request.path = "/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": "testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
+class _HttpRequest(django.http.HttpRequest):
+    @property
+    def scheme(self):
+        return b"http"
 
-    request = django.http.HttpRequest()
-    request.path = b"/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": "testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
 
-    request = django.http.HttpRequest()
-    request.path = "/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": b"testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
-
-    request = django.http.HttpRequest()
-    request.path = b"/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": b"testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
-
-    # Also test for when url parts are bytes. This can be the case with
-    # ASGIRequest which allows a scope's scheme to be a byte string.
-    class _HttpRequest(django.http.HttpRequest):
-        @property
-        def scheme(self):
-            return b"http"
-
-    request = _HttpRequest()
-    request.path = "/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": "testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
-
-    request = _HttpRequest()
-    request.path = b"/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": "testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
-
-    request = _HttpRequest()
-    request.path = "/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": b"testserver"}
-    assert get_request_uri(request) == "http://testserver/;some/?awful/=path/foo:bar/"
-
-    request = _HttpRequest()
-    request.path = b"/;some/?awful/=path/foo:bar/"
-    request.META = {"HTTP_HOST": b"testserver"}
-    assert get_request_uri(request) == b"http://testserver/;some/?awful/=path/foo:bar/"
+@pytest.mark.parametrize(
+    "request_cls,request_path,http_host",
+    itertools.product(
+        [django.http.HttpRequest, _HttpRequest],
+        ["/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        ["testserver", b"testserver"],
+    ),
+)
+def test_helper_get_request_uri(request_cls, request_path, http_host):
+    request = request_cls()
+    request.path = request_path
+    request.META = {"HTTP_HOST": http_host}
+    request_uri = get_request_uri(request)
+    assert (
+        request_cls == _HttpRequest
+        and isinstance(request_path, bytes)
+        and isinstance(http_host, bytes)
+        and isinstance(request_uri, bytes)
+    ) or isinstance(request_uri, str)
