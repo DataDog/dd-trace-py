@@ -1471,21 +1471,17 @@ class _HttpRequest(django.http.HttpRequest):
 
 
 @pytest.mark.parametrize(
-    "request_cls,request_path,http_host",
-    itertools.product(
-        [django.http.HttpRequest, _HttpRequest],
-        ["/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
-        ["testserver", b"testserver"],
-    ),
+    "request_cls,request_path_encode,http_host_encode",
+    itertools.product([django.http.HttpRequest, _HttpRequest], [False, True], [False, True],),
 )
-def test_helper_get_request_uri(request_cls, request_path, http_host):
+def test_helper_get_request_uri(request_cls, request_path_encode, http_host_encode):
+    def encode(x, y):
+        return y if not x else y.encode("ascii")
+
     request = request_cls()
-    request.path = request_path
-    request.META = {"HTTP_HOST": http_host}
+    request.path = encode(request_path_encode, "/;some/?awful/=path/foo:bar/")
+    request.META = {"HTTP_HOST": encode(http_host_encode, "testserver")}
     request_uri = get_request_uri(request)
     assert (
-        request_cls == _HttpRequest
-        and isinstance(request_path, bytes)
-        and isinstance(http_host, bytes)
-        and isinstance(request_uri, bytes)
+        request_cls == _HttpRequest and request_path_encode and http_host_encode and isinstance(request_uri, bytes)
     ) or isinstance(request_uri, str)
