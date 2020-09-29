@@ -2,7 +2,6 @@ from starlette.applications import Starlette
 from starlette.responses import Response, PlainTextResponse, StreamingResponse, FileResponse
 from starlette.routing import Route
 from tempfile import NamedTemporaryFile
-import os
 
 app = Starlette()
 
