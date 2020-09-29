@@ -1,5 +1,4 @@
 import asyncio
-import nest_asyncio
 import sys
 
 import httpx
@@ -30,19 +29,18 @@ def tracer():
 
 
 @pytest.fixture
-async def app(tracer):
+def app(tracer):
     app = get_app()
     yield app
 
 
 @pytest.fixture
-async def client(app):
-    client = TestClient(app)
-    yield client
+def client(app):
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-@pytest.mark.asyncio
-async def test_200(app, client, tracer):
+def test_200(client, tracer):
     r = client.get("/200")
 
     assert r.status_code == 200
@@ -61,8 +59,7 @@ async def test_200(app, client, tracer):
     assert request_span.get_tag("http.query.string") is None
 
 
-@pytest.mark.asyncio
-async def test_200_query_string(app, client, tracer):
+def test_200_query_string(client, tracer):
     with override_http_config("starlette", dict(trace_query_string=True)):
         r = client.get("?foo=bar")
 
@@ -82,8 +79,7 @@ async def test_200_query_string(app, client, tracer):
     assert request_span.get_tag("http.query.string") == "foo=bar"
 
 
-@pytest.mark.asyncio
-async def test_200_multi_query_string(app, client, tracer):
+def test_200_multi_query_string(client, tracer):
     with override_http_config("starlette", dict(trace_query_string=True)):
         r = client.get("?foo=bar&x=y")
 
@@ -103,8 +99,7 @@ async def test_200_multi_query_string(app, client, tracer):
     assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
 
 
-@pytest.mark.asyncio
-async def test_201(app, client, tracer):
+def test_201(client, tracer):
     r = client.post("/201")
 
     assert r.status_code == 201
@@ -123,8 +118,7 @@ async def test_201(app, client, tracer):
     assert request_span.get_tag("http.query.string") is None
 
 
-@pytest.mark.asyncio
-async def test_404(app, client, tracer):
+def test_404(client, tracer):
     r = client.get("/404")
 
     assert r.status_code == 404
@@ -142,8 +136,7 @@ async def test_404(app, client, tracer):
     assert request_span.get_tag("http.status_code") == "404"
 
 
-@pytest.mark.asyncio
-async def test_500error(app, client, tracer):
+def test_500error(client, tracer):
     with pytest.raises(RuntimeError):
         client.get("/500")
 
@@ -162,14 +155,12 @@ async def test_500error(app, client, tracer):
     assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
 
 
-@pytest.mark.asyncio
-async def test_distributed_tracing(app, tracer):
+def test_distributed_tracing(client, tracer):
     headers = [
-        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
-        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
+        (http_propagation.HTTP_HEADER_PARENT_ID, "1234"),
+        (http_propagation.HTTP_HEADER_TRACE_ID, "5678"),
     ]
-    async with httpx.AsyncClient(app=app) as client:
-        r = await client.get("http://testserver/", headers=headers)
+    r = client.get("http://testserver/", headers=dict(headers))
 
     assert r.status_code == 200
     assert r.text == "Success"
@@ -221,8 +212,7 @@ async def test_multiple_requests(app, tracer):
     assert r2_span.get_tag("http.query.string") == "sleep=true"
 
 
-@pytest.mark.asyncio
-async def test_streaming_response(app, client, tracer):
+def test_streaming_response(client, tracer):
     r = client.get("/stream")
 
     assert r.status_code == 200
@@ -242,8 +232,7 @@ async def test_streaming_response(app, client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-@pytest.mark.asyncio
-async def test_file_response(app, client, tracer):
+def test_file_response(client, tracer):
     r = client.get("/file")
 
     assert r.status_code == 200
@@ -261,6 +250,3 @@ async def test_file_response(app, client, tracer):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
     file_clean_up()
-
-
-nest_asyncio.apply()
