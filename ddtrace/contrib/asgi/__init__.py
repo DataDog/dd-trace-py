@@ -19,6 +19,16 @@ enabled before using the middleware::
     from ddtrace import tracer  # Or whichever tracer instance you plan to use
     tracer.configure(context_provider=AsyncioContextProvider())
 
+The middleware also supports using a custom function for handling exceptions for a trace::
+
+    from ddtrace.contrib.asgi import TraceMiddleware
+
+    def custom_handle_exception_span(exc, span):
+        span.set_tag("http.status_code", 501)
+
+    # app = <your asgi app>
+    app = TraceMiddleware(app, handle_exception_span=custom_handle_exception_span)
+
 
 Configuration
 ~~~~~~~~~~~~~
