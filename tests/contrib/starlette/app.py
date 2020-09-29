@@ -65,7 +65,7 @@ def get_app():
         Route("/201", endpoint=create, name="201", methods=["POST"]),
         Route("/500", endpoint=error, name="500", methods=["GET"]),
         Route("/stream", endpoint=stream, name="stream", methods=["GET"]),
-        Route("/file", endpoint=file, name="file", methods=["GET"])
+        Route("/file", endpoint=file, name="file", methods=["GET"]),
     ]
 
     app = Starlette(routes=routes)

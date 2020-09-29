@@ -262,4 +262,5 @@ async def test_file_response(app, client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
     file_clean_up()
 
+
 nest_asyncio.apply()
