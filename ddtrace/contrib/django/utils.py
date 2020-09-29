@@ -1,6 +1,5 @@
-from ...compat import parse, to_unicode
+from ...compat import PY3, binary_type, parse, to_unicode
 from ...internal.logger import get_logger
-
 
 log = get_logger(__name__)
 
@@ -90,11 +89,13 @@ def get_request_uri(request):
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
     urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
 
-    # DEV: urllib.parse._coerce_args uses the type of the scheme to check the
-    # type to expect from all url parts, raising a TypeError otherwise
+    # DEV: In PY3, urlunparse calls urllib.parse._coerce_args which uses the
+    # type of the scheme to check the type to expect from all url parts, raising
+    # a TypeError otherwise
     # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
-    # Unless all url parts are bytes, we must then cast to strings to avoid the TypeError
-    if not all(isinstance(value, bytes) or value is None for value in urlparts.values()):
+    # Unless all url parts are bytes, we must then cast to strings to avoid the
+    # TypeError
+    if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
         urlparts.update({k: to_unicode(v) for (k, v) in urlparts.items() if v is not None})
 
     return parse.urlunparse(parse.ParseResult(**urlparts))

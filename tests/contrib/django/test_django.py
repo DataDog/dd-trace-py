@@ -6,6 +6,7 @@ import os
 import pytest
 
 from ddtrace import config
+from ddtrace.compat import string_type, binary_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
@@ -1483,5 +1484,8 @@ def test_helper_get_request_uri(request_cls, request_path_encode, http_host_enco
     request.META = {"HTTP_HOST": encode(http_host_encode, "testserver")}
     request_uri = get_request_uri(request)
     assert (
-        request_cls == _HttpRequest and request_path_encode and http_host_encode and isinstance(request_uri, bytes)
-    ) or isinstance(request_uri, str)
+        request_cls == _HttpRequest
+        and request_path_encode
+        and http_host_encode
+        and isinstance(request_uri, binary_type)
+    ) or isinstance(request_uri, string_type)
