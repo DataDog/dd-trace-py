@@ -1,6 +1,7 @@
 from starlette.applications import Starlette
 from starlette.responses import Response, PlainTextResponse, StreamingResponse, FileResponse
 from starlette.routing import Route
+from tempfile import NamedTemporaryFile
 import os
 
 app = Starlette()
@@ -45,15 +46,10 @@ async def stream(request):
 
 
 async def file(request):
-    file_ptr = open("file.txt", "w+")
-    file_ptr.write("Datadog is the best!")
-    file_ptr.close()
-    return FileResponse("file.txt")
-
-
-def file_clean_up():
-    os.remove("file.txt")
-    return
+    with NamedTemporaryFile(delete=False) as fp:
+        fp.write(b"Datadog says hello!")
+        fp.flush()
+        return FileResponse(fp.name)
 
 
 def get_app():

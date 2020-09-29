@@ -9,7 +9,7 @@ from ddtrace.propagation import http as http_propagation
 from starlette.testclient import TestClient
 from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
-from app import get_app, file_clean_up
+from app import get_app
 
 
 @pytest.fixture
@@ -236,7 +236,7 @@ def test_file_response(client, tracer):
     r = client.get("/file")
 
     assert r.status_code == 200
-    assert r.text == "Datadog is the best!"
+    assert r.text == "Datadog says hello!"
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -249,4 +249,3 @@ def test_file_response(client, tracer):
     assert request_span.get_tag("http.url") == "http://testserver/file"
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
-    file_clean_up()
