@@ -6,8 +6,10 @@ import os
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
+from ddtrace.utils import formats
 from ddtrace.vendor import attr
 from ddtrace.profiling.collector import exceptions
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -107,13 +109,20 @@ class Profiler(object):
                 # This can generate one event every 0.1s if 100% are taken — though we take 5% by default.
                 # = (60 seconds / 0.1 seconds)
                 memory.MemorySampleEvent: int(60 / 0.1),
+                # (default buffer size / interval) * export interval
+                memalloc.MemoryAllocSampleEvent: int((64 / 0.5) * 60),
             },
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
 
+        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "false")):
+            mem_collector = memalloc.MemoryCollector(r)
+        else:
+            mem_collector = memory.MemoryCollector(r)
+
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
-            memory.MemoryCollector(r),
+            mem_collector,
             exceptions.UncaughtExceptionCollector(r),
             threading.LockCollector(r),
         ]

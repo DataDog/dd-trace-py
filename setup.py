@@ -114,6 +114,12 @@ else:
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
 
+if sys.version_info[:2] >= (3, 4):
+    ext_modules = [
+        Extension("ddtrace.profiling.collector._memalloc", sources=["ddtrace/profiling/collector/_memalloc.c"],),
+    ]
+else:
+    ext_modules = []
 
 # Base `setup()` kwargs without any C-extension registering
 setup(
@@ -161,7 +167,8 @@ setup(
         ],
         use_scm_version=True,
         setup_requires=["setuptools_scm[toml]>=4", "cython"],
-        ext_modules=cythonize(
+        ext_modules=ext_modules
+        + cythonize(
             [
                 Cython.Distutils.Extension(
                     "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
