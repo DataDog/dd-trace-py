@@ -563,6 +563,15 @@ jobs:
       - run_tox_scenario:
           pattern: '^tornado_contrib-'
 
+  txredisapi:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'txredisapi'
+          snapshot: true
+          docker_services: 'redis'
+
   bottle:
     <<: *contrib_job
     steps:

@@ -258,6 +258,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="txredisapi",
+            command="pytest {cmdargs} tests/contrib/txredisapi",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    pkgs={
+                        "txredisapi": ["~=1.0", "~=1.1", "~=1.2", "~=1.3", "~=1.4"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.5),
+                    pkgs={
+                        "txredisapi": ["~=1.0", "~=1.1", "~=1.2", "~=1.3", "~=1.4", latest]
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="wsgi",
             command="pytest tests/contrib/wsgi",
             venvs=[
