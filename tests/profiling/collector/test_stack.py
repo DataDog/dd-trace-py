@@ -347,7 +347,7 @@ def test_collect_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id in event.trace_ids:
+        if span.trace_id in event.trace_ids and span.span_id in event.span_ids:
             break
 
 
@@ -362,7 +362,7 @@ def test_collect_multiple_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id in event.trace_ids:
+        if child.trace_id in event.trace_ids and child.span_id in event.span_ids:
             break
 
 
