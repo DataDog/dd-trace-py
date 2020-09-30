@@ -40,10 +40,18 @@ def _wrap_response_callback(span, callback):
     # based on response and finish span before returning response
 
     def update_span(response):
-        span.set_tag(http.STATUS_CODE, response.status)
-        if 500 <= response.status < 600:
-            span.error = 1
-        store_response_headers(response.headers, span, config.sanic)
+        error = 0
+        if isinstance(response, sanic.response.BaseHTTPResponse):
+            status_code = response.status
+            if 500 <= response.status < 600:
+                error = 1
+            store_response_headers(response.headers, span, config.sanic)
+        else:
+            # invalid response causes ServerError exception which must be handled
+            status_code = 500
+            error = 1
+        span.set_tag(http.STATUS_CODE, status_code)
+        span.error = error
         span.finish()
 
     @wrapt.function_wrapper
