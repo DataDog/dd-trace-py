@@ -3,7 +3,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
 import rest_framework.views
 
 from ...utils.wrappers import iswrapped
-from .patch import with_traced_module
+from ..trace_utils import with_traced_module
 
 
 @with_traced_module
