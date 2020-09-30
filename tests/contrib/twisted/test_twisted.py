@@ -6,7 +6,7 @@ from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
 from ddtrace.contrib.mysqldb import patch as mysql_patch
 
-from tests import TracerTestCase
+from tests import TracerTestCase, snapshot
 from ..config import MYSQL_CONFIG
 
 
@@ -34,17 +34,18 @@ class TestTwisted(TracerTestCase):
     def test_propagation_1(self):
         def cb():
             self.tracer.trace("s2").finish()
+            reactor.stop()
 
         s1 = self.tracer.trace("s1")
 
         task.deferLater(reactor, 0, cb)
-        reactor.callLater(0.01, reactor.stop)
         reactor.run()
         s1.finish()
 
-        spans = self.tracer.writer.pop()
+        spans = self.get_spans()
         assert len(spans) == 2
-        s1, s2 = spans
+        s1 = list(self.filter_spans(name="s1"))[0]
+        s2 = list(self.filter_spans(name="s2"))[0]
 
         assert s1.parent_id is None
         assert s1.trace_id == s2.trace_id
@@ -57,16 +58,18 @@ class TestTwisted(TracerTestCase):
 
         def cb2():
             self.tracer.trace("s3").finish()
+            reactor.stop()
 
         with self.tracer.trace("s1"):
             task.deferLater(reactor, 0, cb1)
             task.deferLater(reactor, 0, cb2)
-            reactor.callLater(0.01, reactor.stop)
             reactor.run()
 
-        spans = self.tracer.writer.pop()
+        spans = self.get_spans()
         assert len(spans) == 3
-        s1, s2, s3 = spans
+        s1 = list(self.filter_spans(name="s1"))[0]
+        s2 = list(self.filter_spans(name="s2"))[0]
+        s3 = list(self.filter_spans(name="s3"))[0]
 
         assert s1.parent_id is None
         assert s1.trace_id == s2.trace_id == s3.trace_id
@@ -80,10 +83,10 @@ class TestTwisted(TracerTestCase):
 
         def cb2():
             self.tracer.trace("s2").finish()
+            reactor.stop()
 
         task.deferLater(reactor, 0, cb1)
         task.deferLater(reactor, 0, cb2)
-        reactor.callLater(0.01, reactor.stop)
         reactor.run()
 
         spans = self.tracer.writer.pop()
@@ -100,12 +103,16 @@ class TestTwisted(TracerTestCase):
             s = self.tracer.trace("s")
             return s
 
-        def cb(s):
-            self.tracer.trace("cb").finish()
+        def cb1(s):
+            self.tracer.trace("cb1").finish()
             return s
 
-        d = task.deferLater(reactor, 0, fn).addCallback(cb).addCallback(cb)
-        reactor.callLater(0.01, reactor.stop)
+        def cb2(s):
+            self.tracer.trace("cb2").finish()
+            reactor.stop()
+            return s
+
+        d = task.deferLater(reactor, 0, fn).addCallback(cb1).addCallback(cb2)
         reactor.run()
         s = d.result
         s.finish()
@@ -114,7 +121,10 @@ class TestTwisted(TracerTestCase):
         assert len(spans) == 3
 
         s1, s2, s3 = spans
-        assert s1.trace_id == s2.trace_id == s3.trace_id
+        # traces should have separate contexts
+        assert s1.trace_id != s2.trace_id
+        assert s2.trace_id != s3.trace_id
+        assert s1.trace_id != s3.trace_id
 
     @TracerTestCase.run_in_subprocess
     def test_propagation_2_callbacks_separate_traces(self):
@@ -212,7 +222,19 @@ class TestTwisted(TracerTestCase):
         reactor.run()
         assert isinstance(d.result, twisted.python.failure.Failure)
 
+
+class TestTwistedSnapshot(TracerTestCase):
+    def setUp(self):
+        super(TestTwistedSnapshot, self).setUp()
+        patch()
+        mysql_patch()
+
+    def tearDown(self):
+        unpatch()
+        super(TestTwistedSnapshot, self).tearDown()
+
     @TracerTestCase.run_in_subprocess
+    @snapshot()
     def test_connectionpool(self):
         dbpool = adbapi.ConnectionPool("MySQLdb", **MYSQL_CONFIG)
 
@@ -223,23 +245,5 @@ class TestTwisted(TracerTestCase):
                 reactor.stop()
 
         d = dbpool.runQuery("SELECT 1").addCallback(cb)
-        reactor.callLater(0.5, reactor.stop)
         reactor.run()
         assert not isinstance(d.result, twisted.python.failure.Failure)
-
-        self.assert_trace_count(1)
-        spans = self.get_spans()
-        assert len(spans) == 3
-        s1, s2, s3 = spans
-        assert s1.name == "runQuery"
-        assert s1.get_tag("deferred") is not None
-        assert s1.get_tag("callback.0") is not None
-        assert s1.get_tag("errback.0") is not None
-        assert "cb" in s1.get_tag("callback.0")
-        assert "passthru" in s1.get_tag("errback.0")
-
-        assert s2.name == "mysql.query"
-        assert s2.parent_id == s1.span_id
-
-        assert s3.name == "MySQLdb.connection.commit"
-        assert s3.parent_id == s1.span_id

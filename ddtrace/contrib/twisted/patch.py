@@ -1,13 +1,12 @@
-import contextlib
 import inspect
 import functools
 import sys
 
-import ddtrace
 from ddtrace.vendor import six
 
 from ddtrace import Pin, config
 from ddtrace.compat import contextvars
+from ddtrace.contrib import func_name
 from ddtrace.utils.formats import asbool, get_env
 
 from .. import trace_utils
@@ -26,9 +25,10 @@ config._add(
 def deferred_init(twisted, pin, func, instance, args, kwargs):
     # Create a new context for this Deferred
     ctx = contextvars.copy_context()
+    ddctx = pin.tracer.get_call_context()
     instance.__ctx = ctx
+    instance.__ddctx = ddctx
 
-    ddctx = ddtrace.tracer.get_call_context()
     if ddctx.get_ctx_item("trace_deferreds", default=False):
         name = ddctx.get_ctx_item("deferred_name")
         if not name:
@@ -40,7 +40,6 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
             name = inspect.currentframe().f_back.f_back.f_code.co_name
 
         span = pin.tracer.trace(name)
-        span.set_tag("deferred", instance)
         instance.__ddspan = span
 
     return func(*args, **kwargs)
@@ -50,15 +49,14 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
 def deferred_callback(twisted, pin, func, instance, args, kwargs):
     span = getattr(instance, "__ddspan", None)
     if span and not span.finished:
-        span.set_tag("called", instance.called)
         for n, cb in enumerate(instance.callbacks):
             # cb is a tuple of
             # (
             #   (callback, callbackArgs, callbackKWArgs),
             #   (errback, errbackArgs, errbackKWArgs)
             # )
-            span.set_tag("callback.%d" % n, cb[0][0])
-            span.set_tag("errback.%d" % n, cb[1][0])
+            span.set_tag("callback.%d" % n, func_name(cb[0][0]))
+            span.set_tag("errback.%d" % n, func_name(cb[1][0]))
         span.finish()
 
     return func(*args, **kwargs)
@@ -94,8 +92,16 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
         # When the function is invoked the recursive callback(n-1) call
         # will not call the wrapping code again.
         ctx = instance.__ctx
+        ddctx = instance.__ddctx
+
         try:
-            return ctx.run(callback, *args, **kwargs)
+            # Need to wrap the callback again to copy the datadog context
+            # once the contextvars context is activated.
+            def fn(*args, **kwargs):
+                pin.tracer.context_provider.activate(ddctx.clone())
+                return callback(*args, **kwargs)
+
+            return ctx.run(fn, *args, **kwargs)
         except RuntimeError as e:
             if "cannot enter context" in str(e):
                 return callback(*args, **kwargs)

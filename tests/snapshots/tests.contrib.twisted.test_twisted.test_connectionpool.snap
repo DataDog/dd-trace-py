@@ -1,0 +1,44 @@
+[[{"name" "twisted.runQuery"
+   "service" nil
+   "resource" "twisted.runQuery"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1601428229996201000
+   "duration" 77667000
+   "meta" {"runtime-id" "0805486f63ec4c43a40dd583d03baa25"
+           "callback.0" "tests.contrib.twisted.test_twisted.cb"
+           "errback.0" "twisted.internet.defer.passthru"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 99295}}
+      {"name" "mysql.query"
+       "service" "mysql"
+       "resource" "SELECT 1"
+       "type" "sql"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1601428230065812000
+       "duration" 2611000
+       "meta" {"out.host" "127.0.0.1"
+               "db.user" "test"}
+       "metrics" {"_dd.measured" 1
+                  "_sampling_priority_v1" 1
+                  "out.port" 3306
+                  "db.rowcount" 1
+                  "sql.rows" 1}}
+      {"name" "MySQLdb.connection.commit"
+       "service" "mysql"
+       "resource" "MySQLdb.connection.commit"
+       "error" 0
+       "span_id" 2
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1601428230069311000
+       "duration" 2810000
+       "meta" {"out.host" "127.0.0.1"
+               "db.user" "test"}
+       "metrics" {"out.port" 3306}}]]
