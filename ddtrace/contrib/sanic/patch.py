@@ -98,6 +98,9 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     write_callback = kwargs.get("write_callback", args[1])
     stream_callback = kwargs.get("stream_callback", args[2])
 
+    if request.scheme not in ("http", "https"):
+        return await wrapped(request, write_callback, stream_callback, **kwargs)
+
     resource = "{} {}".format(request.method, request.path)
 
     headers = request.headers.copy()

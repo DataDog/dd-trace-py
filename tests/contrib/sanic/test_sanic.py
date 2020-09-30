@@ -2,18 +2,39 @@ import asyncio
 import random
 import re
 
-import httpx
 import pytest
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.propagation import http as http_propagation
 from sanic import Sanic
+from sanic.server import HttpProtocol
 from sanic.exceptions import ServerError
 from sanic.response import json, stream, text
 
 from tests import override_config, override_http_config
 
 
-@pytest.fixture
+# Helpers for handling response objects across sanic versions
+
+
+def _response_status(response):
+    return getattr(response, "status_code", getattr(response, "status"))
+
+
+async def _response_json(response):
+    resp_json = response.json()
+    if asyncio.iscoroutine(resp_json):
+        resp_json = await resp_json
+    return resp_json
+
+
+async def _response_text(response):
+    resp_text = response.text()
+    if asyncio.iscoroutine(resp_text):
+        resp_text = await resp_text
+    return resp_text
+
+
+@pytest.yield_fixture
 def app(tracer):
     app = Sanic(__name__)
 
@@ -53,11 +74,6 @@ def app(tracer):
     yield app
 
 
-@pytest.fixture
-def client(app):
-    yield httpx.AsyncClient(app=app, base_url="http://testserver")
-
-
 @pytest.fixture(
     params=[
         dict(),
@@ -90,7 +106,11 @@ def integration_http_config(request):
     return request.param
 
 
-@pytest.mark.asyncio
+@pytest.fixture
+def client(loop, app, sanic_client):
+    return loop.run_until_complete(sanic_client(app, protocol=HttpProtocol))
+
+
 async def test_basic_app(tracer, client, integration_config, integration_http_config):
     """Test Sanic Patching"""
     with override_http_config("sanic", integration_http_config):
@@ -100,8 +120,8 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
                 (http_propagation.HTTP_HEADER_TRACE_ID, "5678"),
             ]
             response = await client.get("/hello", params=[("foo", "bar")], headers=headers)
-            assert response.status_code == 200
-            assert response.json() == {"hello": "world"}
+            assert _response_status(response) == 200
+            assert await _response_json(response) == {"hello": "world"}
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -141,11 +161,10 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
         assert request_span.trace_id is not None and request_span.trace_id != 5678
 
 
-@pytest.mark.asyncio
 async def test_streaming_response(tracer, client):
     response = await client.get("/stream_response")
-    assert response.status_code == 200
-    assert response.text.endswith("foo,\r\n3\r\nbar\r\n0\r\n\r\n")
+    assert _response_status(response) == 200
+    assert (await _response_text(response)).endswith("foo,bar")
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -160,11 +179,10 @@ async def test_streaming_response(tracer, client):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-@pytest.mark.asyncio
 async def test_error_app(tracer, client):
     response = await client.get("/nonexistent")
-    assert response.status_code == 404
-    assert "not found" in response.text
+    assert _response_status(response) == 404
+    assert "not found" in await _response_text(response)
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -179,11 +197,10 @@ async def test_error_app(tracer, client):
     assert request_span.get_tag("http.status_code") == "404"
 
 
-@pytest.mark.asyncio
 async def test_exception(tracer, client):
     response = await client.get("/error")
-    assert response.status_code == 500
-    assert "Something bad happened" in response.text
+    assert _response_status(response) == 500
+    assert "Something bad happened" in await _response_text(response)
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -198,13 +215,12 @@ async def test_exception(tracer, client):
     assert request_span.get_tag("http.status_code") == "500"
 
 
-@pytest.mark.asyncio
 async def test_multiple_requests(tracer, client):
     responses = await asyncio.gather(client.get("/hello"), client.get("/hello"),)
 
     assert len(responses) == 2
-    assert [r.status_code for r in responses] == [200] * 2
-    assert [r.json() for r in responses] == [{"hello": "world"}] * 2
+    assert [_response_status(r) for r in responses] == [200] * 2
+    assert [await _response_json(r) for r in responses] == [{"hello": "world"}] * 2
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 2
@@ -215,18 +231,16 @@ async def test_multiple_requests(tracer, client):
     assert spans[0][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[0][0].parent_id is None
     assert spans[0][1].parent_id == spans[0][0].span_id
-
     assert spans[1][0].name == "sanic.request"
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
 
 
-@pytest.mark.asyncio
 async def test_invalid_response_type_str(tracer, client):
     response = await client.get("/invalid")
-    assert response.status_code == 500
-    assert response.text == "Invalid response type"
+    assert _response_status(response) == 500
+    assert await _response_text(response) == "Invalid response type"
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -241,11 +255,10 @@ async def test_invalid_response_type_str(tracer, client):
     assert request_span.get_tag("http.status_code") == "500"
 
 
-@pytest.mark.asyncio
 async def test_invalid_response_type_empty(tracer, client):
     response = await client.get("/empty")
-    assert response.status_code == 500
-    assert response.text == "Invalid response type"
+    assert _response_status(response) == 500
+    assert await _response_text(response) == "Invalid response type"
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
