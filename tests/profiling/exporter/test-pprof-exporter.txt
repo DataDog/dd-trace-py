@@ -130,6 +130,34 @@ sample {
   location_id: 1
   location_id: 2
   location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 2
+  value: 59689
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 31
+    str: 32
+  }
+  label {
+    key: 24
+    str: 25
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
   value: 1
   value: 841019
   value: 18244
@@ -326,6 +354,35 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 174080
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 31
+    str: 32
+  }
+  label {
+    key: 24
+    str: 25
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  location_id: 7
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 1
   value: 0
   value: 0
@@ -440,6 +497,34 @@ sample {
   label {
     key: 29
     str: 30
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 4
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 69632
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 31
+    str: 32
+  }
+  label {
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -565,6 +650,35 @@ sample {
   label {
     key: 29
     str: 30
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 4
+  location_id: 5
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 14868
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 31
+    str: 32
+  }
+  label {
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -699,6 +813,34 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 101376
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 31
+    str: 32
+  }
+  label {
+    key: 24
+    str: 25
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 8
+  value: 0
+  value: 0
+  value: 0
+  value: 0
   value: 1
   value: 0
   value: 0
@@ -812,6 +954,34 @@ sample {
   label {
     key: 29
     str: 30
+  }
+}
+sample {
+  location_id: 1
+  location_id: 6
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 24576
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 31
+    str: 32
+  }
+  label {
+    key: 24
+    str: 25
   }
 }
 sample {
