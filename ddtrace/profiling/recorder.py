@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import collections
+import os
 
 from ddtrace.profiling import _nogevent
 from ddtrace.vendor import attr
@@ -32,6 +33,7 @@ class Recorder(object):
 
     events = attr.ib(init=False, repr=False)
     _events_lock = attr.ib(init=False, repr=False, factory=_nogevent.DoubleLock)
+    _pid = attr.ib(init=False, repr=False, factory=os.getpid)
 
     def __attrs_post_init__(self):
         self._reset_events()
@@ -51,7 +53,11 @@ class Recorder(object):
 
         :param events: The event list to push.
         """
-        if events:
+        # NOTE: do not try to push events if the current PID has changed
+        # This means:
+        # 1. the process has forked
+        # 2. we don't know the state of _events_lock and it might be unusable — we'd deadlock
+        if events and os.getpid() == self._pid:
             event_type = events[0].__class__
             with self._events_lock:
                 q = self.events[event_type]
