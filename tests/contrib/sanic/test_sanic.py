@@ -231,18 +231,16 @@ async def test_multiple_requests(tracer, client):
     assert spans[0][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[0][0].parent_id is None
     assert spans[0][1].parent_id == spans[0][0].span_id
-
     assert spans[1][0].name == "sanic.request"
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
 
 
-@pytest.mark.asyncio
 async def test_invalid_response_type_str(tracer, client):
     response = await client.get("/invalid")
-    assert response.status_code == 500
-    assert response.text == "Invalid response type"
+    assert _response_status(response) == 500
+    assert await _response_text(response) == "Invalid response type"
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -257,11 +255,10 @@ async def test_invalid_response_type_str(tracer, client):
     assert request_span.get_tag("http.status_code") == "500"
 
 
-@pytest.mark.asyncio
 async def test_invalid_response_type_empty(tracer, client):
     response = await client.get("/empty")
-    assert response.status_code == 500
-    assert response.text == "Invalid response type"
+    assert _response_status(response) == 500
+    assert await _response_text(response) == "Invalid response type"
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
