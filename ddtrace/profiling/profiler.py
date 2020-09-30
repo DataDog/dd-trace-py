@@ -3,6 +3,7 @@ import atexit
 import logging
 import os
 
+import ddtrace
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
@@ -74,7 +75,7 @@ class Profiler(object):
     service = attr.ib(factory=_get_service_name)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    tracer = attr.ib(default=None)
+    tracer = attr.ib(default=ddtrace.tracer)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
