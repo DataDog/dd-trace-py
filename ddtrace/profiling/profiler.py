@@ -161,17 +161,17 @@ class Profiler(object):
 
         :param flush: Wait for the flush of the remaining events before stopping.
         """
+        if self._scheduler:
+            self._scheduler.stop()
+
         for col in reversed(self._collectors):
             col.stop()
 
         for col in reversed(self._collectors):
             col.join()
 
-        if self._scheduler:
-            self._scheduler.stop()
-
-            if flush:
-                self._scheduler.join()
+        if self._scheduler and flush:
+            self._scheduler.join()
 
         self.status = ProfilerStatus.STOPPED
 

@@ -63,7 +63,6 @@ def test_call_script_pprof_output_interval(tmp_path, monkeypatch):
         check_pprof_file(filename + "." + str(pid) + (".%d" % i))
 
 
-@pytest.mark.skipif(os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Test hangs forever on gevent")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
