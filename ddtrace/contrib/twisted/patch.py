@@ -8,6 +8,7 @@ from ddtrace import Pin, config
 from ddtrace.compat import contextvars
 from ddtrace.contrib import func_name
 from ddtrace.utils.formats import asbool, get_env
+from ddtrace.propagation.http import HTTPPropagator
 
 from .. import trace_utils
 
@@ -15,8 +16,10 @@ from .. import trace_utils
 config._add(
     "twisted",
     dict(
+        _default_service="twisted",
         distributed_tracing=asbool(get_env("twisted", "distributed_tracing", default=True)),
         split_by_domain=asbool(get_env("twisted", "split_by_domain", default=False)),
+        trace_all_deferreds=asbool(get_env("twisted", "trace_all_deferreds", default=False)),
     ),
 )
 
@@ -29,17 +32,28 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
     instance.__ctx = ctx
     instance.__ddctx = ddctx
 
-    if ddctx.get_ctx_item("trace_deferreds", default=False):
+    # Only create traces for deferreds when there is an active span.
+    if ddctx._current_span and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
         name = ddctx.get_ctx_item("deferred_name")
         if not name:
-            # If a name isn't provided, go up two frames to get to the functi    on that's creating the deferred
+            # If a name isn't provided, go up two frames to get to the function that created the deferred
             # <fn we care about that creates the deferred>
             # wrapper (from with_traced_module)
             # Deferred.__init__
-            # This wrapper  (currentframe())
-            name = inspect.currentframe().f_back.f_back.f_code.co_name
+            # This wrapper (currentframe())
+            # co_caller = inspect.currentframe().f_back.f_back.f_back.f_code
+            # co_caller = inspect.currentframe().f_back.f_back.f_code
+            # name = "twisted.%s" % co_caller.co_name
+            stack = inspect.stack()
+            locals = stack[2][0].f_locals
+            method_name = stack[2][0].f_code.co_name
+            if "self" in locals:
+                cls = locals["self"].__class__.__name__
+                name = "twisted.%s.%s" % (cls, method_name)
+            else:
+                name = "twisted.%s" % method_name
 
-        span = pin.tracer.trace(name)
+        span = pin.tracer.trace(name, service=trace_utils.int_service(pin, config.twisted))
         instance.__ddspan = span
 
     return func(*args, **kwargs)
@@ -151,6 +165,26 @@ def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
             return func(*args, **kwargs)
 
 
+@trace_utils.with_traced_module
+def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
+    try:
+        return func(*args, **kwargs)
+    finally:
+        # Note that HTTPClientFactory creates a Deferred in its init
+        # so we want that to be the active span for when we set the distributed
+        # tracing headers.
+        ctx = pin.tracer.get_call_context()
+
+        if config.twisted.distributed_tracing:
+            # if len(args) > 4:
+            #     headers = args[4]
+            # else:
+            #     headers = kwargs.setdefault("headers", {})
+            propagator = HTTPPropagator()
+            # propagator.inject(ctx, headers)
+            propagator.inject(ctx, instance.headers)
+
+
 def patch():
     import twisted
 
@@ -167,6 +201,7 @@ def patch():
     trace_utils.wrap(
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
     )
+    trace_utils.wrap("twisted.web.client", "HTTPClientFactory.__init__", httpclientfactory___init__(twisted))
 
 
 def unpatch():
@@ -181,5 +216,6 @@ def unpatch():
     trace_utils.unwrap(twisted.internet.defer.Deferred, "addCallbacks")
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "runQuery")
     trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
+    trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
 
     setattr(twisted, "__datadog_patch", False)
