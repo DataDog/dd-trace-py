@@ -305,6 +305,13 @@ Tornado
 .. automodule:: ddtrace.contrib.tornado
 
 
+.. _txredisapi:
+
+txredisapi
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.txredisapi
+
+
 .. _vertica:
 
 Vertica
