@@ -1,3 +1,4 @@
+import itertools
 import django
 from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
@@ -5,8 +6,10 @@ import os
 import pytest
 
 from ddtrace import config
+from ddtrace.compat import string_type, binary_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -1460,3 +1463,30 @@ def test_template_view_patching():
     # Patch via `as_view()`
     TemplateView.as_view()
     assert "dispatch" not in vars(TemplateView)
+
+
+class _HttpRequest(django.http.HttpRequest):
+    @property
+    def scheme(self):
+        return b"http"
+
+
+@pytest.mark.parametrize(
+    "request_cls,request_path,http_host",
+    itertools.product(
+        [django.http.HttpRequest, _HttpRequest],
+        [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        [u"testserver", b"testserver"],
+    ),
+)
+def test_helper_get_request_uri(request_cls, request_path, http_host):
+    request = request_cls()
+    request.path = request_path
+    request.META = {"HTTP_HOST": http_host}
+    request_uri = get_request_uri(request)
+    assert (
+        request_cls == _HttpRequest
+        and isinstance(request_path, binary_type)
+        and isinstance(http_host, binary_type)
+        and isinstance(request_uri, binary_type)
+    ) or isinstance(request_uri, string_type)
