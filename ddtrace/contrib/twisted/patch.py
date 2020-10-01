@@ -32,9 +32,9 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
     instance.__ctx = ctx
     instance.__ddctx = ddctx
 
-    # Only create traces for deferreds when there is an active span.
+    # Only create traces for deferreds when there is an active span
     if ddctx._current_span and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
-        name = ddctx.get_ctx_item("deferred_name")
+        name = ddctx.get_ctx_item("deferred_name", None)
         if not name:
             # If a name isn't provided, go up two frames to get to the function that created the deferred
             # <fn we care about that creates the deferred>
@@ -49,9 +49,9 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
             method_name = stack[2][0].f_code.co_name
             if "self" in locals:
                 cls = locals["self"].__class__.__name__
-                name = "twisted.%s.%s" % (cls, method_name)
+                name = "%s.%s.deferred" % (cls, method_name)
             else:
-                name = "twisted.%s" % method_name
+                name = "%s.deferred" % method_name
 
         span = pin.tracer.trace(name, service=trace_utils.int_service(pin, config.twisted))
         instance.__ddspan = span
@@ -161,7 +161,7 @@ def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwar
 def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
     ctx = pin.tracer.get_call_context()
     with ctx.override_ctx_item("trace_deferreds", True):
-        with ctx.override_ctx_item("deferred_name", "twisted.runQuery"):
+        with ctx.override_ctx_item("deferred_name", "ConnectionPool.runQuery.deferred"):
             return func(*args, **kwargs)
 
 
@@ -202,6 +202,8 @@ def patch():
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
     )
     trace_utils.wrap("twisted.web.client", "HTTPClientFactory.__init__", httpclientfactory___init__(twisted))
+
+    setattr(twisted, "__datadog_patch", True)
 
 
 def unpatch():
