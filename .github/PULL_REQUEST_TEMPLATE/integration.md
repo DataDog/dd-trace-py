@@ -24,5 +24,6 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
 - [ ] Instance configuration
   - [ ] Pin overriding.
   - [ ] Service name override (if applicable)
+- [ ] 500-level responses are tagged as errors
 - [ ] Async (if applicable)
   - [ ] Span parenting behaves as expected.

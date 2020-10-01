@@ -1,6 +1,7 @@
 # Changelog
 
 - fix(django): avoid mixing str and non-str args for uri helper
+- fix(asgi): tag 500-level responses as errors
 - fix(asgi): set http status when exception raised
 - fix(rediscluster): support rediscluster==2.1.0
 - fix(asyncio): enable patch by default

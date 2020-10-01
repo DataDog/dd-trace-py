@@ -67,6 +67,13 @@ async def error_app(scope, receive, send):
     raise RuntimeError("Test")
 
 
+async def error_handled_app(scope, receive, send):
+    message = await receive()
+    if message.get("type") == "http.request":
+        await send({"type": "http.response.start", "status": 500, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
+
+
 def double_callable_app(scope):
     """
     A double-callable application for legacy ASGI 2.0 support
@@ -201,6 +208,23 @@ async def test_asgi_error(scope, tracer):
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
     _check_span_tags(scope, request_span)
+
+
+@pytest.mark.asyncio
+async def test_asgi_500(scope, tracer):
+    app = TraceMiddleware(error_handled_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.status_code") == "500"
 
 
 @pytest.mark.asyncio
