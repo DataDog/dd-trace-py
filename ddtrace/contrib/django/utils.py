@@ -89,12 +89,13 @@ def get_request_uri(request):
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
     urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
 
-    # DEV: In PY3, urlunparse calls urllib.parse._coerce_args which uses the
+    # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
     # type of the scheme to check the type to expect from all url parts, raising
-    # a TypeError otherwise
+    # a TypeError otherwise. If the scheme is not a str, the function returns
+    # the url parts bytes decoded along with a function to encode the result of
+    # combining the url parts. We returns a byte string when all url parts are
+    # byte strings.
     # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
-    # If not all the url parts are bytes then we must cast the parts to string to avoid the
-    # TypeError
     if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
         for (key, value) in urlparts.items():
             if value is not None and isinstance(value, binary_type):
