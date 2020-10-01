@@ -102,7 +102,10 @@ class TraceMiddleware:
         resource = "{} {}".format(scope["method"], scope["path"])
 
         span = self.tracer.trace(
-            name="asgi.request", service=config.asgi.service_name, resource=resource, span_type=SpanTypes.HTTP,
+            name="asgi.request",
+            service=config.asgi.service_name,
+            resource=resource,
+            span_type=SpanTypes.HTTP,
         )
 
         sample_rate = config.asgi.get_analytics_sample_rate(use_global_config=True)

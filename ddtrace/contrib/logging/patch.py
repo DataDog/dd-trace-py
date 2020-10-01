@@ -13,7 +13,12 @@ RECORD_ATTR_SERVICE = "dd.service"
 RECORD_ATTR_VALUE_ZERO = "0"
 RECORD_ATTR_VALUE_EMPTY = ""
 
-ddtrace.config._add("logging", dict(tracer=None,))  # by default, override here for custom tracer
+ddtrace.config._add(
+    "logging",
+    dict(
+        tracer=None,
+    ),
+)  # by default, override here for custom tracer
 
 
 def _get_current_span(tracer=None):

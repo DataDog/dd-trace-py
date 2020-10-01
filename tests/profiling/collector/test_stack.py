@@ -172,7 +172,12 @@ def test_stress_threads():
     print("%.3f ms per call" % (1000.0 * exectime_per_collect))
     print(
         "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
-        % (NB_THREADS, MAX_FN_NUM, 1 / s.min_interval_time, 100 * exectime_per_collect / s.min_interval_time,)
+        % (
+            NB_THREADS,
+            MAX_FN_NUM,
+            1 / s.min_interval_time,
+            100 * exectime_per_collect / s.min_interval_time,
+        )
     )
     for t in threads:
         t.join()
@@ -239,7 +244,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 233, "test_exception_collection")]
+    assert e.frames == [(__file__, 238, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
