@@ -1,0 +1,44 @@
+[[{"name" "ConnectionPool.runQuery.deferred"
+   "service" "twisted"
+   "resource" "ConnectionPool.runQuery.deferred"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1601517823985105000
+   "duration" 46480000
+   "meta" {"runtime-id" "64e394ad90ea4512b14b926f5258ca4a"
+           "errback.0" "twisted.internet.defer.passthru"
+           "callback.0" "tests.contrib.twisted.test_twisted.cb"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 45946}}
+      {"name" "mysql.query"
+       "service" "mysql"
+       "resource" "SELECT 1"
+       "type" "sql"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1601517824028105000
+       "duration" 1416000
+       "meta" {"out.host" "127.0.0.1"
+               "db.user" "test"}
+       "metrics" {"_dd.measured" 1
+                  "_sampling_priority_v1" 1
+                  "sql.rows" 1
+                  "out.port" 3306
+                  "db.rowcount" 1}}
+      {"name" "MySQLdb.connection.commit"
+       "service" "mysql"
+       "resource" "MySQLdb.connection.commit"
+       "error" 0
+       "span_id" 2
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1601517824029824000
+       "duration" 1552000
+       "meta" {"out.host" "127.0.0.1"
+               "db.user" "test"}
+       "metrics" {"out.port" 3306}}]]

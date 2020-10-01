@@ -380,6 +380,17 @@ jobs:
       - run_tox_scenario:
           pattern: '^tornado_contrib-'
 
+  twisted:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d mysql testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^twisted_contrib-'
+
   bottle:
     executor: ddtrace_dev
     steps:
@@ -848,6 +859,7 @@ requires_tests: &requires_tests
   - test_logging
   - tracer
   - tornado
+  - twisted
   - vertica
   - build-docker-ci-image
 
@@ -942,6 +954,7 @@ workflows:
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
+      - twisted: *requires_pre_test
       # tracer
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
