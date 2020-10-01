@@ -33,8 +33,9 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
     instance.__ddctx = ddctx
 
     # Only create traces for deferreds when there is an active span
-    if ddctx._current_span and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
-        name = ddctx.get_ctx_item("deferred_name", None)
+    # or there is a name in the context.
+    name = ddctx.get_ctx_item("deferred_name", None)
+    if (ddctx._current_span or name) and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
         if not name:
             # If a name isn't provided, go up two frames to get to the function that created the deferred
             # <fn we care about that creates the deferred>
@@ -45,9 +46,9 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
             # co_caller = inspect.currentframe().f_back.f_back.f_code
             # name = "twisted.%s" % co_caller.co_name
             stack = inspect.stack()
-            locals = stack[2][0].f_locals
+            f_locals= stack[2][0].f_locals
             method_name = stack[2][0].f_code.co_name
-            if "self" in locals:
+            if "self" in f_locals:
                 cls = locals["self"].__class__.__name__
                 name = "%s.%s.deferred" % (cls, method_name)
             else:
