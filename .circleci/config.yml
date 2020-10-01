@@ -391,6 +391,17 @@ jobs:
       - run:
           command: ./scripts/ddtest scripts/run-tox-scenario '^twisted_contrib-'
 
+  txredisapi:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^txredisapi_contrib-'
+
   bottle:
     executor: ddtrace_dev
     steps:
@@ -860,6 +871,7 @@ requires_tests: &requires_tests
   - tracer
   - tornado
   - twisted
+  - txredisapi
   - vertica
   - build-docker-ci-image
 
@@ -955,6 +967,7 @@ workflows:
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       - twisted: *requires_pre_test
+      - txredisapi: *requires_pre_test
       # tracer
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test

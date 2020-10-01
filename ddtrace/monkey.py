@@ -66,6 +66,7 @@ PATCH_MODULES = {
     "logging": config.logs_injection,
     "pynamodb": True,
     "twisted": True,
+    "txredisapi": True,
 }
 
 _LOCK = threading.Lock()
