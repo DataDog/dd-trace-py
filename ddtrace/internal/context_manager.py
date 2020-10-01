@@ -7,6 +7,7 @@ from ..context import Context
 
 log = get_logger(__name__)
 
+
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 

@@ -189,7 +189,6 @@ try:
     import contextvars  # noqa
 except ImportError:
     from ddtrace.vendor import contextvars  # noqa
-
     CONTEXTVARS_IS_AVAILABLE = False
 else:
     CONTEXTVARS_IS_AVAILABLE = True
