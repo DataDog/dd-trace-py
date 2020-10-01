@@ -13,20 +13,25 @@ config._add("txredisapi", dict(_default_service="redis",))
 
 @trace_utils.with_traced_module
 def traced_execute_command(txredisapi, pin, func, instance, args, kwargs):
-    with pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(pin, config.txredisapi), span_type=SpanTypes.REDIS
-    ) as s:
-        s.set_tag(SPAN_MEASURED_KEY)
-        query = format_command_args(args)
-        s.resource = query
-        s.set_tag(redisx.RAWCMD, query)
-        if pin.tags:
-            s.set_tags(pin.tags)
-        s.set_metric(redisx.ARGS_LEN, len(args))
+    ctx = pin.tracer.get_call_context()
 
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.redis.get_analytics_sample_rate())
+    with ctx.override_ctx_item("trace_deferreds", True):
+        d = func(*args, **kwargs)
+    s = getattr(d, "__ddspan")
+    s.name = redisx.CMD
+    s.service = trace_utils.ext_service(pin, config.txredisapi)
+    s.span_type = SpanTypes.REDIS
 
-        return func(*args, **kwargs)
+    s.set_tag(SPAN_MEASURED_KEY)
+    query = format_command_args(args)
+    s.resource = query
+    s.set_tag(redisx.RAWCMD, query)
+    if pin.tags:
+        s.set_tags(pin.tags)
+    s.set_metric(redisx.ARGS_LEN, len(args))
+
+    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.redis.get_analytics_sample_rate())
+    return d
 
 
 def patch():
@@ -36,6 +41,8 @@ def patch():
         return
 
     version = LooseVersion(txredisapi.__version__)
+
+    Pin().onto(txredisapi)
 
     if version >= LooseVersion("1.2"):
         trace_utils.wrap("txredisapi", "BaseRedisProtocol.execute_command", traced_execute_command(txredisapi))
