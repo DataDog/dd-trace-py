@@ -119,6 +119,9 @@ class TraceMiddleware:
                 if "status" in message:
                     status_code = message["status"]
                     span.set_tag(http.STATUS_CODE, status_code)
+                    if 500 <= int(status_code) < 600:
+                        span.error = 1
+
                 if "headers" in message:
                     store_response_headers(message["headers"], span, config.asgi)
 
