@@ -11,13 +11,10 @@ log = get_logger(__name__)
 
 wrap = wrapt.wrap_function_wrapper
 unwrap = ddtrace.utils.wrappers.unwrap
+iswrapped = ddtrace.utils.wrappers.iswrapped
 
 store_request_headers = ddtrace.http.store_request_headers
 store_response_headers = ddtrace.http.store_response_headers
-
-
-def iswrapped(func):
-    return isinstance(func, wrapt.ObjectProxy)
 
 
 def with_traced_module(func):
@@ -52,16 +49,6 @@ def with_traced_module(func):
         return wrapper
 
     return with_mod
-
-
-def traced_func(mod, name, resource=None):
-    """Returns a function to trace functions."""
-
-    def wrapped(mod, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource):
-            return func(*args, **kwargs)
-
-    return with_traced_module(wrapped)(mod)
 
 
 def int_service(pin, config, default=None):

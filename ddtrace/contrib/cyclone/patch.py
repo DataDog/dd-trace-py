@@ -8,6 +8,22 @@ from ddtrace.propagation.http import HTTPPropagator
 from .. import trace_utils
 
 
+def iswrapped(func):
+    from ddtrace.vendor import wrapt
+
+    return isinstance(func, wrapt.ObjectProxy)
+
+
+def traced_func(mod, name, resource=None):
+    """Returns a function to trace functions."""
+
+    def wrapped(mod, pin, func, instance, args, kwargs):
+        with pin.tracer.trace(name, resource=resource):
+            return func(*args, **kwargs)
+
+    return trace_utils.with_traced_module(wrapped)(mod)
+
+
 config._add("cyclone", dict(_default_service="cyclone", distributed_tracing_enabled=True,))
 
 config._add("cyclone_client", dict(_default_service="cyclone_client", distributed_tracing_enabled=True,))
@@ -23,10 +39,8 @@ def traced_requesthandler__init__(cyclone, pin, func, instance, args, kwargs):
     for method_name in ["get", "post", "options", "delete", "head", "default"]:
         if hasattr(instance, method_name) and method_name in vars(instance.__class__):
             method = getattr(instance, method_name)
-            if not trace_utils.iswrapped(method):
-                trace_utils.wrap(
-                    instance, method_name, trace_utils.traced_func(cyclone, "cyclone.request.%s" % method_name)
-                )
+            if not iswrapped(method):
+                trace_utils.wrap(instance, method_name, traced_func(cyclone, "cyclone.request.%s" % method_name))
     return func(*args, **kwargs)
 
 
