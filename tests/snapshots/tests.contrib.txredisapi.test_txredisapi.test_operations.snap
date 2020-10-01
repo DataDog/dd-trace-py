@@ -1,0 +1,34 @@
+[[{"name" "redis.command"
+   "service" "redis"
+   "resource" "SET foo bar"
+   "type" "redis"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1601513228995522000
+   "duration" 300000
+   "meta" {"runtime-id" "f6cebb9e8ef34a0fb51e1109c0d9af68"
+           "redis.raw_command" "SET foo bar"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 26214
+              "redis.args_length" 3}}]
+ [{"name" "redis.command"
+   "service" "redis"
+   "resource" "GET foo"
+   "type" "redis"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1601513228998239000
+   "duration" 110000
+   "meta" {"runtime-id" "f6cebb9e8ef34a0fb51e1109c0d9af68"
+           "redis.raw_command" "GET foo"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 26214
+              "redis.args_length" 2}}]]
