@@ -49,7 +49,7 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
             f_locals= stack[2][0].f_locals
             method_name = stack[2][0].f_code.co_name
             if "self" in f_locals:
-                cls = locals["self"].__class__.__name__
+                cls = f_locals["self"].__class__.__name__
                 name = "%s.%s.deferred" % (cls, method_name)
             else:
                 name = "%s.deferred" % method_name
