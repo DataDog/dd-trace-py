@@ -17,20 +17,20 @@ def traced_execute_command(txredisapi, pin, func, instance, args, kwargs):
 
     with ctx.override_ctx_item("trace_deferreds", True):
         d = func(*args, **kwargs)
-    s = getattr(d, "__ddspan")
-    s.name = redisx.CMD
-    s.service = trace_utils.ext_service(pin, config.txredisapi)
-    s.span_type = SpanTypes.REDIS
+    s = getattr(d, "__ddspan", None)
 
-    s.set_tag(SPAN_MEASURED_KEY)
-    query = format_command_args(args)
-    s.resource = query
-    s.set_tag(redisx.RAWCMD, query)
-    if pin.tags:
-        s.set_tags(pin.tags)
-    s.set_metric(redisx.ARGS_LEN, len(args))
+    if s:
+        s.name = redisx.CMD
+        s.service = trace_utils.ext_service(pin, config.txredisapi)
+        s.span_type = SpanTypes.REDIS
 
-    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.redis.get_analytics_sample_rate())
+        s.set_tag(SPAN_MEASURED_KEY)
+        s.resource = format_command_args(args)
+        s.set_tag(redisx.RAWCMD, s.resource)
+        if pin.tags:
+            s.set_tags(pin.tags)
+        s.set_metric(redisx.ARGS_LEN, len(args))
+        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.redis.get_analytics_sample_rate())
     return d
 
 
