@@ -250,7 +250,8 @@ def test_exception_collection():
 
 
 @pytest.fixture
-def tracer_and_collector():
+def tracer_and_collector(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_STARTUP_LOGS", "0")
     t = ddtrace.Tracer()
     r = recorder.Recorder()
     c = stack.StackCollector(r, tracer=t)
