@@ -2,46 +2,16 @@
 """
 from ddtrace import config, Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ddtrace.ext import http, SpanTypes
+from ddtrace.ext import http, SpanTypes, errors
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from .. import trace_utils
 
 
-def iswrapped(func):
-    from ddtrace.vendor import wrapt
-
-    return isinstance(func, wrapt.ObjectProxy)
-
-
-def traced_func(mod, name, resource=None):
-    """Returns a function to trace functions."""
-
-    def wrapped(mod, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource):
-            return func(*args, **kwargs)
-
-    return trace_utils.with_traced_module(wrapped)(mod)
-
-
 config._add("cyclone", dict(_default_service="cyclone", distributed_tracing_enabled=True,))
-
-config._add("cyclone_client", dict(_default_service="cyclone_client", distributed_tracing_enabled=True,))
 
 
 log = get_logger(__name__)
-
-
-@trace_utils.with_traced_module
-def traced_requesthandler__init__(cyclone, pin, func, instance, args, kwargs):
-    # Note that default is not an http method, but is the method that will be
-    # called by Cyclone if a handler is not found.
-    for method_name in ["get", "post", "options", "delete", "head", "default"]:
-        if hasattr(instance, method_name) and method_name in vars(instance.__class__):
-            method = getattr(instance, method_name)
-            if not iswrapped(method):
-                trace_utils.wrap(instance, method_name, traced_func(cyclone, "cyclone.request.%s" % method_name))
-    return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
@@ -57,16 +27,15 @@ def traced_requesthandler_execute_handler(cyclone, pin, func, instance, args, kw
             "cyclone.request", service=trace_utils.int_service(pin, config.cyclone), span_type=SpanTypes.WEB
         )
         cls = instance.__class__
-        # TODO: resource should be <http method> <route>
-        handler = "{}.{}".format(cls.__module__, cls.__name__)
-        span.resource = handler
+        req = instance.request
+        handler = "%s.%s" % (cls.__module__, cls.__name__)
+        span.resource = "%s %s" % (req.method, handler)
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag("cyclone.handler", handler)
         analytics_sr = config.cyclone.get_analytics_sample_rate(use_global_config=True)
         if analytics_sr is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-        req = instance.request
         trace_utils.store_request_headers(req.headers, span, config.cyclone)
 
         setattr(req, "__datadog_span", span)
@@ -111,23 +80,24 @@ def traced_requesthandler_handle_request_exception(cyclone, pin, func, instance,
         log.debug("no span found on request")
         return func(*args, **kwargs)
 
-    # The current stack should have the exception that is being handled as this
-    # method is being called, so report traceback.
     try:
         exc = args[0]
         # If the exception is a twisted.python.Failure
         # then we can re-raise the exception to get the
         # exception info to report.
-        if hasattr(exc, "raiseException"):
-            try:
-                exc.raiseException()
-            except:  # noqa
-                span.set_traceback()
-        # Otherwise try to pull the exception out of the stack
-        else:
-            span.set_traceback()
+        if hasattr(exc, "getTraceback"):
+            tb = exc.getTraceback()
+            span.set_tag(errors.ERROR_STACK, tb)
+        if hasattr(exc, "getErrorMessage"):
+            span.set_tag(errors.ERROR_MSG, exc.getErrorMessage())
+        if hasattr(exc, "type"):
+            span.set_tag(errors.ERROR_TYPE, exc.type)
     finally:
-        return func(*args, **kwargs)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            span.finish()
+
 
 
 @trace_utils.with_traced_module
@@ -157,7 +127,6 @@ def patch():
         return
 
     Pin().onto(cyclone)
-    trace_utils.wrap("cyclone.web", "RequestHandler.__init__", traced_requesthandler__init__(cyclone))
     trace_utils.wrap("cyclone.web", "RequestHandler._execute_handler", traced_requesthandler_execute_handler(cyclone))
     trace_utils.wrap("cyclone.web", "RequestHandler.on_finish", traced_requesthandler_on_finish(cyclone))
     trace_utils.wrap(
@@ -178,7 +147,6 @@ def unpatch():
     if not getattr(cyclone, "__datadog_patch", False):
         return
 
-    trace_utils.unwrap(cyclone.web.RequestHandler, "__init__")
     trace_utils.unwrap(cyclone.web.RequestHandler, "_execute_handler")
     trace_utils.unwrap(cyclone.web.RequestHandler, "render_string")
     trace_utils.unwrap(cyclone.web.UIModule, "render")

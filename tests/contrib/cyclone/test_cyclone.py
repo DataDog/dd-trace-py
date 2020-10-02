@@ -154,7 +154,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
             == b"<html><title>500: Internal Server Error</title><body>500: Internal Server Error</body></html>"
         )
         assert resp.get_status() == 500
-        assert len(self.test_spans.get_spans()) == 2
+        assert len(self.test_spans.get_spans()) == 1
         span = self.test_spans.get_root_span()
         assert span.name == "cyclone.request"
         assert span.resource == "tests.contrib.cyclone.test_cyclone.ErrHandler"
@@ -288,7 +288,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert resp.get_status() == 200
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 4
+        assert len(spans) == 3
 
         s1, s2 = self.test_spans.get_root_spans()
         assert s1.trace_id != s2.trace_id
@@ -305,12 +305,11 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert resp.get_status() == 200
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 4
+        assert len(spans) == 3
 
-        s1, s2, s3, s4 = spans
-        assert s1.error == s2.error == s3.error == s4.error == 0
-        assert s1.trace_id == s2.trace_id
-        assert s2.parent_id == s1.span_id
+        s1, s3, s4 = spans
+        assert s1.error == s3.error == s4.error == 0
+        assert s1.trace_id == s3.trace_id == s4.trace_id
 
         assert s3.name == "cyclone.request.render_string"
         assert s3.span_type == "template"
@@ -326,7 +325,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert resp.get_status() == 200
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 4
+        assert len(spans) == 3
 
     def test_template_concurrent(self):
         self.client.get("/template")
@@ -336,7 +335,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         self.assert_trace_count(3)
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 12
+        assert len(spans) == 9
 
         assert len(self.get_root_spans()) == 3
         r1, r2, r3 = self.get_root_spans()
@@ -350,4 +349,4 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
 
         self.assert_trace_count(1)
         spans = self.test_spans.get_spans()
-        assert len(spans) == 10
+        assert len(spans) == 9
