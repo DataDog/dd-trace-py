@@ -7,6 +7,7 @@ from ddtrace.vendor import six
 from ddtrace import Pin, config
 from ddtrace.compat import contextvars
 from ddtrace.contrib import func_name
+from ddtrace.ext import errors
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -34,27 +35,26 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
 
     # Only create traces for deferreds when there is an active span
     # or there is a name in the context.
-    name = ddctx.get_ctx_item("deferred_name", None)
-    if (ddctx._current_span or name) and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
-        if not name:
-            # If a name isn't provided, go up two frames to get to the function that created the deferred
+    if ddctx.get_current_span() and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
+        resource = ddctx.get_ctx_item("deferred_resource", None)
+
+        if not resource:
+            # Go up two frames to get to the function that created the deferred
+            # in order to extract the class name (if any) and method/    function.
             # <fn we care about that creates the deferred>
             # wrapper (from with_traced_module)
             # Deferred.__init__
             # This wrapper (currentframe())
-            # co_caller = inspect.currentframe().f_back.f_back.f_back.f_code
-            # co_caller = inspect.currentframe().f_back.f_back.f_code
-            # name = "twisted.%s" % co_caller.co_name
             stack = inspect.stack()
-            f_locals= stack[2][0].f_locals
+            f_locals = stack[2][0].f_locals
             method_name = stack[2][0].f_code.co_name
             if "self" in f_locals:
                 cls = f_locals["self"].__class__.__name__
-                name = "%s.%s.deferred" % (cls, method_name)
+                resource = "%s.%s" % (cls, method_name)
             else:
-                name = "%s.deferred" % method_name
+                resource = "%s" % method_name
 
-        span = pin.tracer.trace(name, service=trace_utils.int_service(pin, config.twisted))
+        span = pin.tracer.trace("deferred", resource=resource, service=trace_utils.int_service(pin, config.twisted))
         instance.__ddspan = span
 
     return func(*args, **kwargs)
@@ -81,6 +81,15 @@ def deferred_callback(twisted, pin, func, instance, args, kwargs):
 def deferred_errback(twisted, pin, func, instance, args, kwargs):
     span = getattr(instance, "__ddspan", None)
     if span and not span.finished:
+        if len(args) > 0:
+            f = args[0]
+            if hasattr(f, "getTraceback"):
+                tb = f.getTraceback()
+                span.set_tag(errors.ERROR_STACK, tb)
+            if hasattr(f, "getErrorMessage"):
+                span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
+            if hasattr(f, "type"):
+                span.set_tag(errors.ERROR_TYPE, f.type)
         span.error = 1
         span.finish()
 
@@ -93,6 +102,9 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
 
     @functools.wraps(callback)
     def _callback(*args, **kwargs):
+        ctx = instance.__ctx
+        ddctx = instance.__ddctx
+
         # ctx.run could raise a RuntimeError if the context is already
         # activated. This should not happen in practice even if there
         # is a recursive callback since the wrapper will not be called
@@ -106,9 +118,8 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
         # version when addCallbacks is called.
         # When the function is invoked the recursive callback(n-1) call
         # will not call the wrapping code again.
-        ctx = instance.__ctx
-        ddctx = instance.__ddctx
-
+        # Regardless, let's safe-guard it as to not interfere with the
+        # original code.
         try:
             # Need to wrap the callback again to copy the datadog context
             # once the contextvars context is activated.
@@ -162,7 +173,7 @@ def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwar
 def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
     ctx = pin.tracer.get_call_context()
     with ctx.override_ctx_item("trace_deferreds", True):
-        with ctx.override_ctx_item("deferred_name", "ConnectionPool.runQuery.deferred"):
+        with ctx.override_ctx_item("deferred_resource", "ConnectionPool.runQuery"):
             return func(*args, **kwargs)
 
 
@@ -177,12 +188,7 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
         ctx = pin.tracer.get_call_context()
 
         if config.twisted.distributed_tracing:
-            # if len(args) > 4:
-            #     headers = args[4]
-            # else:
-            #     headers = kwargs.setdefault("headers", {})
             propagator = HTTPPropagator()
-            # propagator.inject(ctx, headers)
             propagator.inject(ctx, instance.headers)
 
 
