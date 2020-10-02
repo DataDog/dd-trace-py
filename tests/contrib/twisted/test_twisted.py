@@ -2,6 +2,7 @@ import twisted
 from twisted.enterprise import adbapi
 from twisted.internet import reactor, task
 
+import ddtrace
 from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
 from ddtrace.contrib.mysqldb import patch as mysql_patch
@@ -206,22 +207,6 @@ class TestTwisted(TracerTestCase):
         reactor.run()
         assert d.result == 1
 
-    @TracerTestCase.run_in_subprocess
-    def test_callback_runtime_error(self):
-        def fn1():
-            return 3
-
-        d = task.deferLater(reactor, 0, fn1)
-
-        def fn2(_):
-            raise RuntimeError
-
-        d.addCallback(fn2)
-
-        reactor.callLater(0.01, reactor.stop)
-        reactor.run()
-        assert isinstance(d.result, twisted.python.failure.Failure)
-
 
 class TestTwistedSnapshot(TracerTestCase):
     def setUp(self):
@@ -247,3 +232,22 @@ class TestTwistedSnapshot(TracerTestCase):
         d = dbpool.runQuery("SELECT 1").addCallback(cb)
         reactor.run()
         assert not isinstance(d.result, twisted.python.failure.Failure)
+
+    @snapshot()
+    def test_callback_runtime_error(self):
+        def fn1():
+            return 3
+
+        ctx = ddtrace.tracer.get_call_context()
+        with ctx.override_ctx_item("trace_deferreds", True):
+            with ctx.override_ctx_item("deferred_name", "deferred"):
+                d = task.deferLater(reactor, 0, fn1)
+
+        def fn2(_):
+            raise RuntimeError
+
+        d.addCallback(fn2)
+
+        reactor.callLater(0.01, reactor.stop)
+        reactor.run()
+        assert isinstance(d.result, twisted.python.failure.Failure)
