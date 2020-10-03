@@ -75,8 +75,7 @@ def _wrap_response_callback(span, callback):
 
 
 def patch():
-    """Patch the instrumented methods.
-    """
+    """Patch the instrumented methods."""
     if getattr(sanic, "__datadog_patch", False):
         return
     setattr(sanic, "__datadog_patch", True)
@@ -84,8 +83,7 @@ def patch():
 
 
 def unpatch():
-    """Unpatch the instrumented methods.
-    """
+    """Unpatch the instrumented methods."""
     _u(sanic.Sanic, "handle_request")
     if not getattr(sanic, "__datadog_patch", False):
         return

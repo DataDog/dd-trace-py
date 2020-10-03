@@ -192,7 +192,10 @@ def test_v2XX_middleware(client, test_spans):
     # Assert common span structure
     for span in middleware_spans:
         span.assert_matches(
-            name="django.middleware", service="django", error=0, span_type=None,
+            name="django.middleware",
+            service="django",
+            error=0,
+            span_type=None,
         )
 
     span_resources = {
@@ -289,7 +292,9 @@ def test_django_request_not_found(client, test_spans):
     render_span.assert_matches(
         name="django.template.render",
         resource="django.template.base.Template.render",
-        meta={"django.template.engine.class": "django.template.engine.Engine",},
+        meta={
+            "django.template.engine.class": "django.template.engine.Engine",
+        },
     )
 
 
@@ -398,7 +403,10 @@ def test_request_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.index", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.index",
+        error=0,
     )
 
 
@@ -426,7 +434,10 @@ def test_template_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -444,7 +455,10 @@ def test_template_simple_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_simple_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_simple_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -462,7 +476,10 @@ def test_template_list_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_list_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_list_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -544,7 +561,8 @@ def test_simple_view_get(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.get", error=0,
+        resource="tests.contrib.django.views.BasicView.get",
+        error=0,
     )
 
 
@@ -558,7 +576,8 @@ def test_simple_view_post(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.post", error=0,
+        resource="tests.contrib.django.views.BasicView.post",
+        error=0,
     )
 
 
@@ -571,7 +590,8 @@ def test_simple_view_delete(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.delete", error=0,
+        resource="tests.contrib.django.views.BasicView.delete",
+        error=0,
     )
 
 
@@ -585,7 +605,8 @@ def test_simple_view_options(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="django.views.generic.base.View.options", error=0,
+        resource="django.views.generic.base.View.options",
+        error=0,
     )
 
 
@@ -598,7 +619,8 @@ def test_simple_view_head(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.head", error=0,
+        resource="tests.contrib.django.views.BasicView.head",
+        error=0,
     )
 
 
@@ -1138,7 +1160,12 @@ def test_django_request_distributed(client, test_spans):
     # DEV: Do not use `test_spans.get_root_span()` since that expects `parent_id is None`
     root = test_spans.find_span(name="django.request")
     root.assert_matches(
-        name="django.request", trace_id=12345, parent_id=78910, metrics={SAMPLING_PRIORITY_KEY: USER_KEEP,},
+        name="django.request",
+        trace_id=12345,
+        parent_id=78910,
+        metrics={
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
     )
 
 

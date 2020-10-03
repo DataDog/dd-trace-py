@@ -263,13 +263,12 @@ class Span(object):
             del self.meta[key]
 
     def get_tag(self, key):
-        """ Return the given tag or None if it doesn't exist.
-        """
+        """Return the given tag or None if it doesn't exist."""
         return self.meta.get(key, None)
 
     def set_tags(self, tags):
-        """ Set a dictionary of tags on the given span. Keys and values
-            must be strings (or stringable)
+        """Set a dictionary of tags on the given span. Keys and values
+        must be strings (or stringable)
         """
         if tags:
             for k, v in iter(tags.items()):
@@ -357,8 +356,8 @@ class Span(object):
         return d
 
     def set_traceback(self, limit=20):
-        """ If the current stack has an exception, tag the span with the
-            relevant error info. If not, set the span to the current python stack.
+        """If the current stack has an exception, tag the span with the
+        relevant error info. If not, set the span to the current python stack.
         """
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 

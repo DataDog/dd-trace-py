@@ -30,7 +30,10 @@ class RuntimeCollectorsIterable(object):
         return itertools.chain.from_iterable(collected)
 
     def __repr__(self):
-        return "{}(enabled={})".format(self.__class__.__name__, self._enabled,)
+        return "{}(enabled={})".format(
+            self.__class__.__name__,
+            self._enabled,
+        )
 
 
 class RuntimeTags(RuntimeCollectorsIterable):
@@ -50,8 +53,8 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 class RuntimeWorker(_worker.PeriodicWorkerThread):
-    """ Worker thread for collecting and writing runtime metrics to a DogStatsd
-        client.
+    """Worker thread for collecting and writing runtime metrics to a DogStatsd
+    client.
     """
 
     FLUSH_INTERVAL = 10
@@ -71,4 +74,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
     on_shutdown = flush
 
     def __repr__(self):
-        return "{}(runtime_metrics={})".format(self.__class__.__name__, self._runtime_metrics,)
+        return "{}(runtime_metrics={})".format(
+            self.__class__.__name__,
+            self._runtime_metrics,
+        )
