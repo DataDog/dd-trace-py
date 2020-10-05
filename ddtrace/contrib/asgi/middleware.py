@@ -27,14 +27,14 @@ def bytes_to_str(str_or_bytes):
     return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
-def _extract_tags_from_scope(scope, config):
+def _extract_tags_from_scope(scope, integration_config):
     tags = {}
 
     http_method = scope.get("method")
     if http_method:
         tags[http.METHOD] = http_method
 
-    if config.trace_query_string:
+    if integration_config.trace_query_string:
         query_string = scope.get("query_string")
         if len(query_string) > 0:
             tags[http.QUERY_STRING] = bytes_to_str(query_string)
@@ -86,10 +86,12 @@ class TraceMiddleware:
         tracer: Custom tracer. Defaults to the global tracer.
     """
 
-    def __init__(self, app, tracer=None, config=config.asgi, handle_exception_span=_default_handle_exception_span):
+    def __init__(
+        self, app, tracer=None, integration_config=config.asgi, handle_exception_span=_default_handle_exception_span
+    ):
         self.app = guarantee_single_callable(app)
         self.tracer = tracer or ddtrace.tracer
-        self.config = config
+        self.integration_config = integration_config
         self.handle_exception_span = handle_exception_span
 
     async def __call__(self, scope, receive, send):
@@ -98,7 +100,7 @@ class TraceMiddleware:
 
         headers = _extract_headers(scope)
 
-        if self.config.distributed_tracing:
+        if self.integration_config.distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
             if context.trace_id:
@@ -106,20 +108,20 @@ class TraceMiddleware:
 
         resource = "{} {}".format(scope["method"], scope["path"])
         span = self.tracer.trace(
-            name=self.config.get("request_span_name", "asgi.request"),
-            service=trace_utils.int_service(None, self.config),
+            name=self.integration_config.get("request_span_name", "asgi.request"),
+            service=trace_utils.int_service(None, self.integration_config),
             resource=resource,
             span_type=SpanTypes.HTTP,
         )
 
-        sample_rate = self.config.get_analytics_sample_rate(use_global_config=True)
+        sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-        tags = _extract_tags_from_scope(scope, self.config)
+        tags = _extract_tags_from_scope(scope, self.integration_config)
         span.set_tags(tags)
 
-        store_request_headers(headers, span, self.config)
+        store_request_headers(headers, span, self.integration_config)
 
         async def wrapped_send(message):
             if span and message.get("type") == "http.response.start":
@@ -130,7 +132,7 @@ class TraceMiddleware:
                         span.error = 1
 
                 if "headers" in message:
-                    store_response_headers(message["headers"], span, self.config)
+                    store_response_headers(message["headers"], span, self.integration_config)
 
             return await send(message)
 

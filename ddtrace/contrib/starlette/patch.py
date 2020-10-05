@@ -33,7 +33,7 @@ def unpatch():
 
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware, config=config.starlette))
+    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     kwargs.update({"middleware": mw})
 
     wrapped(*args, **kwargs)

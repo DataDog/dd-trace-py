@@ -944,6 +944,7 @@ workflows:
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
       - sanic: *requires_pre_test
+      - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
