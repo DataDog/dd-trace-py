@@ -1,5 +1,9 @@
 # Changelog
 
+---
+
+## 0.43.0 (5/10/2020)
+
 - fix(django): avoid mixing str and non-str args for uri helper
 - fix(asgi): tag 500-level responses as errors
 - fix(asgi): set http status when exception raised
