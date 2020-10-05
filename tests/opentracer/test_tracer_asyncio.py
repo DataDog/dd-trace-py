@@ -180,4 +180,7 @@ class TestUtilsAsyncio(object):
 
     def test_tracer_context_provider_config(self):
         tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=AsyncioScopeManager())
-        assert isinstance(tracer._dd_tracer.context_provider, ddtrace.contrib.asyncio.provider.AsyncioContextProvider,)
+        assert isinstance(
+            tracer._dd_tracer.context_provider,
+            ddtrace.contrib.asyncio.provider.AsyncioContextProvider,
+        )

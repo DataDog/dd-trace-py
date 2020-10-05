@@ -60,7 +60,12 @@ def import_from_string(val, setting_name):
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        msg = 'Could not import "{}" for setting "{}". {}: {}.'.format(val, setting_name, e.__class__.__name__, e,)
+        msg = 'Could not import "{}" for setting "{}". {}: {}.'.format(
+            val,
+            setting_name,
+            e.__class__.__name__,
+            e,
+        )
 
         raise ImportError(msg)
 

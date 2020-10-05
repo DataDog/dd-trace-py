@@ -163,13 +163,14 @@ def test_memory_collector():
 
 
 @pytest.mark.parametrize(
-    "ignore_profiler", (True, False),
+    "ignore_profiler",
+    (True, False),
 )
 def test_memory_collector_ignore_profiler(ignore_profiler):
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r, ignore_profiler=ignore_profiler)
     with mc:
-        _allocate_1k()
+        object()
         # Make sure we collect at least once
         mc.periodic()
 
@@ -180,6 +181,7 @@ def test_memory_collector_ignore_profiler(ignore_profiler):
                 assert frame[0] != _periodic.__file__
             elif frame[0] == _periodic.__file__:
                 ok = True
+                break
 
     if not ignore_profiler:
         assert ok

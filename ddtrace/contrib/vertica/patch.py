@@ -44,7 +44,11 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     if "database" in instance.options:
         tags[dbx.NAME] = instance.options["database"]
 
-    pin = Pin(app=APP, tags=tags, _config=config.vertica["patch"]["vertica_python.vertica.cursor.Cursor"],)
+    pin = Pin(
+        app=APP,
+        tags=tags,
+        _config=config.vertica["patch"]["vertica_python.vertica.cursor.Cursor"],
+    )
     pin.onto(cursor)
 
 
@@ -56,7 +60,12 @@ config._add(
         "app": "vertica",
         "patch": {
             "vertica_python.vertica.connection.Connection": {
-                "routines": {"cursor": {"trace_enabled": False, "span_end": cursor_span_end,},},
+                "routines": {
+                    "cursor": {
+                        "trace_enabled": False,
+                        "span_end": cursor_span_end,
+                    },
+                },
             },
             "vertica_python.vertica.cursor.Cursor": {
                 "routines": {
@@ -194,7 +203,9 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
             operation_name = conf["operation_name"]
             tracer = pin.tracer
             with tracer.trace(
-                operation_name, service=trace_utils.ext_service(pin, config), span_type=conf.get("span_type"),
+                operation_name,
+                service=trace_utils.ext_service(pin, config),
+                span_type=conf.get("span_type"),
             ) as span:
                 if conf.get("measured", False):
                     span.set_tag(SPAN_MEASURED_KEY)
