@@ -2,11 +2,12 @@ from starlette.applications import Starlette
 from starlette.responses import Response, PlainTextResponse, StreamingResponse, FileResponse
 from starlette.routing import Route
 from tempfile import NamedTemporaryFile
-
-app = Starlette()
+import time
 
 
 async def homepage(request):
+    if "sleep" in request.query_params and request.query_params["sleep"]:
+        time.sleep(3)
     response = "Success"
     return PlainTextResponse(response)
 

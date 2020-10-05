@@ -604,6 +604,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
+  
+  starlette:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^starlette_contrib-'
 
   sqlalchemy:
     executor: ddtrace_dev

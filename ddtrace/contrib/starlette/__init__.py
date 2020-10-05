@@ -1,3 +1,63 @@
+"""
+The Starlette integration will trace requests to and from Starlette.
+
+
+Enable Starlette tracing by using the autopatching functionality::
+
+    from starlette.applications import Starlette
+    from ddtrace import tracer
+    from ddtrace.contrib.starlette import patch
+
+    patch()
+
+    app = Starlette()
+
+
+If using Python 3.6, the legacy ``AsyncioContextProvider`` will have to be
+enabled before using the middleware::
+
+    from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
+    from ddtrace import tracer  # Or whichever tracer instance you plan to use
+    tracer.configure(context_provider=AsyncioContextProvider())
+
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.starlette['distributed_tracing_enabled']
+
+   Whether to parse distributed tracing headers from requests received by your Starlette app.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.starlette['analytics_enabled']
+
+   Whether to analyze spans for starlette in App Analytics.
+
+   Can also be enabled with the ``DD_TRACE_starlette_ANALYTICS_ENABLED`` environment variable.
+
+   Default: ``None``
+
+.. py:data:: ddtrace.config.starlette['service_name']
+
+   The service name reported for your starlette app.
+
+   Can also be configured via the ``DD_SERVICE`` environment variable.
+
+   Default: ``'starlette'``
+
+
+Example::
+
+    from ddtrace import config
+
+    # Enable distributed tracing
+    config.starlette['distributed_tracing_enabled'] = True
+
+    # Override service name
+    config.starlette['service_name'] = 'custom-service-name'
+
+"""
 from ...utils.importlib import require_modules
 
 required_modules = ["starlette"]
