@@ -24,9 +24,11 @@ enabled before using the middleware::
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.starlette['distributed_tracing_enabled']
+.. py:data:: ddtrace.config.starlette['distributed_tracing']
 
    Whether to parse distributed tracing headers from requests received by your Starlette app.
+
+   Can also be enabled with the ``DD_TRACE_STARLETTE_DISTRIBUTED_TRACING`` environment variable.
 
    Default: ``True``
 
@@ -34,7 +36,7 @@ Configuration
 
    Whether to analyze spans for starlette in App Analytics.
 
-   Can also be enabled with the ``DD_TRACE_starlette_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_TRACE_STARLETTE_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 
@@ -46,13 +48,19 @@ Configuration
 
    Default: ``'starlette'``
 
+.. py:data:: ddtrace.config.starlette['request_span_name']
+
+   The span name for a starlette request.
+
+   Default: ``'starlette.request'``
+
 
 Example::
 
     from ddtrace import config
 
     # Enable distributed tracing
-    config.starlette['distributed_tracing_enabled'] = True
+    config.starlette['distributed_tracing'] = True
 
     # Override service name
     config.starlette['service_name'] = 'custom-service-name'
