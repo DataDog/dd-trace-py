@@ -7,6 +7,7 @@ from ddtrace.vendor import six
 from ddtrace import Pin, config
 from ddtrace.compat import contextvars
 from ddtrace.contrib import func_name
+from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import errors
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.propagation.http import HTTPPropagator
@@ -170,6 +171,19 @@ def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwar
 
 
 @trace_utils.with_traced_module
+def connectionpool___init__(twisted, pin, func, instance, args, kwargs):
+    try:
+        return func(*args, **kwargs)
+    finally:
+        f = instance.connectionFactory
+
+        def factory(*args, **kwargs):
+            return TracedConnection(f(*args, **kwargs), pin)
+
+        instance.connectionFactory = factory
+
+
+@trace_utils.with_traced_module
 def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
     ctx = pin.tracer.get_call_context()
     with ctx.override_ctx_item("trace_deferreds", True):
@@ -179,14 +193,14 @@ def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
+    ctx = pin.tracer.get_call_context()
     try:
-        return func(*args, **kwargs)
+        with ctx.override_ctx_item("trace_deferreds", True):
+            return func(*args, **kwargs)
     finally:
         # Note that HTTPClientFactory creates a Deferred in its init
         # so we want that to be the active span for when we set the distributed
         # tracing headers.
-        ctx = pin.tracer.get_call_context()
-
         if config.twisted.distributed_tracing:
             propagator = HTTPPropagator()
             propagator.inject(ctx, instance.headers)
@@ -204,6 +218,7 @@ def patch():
     trace_utils.wrap("twisted.internet.defer", "Deferred.callback", deferred_callback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.errback", deferred_errback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_addCallbacks(twisted))
+    trace_utils.wrap("twisted.enterprise.adbapi", "ConnectionPool.__init__", connectionpool___init__(twisted))
     trace_utils.wrap("twisted.enterprise.adbapi", "ConnectionPool.runQuery", connectionpool_runquery(twisted))
     trace_utils.wrap(
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
@@ -223,6 +238,7 @@ def unpatch():
     trace_utils.unwrap(twisted.internet.defer.Deferred, "callback")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "errback")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "addCallbacks")
+    trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "__init__")
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "runQuery")
     trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
     trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
