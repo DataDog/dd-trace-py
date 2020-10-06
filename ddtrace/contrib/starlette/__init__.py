@@ -65,6 +65,9 @@ Example::
     # Override service name
     config.starlette['service_name'] = 'custom-service-name'
 
+    # Override request span name
+    config.starlette['request_span_name'] = 'custom-request-span-name'
+
 """
 from ...utils.importlib import require_modules
 
