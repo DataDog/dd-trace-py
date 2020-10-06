@@ -11,7 +11,7 @@ import os
 import sys
 import threading
 
-from ddtrace.vendor.wrapt.importer import when_imported
+from ddtrace.utils.hook import when_imported
 
 from .internal.logger import get_logger
 from .settings import config

@@ -11,7 +11,10 @@ So this module differs from wrapt.importer in that:
     - the values of _post_import_hooks can only be lists (instead of allowing None)
     - notify_module_loaded is modified to not remove the hooks when they are
       fired.
+    - module loaders are wrapped for both PY2 and Py3 for import hooks to be
+      called
 """
+import imp
 import sys
 import threading
 
@@ -19,6 +22,7 @@ from ..compat import PY3
 from ..internal.logger import get_logger
 from ..utils import get_module_name
 from ..vendor.wrapt.decorators import synchronized
+from ..vendor.wrapt import ObjectProxy
 
 
 log = get_logger(__name__)
@@ -90,26 +94,9 @@ def notify_module_loaded(module):
             log.warning('hook "%s" for module "%s" failed', hook, name, exc_info=True)
 
 
-class _ImportHookLoader(object):
-    """
-    A custom module import finder. This intercepts attempts to import
-    modules and watches out for attempts to import target modules of
-    interest. When a module of interest is imported, then any post import
-    hooks which are registered will be invoked.
-    """
-
+class _ImportHookChainedLoader(ObjectProxy):
     def load_module(self, fullname):
-        module = sys.modules[fullname]
-        notify_module_loaded(module)
-        return module
-
-
-class _ImportHookChainedLoader(object):
-    def __init__(self, loader):
-        self.loader = loader
-
-    def load_module(self, fullname):
-        module = self.loader.load_module(fullname)
+        module = self.__wrapped__.load_module(fullname)
         notify_module_loaded(module)
         return module
 
@@ -156,21 +143,27 @@ class ImportHookFinder:
                     loader = importlib.util.find_spec(fullname).loader
                 except (ImportError, AttributeError):
                     loader = importlib.find_loader(fullname, path)
-                if loader:
-                    return _ImportHookChainedLoader(loader)
             else:
-                # For Python 2 we don't have much choice but to
-                # call back in to __import__(). This will
-                # actually cause the module to be imported. If no
-                # module could be found then ImportError will be
-                # raised. Otherwise we return a loader which
-                # returns the already loaded module and invokes
-                # the post import hooks.
-                __import__(fullname)
-                return _ImportHookLoader()
+                # For Python 2 we use the now deprecated imp.get_loader
+                loader = imp.get_loader(fullname, path)
+
+            if loader:
+                return _ImportHookChainedLoader(loader)
 
         finally:
             del self.in_progress[fullname]
+
+
+# Decorator for marking that a function should be called as a post
+# import hook when the target module is imported.
+
+
+def when_imported(name):
+    def register(hook):
+        register_post_import_hook(hook, name)
+        return hook
+
+    return register
 
 
 @synchronized(_post_import_hooks_lock)
