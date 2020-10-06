@@ -2,14 +2,18 @@
 The Starlette integration will trace requests to and from Starlette.
 
 
-Enable Starlette tracing by using the autopatching functionality::
+Enabling
+~~~~~~~~
 
+The starlette integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
     from starlette.applications import Starlette
-    from ddtrace import tracer
-    from ddtrace.contrib.starlette import patch
 
-    patch()
-
+    patch(starlette=True)
     app = Starlette()
 
 

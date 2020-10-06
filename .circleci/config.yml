@@ -845,6 +845,7 @@ requires_tests: &requires_tests
   - requestsgevent
   - sqlalchemy
   - sqlite3
+  - starlette
   - test_build_alpine
   - test_build_py38
   - test_build_py37
