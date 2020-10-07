@@ -771,7 +771,6 @@ jobs:
     steps:
       - checkout
       - setup_tox
-      - run: tox -e spelling
       - run: tox -e docs
       - run:
           command: |

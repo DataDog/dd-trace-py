@@ -80,6 +80,7 @@ runtime
 sanic
 sqlalchemy
 sqlite
+starlette
 stringable
 subdomains
 submodules
