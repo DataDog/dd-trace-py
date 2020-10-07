@@ -135,7 +135,7 @@ contacting support.
 
 .. [2] only third-party modules such as aiohttp_jinja2
 
-.. [3] only the syncronous client
+.. [3] only the synchronous client
 
 .. [4] only in Python 3.7 and above.
 

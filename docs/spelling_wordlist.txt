@@ -1,6 +1,6 @@
-app
 CPython
 INfo
+MySQL
 OpenTracing
 aiobotocore
 aiohttp
@@ -9,6 +9,7 @@ algolia
 algoliasearch
 analytics
 api
+app
 asgi
 autodetected
 autopatching
@@ -23,13 +24,12 @@ datadog
 datadoghq
 datastore
 ddtrace
+django
 dogstatsd
+elasticsearch
 enqueue
 entrypoint
 entrypoints
-elasticsearch
-django
-plugin
 gRPC
 gevent
 greenlet
@@ -52,13 +52,13 @@ memcached
 microservices
 middleware
 mongoengine
-MySQL
 mysql
 mysqlclient
 mysqldb
 namespace
 opentracer
 opentracing
+plugin
 posix
 postgres
 prepended
@@ -81,6 +81,7 @@ sanic
 sqlalchemy
 sqlite
 stringable
+subdomains
 submodules
 tweens
 uWSGI
@@ -90,3 +91,4 @@ url
 urls
 uvicorn
 vertica
+whitelist
