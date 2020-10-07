@@ -88,11 +88,7 @@ class TraceMiddleware:
     """
 
     def __init__(
-        self,
-        app,
-        tracer=None,
-        integration_config=config.asgi,
-        handle_exception_span=_default_handle_exception_span
+        self, app, tracer=None, integration_config=config.asgi, handle_exception_span=_default_handle_exception_span
     ):
         self.app = guarantee_single_callable(app)
         self.tracer = tracer or ddtrace.tracer
@@ -117,7 +113,6 @@ class TraceMiddleware:
             aggregated_resource = get_resource(scope)
             if aggregated_resource:
                 resource = "{} {}".format(scope["method"], aggregated_resource)
-
 
         span = self.tracer.trace(
             name=self.integration_config.get("request_span_name", "asgi.request"),
