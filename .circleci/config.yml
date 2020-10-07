@@ -212,11 +212,14 @@ jobs:
       - setup_tox
       - run: tox -e black
 
-  cformat:
-    executor: ddtrace_dev
+  ccheck:
+    executor: cimg_base
     steps:
       - checkout
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
       - run: scripts/cformat.sh
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   flake8:
     executor: python38
@@ -788,7 +791,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
-    - cformat
+    - ccheck
 
 requires_tests: &requires_tests
   - build_docs
@@ -877,7 +880,7 @@ workflows:
       - build_docs
       - black
       - flake8
-      - cformat
+      - ccheck
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
