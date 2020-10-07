@@ -109,7 +109,10 @@ class RateLimiter(object):
         self.last_update = now
 
         # Update the number of available tokens, but ensure we do not exceed the max
-        self.tokens = min(self.max_tokens, self.tokens + (elapsed * self.rate_limit),)
+        self.tokens = min(
+            self.max_tokens,
+            self.tokens + (elapsed * self.rate_limit),
+        )
 
     def _current_window_rate(self):
         # No tokens have been seen, effectively 100% sample rate
@@ -136,7 +139,11 @@ class RateLimiter(object):
 
     def __repr__(self):
         return "{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})".format(
-            self.__class__.__name__, self.rate_limit, self.tokens, self.last_update, self.effective_rate,
+            self.__class__.__name__,
+            self.rate_limit,
+            self.tokens,
+            self.last_update,
+            self.effective_rate,
         )
 
     __str__ = __repr__

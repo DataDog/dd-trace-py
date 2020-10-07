@@ -20,8 +20,7 @@ class AsyncioContextProvider(DefaultContextProvider):
     """
 
     def activate(self, context, loop=None):
-        """Sets the scoped ``Context`` for the current running ``Task``.
-        """
+        """Sets the scoped ``Context`` for the current running ``Task``."""
         loop = self._get_loop(loop)
         if not loop:
             self._local.set(context)

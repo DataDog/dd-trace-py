@@ -154,7 +154,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
-        content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service),)
+        content_type, body = self._encode_multipart_formdata(
+            fields,
+            tags=self._get_tags(service),
+        )
         headers["Content-Type"] = content_type
 
         # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)

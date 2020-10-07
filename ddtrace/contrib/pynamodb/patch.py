@@ -17,7 +17,12 @@ from .. import trace_utils
 # Pynamodb connection class
 _PynamoDB_client = pynamodb.connection.base.Connection
 
-config._add("pynamodb", {"_default_service": "pynamodb",})
+config._add(
+    "pynamodb",
+    {
+        "_default_service": "pynamodb",
+    },
+)
 
 
 def patch():

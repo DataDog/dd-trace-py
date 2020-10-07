@@ -37,7 +37,9 @@ def get_env(*parts, **kwargs):
     if legacy:
         # Deprecation: `DATADOG_` variables are deprecated
         deprecation(
-            name="DATADOG_", message="Use `DD_` prefix instead", version="1.0.0",
+            name="DATADOG_",
+            message="Use `DD_` prefix instead",
+            version="1.0.0",
         )
 
     value = value or legacy
@@ -104,7 +106,9 @@ def parse_tags_str(tags_str):
                 raise ValueError
         except ValueError:
             log.error(
-                "Malformed tag in tag pair '%s' from tag string '%s'.", tag, tags_str,
+                "Malformed tag in tag pair '%s' from tag string '%s'.",
+                tag,
+                tags_str,
             )
         else:
             parsed_tags[key] = value
