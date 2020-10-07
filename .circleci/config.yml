@@ -216,9 +216,6 @@ jobs:
     executor: ddtrace_dev
     steps:
       - checkout
-      # TODO: remove me once this the docker image is rebuilt
-      - run: apt-get update
-      - run: apt-get install --yes clang-format
       - run: scripts/cformat.sh
 
   flake8:
