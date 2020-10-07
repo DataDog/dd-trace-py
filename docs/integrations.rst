@@ -284,6 +284,13 @@ Sanic
 .. automodule:: ddtrace.contrib.sanic
 
 
+.. _starlette:
+
+Starlette
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.starlette
+
+
 .. _sqlalchemy:
 
 SQLAlchemy
