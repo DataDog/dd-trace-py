@@ -6,6 +6,7 @@ from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
+from ddtrace.contrib.starlette.aggregate_resources import get_resource
 
 from ...compat import reraise
 from ...internal.logger import get_logger
@@ -87,7 +88,11 @@ class TraceMiddleware:
     """
 
     def __init__(
-        self, app, tracer=None, integration_config=config.asgi, handle_exception_span=_default_handle_exception_span
+        self,
+        app,
+        tracer=None,
+        integration_config=config.asgi,
+        handle_exception_span=_default_handle_exception_span
     ):
         self.app = guarantee_single_callable(app)
         self.tracer = tracer or ddtrace.tracer
@@ -107,6 +112,12 @@ class TraceMiddleware:
                 self.tracer.context_provider.activate(context)
 
         resource = "{} {}".format(scope["method"], scope["path"])
+
+        if "aggregate_resources" in self.integration_config and self.integration_config["aggregate_resources"]:
+            aggregated_resource = get_resource(scope)
+            if aggregated_resource:
+                resource = "{} {}".format(scope["method"], aggregated_resource)
+
         span = self.tracer.trace(
             name=self.integration_config.get("request_span_name", "asgi.request"),
             service=trace_utils.int_service(None, self.integration_config),

@@ -4,12 +4,13 @@ import sys
 import httpx
 import pytest
 import ddtrace
+from ddtrace import config
 from ddtrace.contrib.starlette import patch, unpatch
 from ddtrace.propagation import http as http_propagation
 from starlette.testclient import TestClient
 from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
-from app import get_app
+from app import get_app, get_routes
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
-    patch()
+    patch(routes=get_routes())
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     unpatch()
@@ -248,4 +249,60 @@ def test_file_response(client, tracer):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/file"
     assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "200"
+
+
+def test_invalid_path_param(client, tracer):
+    r = client.get("/users/test")
+
+    assert r.status_code == 404
+    assert r.text == "Not Found"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/users/test"
+    assert request_span.get_tag("http.status_code") == "404"
+
+
+def test_path_param(client, tracer):
+    r = client.get("/users/1")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/users/1"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
+def test_path_param_aggregate(client, tracer):
+    config.starlette["aggregate_resources"] = True
+    r = client.get("/users/1")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /users/{userid:int}"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/users/1"
     assert request_span.get_tag("http.status_code") == "200"

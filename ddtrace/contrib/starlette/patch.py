@@ -1,4 +1,5 @@
 import starlette
+from ddtrace.contrib.starlette import aggregate_resources
 from starlette.middleware import Middleware
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -10,13 +11,21 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 config._add(
-    "starlette", dict(_default_service="starlette", request_span_name="starlette.request", distributed_tracing=True)
+    "starlette",
+    dict(
+        _default_service="starlette",
+        request_span_name="starlette.request",
+        distributed_tracing=True,
+        aggregate_resources=False,
+    ),
 )
 
 
-def patch():
+def patch(routes=[]):
     if getattr(starlette, "_datadog_patch", False):
         return
+
+    aggregate_resources.set_routes(routes)
 
     setattr(starlette, "_datadog_patch", True)
     _w("starlette.applications", "Starlette.__init__", traced_init)

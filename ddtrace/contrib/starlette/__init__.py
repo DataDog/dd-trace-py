@@ -58,6 +58,15 @@ Configuration
 
    Default: ``'starlette.request'``
 
+.. py:data:: ddtrace.config.starlette['aggreate_resources']
+
+   Aggregate statistics for requests that access the same resource.
+   e.g. given the resource '/users/{userid:int}' with the optional path parameter 'userid',
+        the resource for a span of a request that accesses the endpoint /users/1 would be 'GET /users/{userid:int}'
+        rather than 'GET /users/1'
+
+   Default: ``False``
+
 
 Example::
 
@@ -71,6 +80,16 @@ Example::
 
     # Override request span name
     config.starlette['request_span_name'] = 'custom-request-span-name'
+
+    # Enable resource aggregation
+    routes = [
+        Route("/", endpoint=homepage, name="homepage", methods=["GET"]),
+        Route("/users/{userid:int}", endpoint=path_params, name="path_params", methods=["GET"])
+    ]
+    app = Starlette(routes=routes)
+
+    config.starlette['aggregate_resources'] = True
+    patch(routes=routes)
 
 """
 from ...utils.importlib import require_modules
