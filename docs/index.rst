@@ -156,3 +156,4 @@ Indices and tables
     basic_usage
     advanced_usage
     contributing
+    release_notes
