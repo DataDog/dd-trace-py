@@ -110,6 +110,7 @@ class TraceMiddleware:
 
         if "aggregate_resources" in self.integration_config and self.integration_config["aggregate_resources"]:
             from ddtrace.contrib.starlette.aggregate_resources import get_resource
+
             aggregated_resource = get_resource(scope)
             if aggregated_resource:
                 resource = "{} {}".format(scope["method"], aggregated_resource)
