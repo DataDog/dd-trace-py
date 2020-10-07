@@ -767,10 +767,11 @@ jobs:
 
   build_docs:
     # deploy official documentation
-    executor: python38
+    executor: ddtrace_dev
     steps:
       - checkout
       - setup_tox
+      - run: tox -e spelling
       - run: tox -e docs
       - run:
           command: |
