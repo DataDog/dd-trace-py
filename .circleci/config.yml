@@ -604,6 +604,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
+  
+  starlette:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^starlette_contrib-'
 
   sqlalchemy:
     executor: ddtrace_dev
@@ -839,6 +845,7 @@ requires_tests: &requires_tests
   - requestsgevent
   - sqlalchemy
   - sqlite3
+  - starlette
   - test_build_alpine
   - test_build_py38
   - test_build_py37
@@ -938,6 +945,7 @@ workflows:
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
       - sanic: *requires_pre_test
+      - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test

@@ -37,6 +37,7 @@ from datetime import datetime
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
+    "reno.sphinxext",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
