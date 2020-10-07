@@ -6,7 +6,6 @@ from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
-from ddtrace.contrib.starlette.aggregate_resources import get_resource
 
 from ...compat import reraise
 from ...internal.logger import get_logger
@@ -110,6 +109,7 @@ class TraceMiddleware:
         resource = "{} {}".format(scope["method"], scope["path"])
 
         if "aggregate_resources" in self.integration_config and self.integration_config["aggregate_resources"]:
+            from ddtrace.contrib.starlette.aggregate_resources import get_resource
             aggregated_resource = get_resource(scope)
             if aggregated_resource:
                 resource = "{} {}".format(scope["method"], aggregated_resource)
