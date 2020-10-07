@@ -118,6 +118,7 @@ class TraceMiddleware:
             if aggregated_resource:
                 resource = "{} {}".format(scope["method"], aggregated_resource)
 
+
         span = self.tracer.trace(
             name=self.integration_config.get("request_span_name", "asgi.request"),
             service=trace_utils.int_service(None, self.integration_config),

@@ -17,6 +17,7 @@ RUN \
       git \
       jq \
       libbz2-dev \
+      libenchant-dev \
       libffi-dev \
       liblzma-dev \
       libmariadb-dev \

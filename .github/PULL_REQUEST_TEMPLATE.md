@@ -3,7 +3,7 @@
 
 
 ## Checklist
-- [ ] Entry added to `CHANGELOG.md`.
+- [ ] Entry added to release notes using [reno](https://docs.openstack.org/reno/latest/user/usage.html)
 - [ ] Tests provided; and/or
 - [ ] Description of manual testing performed and explanation is included in the code and/or PR.
 - [ ] Library documentation is updated.

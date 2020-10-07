@@ -2,7 +2,7 @@
 <!-- Please add a brief description of the feature -->
 
 ## Checklist
-- [ ] Entry added to `CHANGELOG.md`.
+- [ ] Entry added to release notes using [reno](https://docs.openstack.org/reno/latest/user/usage.html)
 - [ ] Docs are updated.
 - [ ] [Corp docs](https://github.com/Datadog/documentation) are updated (if applicable).
 - [ ] Added to the correct milestone.

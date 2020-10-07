@@ -1,4 +1,5 @@
 import starlette
+
 from ddtrace.contrib.starlette import aggregate_resources
 from starlette.middleware import Middleware
 from ddtrace import config
