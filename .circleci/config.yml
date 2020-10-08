@@ -578,6 +578,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^pynamodb_contrib-'
 
+  pyodbc:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^pyodbc_contrib-'
+
   pyramid:
     executor: ddtrace_dev
     steps:
