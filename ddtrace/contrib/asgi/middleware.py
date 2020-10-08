@@ -1,6 +1,6 @@
 import sys
 
-from ddtrace import tracer as global_tracer
+import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
 from ddtrace.http import store_request_headers, store_response_headers
@@ -10,10 +10,14 @@ from ddtrace.settings import config
 from ...compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
+from .. import trace_utils
 
 log = get_logger(__name__)
 
-config._add("asgi", dict(service_name=config._get_service(default="asgi"), distributed_tracing=True))
+config._add(
+    "asgi",
+    dict(service_name=config._get_service(default="asgi"), request_span_name="asgi.request", distributed_tracing=True),
+)
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
@@ -23,14 +27,14 @@ def bytes_to_str(str_or_bytes):
     return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
-def _extract_tags_from_scope(scope):
+def _extract_tags_from_scope(scope, integration_config):
     tags = {}
 
     http_method = scope.get("method")
     if http_method:
         tags[http.METHOD] = http_method
 
-    if config.asgi.trace_query_string:
+    if integration_config.trace_query_string:
         query_string = scope.get("query_string")
         if len(query_string) > 0:
             tags[http.QUERY_STRING] = bytes_to_str(query_string)
@@ -82,9 +86,12 @@ class TraceMiddleware:
         tracer: Custom tracer. Defaults to the global tracer.
     """
 
-    def __init__(self, app, tracer=global_tracer, handle_exception_span=_default_handle_exception_span):
+    def __init__(
+        self, app, tracer=None, integration_config=config.asgi, handle_exception_span=_default_handle_exception_span
+    ):
         self.app = guarantee_single_callable(app)
-        self.tracer = tracer
+        self.tracer = tracer or ddtrace.tracer
+        self.integration_config = integration_config
         self.handle_exception_span = handle_exception_span
 
     async def __call__(self, scope, receive, send):
@@ -93,29 +100,28 @@ class TraceMiddleware:
 
         headers = _extract_headers(scope)
 
-        if config.asgi.distributed_tracing:
+        if self.integration_config.distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
             if context.trace_id:
                 self.tracer.context_provider.activate(context)
 
         resource = "{} {}".format(scope["method"], scope["path"])
-
         span = self.tracer.trace(
-            name="asgi.request",
-            service=config.asgi.service_name,
+            name=self.integration_config.get("request_span_name", "asgi.request"),
+            service=trace_utils.int_service(None, self.integration_config),
             resource=resource,
             span_type=SpanTypes.HTTP,
         )
 
-        sample_rate = config.asgi.get_analytics_sample_rate(use_global_config=True)
+        sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-        tags = _extract_tags_from_scope(scope)
+        tags = _extract_tags_from_scope(scope, self.integration_config)
         span.set_tags(tags)
 
-        store_request_headers(headers, span, config.asgi)
+        store_request_headers(headers, span, self.integration_config)
 
         async def wrapped_send(message):
             if span and message.get("type") == "http.response.start":
@@ -126,7 +132,7 @@ class TraceMiddleware:
                         span.error = 1
 
                 if "headers" in message:
-                    store_response_headers(message["headers"], span, config.asgi)
+                    store_response_headers(message["headers"], span, self.integration_config)
 
             return await send(message)
 
