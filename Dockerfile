@@ -36,7 +36,6 @@ RUN \
       python-openssl\
       wget \
       zlib1g-dev \
-      clang-format \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 

@@ -10,6 +10,10 @@
 #define _PY39_AND_LATER
 #endif
 
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 8
+#define _PY38_AND_LATER
+#endif
+
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
 #define _PY37_AND_LATER
 #endif
@@ -332,13 +336,14 @@ _memalloc_init_constants(void)
     return 0;
 }
 
-PyDoc_STRVAR(memalloc_start__doc__, "start($module, max_nframe, max_events)\n"
-                                    "--\n"
-                                    "\n"
-                                    "Start tracing Python memory allocations.\n"
-                                    "\n"
-                                    "Sets the maximum number of frames stored in the traceback of a\n"
-                                    "trace to max_nframe and the maximum number of events to max_events.");
+PyDoc_STRVAR(memalloc_start__doc__,
+             "start($module, max_nframe, max_events)\n"
+             "--\n"
+             "\n"
+             "Start tracing Python memory allocations.\n"
+             "\n"
+             "Sets the maximum number of frames stored in the traceback of a\n"
+             "trace to max_nframe and the maximum number of events to max_events.");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -433,12 +438,13 @@ traceback_list_free_tracebacks(traceback_list_t* tb_list)
         traceback_free(tb_list->tracebacks[i]);
 }
 
-PyDoc_STRVAR(memalloc_stop__doc__, "stop($module, /)\n"
-                                   "--\n"
-                                   "\n"
-                                   "Stop tracing Python memory allocations.\n"
-                                   "\n"
-                                   "Also clear traces of memory blocks allocated by Python.");
+PyDoc_STRVAR(memalloc_stop__doc__,
+             "stop($module, /)\n"
+             "--\n"
+             "\n"
+             "Stop tracing Python memory allocations.\n"
+             "\n"
+             "Also clear traces of memory blocks allocated by Python.");
 static PyObject*
 memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
@@ -459,18 +465,19 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 typedef struct
 {
     PyObject_HEAD traceback_list_t* traceback_list;
-    Py_ssize_t seq_index;
+    uint32_t seq_index;
 } IterEventsState;
 
-PyDoc_STRVAR(iterevents__doc__, "iter_events()\n"
-                                "--\n"
-                                "\n"
-                                "Returns a tuple with 3 items:\n:"
-                                "1. an iterator of memory allocation traced so far\n"
-                                "2. the number of items in the iterator\n"
-                                "3. the total number of allocations since last reset\n"
-                                "\n"
-                                "Also reset the traces of memory blocks allocated by Python.");
+PyDoc_STRVAR(iterevents__doc__,
+             "iter_events()\n"
+             "--\n"
+             "\n"
+             "Returns a tuple with 3 items:\n:"
+             "1. an iterator of memory allocation traced so far\n"
+             "2. the number of items in the iterator\n"
+             "3. the total number of allocations since last reset\n"
+             "\n"
+             "Also reset the traces of memory blocks allocated by Python.");
 static PyObject*
 iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
@@ -507,7 +514,7 @@ iterevents_dealloc(IterEventsState* iestate)
 static PyObject*
 iterevents_next(IterEventsState* iestate)
 {
-    if (0 <= iestate->seq_index && iestate->seq_index < iestate->traceback_list->count) {
+    if (iestate->seq_index < iestate->traceback_list->count) {
         traceback_t* tb = iestate->traceback_list->tracebacks[iestate->seq_index];
         iestate->seq_index++;
 
@@ -562,18 +569,32 @@ static PyTypeObject MemallocIterEvents_Type = {
     0,                                            /* tp_init */
     PyType_GenericAlloc,                          /* tp_alloc */
     iterevents_new,                               /* tp_new */
+    0,                                            /* tp_free */
+    0,                                            /* tp_is_gc */
+    0,                                            /* tp_bases */
+    0,                                            /* tp_mro */
+    0,                                            /* tp_cache */
+    0,                                            /* tp_subclass */
+    0,                                            /* tp_subclasses */
+    0,                                            /* tp_del */
+    0,                                            /* tp_version_tag */
+    0,                                            /* tp_finalize */
+#ifdef _PY38_AND_LATER
+    0, /* tp_vectorcall */
+    0, /* tp_print */
+#endif
 };
 
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
                                         { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
                                         /* sentinel */
-                                        { NULL, NULL } };
+                                        { NULL, NULL, 0, NULL } };
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
 static struct PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT, "_memalloc", module_doc, 0, /* non-negative size to be able to unload the module */
-    module_methods,        NULL,
+    module_methods,        NULL,        NULL,       NULL, NULL,
 };
 
 PyMODINIT_FUNC
