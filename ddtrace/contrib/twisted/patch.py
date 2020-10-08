@@ -206,6 +206,27 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
             propagator.inject(ctx, instance.headers)
 
 
+@trace_utils.with_traced_module
+def reactor_callLater(twisted, pin, func, instance, args, kwargs):
+    ctx = pin.tracer.get_call_context().clone()
+
+    delay = args[0]
+    fn = args[1]
+
+    def traced_fn(*args, **kwargs):
+        try:
+            prev_ctx = pin.tracer.get_call_context()
+            pin.tracer.context_provider.activate(ctx)
+            return fn(*args, **kwargs)
+        finally:
+            pin.tracer.context_provider.activate(prev_ctx)
+
+    newargs = list(args)
+    newargs[1] = traced_fn
+    return func(*tuple(newargs), **kwargs)
+
+
+
 def patch():
     import twisted
 
@@ -224,6 +245,7 @@ def patch():
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
     )
     trace_utils.wrap("twisted.web.client", "HTTPClientFactory.__init__", httpclientfactory___init__(twisted))
+    trace_utils.wrap("twisted.internet", "reactor.callLater", reactor_callLater(twisted))
 
     setattr(twisted, "__datadog_patch", True)
 
@@ -242,5 +264,6 @@ def unpatch():
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "runQuery")
     trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
     trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
+    trace_utils.unwrap(twisted.internet.reactor, "callLater")
 
     setattr(twisted, "__datadog_patch", False)
