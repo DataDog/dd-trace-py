@@ -344,7 +344,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
+        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -355,6 +355,8 @@ class Tracer(object):
                     msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
                     self._log_compat(logging.INFO, msg)
 
+                # Always log errors since we're either in debug_mode or start up logs
+                # are enabled.
                 agent_error = info.get("agent_error")
                 if agent_error:
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
