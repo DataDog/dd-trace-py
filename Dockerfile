@@ -52,13 +52,13 @@ RUN git clone git://github.com/yyuu/pyenv.git "${PYENV_ROOT}"
 # Install all required python versions
 RUN \
   pyenv install 2.7.17 \
-  && pyenv install 3.5.9 \
-  && pyenv install 3.6.9 \
+  && pyenv install 3.5.10 \
+  && pyenv install 3.6.12 \
   && pyenv install 3.7.9 \
-  && pyenv install 3.8.5 \
-  && pyenv install 3.9-dev \
+  && pyenv install 3.8.6 \
+  && pyenv install 3.9.0 \
   # Order matters: first version is the global one
-  && pyenv global 3.8.5 2.7.17 3.5.9 3.6.9 3.7.9 3.9-dev \
+  && pyenv global 3.8.6 2.7.17 3.5.10 3.6.12 3.7.9 3.9.0 \
   && pip install --upgrade pip
 
 RUN pip install tox
