@@ -1,6 +1,6 @@
 """Instrument Consul to trace KV queries.
 
-Only supports tracing for the syncronous client.
+Only supports tracing for the synchronous client.
 
 ``patch_all`` will automatically patch your Consul client to make it work.
 ::

@@ -11,7 +11,7 @@ class TestPyramid(PyramidTestCase):
     instrument = True
 
     def test_tween_overridden(self):
-        # in case our tween is overriden by the user config we should
+        # in case our tween is overridden by the user config we should
         # not log rendering
         self.override_settings({'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
         self.app.get('/json', status=200)
