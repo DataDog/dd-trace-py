@@ -221,6 +221,13 @@ PynamoDB
 .. automodule:: ddtrace.contrib.pynamodb
 
 
+.. _pyodbc:
+
+PyODBC
+^^^^^^^^
+.. automodule:: ddtrace.contrib.pyodbc
+
+
 .. _pymemcache:
 
 pymemcache
