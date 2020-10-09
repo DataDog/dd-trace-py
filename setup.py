@@ -214,6 +214,11 @@ setup(
                     language="c",
                 ),
                 Cython.Distutils.Extension(
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
                     "ddtrace.profiling._build",
                     sources=["ddtrace/profiling/_build.pyx"],
                     language="c",
