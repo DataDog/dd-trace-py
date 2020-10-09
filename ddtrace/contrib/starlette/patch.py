@@ -22,11 +22,9 @@ config._add(
 )
 
 
-def patch(routes=[]):
+def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
-
-    aggregate_resources.set_routes(routes)
 
     setattr(starlette, "_datadog_patch", True)
     _w("starlette.applications", "Starlette.__init__", traced_init)

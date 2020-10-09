@@ -23,7 +23,7 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
-    patch(routes=get_routes())
+    patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     unpatch()
@@ -282,6 +282,7 @@ def test_path_param(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /users/1"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
@@ -305,4 +306,44 @@ def test_path_param_aggregate(client, tracer):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
+def test_mid_path_param_aggregate(client, tracer):
+    config.starlette["aggregate_resources"] = True
+    r = client.get("/users/1/info")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /users/{userid:int}/info"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/users/1/info"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
+def test_multi_path_param_aggregate(client, tracer):
+    config.starlette["aggregate_resources"] = True
+    r = client.get("/users/1/name")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /users/{userid:int}/{attribute:str}"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/users/1/name"
     assert request_span.get_tag("http.status_code") == "200"

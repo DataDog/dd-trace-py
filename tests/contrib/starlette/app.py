@@ -52,11 +52,6 @@ async def file(request):
         return FileResponse(fp.name)
 
 
-async def path_params(request):
-    response = "Success"
-    return PlainTextResponse(response)
-
-
 routes = [
     Route("/", endpoint=homepage, name="homepage", methods=["GET"]),
     Route("/200", endpoint=success, name="200", methods=["GET"]),
@@ -64,7 +59,9 @@ routes = [
     Route("/500", endpoint=error, name="500", methods=["GET"]),
     Route("/stream", endpoint=stream, name="stream", methods=["GET"]),
     Route("/file", endpoint=file, name="file", methods=["GET"]),
-    Route("/users/{userid:int}", endpoint=path_params, name="path_params", methods=["GET"]),
+    Route("/users/{userid:int}", endpoint=success, name="path_params", methods=["GET"]),
+    Route("/users/{userid:int}/info", endpoint=success, name="multi_path_params", methods=["GET"]),
+    Route("/users/{userid:int}/{attribute:str}", endpoint=success, name="multi_path_params", methods=["GET"]),
 ]
 
 

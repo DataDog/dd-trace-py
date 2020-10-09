@@ -1,14 +1,8 @@
 from starlette.routing import Match
 
 
-def set_routes(app_routes):
-    global routes
-    routes = app_routes
-
-
-def get_resource(scope):
+def get_resource(scope, routes):
     path = None
-    global routes
     for route in routes:
         match, _ = route.matches(scope)
         if match == Match.FULL:
