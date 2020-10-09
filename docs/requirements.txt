@@ -1,3 +1,5 @@
 cython
 sphinx
 opentracing
+sphinxcontrib-spelling
+PyEnchant
