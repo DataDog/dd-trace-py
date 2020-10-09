@@ -10,7 +10,7 @@ from ddtrace.propagation import http as http_propagation
 from starlette.testclient import TestClient
 from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
-from app import get_app, get_routes
+from app import get_app
 
 
 @pytest.fixture

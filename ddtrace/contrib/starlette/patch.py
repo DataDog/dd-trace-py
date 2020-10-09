@@ -1,6 +1,5 @@
 import starlette
 
-from ddtrace.contrib.starlette import aggregate_resources
 from starlette.middleware import Middleware
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
