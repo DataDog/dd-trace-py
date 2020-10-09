@@ -4,6 +4,7 @@ import sys
 
 # Third party
 from ddtrace.vendor import wrapt
+import pytest
 
 # Project
 from ddtrace import config
@@ -538,6 +539,23 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    def test_httplib_bad_url(self):
+        conn = self.get_http_connection("DNE", "80")
+        with contextlib.closing(conn):
+            with pytest.raises(Exception):
+                conn.request('GET', '/status/500')
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assert_is_not_measured(span)
+        self.assertEqual(span.span_type, 'http')
+        self.assertIsNone(span.service)
+        self.assertEqual(span.name, self.SPAN_NAME)
+        self.assertEqual(span.error, 1)
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag('http.url'), "http://DNE:80/status/500")
 
 
 # Additional Python2 test cases for urllib
