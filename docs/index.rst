@@ -120,6 +120,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`sqlalchemy`                                | >= 1.0        | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`starlette`                                 | >= 0.13.0     | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`tornado`                                   | >= 4.0        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`vertica`                                   | >= 0.6        | Yes            |
@@ -133,7 +135,7 @@ contacting support.
 
 .. [2] only third-party modules such as aiohttp_jinja2
 
-.. [3] only the syncronous client
+.. [3] only the synchronous client
 
 .. [4] only in Python 3.7 and above.
 
@@ -156,3 +158,4 @@ Indices and tables
     basic_usage
     advanced_usage
     contributing
+    release_notes
