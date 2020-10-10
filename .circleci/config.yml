@@ -583,6 +583,9 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends unixodbc-dev libsqliteodbc
       - run_tox_scenario:
           pattern: '^pyodbc_contrib-'
 
