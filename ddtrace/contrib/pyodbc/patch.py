@@ -1,11 +1,10 @@
 # 3p
 import pyodbc
-from ddtrace.vendor.wrapt import wrap_function_wrapper
 
 # project
 from ..dbapi import TracedConnection, TracedCursor, FetchTracedCursor
 from ... import config, Pin
-from ...utils.wrappers import unwrap
+from ..trace_utils import wrap, unwrap
 
 
 config._add(
@@ -20,7 +19,7 @@ def patch():
     if getattr(pyodbc, "_datadog_patch", False):
         return
     setattr(pyodbc, "_datadog_patch", True)
-    wrap_function_wrapper("pyodbc", "connect", _connect)
+    wrap("pyodbc", "connect", _connect)
 
 
 def unpatch():
@@ -42,16 +41,6 @@ def patch_conn(conn):
 
 
 class PyODBCTracedCursor(TracedCursor):
-    def executemany(self, *args, **kwargs):
-        super(PyODBCTracedCursor, self).executemany(*args, **kwargs)
-        return self
-
-    def execute(self, *args, **kwargs):
-        super(PyODBCTracedCursor, self).execute(*args, **kwargs)
-        return self
-
-
-class PyODBCTracedFetchCursor(PyODBCTracedCursor, FetchTracedCursor):
     pass
 
 
@@ -60,6 +49,3 @@ class PyODBCTracedConnection(TracedConnection):
         if not cursor_cls:
             cursor_cls = PyODBCTracedCursor
         super(PyODBCTracedConnection, self).__init__(conn, pin, config.pyodbc, cursor_cls=cursor_cls)
-
-    def execute(self, *args, **kwargs):
-        return self.execute(*args, **kwargs)
