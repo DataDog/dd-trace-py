@@ -2,7 +2,7 @@
 import pyodbc
 
 # project
-from ..dbapi import TracedConnection, TracedCursor, FetchTracedCursor
+from ..dbapi import TracedConnection, TracedCursor
 from ... import config, Pin
 from ..trace_utils import wrap, unwrap
 
