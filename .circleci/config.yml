@@ -580,6 +580,8 @@ jobs:
 
   pyodbc:
     executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
     steps:
       - run_tox_scenario:
           pattern: '^pyodbc_contrib-'
