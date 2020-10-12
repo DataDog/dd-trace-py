@@ -10,7 +10,7 @@ from ddtrace.contrib import func_name
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import errors
 from ddtrace.utils.formats import asbool, get_env
-from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation import http as http_prop
 
 from .. import trace_utils
 
@@ -202,8 +202,39 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
         # so we want that to be the active span for when we set the distributed
         # tracing headers.
         if config.twisted.distributed_tracing:
-            propagator = HTTPPropagator()
+            propagator = http_prop.HTTPPropagator()
             propagator.inject(ctx, instance.headers)
+
+
+@trace_utils.with_traced_module
+def agent_request(twisted, pin, func, instance, args, kwargs):
+    ctx = pin.tracer.get_call_context()
+    with ctx.override_ctx_item("trace_deferreds", True):
+        if len(args) > 2:
+            headers = args[2]
+            if headers is None:
+                headers = twisted.web.http_headers.Headers()
+                newargs = list(args)
+                newargs[2] = headers
+                args = tuple(newargs)
+        elif "headers" in kwargs:
+            headers = kwargs.get("headers")
+            if headers is None:
+                headers = twisted.web.http_headers.Headers()
+                kwargs["headers"] = headers
+        else:
+            headers = twisted.web.http_headers.Headers()
+            kwargs["headers"] = headers
+
+        headers.addRawHeader(http_prop.HTTP_HEADER_TRACE_ID, str(ctx.trace_id))
+        headers.addRawHeader(http_prop.HTTP_HEADER_PARENT_ID, str(ctx.span_id))
+
+        if ctx.sampling_priority:
+            headers.addRawHeader(http_prop.HTTP_HEADER_SAMPLING_PRIORITY, str(ctx.sampling_priority))
+        if ctx._dd_origin:
+            headers.addRawHeader(http_prop.HTTP_HEADER_ORIGIN, str(ctx._dd_origin))
+
+        return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
@@ -245,6 +276,7 @@ def patch():
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
     )
     trace_utils.wrap("twisted.web.client", "HTTPClientFactory.__init__", httpclientfactory___init__(twisted))
+    trace_utils.wrap("twisted.web.client", "Agent.request", agent_request(twisted))
     trace_utils.wrap("twisted.internet", "reactor.callLater", reactor_callLater(twisted))
 
     setattr(twisted, "__datadog_patch", True)
@@ -264,6 +296,7 @@ def unpatch():
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "runQuery")
     trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
     trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
+    trace_utils.unwrap(twisted.web.client.Agent, "request")
     trace_utils.unwrap(twisted.internet.reactor, "callLater")
 
     setattr(twisted, "__datadog_patch", False)
