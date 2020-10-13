@@ -101,7 +101,9 @@ def test_standard_tags():
 def test_debug_post_configure():
     tracer = ddtrace.Tracer()
     tracer.configure(
-        hostname="0.0.0.0", port=1234, priority_sampling=True,
+        hostname="0.0.0.0",
+        port=1234,
+        priority_sampling=True,
     )
 
     f = debug.collect(tracer)
@@ -161,19 +163,31 @@ class TestGlobalConfig(SubprocessTestCase):
         icfg = f.get("integrations")
         assert icfg["django"] == "N/A"
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+        )
+    )
     def test_trace_agent_url(self):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:1234"
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://localhost:8126",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://localhost:8126",
+        )
+    )
     def test_tracer_loglevel_info_connection(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+        )
+    )
     def test_tracer_loglevel_info_no_connection(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
@@ -185,7 +199,11 @@ class TestGlobalConfig(SubprocessTestCase):
                 mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
             ]
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+        )
+    )
     def test_tracer_loglevel_info_no_connection_py2_handler(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
@@ -197,21 +215,35 @@ class TestGlobalConfig(SubprocessTestCase):
                 mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
             ]
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="0",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+            DD_TRACE_STARTUP_LOGS="0",
+        )
+    )
     def test_tracer_log_disabled_error(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         assert tracer.log.log.mock_calls == []
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126", DD_TRACE_STARTUP_LOGS="0",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
+            DD_TRACE_STARTUP_LOGS="0",
+        )
+    )
     def test_tracer_log_disabled(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         assert tracer.log.log.mock_calls == []
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
+        )
+    )
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
         tracer = ddtrace.Tracer()

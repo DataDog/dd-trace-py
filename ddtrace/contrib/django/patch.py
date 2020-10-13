@@ -416,7 +416,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
                     if isinstance(template, six.string_types):
                         template_names = [template]
-                    elif isinstance(template, (list, tuple,)):
+                    elif isinstance(
+                        template,
+                        (
+                            list,
+                            tuple,
+                        ),
+                    ):
                         template_names = template
                     elif hasattr(template, "template"):
                         # ^ checking by attribute here because

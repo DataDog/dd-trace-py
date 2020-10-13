@@ -92,14 +92,18 @@ def test_lock_release_events():
     assert event.sampling_pct == 100
 
 
-@pytest.mark.benchmark(group="threading-lock-create",)
+@pytest.mark.benchmark(
+    group="threading-lock-create",
+)
 def test_lock_create_speed_patched(benchmark):
     r = recorder.Recorder()
     with collector_threading.LockCollector(r):
         benchmark(threading.Lock)
 
 
-@pytest.mark.benchmark(group="threading-lock-create",)
+@pytest.mark.benchmark(
+    group="threading-lock-create",
+)
 def test_lock_create_speed(benchmark):
     benchmark(threading.Lock)
 
@@ -109,9 +113,12 @@ def _lock_acquire_release(lock):
     lock.release()
 
 
-@pytest.mark.benchmark(group="threading-lock-acquire-release",)
+@pytest.mark.benchmark(
+    group="threading-lock-acquire-release",
+)
 @pytest.mark.parametrize(
-    "pct", range(5, 61, 5),
+    "pct",
+    range(5, 61, 5),
 )
 def test_lock_acquire_release_speed_patched(benchmark, pct):
     r = recorder.Recorder()
@@ -119,6 +126,8 @@ def test_lock_acquire_release_speed_patched(benchmark, pct):
         benchmark(_lock_acquire_release, threading.Lock())
 
 
-@pytest.mark.benchmark(group="threading-lock-acquire-release",)
+@pytest.mark.benchmark(
+    group="threading-lock-acquire-release",
+)
 def test_lock_acquire_release_speed(benchmark):
     benchmark(_lock_acquire_release, threading.Lock())

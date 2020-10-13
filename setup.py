@@ -107,16 +107,26 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-if platform.uname()[0] != "Windows":
-    encoding_libraries = []
-    extra_compile_args = ["-DPy_BUILD_CORE"]
-else:
+if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
+    debug_compile_args = []
+else:
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+    if "DD_COMPILE_DEBUG" in os.environ and platform.system() == "Linux":
+        debug_compile_args = ["-g", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+    else:
+        debug_compile_args = []
+
 
 if sys.version_info[:2] >= (3, 4):
     ext_modules = [
-        Extension("ddtrace.profiling.collector._memalloc", sources=["ddtrace/profiling/collector/_memalloc.c"],),
+        Extension(
+            "ddtrace.profiling.collector._memalloc",
+            sources=["ddtrace/profiling/collector/_memalloc.c"],
+            extra_compile_args=debug_compile_args,
+        ),
     ]
 else:
     ext_modules = []
@@ -171,7 +181,9 @@ setup(
         + cythonize(
             [
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
                 ),
                 Extension(
                     "ddtrace.internal._encoding",
@@ -181,7 +193,9 @@ setup(
                     define_macros=encoding_macros,
                 ),
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._queue", sources=["ddtrace/internal/_queue.pyx"], language="c",
+                    "ddtrace.internal._queue",
+                    sources=["ddtrace/internal/_queue.pyx"],
+                    language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
@@ -200,7 +214,14 @@ setup(
                     language="c",
                 ),
                 Cython.Distutils.Extension(
-                    "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._build",
+                    sources=["ddtrace/profiling/_build.pyx"],
+                    language="c",
                 ),
             ],
             compile_time_env={

@@ -145,7 +145,7 @@ class GrpcTestCase(TracerTestCase):
         assert len(spans) == 0
 
     def test_pin_tags_are_put_in_span(self):
-        # DEV: stop and restart server to catch overriden pin
+        # DEV: stop and restart server to catch overridden pin
         self._stop_server()
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, service='server1')
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={'tag1': 'server'})

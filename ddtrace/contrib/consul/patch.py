@@ -39,7 +39,7 @@ def wrap_function(name):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        # Only patch the syncronous implementation
+        # Only patch the synchronous implementation
         if not isinstance(instance.agent.http, consul.std.HTTPClient):
             return wrapped(*args, **kwargs)
 

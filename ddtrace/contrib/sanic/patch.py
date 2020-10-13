@@ -75,8 +75,7 @@ def _wrap_response_callback(span, callback):
 
 
 def patch():
-    """Patch the instrumented methods.
-    """
+    """Patch the instrumented methods."""
     if getattr(sanic, "__datadog_patch", False):
         return
     setattr(sanic, "__datadog_patch", True)
@@ -84,8 +83,7 @@ def patch():
 
 
 def unpatch():
-    """Unpatch the instrumented methods.
-    """
+    """Unpatch the instrumented methods."""
     _u(sanic.Sanic, "handle_request")
     if not getattr(sanic, "__datadog_patch", False):
         return
@@ -97,6 +95,9 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     request = kwargs.get("request", args[0])
     write_callback = kwargs.get("write_callback", args[1])
     stream_callback = kwargs.get("stream_callback", args[2])
+
+    if request.scheme not in ("http", "https"):
+        return await wrapped(request, write_callback, stream_callback, **kwargs)
 
     resource = "{} {}".format(request.method, request.path)
 
