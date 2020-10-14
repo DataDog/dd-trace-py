@@ -53,6 +53,7 @@ def test_200(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /200"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/200"
@@ -73,6 +74,7 @@ def test_200_query_string(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/"
@@ -93,6 +95,7 @@ def test_200_multi_query_string(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/"
@@ -112,6 +115,7 @@ def test_201(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "POST /201"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "POST"
     assert request_span.get_tag("http.url") == "http://testserver/201"
@@ -131,6 +135,7 @@ def test_404(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /404"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/404"
@@ -147,6 +152,7 @@ def test_500error(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /500"
     assert request_span.error == 1
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/500"
@@ -172,6 +178,7 @@ def test_distributed_tracing(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/"
@@ -201,6 +208,7 @@ async def test_multiple_requests(app, tracer):
     r1_span = spans[0][0]
     assert r1_span.service == "starlette"
     assert r1_span.name == "starlette.request"
+    assert r1_span.resource == "GET /"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
@@ -208,6 +216,7 @@ async def test_multiple_requests(app, tracer):
     r2_span = spans[0][0]
     assert r2_span.service == "starlette"
     assert r2_span.name == "starlette.request"
+    assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
@@ -226,6 +235,7 @@ def test_streaming_response(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /stream"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/stream"
@@ -245,6 +255,7 @@ def test_file_response(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /file"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/file"
@@ -264,33 +275,14 @@ def test_invalid_path_param(client, tracer):
     request_span = spans[0][0]
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /users/test"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/test"
     assert request_span.get_tag("http.status_code") == "404"
 
 
-def test_path_param(client, tracer):
-    r = client.get("/users/1")
-
-    assert r.status_code == 200
-    assert r.text == "Success"
-
-    spans = tracer.writer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.service == "starlette"
-    assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET /users/1"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/users/1"
-    assert request_span.get_tag("http.status_code") == "200"
-
-
 def test_path_param_aggregate(client, tracer):
-    config.starlette["aggregate_resources"] = True
     r = client.get("/users/1")
 
     assert r.status_code == 200
@@ -310,7 +302,6 @@ def test_path_param_aggregate(client, tracer):
 
 
 def test_mid_path_param_aggregate(client, tracer):
-    config.starlette["aggregate_resources"] = True
     r = client.get("/users/1/info")
 
     assert r.status_code == 200
@@ -330,7 +321,6 @@ def test_mid_path_param_aggregate(client, tracer):
 
 
 def test_multi_path_param_aggregate(client, tracer):
-    config.starlette["aggregate_resources"] = True
     r = client.get("/users/1/name")
 
     assert r.status_code == 200
@@ -346,4 +336,24 @@ def test_multi_path_param_aggregate(client, tracer):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1/name"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
+def test_path_param_no_aggregate(client, tracer):
+    config.starlette["aggregate_resources"] = False
+    r = client.get("/users/1")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /users/1"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/users/1"
     assert request_span.get_tag("http.status_code") == "200"

@@ -106,14 +106,7 @@ class TraceMiddleware:
             if context.trace_id:
                 self.tracer.context_provider.activate(context)
 
-        resource = "{} {}".format(scope["method"], scope["path"])
-
-        if "aggregate_resources" in self.integration_config and self.integration_config["aggregate_resources"]:
-            from ddtrace.contrib.starlette.aggregate_resources import get_resource
-
-            aggregated_resource = get_resource(scope, self.app.app.routes)
-            if aggregated_resource:
-                resource = "{} {}".format(scope["method"], aggregated_resource)
+        resource = "{} {}".format(scope["method"], ("resource" in scope and scope["resource"]) or scope["path"])
 
         span = self.tracer.trace(
             name=self.integration_config.get("request_span_name", "asgi.request"),
