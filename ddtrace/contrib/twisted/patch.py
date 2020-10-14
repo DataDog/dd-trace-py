@@ -208,33 +208,35 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def agent_request(twisted, pin, func, instance, args, kwargs):
+    s = pin.tracer.trace("twisted.agent.request")
     ctx = pin.tracer.get_call_context()
-    with ctx.override_ctx_item("trace_deferreds", True):
-        if len(args) > 2:
-            headers = args[2]
-            if headers is None:
-                headers = twisted.web.http_headers.Headers()
-                newargs = list(args)
-                newargs[2] = headers
-                args = tuple(newargs)
-        elif "headers" in kwargs:
-            headers = kwargs.get("headers")
-            if headers is None:
-                headers = twisted.web.http_headers.Headers()
-                kwargs["headers"] = headers
-        else:
+    if len(args) > 2:
+        headers = args[2]
+        if headers is None:
+            headers = twisted.web.http_headers.Headers()
+            newargs = list(args)
+            newargs[2] = headers
+            args = tuple(newargs)
+    elif "headers" in kwargs:
+        headers = kwargs.get("headers")
+        if headers is None:
             headers = twisted.web.http_headers.Headers()
             kwargs["headers"] = headers
+    else:
+        headers = twisted.web.http_headers.Headers()
+        kwargs["headers"] = headers
 
-        headers.addRawHeader(http_prop.HTTP_HEADER_TRACE_ID, str(ctx.trace_id))
-        headers.addRawHeader(http_prop.HTTP_HEADER_PARENT_ID, str(ctx.span_id))
+    headers.addRawHeader(http_prop.HTTP_HEADER_TRACE_ID, str(ctx.trace_id))
+    headers.addRawHeader(http_prop.HTTP_HEADER_PARENT_ID, str(ctx.span_id))
 
-        if ctx.sampling_priority:
-            headers.addRawHeader(http_prop.HTTP_HEADER_SAMPLING_PRIORITY, str(ctx.sampling_priority))
-        if ctx._dd_origin:
-            headers.addRawHeader(http_prop.HTTP_HEADER_ORIGIN, str(ctx._dd_origin))
+    if ctx.sampling_priority:
+        headers.addRawHeader(http_prop.HTTP_HEADER_SAMPLING_PRIORITY, str(ctx.sampling_priority))
+    if ctx._dd_origin:
+        headers.addRawHeader(http_prop.HTTP_HEADER_ORIGIN, str(ctx._dd_origin))
 
-        return func(*args, **kwargs)
+    d = func(*args, **kwargs)
+    d.addCallback(lambda _: s.finish())
+    return d
 
 
 @trace_utils.with_traced_module
