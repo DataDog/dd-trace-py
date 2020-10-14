@@ -235,7 +235,12 @@ def agent_request(twisted, pin, func, instance, args, kwargs):
         headers.addRawHeader(http_prop.HTTP_HEADER_ORIGIN, str(ctx._dd_origin))
 
     d = func(*args, **kwargs)
-    d.addCallback(lambda _: s.finish())
+
+    def finish_span(_):
+        s.finish()
+        return _
+
+    d.addCallback(finish_span)
     return d
 
 
@@ -257,7 +262,6 @@ def reactor_callLater(twisted, pin, func, instance, args, kwargs):
     newargs = list(args)
     newargs[1] = traced_fn
     return func(*tuple(newargs), **kwargs)
-
 
 
 def patch():
