@@ -14,6 +14,7 @@ from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 from ddtrace.profiling.collector import exceptions
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -80,7 +81,9 @@ class _PprofConverter(object):
             return self._functions[(filename, funcname)]
         except KeyError:
             func = pprof_pb2.Function(
-                id=self._last_func_id.generate(), name=self._str(funcname), filename=self._str(filename),
+                id=self._last_func_id.generate(),
+                name=self._str(funcname),
+                filename=self._str(filename),
             )
             self._functions[(filename, funcname)] = func
             return func
@@ -95,7 +98,12 @@ class _PprofConverter(object):
                 real_funcname = funcname
             location = pprof_pb2.Location(
                 id=self._last_location_id.generate(),
-                line=[pprof_pb2.Line(function_id=self._to_Function(filename, real_funcname).id, line=lineno,),],
+                line=[
+                    pprof_pb2.Line(
+                        function_id=self._to_Function(filename, real_funcname).id,
+                        line=lineno,
+                    ),
+                ],
             )
             self._locations[(filename, lineno, funcname)] = location
             return location
@@ -137,6 +145,25 @@ class _PprofConverter(object):
         self._location_values[location_key]["cpu-samples"] = len(samples)
         self._location_values[location_key]["cpu-time"] = sum(s.cpu_time_ns for s in samples)
         self._location_values[location_key]["wall-time"] = sum(s.wall_time_ns for s in samples)
+
+    def convert_memalloc_event(self, thread_id, thread_native_id, thread_name, frames, nframes, events):
+        location_key = (
+            self._to_locations(frames, nframes),
+            (
+                ("thread id", str(thread_id)),
+                ("thread native id", str(thread_native_id)),
+                ("thread name", thread_name),
+            ),
+        )
+
+        nevents = len(events)
+        sampling_ratio_avg = sum(event.capture_pct for event in events) / nevents / 100.0
+        total_alloc = sum(event.nevents for event in events)
+        number_of_alloc = total_alloc * sampling_ratio_avg
+        average_alloc_size = sum(event.size for event in events) / float(nevents)
+
+        self._location_values[location_key]["alloc-samples"] = nevents
+        self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
 
     def convert_lock_acquire_event(self, lock_name, thread_id, thread_name, frames, nframes, events, sampling_ratio):
         location_key = (
@@ -203,7 +230,12 @@ class _PprofConverter(object):
         return pprof_pb2.Profile(
             sample_type=pprof_sample_type,
             sample=sample,
-            mapping=[pprof_pb2.Mapping(id=1, filename=self._str(program_name),),],
+            mapping=[
+                pprof_pb2.Mapping(
+                    id=1,
+                    filename=self._str(program_name),
+                ),
+            ],
             # Sort location and function by id so the output is reproducible
             location=sorted(self._locations.values(), key=_ATTRGETTER_ID),
             function=sorted(self._functions.values(), key=_ATTRGETTER_ID),
@@ -253,14 +285,20 @@ class PprofExporter(exporter.Exporter):
         )
 
     def _group_stack_events(self, events):
-        return itertools.groupby(sorted(events, key=self._stack_event_group_key), key=self._stack_event_group_key,)
+        return itertools.groupby(
+            sorted(events, key=self._stack_event_group_key),
+            key=self._stack_event_group_key,
+        )
 
     @staticmethod
     def _lock_event_group_key(event):
         return (event.lock_name, event.thread_id, str(event.thread_name), tuple(event.frames), event.nframes)
 
     def _group_lock_events(self, events):
-        return itertools.groupby(sorted(events, key=self._lock_event_group_key), key=self._lock_event_group_key,)
+        return itertools.groupby(
+            sorted(events, key=self._lock_event_group_key),
+            key=self._lock_event_group_key,
+        )
 
     def _stack_exception_group_key(self, event):
         exc_type = event.exc_type
@@ -277,7 +315,8 @@ class PprofExporter(exporter.Exporter):
 
     def _group_stack_exception_events(self, events):
         return itertools.groupby(
-            sorted(events, key=self._stack_exception_group_key), key=self._stack_exception_group_key,
+            sorted(events, key=self._stack_exception_group_key),
+            key=self._stack_exception_group_key,
         )
 
     @staticmethod
@@ -287,7 +326,10 @@ class PprofExporter(exporter.Exporter):
         return (event.thread_id, str(event.thread_name), tuple(event.frames), event.nframes, exc_type_name)
 
     def _group_exception_events(self, events):
-        return itertools.groupby(sorted(events, key=self._exception_group_key), key=self._exception_group_key,)
+        return itertools.groupby(
+            sorted(events, key=self._exception_group_key),
+            key=self._exception_group_key,
+        )
 
     @staticmethod
     def min_none(a, b):
@@ -354,9 +396,10 @@ class PprofExporter(exporter.Exporter):
                     convert_fn(lock_name, thread_id, thread_name, frames, nframes, list(l_events), sampling_ratio_avg)
 
         # Handle UncaughtExceptionEvent
-        for ((thread_id, thread_name, frames, nframes, exc_type_name), ue_events,) in self._group_exception_events(
-            events.get(exceptions.UncaughtExceptionEvent, [])
-        ):
+        for (
+            (thread_id, thread_name, frames, nframes, exc_type_name),
+            ue_events,
+        ) in self._group_exception_events(events.get(exceptions.UncaughtExceptionEvent, [])):
             converter.convert_uncaught_exception_event(
                 thread_id, thread_name, frames, nframes, exc_type_name, list(ue_events)
             )
@@ -388,6 +431,20 @@ class PprofExporter(exporter.Exporter):
                 sampling_ratio_avg = sampling_pct_sum / (nb_events * 100.0)  # convert percentage to ratio
                 for stats in tracemalloc.Snapshot(traces, traceback_limit).statistics("traceback"):
                     converter.convert_memory_event(stats, sampling_ratio_avg)
+
+        if memalloc._memalloc:
+            for (
+                (thread_id, thread_native_id, thread_name, trace_id, frames, nframes),
+                memalloc_events,
+            ) in self._group_stack_events(events.get(memalloc.MemoryAllocSampleEvent, [])):
+                converter.convert_memalloc_event(
+                    thread_id,
+                    thread_native_id,
+                    thread_name,
+                    frames,
+                    nframes,
+                    list(memalloc_events),
+                )
 
         # Compute some metadata
         if nb_event:

@@ -20,14 +20,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool, get_env
-from ddtrace.utils.wrappers import unwrap, iswrapped
 
 from .. import trace_utils
 from .compat import get_resolver, user_is_authenticated
 from . import utils, conf
 
 
-wrap = wrapt.wrap_function_wrapper
 log = get_logger(__name__)
 
 config._add(
@@ -52,40 +50,6 @@ config._add(
 propagator = HTTPPropagator()
 
 
-def with_traced_module(func):
-    """Helper for providing tracing essentials (module and pin) for tracing
-    wrappers.
-
-    This helper enables tracing wrappers to dynamically be disabled when the
-    corresponding pin is disabled.
-
-    Usage::
-
-        @with_traced_module
-        def my_traced_wrapper(django, pin, func, instance, args, kwargs):
-            # Do tracing stuff
-            pass
-
-        def patch():
-            import django
-            wrap(django.somefunc, my_traced_wrapper(django))
-    """
-
-    def with_mod(mod):
-        def wrapper(wrapped, instance, args, kwargs):
-            pin = Pin._find(instance, mod)
-            if pin and not pin.enabled():
-                return wrapped(*args, **kwargs)
-            elif not pin:
-                log.debug("Pin not found for traced method %r", wrapped)
-                return wrapped(*args, **kwargs)
-            return func(mod, pin, wrapped, instance, args, kwargs)
-
-        return wrapper
-
-    return with_mod
-
-
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
@@ -106,7 +70,7 @@ def patch_conn(django, conn):
         return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
-        conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))
+        conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
 
 
 def instrument_dbs(django):
@@ -156,7 +120,7 @@ def _set_request_tags(django, span, request):
                 span.set_tag("django.user.name", username)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
     if not config.django.instrument_caches:
         return func(*args, **kwargs)
@@ -185,13 +149,13 @@ def instrument_caches(django):
             try:
                 cls = django.utils.module_loading.import_string(cache_path)
                 # DEV: this can be removed when we add an idempotent `wrap`
-                if not iswrapped(cls, method):
-                    wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
+                if not trace_utils.iswrapped(cls, method):
+                    trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
             except Exception:
                 log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_populate(django, pin, func, instance, args, kwargs):
     """django.apps.registry.Apps.populate is the method used to populate all the apps.
 
@@ -258,7 +222,7 @@ def traced_func(django, name, resource=None):
         with pin.tracer.trace(name, resource=resource):
             return func(*args, **kwargs)
 
-    return with_traced_module(wrapped)(django)
+    return trace_utils.with_traced_module(wrapped)(django)
 
 
 def traced_process_exception(django, name, resource=None):
@@ -272,10 +236,10 @@ def traced_process_exception(django, name, resource=None):
                 span.set_traceback()
             return resp
 
-    return with_traced_module(wrapped)(django)
+    return trace_utils.with_traced_module(wrapped)(django)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all middlewares."""
     settings_middleware = []
@@ -291,7 +255,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
         mw = django.utils.module_loading.import_string(mw_path)
 
         # Instrument function-based middleware
-        if isfunction(mw) and not iswrapped(mw):
+        if isfunction(mw) and not trace_utils.iswrapped(mw):
             split = mw_path.split(".")
             if len(split) < 2:
                 continue
@@ -306,7 +270,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
                 r = func(*args, **kwargs)
                 return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
 
-            wrap(base, attr, wrapped_factory)
+            trace_utils.wrap(base, attr, wrapped_factory)
 
         # Instrument class-based middleware
         elif isclass(mw):
@@ -317,17 +281,21 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
                 "process_template_response",
                 "__call__",
             ]:
-                if hasattr(mw, hook) and not iswrapped(mw, hook):
-                    wrap(mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook)))
+                if hasattr(mw, hook) and not trace_utils.iswrapped(mw, hook):
+                    trace_utils.wrap(
+                        mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook))
+                    )
             # Do a little extra for `process_exception`
-            if hasattr(mw, "process_exception") and not iswrapped(mw, "process_exception"):
+            if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
                 res = mw_path + ".{0}".format("process_exception")
-                wrap(mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res))
+                trace_utils.wrap(
+                    mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res)
+                )
 
     return func(*args, **kwargs)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_get_response(django, pin, func, instance, args, kwargs):
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
@@ -448,7 +416,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
                     if isinstance(template, six.string_types):
                         template_names = [template]
-                    elif isinstance(template, (list, tuple,)):
+                    elif isinstance(
+                        template,
+                        (
+                            list,
+                            tuple,
+                        ),
+                    ):
                         template_names = template
                     elif hasattr(template, "template"):
                         # ^ checking by attribute here because
@@ -466,7 +440,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     """Instrument django.template.base.Template.render for tracing template rendering."""
     template_name = getattr(instance, "name", None)
@@ -517,7 +491,7 @@ def _instrument_view(django, view):
 
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
-            wrap(view, name, traced_func(django, name=op_name, resource=resource))
+            trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 
@@ -534,7 +508,7 @@ def _instrument_view(django, view):
 
                 resource = "{0}.{1}".format(func_name(response_cls), name)
                 op_name = "django.response.{0}".format(name)
-                wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
+                trace_utils.wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
@@ -544,7 +518,7 @@ def _instrument_view(django, view):
     return view
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
@@ -559,7 +533,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@with_traced_module
+@trace_utils.with_traced_module
 def traced_as_view(django, pin, func, instance, args, kwargs):
     """
     Wrapper for django's View.as_view class method
@@ -574,34 +548,34 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 
 def _patch(django):
     Pin().onto(django)
-    wrap(django, "apps.registry.Apps.populate", traced_populate(django))
+    trace_utils.wrap(django, "apps.registry.Apps.populate", traced_populate(django))
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.core.handlers.base" not in sys.modules:
         import django.core.handlers.base
 
     if config.django.instrument_middleware:
-        wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
+        trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
-    wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
+    trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.template.base" not in sys.modules:
         import django.template.base
-    wrap(django, "template.base.Template.render", traced_template_render(django))
+    trace_utils.wrap(django, "template.base.Template.render", traced_template_render(django))
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.conf.urls.static" not in sys.modules:
         import django.conf.urls.static
-    wrap(django, "conf.urls.url", traced_urls_path(django))
+    trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
     if django.VERSION >= (2, 0, 0):
-        wrap(django, "urls.path", traced_urls_path(django))
-        wrap(django, "urls.re_path", traced_urls_path(django))
+        trace_utils.wrap(django, "urls.path", traced_urls_path(django))
+        trace_utils.wrap(django, "urls.re_path", traced_urls_path(django))
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.views.generic.base" not in sys.modules:
         import django.views.generic.base
-    wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
+    trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
 
 
 def patch():
@@ -616,19 +590,19 @@ def patch():
 
 
 def _unpatch(django):
-    unwrap(django.apps.registry.Apps, "populate")
-    unwrap(django.core.handlers.base.BaseHandler, "load_middleware")
-    unwrap(django.core.handlers.base.BaseHandler, "get_response")
-    unwrap(django.template.base.Template, "render")
-    unwrap(django.conf.urls.static, "static")
-    unwrap(django.conf.urls, "url")
+    trace_utils.unwrap(django.apps.registry.Apps, "populate")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "lotrace_utils.ad_middleware")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "getrace_utils.t_response")
+    trace_utils.unwrap(django.template.base.Template, "render")
+    trace_utils.unwrap(django.conf.urls.static, "static")
+    trace_utils.unwrap(django.conf.urls, "url")
     if django.VERSION >= (2, 0, 0):
-        unwrap(django.urls, "path")
-        unwrap(django.urls, "re_path")
-    unwrap(django.views.generic.base.View, "as_view")
+        trace_utils.unwrap(django.urls, "path")
+        trace_utils.unwrap(django.urls, "re_path")
+    trace_utils.unwrap(django.views.generic.base.View, "as_view")
     for conn in django.db.connections.all():
-        unwrap(conn, "cursor")
-    unwrap(django.db.connections, "all")
+        trace_utils.unwrap(conn, "cursor")
+    trace_utils.unwrap(django.db.connections, "all")
 
 
 def unpatch():

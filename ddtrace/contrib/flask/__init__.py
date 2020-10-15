@@ -2,7 +2,7 @@
 The Flask__ integration will add tracing to all requests to your Flask application.
 
 This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
-signals, and templating rendering.
+signals, and template rendering.
 
 To configure tracing manually::
 

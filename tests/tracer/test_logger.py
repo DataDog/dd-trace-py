@@ -194,6 +194,31 @@ class DDLoggerTestCase(BaseTestCase):
         self.assertEqual(log.buckets, dict())
 
     @mock.patch('logging.Logger.handle')
+    def test_logger_handle_debug(self, base_handle):
+        """
+        Calling `DDLogger.handle`
+            When effective level is DEBUG
+                Always calls the base `Logger.handle`
+        """
+        # Configure an INFO logger with no rate limit
+        log = get_logger('test.logger')
+        log.setLevel(logging.DEBUG)
+        assert log.rate_limit > 0
+
+        # Log a bunch of times very quickly (this is fast)
+        for level in ALL_LEVEL_NAMES:
+            log_fn = getattr(log, level)
+            for _ in range(1000):
+                log_fn('test')
+
+        # Assert that we did not perform any rate limiting
+        total = 1000 * len(ALL_LEVEL_NAMES)
+        self.assertEqual(base_handle.call_count, total)
+
+        # Our buckets are empty
+        self.assertEqual(log.buckets, dict())
+
+    @mock.patch('logging.Logger.handle')
     def test_logger_handle_bucket(self, base_handle):
         """
         When calling `DDLogger.handle`

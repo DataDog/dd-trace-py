@@ -454,7 +454,10 @@ class DummyTracer(Tracer):
             )
         else:
             self.writer = DummyWriter(
-                hostname="", port=0, filters=self.writer._filters, priority_sampler=self.writer._priority_sampler,
+                hostname="",
+                port=0,
+                filters=self.writer._filters,
+                priority_sampler=self.writer._priority_sampler,
             )
 
     def configure(self, *args, **kwargs):

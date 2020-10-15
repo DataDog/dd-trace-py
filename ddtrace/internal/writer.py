@@ -50,7 +50,7 @@ class LogWriter:
         self.out = out
 
     def recreate(self):
-        """ Create a new instance of :class:`LogWriter` using the same settings from this instance
+        """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
         :returns: A new :class:`LogWriter` instance
@@ -116,7 +116,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._started_lock = threading.Lock()
 
     def recreate(self):
-        """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
+        """Create a new instance of :class:`AgentWriter` using the same settings from this instance
 
         :rtype: :class:`AgentWriter`
         :returns: A new :class:`AgentWriter` instance
@@ -185,7 +185,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                                 result_traces_json["rate_by_service"],
                             )
                         if isinstance(self._sampler, BasePrioritySampler):
-                            self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
+                            self._sampler.update_rate_by_service_sample_rates(
+                                result_traces_json["rate_by_service"],
+                            )
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
@@ -275,5 +277,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             )
         else:
             log_level(
-                prefix + "%s", self.api, response,
+                prefix + "%s",
+                self.api,
+                response,
             )

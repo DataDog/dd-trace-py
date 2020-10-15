@@ -91,7 +91,8 @@ class DdtraceRunTest(BaseTestCase):
 
         with self.override_env(dict(DATADOG_TRACE_DEBUG="true")):
             out = subprocess.check_output(
-                ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"], stderr=subprocess.STDOUT,
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
+                stderr=subprocess.STDOUT,
             )
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" in out
@@ -216,7 +217,10 @@ class DdtraceRunTest(BaseTestCase):
         #   ValueError: list.remove(x): x not in list
         # as mentioned here: https://github.com/DataDog/dd-trace-py/pull/516
         env = inject_sitecustomize("")
-        out = subprocess.check_output(["python", "tests/commands/ddtrace_minimal.py"], env=env,)
+        out = subprocess.check_output(
+            ["python", "tests/commands/ddtrace_minimal.py"],
+            env=env,
+        )
         # `out` contains the `loaded` status of the module
         result = out[:-1] == b"True"
         self.assertTrue(result)
@@ -227,7 +231,8 @@ class DdtraceRunTest(BaseTestCase):
         # defined in users' PYTHONPATH.
         env = inject_sitecustomize("tests/commands/bootstrap")
         out = subprocess.check_output(
-            ["ddtrace-run", "python", "tests/commands/ddtrace_run_sitecustomize.py"], env=env,
+            ["ddtrace-run", "python", "tests/commands/ddtrace_run_sitecustomize.py"],
+            env=env,
         )
         assert out.startswith(b"Test success")
 
@@ -235,7 +240,8 @@ class DdtraceRunTest(BaseTestCase):
         # ensure `sitecustomize.py` is not loaded if `-S` is used
         env = inject_sitecustomize("tests/commands/bootstrap")
         out = subprocess.check_output(
-            ["ddtrace-run", "python", "-S", "tests/commands/ddtrace_run_sitecustomize.py", "-S"], env=env,
+            ["ddtrace-run", "python", "-S", "tests/commands/ddtrace_run_sitecustomize.py", "-S"],
+            env=env,
         )
         assert out.startswith(b"Test success")
 
@@ -251,15 +257,13 @@ class DdtraceRunTest(BaseTestCase):
         assert out.startswith(b"ddtrace_run_app_name.py")
 
     def test_global_trace_tags(self):
-        """ Ensure global tags are passed in from environment
-        """
+        """Ensure global tags are passed in from environment"""
         with self.override_env(dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_global_tags.py"])
             assert out.startswith(b"Test success")
 
     def test_logs_injection(self):
-        """ Ensure logs injection works
-        """
+        """Ensure logs injection works"""
         with self.override_env(dict(DD_LOGS_INJECTION="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success")

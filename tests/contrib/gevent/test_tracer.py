@@ -457,6 +457,7 @@ class TestGeventTracer(TracerTestCase):
         import botocore  # noqa
         import requests  # noqa
         import elasticsearch  # noqa
+        import pynamodb  # noqa
 
         p = subprocess.Popen(
             ["ddtrace-run", "python", "tests/contrib/gevent/monkeypatch.py"],

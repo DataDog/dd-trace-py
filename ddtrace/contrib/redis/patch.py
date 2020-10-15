@@ -100,7 +100,10 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     resource = "\n".join(cmds)
     tracer = pin.tracer
     with tracer.trace(
-        redisx.CMD, resource=resource, service=trace_utils.ext_service(pin, config.redis), span_type=SpanTypes.REDIS,
+        redisx.CMD,
+        resource=resource,
+        service=trace_utils.ext_service(pin, config.redis),
+        span_type=SpanTypes.REDIS,
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag(redisx.RAWCMD, resource)

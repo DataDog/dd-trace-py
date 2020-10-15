@@ -15,8 +15,7 @@ class RuntimeTagCollector(ValueCollector):
 
 
 class TracerTagCollector(RuntimeTagCollector):
-    """ Tag collector for the ddtrace Tracer
-    """
+    """Tag collector for the ddtrace Tracer"""
 
     required_modules = ["ddtrace"]
 
@@ -29,7 +28,7 @@ class TracerTagCollector(RuntimeTagCollector):
 
 
 class PlatformTagCollector(RuntimeTagCollector):
-    """ Tag collector for the Python interpreter implementation.
+    """Tag collector for the Python interpreter implementation.
 
     Tags collected:
     - ``lang_interpreter``:

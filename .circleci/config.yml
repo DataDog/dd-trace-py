@@ -5,7 +5,7 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-cimg_base_image: &cimg_base_image cimg/base:2020.01
+cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
@@ -211,6 +211,15 @@ jobs:
       - checkout
       - setup_tox
       - run: tox -e black
+
+  ccheck:
+    executor: cimg_base
+    steps:
+      - checkout
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
+      - run: scripts/cformat.sh
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   flake8:
     executor: python38
@@ -569,6 +578,17 @@ jobs:
       - run_tox_scenario:
           pattern: '^pynamodb_contrib-'
 
+  pyodbc:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends unixodbc-dev libsqliteodbc
+      - run_tox_scenario:
+          pattern: '^pyodbc_contrib-'
+
   pyramid:
     executor: ddtrace_dev
     steps:
@@ -595,6 +615,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
+  
+  starlette:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^starlette_contrib-'
 
   sqlalchemy:
     executor: ddtrace_dev
@@ -752,7 +778,7 @@ jobs:
 
   build_docs:
     # deploy official documentation
-    executor: python38
+    executor: ddtrace_dev
     steps:
       - checkout
       - setup_tox
@@ -776,6 +802,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
+    - ccheck
 
 requires_tests: &requires_tests
   - build_docs
@@ -822,6 +849,7 @@ requires_tests: &requires_tests
   - pymongo
   - pymysql
   - pynamodb
+  - pyodbc
   - pyramid
   - redis
   - rediscluster
@@ -829,6 +857,7 @@ requires_tests: &requires_tests
   - requestsgevent
   - sqlalchemy
   - sqlite3
+  - starlette
   - test_build_alpine
   - test_build_py38
   - test_build_py37
@@ -863,6 +892,7 @@ workflows:
       - build_docs
       - black
       - flake8
+      - ccheck
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
@@ -921,12 +951,14 @@ workflows:
       - pymongo: *requires_pre_test
       - pymysql: *requires_pre_test
       - pynamodb: *requires_pre_test      
+      - pyodbc: *requires_pre_test
       - pyramid: *requires_pre_test
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
       - sanic: *requires_pre_test
+      - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test

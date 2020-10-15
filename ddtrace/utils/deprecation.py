@@ -16,7 +16,9 @@ def format_message(name, message, version):
         'fn' is deprecated and will be remove in future versions (1.0).
     """
     return "'{}' is deprecated and will be remove in future versions{}. {}".format(
-        name, " ({})".format(version) if version else "", message,
+        name,
+        " ({})".format(version) if version else "",
+        message,
     )
 
 
