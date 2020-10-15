@@ -70,6 +70,7 @@ pymemcache
 pymongo
 pymysql
 pynamodb
+pyodbc
 quickstart
 redis
 rediscluster
