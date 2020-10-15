@@ -86,6 +86,7 @@ _PATCH_ON_IMPORT = {
     "requests": ("requests",),
     "botocore": ("botocore",),
     "elasticsearch": ("elasticsearch",),
+    "pynamodb": ("pynamodb",),
 }
 
 
