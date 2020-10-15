@@ -36,6 +36,9 @@ RUN \
       python-openssl\
       wget \
       zlib1g-dev \
+      clang-format \
+      unixodbc-dev \
+      libsqliteodbc \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
