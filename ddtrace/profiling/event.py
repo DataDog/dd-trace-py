@@ -40,3 +40,4 @@ class StackBasedEvent(SampleEvent):
     frames = attr.ib(default=None)
     nframes = attr.ib(default=None)
     trace_ids = attr.ib(default=None)
+    span_ids = attr.ib(default=None)
