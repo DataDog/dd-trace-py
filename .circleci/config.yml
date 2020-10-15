@@ -5,7 +5,7 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-cimg_base_image: &cimg_base_image cimg/base:2020.01
+cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
@@ -212,14 +212,14 @@ jobs:
       - setup_tox
       - run: tox -e black
 
-  cformat:
-    executor: ddtrace_dev
+  ccheck:
+    executor: cimg_base
     steps:
       - checkout
-      # TODO: remove me once this the docker image is rebuilt
-      - run: apt-get update
-      - run: apt-get install --yes clang-format
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
       - run: scripts/cformat.sh
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   flake8:
     executor: python38
@@ -767,7 +767,7 @@ jobs:
 
   build_docs:
     # deploy official documentation
-    executor: python38
+    executor: ddtrace_dev
     steps:
       - checkout
       - setup_tox
@@ -791,7 +791,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
-    - cformat
+    - ccheck
 
 requires_tests: &requires_tests
   - build_docs
@@ -880,7 +880,7 @@ workflows:
       - build_docs
       - black
       - flake8
-      - cformat
+      - ccheck
 
       # Test building the package
       - test_build_alpine: *requires_pre_test

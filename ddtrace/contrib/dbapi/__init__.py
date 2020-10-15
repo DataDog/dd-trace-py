@@ -82,7 +82,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_last_execute_operation = query
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
-        #      These differences should be overriden at the integration specific layer (e.g. in `sqlite3/patch.py`)
+        #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         return self._trace_method(
@@ -95,7 +95,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
-        #      These differences should be overriden at the integration specific layer (e.g. in `sqlite3/patch.py`)
+        #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, args):

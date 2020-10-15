@@ -140,7 +140,7 @@ the `ddtrace.profiling.Profiler` object::
    methods are provided in case you need a fine-grained control over the
    profiler lifecycle. They are not provided for starting and stopping the
    profiler many times during your application lifecycle. Do not use them for
-   e.g. buildin a context manager.
+   e.g. building a context manager.
 
 Via command line
 ----------------
