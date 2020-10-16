@@ -1115,3 +1115,65 @@ def test_multiple_tracer_ctx():
 
     assert s2.parent_id == s1.span_id
     assert s2.trace_id == s1.trace_id
+
+
+def test_filters():
+    t = ddtrace.Tracer()
+
+    class FilterAll(object):
+        def process_trace(self, trace):
+            return None
+
+    t.configure(settings={
+        "FILTERS": [FilterAll()],
+        })
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 0
+
+    class FilterMutate(object):
+        def __init__(self, key, value):
+            self.key = key
+            self.value = value
+
+        def process_trace(self, trace):
+            for s in trace:
+                s.set_tag(self.key, self.value)
+            return trace
+
+    t.configure(settings={
+        "FILTERS": [FilterMutate("boop", "beep")],
+        })
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 2
+    s1, s2 = spans
+    assert s1.get_tag("boop") == "beep"
+    assert s2.get_tag("boop") == "beep"
+
+
+    # Test multiple filters
+    t.configure(settings={
+        "FILTERS": [FilterMutate("boop", "beep"),FilterMutate("mats", "sundin")],
+        })
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 2
+    for s in spans:
+        assert s.get_tag("boop") == "beep"
+        assert s.get_tag("mats") == "sundin"
