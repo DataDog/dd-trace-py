@@ -49,66 +49,10 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
-  }
-  label {
-    key: 26
-    str: 27
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 3
-  value: 0
   value: 0
   value: 0
   value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
-  }
-  label {
-    key: 26
-    str: 28
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 3
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 2
-  value: 8231780
+  value: 7483390
   value: 2
   value: 7202807
   value: 0
@@ -119,11 +63,109 @@ sample {
   }
   label {
     key: 24
-    str: 25
   }
   label {
-    key: 29
+    key: 25
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 748390
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
     str: 30
+  }
+  label {
+    key: 25
+    str: 31
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 33
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 34
   }
 }
 sample {
@@ -146,51 +188,19 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
-  }
-  label {
-    key: 33
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 3
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 31
-    str: 32
-  }
-  label {
-    key: 24
-    str: 25
-  }
-  label {
-    key: 33
-  }
-  label {
-    key: 26
     str: 27
   }
+  label {
+    key: 25
+  }
+  label {
+    key: 26
+  }
 }
 sample {
   location_id: 1
@@ -212,19 +222,60 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
+    key: 25
   }
   label {
     key: 26
-    str: 34
+  }
+  label {
+    key: 32
+    str: 33
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 35
+    str: 36
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 25
+  }
+  label {
+    key: 26
+  }
+  label {
+    key: 32
+    str: 37
   }
 }
 sample {
@@ -247,45 +298,20 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
-    str: 35
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 3
-  location_id: 7
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
+    key: 25
+    str: 38
   }
   label {
     key: 26
-    str: 27
+    str: 39
   }
 }
 sample {
@@ -310,11 +336,46 @@ sample {
   }
   label {
     key: 24
-    str: 25
   }
   label {
-    key: 29
-    str: 30
+    key: 25
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  location_id: 7
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 33
   }
 }
 sample {
@@ -338,19 +399,22 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
+    key: 25
   }
   label {
     key: 26
-    str: 34
+  }
+  label {
+    key: 32
+    str: 37
   }
 }
 sample {
@@ -374,44 +438,20 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
-    str: 35
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 4
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
+    key: 25
+    str: 38
   }
   label {
     key: 26
-    str: 27
+    str: 40
   }
 }
 sample {
@@ -435,11 +475,45 @@ sample {
   }
   label {
     key: 24
-    str: 25
   }
   label {
-    key: 29
-    str: 30
+    key: 25
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 4
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 33
   }
 }
 sample {
@@ -462,19 +536,22 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
+    key: 25
   }
   label {
     key: 26
-    str: 28
+  }
+  label {
+    key: 32
+    str: 34
   }
 }
 sample {
@@ -497,45 +574,20 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
-    str: 35
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 4
-  location_id: 5
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
+    key: 25
+    str: 38
   }
   label {
     key: 26
-    str: 27
+    str: 41
   }
 }
 sample {
@@ -560,11 +612,46 @@ sample {
   }
   label {
     key: 24
-    str: 25
   }
   label {
-    key: 29
-    str: 30
+    key: 25
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 4
+  location_id: 5
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 33
   }
 }
 sample {
@@ -588,15 +675,18 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
+    key: 25
+  }
+  label {
+    key: 26
   }
 }
 sample {
@@ -620,47 +710,22 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
-  }
-  label {
-    key: 26
-    str: 34
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 8
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
+    key: 25
   }
   label {
     key: 26
-    str: 28
+  }
+  label {
+    key: 32
+    str: 37
   }
 }
 sample {
@@ -684,11 +749,45 @@ sample {
   }
   label {
     key: 24
-    str: 25
   }
   label {
-    key: 29
-    str: 30
+    key: 25
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 8
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 34
   }
 }
 sample {
@@ -711,19 +810,22 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
+    key: 25
   }
   label {
     key: 26
-    str: 34
+  }
+  label {
+    key: 32
+    str: 37
   }
 }
 sample {
@@ -746,44 +848,20 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
-    str: 35
-  }
-}
-sample {
-  location_id: 1
-  location_id: 6
-  location_id: 3
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 22
-    str: 23
-  }
-  label {
-    key: 24
-    str: 25
+    key: 25
+    str: 38
   }
   label {
     key: 26
-    str: 27
+    str: 40
   }
 }
 sample {
@@ -807,11 +885,45 @@ sample {
   }
   label {
     key: 24
-    str: 25
   }
   label {
-    key: 29
-    str: 30
+    key: 25
+  }
+  label {
+    key: 26
+    str: 27
+  }
+  label {
+    key: 28
+    str: 29
+  }
+}
+sample {
+  location_id: 1
+  location_id: 6
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 24
+    str: 27
+  }
+  label {
+    key: 32
+    str: 33
   }
 }
 sample {
@@ -834,15 +946,18 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 35
+    str: 36
   }
   label {
     key: 24
-    str: 25
+    str: 27
   }
   label {
-    key: 33
+    key: 25
+  }
+  label {
+    key: 26
   }
 }
 sample {
@@ -865,25 +980,29 @@ sample {
     str: 23
   }
   label {
-    key: 31
-    str: 32
-  }
-  label {
-    key: 24
-    str: 25
-  }
-  label {
-    key: 33
+    key: 35
     str: 36
   }
   label {
-    key: 26
+    key: 24
     str: 27
+  }
+  label {
+    key: 25
+    str: 42
+  }
+  label {
+    key: 26
+    str: 43
+  }
+  label {
+    key: 32
+    str: 33
   }
 }
 mapping {
   id: 1
-  filename: 38
+  filename: 45
 }
 location {
   id: 1
@@ -992,24 +1111,31 @@ string_table: "bytes"
 string_table: "thread id"
 string_table: "67892304"
 string_table: "thread name"
+string_table: "trace id"
+string_table: "span id"
 string_table: "MainThread"
+string_table: "lock name"
+string_table: "foobar.py:12"
+string_table: "23435"
+string_table: "345432"
 string_table: "exception type"
 string_table: "exceptions.IOError"
 string_table: "exceptions.ValueError"
-string_table: "lock name"
-string_table: "foobar.py:12"
 string_table: "thread native id"
 string_table: "123987"
-string_table: "trace id"
 string_table: "exceptions.TypeError"
 string_table: "1322219321"
+string_table: "49343"
+string_table: "24930"
+string_table: "249304"
 string_table: "343332"
+string_table: "1322219"
 string_table: "time"
 string_table: "bonjour"
 time_nanos: 1
 duration_nanos: 6
 period_type {
-  type: 37
+  type: 44
   unit: 11
 }
 period: 1000000
