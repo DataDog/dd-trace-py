@@ -300,7 +300,7 @@ class Tracer(object):
             or priority_sampling is not None
             or sampler is not None
         ):
-            # Preserve hostname and port when overriding filters or priority sampling
+            # Preserve hostname and port when overriding priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
                 default_hostname = self.writer.api.hostname
