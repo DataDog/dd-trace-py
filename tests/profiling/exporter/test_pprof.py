@@ -443,6 +443,8 @@ TEST_EVENTS = {
                 ("foobar.py", 44, "func2"),
                 ("foobar.py", 19, "func5"),
             ],
+            trace_ids={23435},
+            span_ids={345432},
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,

@@ -168,10 +168,18 @@ class _PprofConverter(object):
         self._location_values[location_key]["alloc-samples"] = nevents
         self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
 
-    def convert_lock_acquire_event(self, lock_name, thread_id, thread_name, frames, nframes, events, sampling_ratio):
+    def convert_lock_acquire_event(
+        self, lock_name, thread_id, thread_name, trace_id, span_id, frames, nframes, events, sampling_ratio
+    ):
         location_key = (
             self._to_locations(frames, nframes),
-            (("thread id", str(thread_id)), ("thread name", thread_name), ("lock name", lock_name)),
+            (
+                ("thread id", str(thread_id)),
+                ("thread name", thread_name),
+                ("trace id", trace_id),
+                ("span id", span_id),
+                ("lock name", lock_name),
+            ),
         )
 
         self._location_values[location_key]["lock-acquire"] = len(events)
@@ -179,10 +187,18 @@ class _PprofConverter(object):
             sum(e.wait_time_ns for e in events) / sampling_ratio
         )
 
-    def convert_lock_release_event(self, lock_name, thread_id, thread_name, frames, nframes, events, sampling_ratio):
+    def convert_lock_release_event(
+        self, lock_name, thread_id, thread_name, trace_id, span_id, frames, nframes, events, sampling_ratio
+    ):
         location_key = (
             self._to_locations(frames, nframes),
-            (("thread id", str(thread_id)), ("thread name", thread_name), ("lock name", lock_name)),
+            (
+                ("thread id", str(thread_id)),
+                ("thread name", thread_name),
+                ("trace id", trace_id),
+                ("span id", span_id),
+                ("lock name", lock_name),
+            ),
         )
 
         self._location_values[location_key]["lock-release"] = len(events)
@@ -301,9 +317,16 @@ class PprofExporter(exporter.Exporter):
             key=self._stack_event_group_key,
         )
 
-    @staticmethod
-    def _lock_event_group_key(event):
-        return (event.lock_name, event.thread_id, str(event.thread_name), tuple(event.frames), event.nframes)
+    def _lock_event_group_key(self, event):
+        return (
+            event.lock_name,
+            event.thread_id,
+            str(event.thread_name),
+            self._get_trace_id(event),
+            self._get_span_id(event),
+            tuple(event.frames),
+            event.nframes,
+        )
 
     def _group_lock_events(self, events):
         return itertools.groupby(
@@ -402,10 +425,26 @@ class PprofExporter(exporter.Exporter):
             if lock_events:
                 sampling_ratio_avg = sampling_sum_pct / (len(lock_events) * 100.0)
 
-                for (lock_name, thread_id, thread_name, frames, nframes), l_events in self._group_lock_events(
-                    lock_events
-                ):
-                    convert_fn(lock_name, thread_id, thread_name, frames, nframes, list(l_events), sampling_ratio_avg)
+                for (
+                    lock_name,
+                    thread_id,
+                    thread_name,
+                    trace_id,
+                    span_id,
+                    frames,
+                    nframes,
+                ), l_events in self._group_lock_events(lock_events):
+                    convert_fn(
+                        lock_name,
+                        thread_id,
+                        trace_id,
+                        span_id,
+                        thread_name,
+                        frames,
+                        nframes,
+                        list(l_events),
+                        sampling_ratio_avg,
+                    )
 
         # Handle UncaughtExceptionEvent
         for (

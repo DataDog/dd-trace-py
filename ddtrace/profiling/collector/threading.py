@@ -17,14 +17,10 @@ from ddtrace.profiling.collector import _traceback
 
 
 @event.event_class
-class LockEventBase(event.Event):
+class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
     lock_name = attr.ib(default=None)
-    frames = attr.ib(default=None)
-    nframes = attr.ib(default=None)
-    thread_id = attr.ib(default=None)
-    thread_name = attr.ib(default=None)
     sampling_pct = attr.ib(default=None)
 
 
@@ -70,14 +66,26 @@ else:
 
 
 class _ProfiledLock(wrapt.ObjectProxy):
-    def __init__(self, wrapped, recorder, max_nframes, capture_sampler):
+    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler):
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
+        self._self_tracer = tracer
         self._self_max_nframes = max_nframes
         self._self_capture_sampler = capture_sampler
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+
+    def _get_trace_and_span_ids(self):
+        """Return current trace and span ids."""
+        if self._self_tracer is None:
+            return (None, None)
+
+        ctxt = self._self_tracer.get_call_context()
+        return (
+            None if ctxt.trace_id is None else {ctxt.trace_id},
+            None if ctxt.span_id is None else {ctxt.span_id},
+        )
 
     def acquire(self, *args, **kwargs):
         if not self._self_capture_sampler.capture():
@@ -91,6 +99,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
+                trace_ids, span_ids = self._get_trace_and_span_ids()
                 self._self_recorder.push_event(
                     LockAcquireEvent(
                         lock_name=self._self_name,
@@ -98,6 +107,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         nframes=nframes,
                         thread_id=thread_id,
                         thread_name=thread_name,
+                        trace_ids=trace_ids,
+                        span_ids=span_ids,
                         wait_time_ns=end - start,
                         sampling_pct=self._self_capture_sampler.capture_pct,
                     )
@@ -115,6 +126,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
                         thread_id, thread_name = _current_thread()
+                        trace_ids, span_ids = self._get_trace_and_span_ids()
                         self._self_recorder.push_event(
                             LockReleaseEvent(
                                 lock_name=self._self_name,
@@ -122,6 +134,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                                 nframes=nframes,
                                 thread_id=thread_id,
                                 thread_name=thread_name,
+                                trace_ids=trace_ids,
+                                span_ids=span_ids,
                                 locked_for_ns=end - self._self_acquired_at,
                                 sampling_pct=self._self_capture_sampler.capture_pct,
                             )
@@ -147,6 +161,7 @@ class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    tracer = attr.ib(default=None)
 
     def start(self):
         """Start collecting `threading.Lock` usage."""
@@ -166,7 +181,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
-            return _ProfiledLock(lock, self.recorder, self.nframes, self._capture_sampler)
+            return _ProfiledLock(lock, self.recorder, self.tracer, self.nframes, self._capture_sampler)
 
         threading.Lock = FunctionWrapper(self.original, _allocate_lock)
 

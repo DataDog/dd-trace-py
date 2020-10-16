@@ -6,7 +6,6 @@ import timeit
 
 import pytest
 
-import ddtrace
 from ddtrace.vendor import six
 
 from ddtrace.profiling import _nogevent
@@ -244,20 +243,18 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 238, "test_exception_collection")]
+    assert e.frames == [(__file__, 237, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
 
 @pytest.fixture
-def tracer_and_collector(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_STARTUP_LOGS", "0")
-    t = ddtrace.Tracer()
+def tracer_and_collector(tracer):
     r = recorder.Recorder()
-    c = stack.StackCollector(r, tracer=t)
+    c = stack.StackCollector(r, tracer=tracer)
     c.start()
     try:
-        yield t, c
+        yield tracer, c
     finally:
         c.stop()
 
