@@ -11,36 +11,6 @@ from tests import BaseTestCase
 MAX_NUM_SPANS = 7
 
 
-class RemoveAllFilter:
-    def __init__(self):
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        return None
-
-
-class KeepAllFilter:
-    def __init__(self):
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        return trace
-
-
-class AddTagFilter:
-    def __init__(self, tag_name):
-        self.tag_name = tag_name
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        for span in trace:
-            span.set_tag(self.tag_name, "A value")
-        return trace
-
-
 class DummyAPI(API):
     def __init__(self):
         # Call API.__init__ to setup required properties
@@ -84,7 +54,7 @@ class AgentWriterTests(BaseTestCase):
     def create_worker(self, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS):
         with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
             self.dogstatsd = mock.Mock()
-            worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
+            worker = AgentWriter(dogstatsd=self.dogstatsd)
             worker._STATS_EVERY_INTERVAL = 1
             self.api = api_class()
             worker.api = self.api
