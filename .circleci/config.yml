@@ -743,7 +743,7 @@ jobs:
 
   deploy_master:
     # build the master branch releasing development docs and wheels
-    <<: *machine_executor
+    executor: ddtrace_dev
     steps:
       - checkout
       - *pyenv-set-global
