@@ -185,17 +185,17 @@ setup(
                     sources=["ddtrace/internal/_rand.pyx"],
                     language="c",
                 ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._buffer",
+                    sources=["ddtrace/internal/_buffer.pyx"],
+                    language="c",
+                ),
                 Extension(
                     "ddtrace.internal._encoding",
                     ["ddtrace/internal/_encoding.pyx"],
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._queue",
-                    sources=["ddtrace/internal/_queue.pyx"],
-                    language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",

@@ -445,10 +445,10 @@ class DummyTracer(Tracer):
             self.original_writer = self.writer
         # LogWriters don't have an api property, so we test that
         # exists before using it to assign hostname/port
-        if hasattr(self.writer, "api"):
+        if isinstance(self.writer, AgentWriter):
             self.writer = DummyWriter(
-                hostname=self.writer.api.hostname,
-                port=self.writer.api.port,
+                hostname=self.writer._hostname,
+                port=self.writer._port,
                 priority_sampler=self.writer._priority_sampler,
             )
         else:
@@ -830,7 +830,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
             # identify the snapshot.
             token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, f.__name__)
 
-            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
             try:
                 # Signal the start of this test case to the test agent.
                 try:
@@ -850,7 +850,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
                 tracer.writer.flush_queue()
 
                 # Query for the results of the test.
-                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+                conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
                 conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
                 r = conn.getresponse()
                 if r.status != 200:

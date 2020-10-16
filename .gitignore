@@ -11,7 +11,7 @@ ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
-ddtrace/internal/_queue.c
+ddtrace/internal/_buffer.c
 *.so
 
 # Distribution / packaging

@@ -4,6 +4,8 @@ import math
 import mock
 import subprocess
 import sys
+import types
+
 import ddtrace
 
 from unittest import TestCase, skip, skipUnless
@@ -18,7 +20,6 @@ from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.payload import Payload
 from ddtrace.span import Span
-from ddtrace.compat import monotonic
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -37,15 +38,10 @@ class MockedLogHandler(logging.Handler):
             self.release()
 
 
-class FlawedAPI(API):
-    """
-    Deliberately report data with an incorrect method to trigger a 4xx response
-    """
-
-    def _put(self, endpoint, data, count=0):
-        conn = httplib.HTTPConnection(self.hostname, self.port)
-        conn.request("HEAD", endpoint, data, self._headers)
-        return Response.from_http_response(conn.getresponse())
+def _flawed_put(self, data, headers):
+    conn = httplib.HTTPConnection(self._hostname, self._port)
+    conn.request("HEAD", self._endpoint, data, headers)
+    return Response.from_http_response(conn.getresponse())
 
 
 @skipUnless(
@@ -66,8 +62,8 @@ class TestWorkers(TestCase):
         # create a new tracer
         self.tracer = Tracer()
         # spy the send() method
-        self.api = self.tracer.writer.api
-        self.api._put = mock.Mock(self.api._put, wraps=self.api._put)
+        self.writer = self.tracer.writer
+        self.writer._put = mock.Mock(self.writer._put, wraps=self.writer._put)
 
     def tearDown(self):
         """
@@ -83,16 +79,14 @@ class TestWorkers(TestCase):
         self.tracer.writer.stop()
         self.tracer.writer.join(None)
 
-    def _get_endpoint_payload(self, calls, endpoint):
+    def _get_endpoint_payload(self, calls):
         """
         Helper to retrieve the endpoint call from a concurrent
         trace or service call.
         """
         for call, _ in calls:
-            if endpoint in call[0]:
-                return call[0], self.api._encoder._decode(call[1])
-
-        return None, None
+            return self.writer._encoder._decode(call[0])
+        return None
 
     @skipUnless(
         os.environ.get("TEST_DATADOG_INTEGRATION_UDS", False),
@@ -102,33 +96,24 @@ class TestWorkers(TestCase):
         self.tracer.configure(uds_path="/tmp/ddagent/trace.sock")
         # Write a first trace so we get a _worker
         self.tracer.trace("client.testing").finish()
-        worker = self.tracer.writer
-        worker._log_error_status = mock.Mock(
-            worker._log_error_status,
-            wraps=worker._log_error_status,
-        )
-        self.tracer.trace("client.testing").finish()
+        with mock.patch("ddtrace.internal.writer.log") as log_mock:
+            self.tracer.trace("client.testing").finish()
 
-        # one send is expected
-        self._wait_thread_flush()
-        # Check that no error was logged
-        assert worker._log_error_status.call_count == 0
+            # one send is expected
+            self._wait_thread_flush()
+            # Check that no error was logged
+            assert log_mock.error.call_count == 0
 
     def test_worker_single_trace_uds_wrong_socket_path(self):
         self.tracer.configure(uds_path="/tmp/ddagent/nosockethere")
         # Write a first trace so we get a _worker
         self.tracer.trace("client.testing").finish()
-        worker = self.tracer.writer
-        worker._log_error_status = mock.Mock(
-            worker._log_error_status,
-            wraps=worker._log_error_status,
-        )
-        self.tracer.trace("client.testing").finish()
+        with mock.patch("ddtrace.internal.writer.log") as log_mock:
+            self.tracer.trace("client.testing").finish()
 
-        # one send is expected
-        self._wait_thread_flush()
-        # Check that no error was logged
-        assert worker._log_error_status.call_count == 1
+            # one send is expected
+            self._wait_thread_flush()
+        log_mock.error.call_count == 1
 
     def test_worker_single_trace(self):
         # create a trace block and send it using the transport system
@@ -137,10 +122,10 @@ class TestWorkers(TestCase):
 
         # one send is expected
         self._wait_thread_flush()
-        assert self.api._put.call_count == 1
+        assert self.writer._put.call_count == 1
+        assert self.writer._endpoint == "/v0.4/traces"
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, "/v0.4/traces")
-        assert endpoint == "/v0.4/traces"
+        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
         assert len(payload) == 1
         assert len(payload[0]) == 1
         assert payload[0][0][b"name"] == b"client.testing"
@@ -155,10 +140,10 @@ class TestWorkers(TestCase):
 
         # one send is expected
         self._wait_thread_flush()
-        assert self.api._put.call_count == 1
+        assert self.writer._put.call_count == 1
+        assert self.writer._endpoint == "/v0.4/traces"
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, "/v0.4/traces")
-        assert endpoint == "/v0.4/traces"
+        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
         assert len(payload) == 2
         assert len(payload[0]) == 1
         assert len(payload[1]) == 1
@@ -174,10 +159,10 @@ class TestWorkers(TestCase):
 
         # one send is expected
         self._wait_thread_flush()
-        assert self.api._put.call_count == 1
+        assert self.writer._put.call_count == 1
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, "/v0.4/traces")
-        assert endpoint == "/v0.4/traces"
+        assert self.writer._endpoint == "/v0.4/traces"
+        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
         assert len(payload) == 1
         assert len(payload[0]) == 2
         assert payload[0][0][b"name"] == b"client.testing"
@@ -186,7 +171,7 @@ class TestWorkers(TestCase):
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
-        self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
+        self.tracer.writer._put = types.MethodType(_flawed_put, self.tracer.writer)
         tracer.trace("client.testing").finish()
 
         log = logging.getLogger("ddtrace.internal.writer")
@@ -194,8 +179,6 @@ class TestWorkers(TestCase):
         log.addHandler(log_handler)
 
         self._wait_thread_flush()
-        assert tracer.writer._last_error_ts < monotonic()
-
         logged_errors = log_handler.messages["error"]
         assert len(logged_errors) == 1
         assert (
@@ -215,10 +198,10 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
 
         # Only the second trace should have been sent
-        assert self.api._put.call_count == 1
+        assert self.writer._put.call_count == 1
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, "/v0.4/traces")
-        assert endpoint == "/v0.4/traces"
+        assert self.writer._endpoint == "/v0.4/traces"
+        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
         assert len(payload) == 1
         assert payload[0][0][b"name"] == b"testing.nonfilteredurl"
 
@@ -327,35 +310,6 @@ class TestAPITransport(TestCase):
         logged_warnings = log_handler.messages["warning"]
         assert len(logged_warnings) == 1
         assert "Trace is larger than the max payload size, dropping it" in logged_warnings[0]
-
-    def test_send_multiple_trace_max_payload(self):
-        payload = Payload()
-
-        # compute number of spans to create to surpass max payload
-        trace = [Span(self.tracer, "child.span")]
-        trace_size = len(payload.encoder.encode_trace(trace))
-        num_spans = int(math.floor((payload.max_payload_size - trace_size) / trace_size))
-
-        # setup logging capture
-        log = logging.getLogger("ddtrace.api")
-        log_handler = MockedLogHandler(level="WARNING")
-        log.addHandler(log_handler)
-
-        self.tracer.trace("client.testing").finish()
-        traces = [self.tracer.writer.pop()]
-
-        # create a trace larger than max payload size
-        with self.tracer.trace("client.testing"):
-            for n in range(num_spans):
-                self.tracer.trace("child.span").finish()
-
-        traces.append(self.tracer.writer.pop())
-
-        self._send_traces_and_check(traces, 2)
-
-        logged_warnings = log_handler.messages["warning"]
-        assert len(logged_warnings) == 1
-        assert "Trace is too big to fit in a payload, dropping it" in logged_warnings[0]
 
     def test_send_single_with_wrong_errors(self):
         # if the error field is set to True, it must be cast as int so
@@ -488,14 +442,14 @@ class TestConfigure(TestCase):
 
     def test_configure_keeps_api_hostname_and_port(self):
         tracer = Tracer()  # use real tracer with real api
-        assert "localhost" == tracer.writer.api.hostname
-        assert 8126 == tracer.writer.api.port
+        assert "localhost" == tracer.writer._hostname
+        assert 8126 == tracer.writer._port
         tracer.configure(hostname="127.0.0.1", port=8127)
-        assert "127.0.0.1" == tracer.writer.api.hostname
-        assert 8127 == tracer.writer.api.port
+        assert "127.0.0.1" == tracer.writer._hostname
+        assert 8127 == tracer.writer._port
         tracer.configure(priority_sampling=True)
-        assert "127.0.0.1" == tracer.writer.api.hostname
-        assert 8127 == tracer.writer.api.port
+        assert "127.0.0.1" == tracer.writer._hostname
+        assert 8127 == tracer.writer._port
 
 
 def test_debug_mode():

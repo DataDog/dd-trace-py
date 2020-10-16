@@ -39,5 +39,5 @@ def test_configure_from_settings(tracer):
 
         assert pin.tracer.enabled is True
         assert pin.tracer.tags["env"] == "env-test"
-        assert pin.tracer.writer.api.hostname == "host-test"
-        assert pin.tracer.writer.api.port == 1234
+        assert pin.tracer.writer._hostname == "host-test"
+        assert pin.tracer.writer._port == 1234
