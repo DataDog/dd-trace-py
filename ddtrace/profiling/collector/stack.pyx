@@ -294,6 +294,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
                 trace_ids=set(span.trace_id for span in spans),
+                span_ids=set(span.span_id for span in spans),
                 nframes=nframes, frames=frames,
                 wall_time_ns=wall_time,
                 cpu_time_ns=cpu_time,

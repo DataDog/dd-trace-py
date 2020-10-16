@@ -125,7 +125,7 @@ class Profiler(object):
             stack.StackCollector(r, tracer=self.tracer),
             mem_collector,
             exceptions.UncaughtExceptionCollector(r),
-            threading.LockCollector(r),
+            threading.LockCollector(r, tracer=self.tracer),
         ]
 
         exporters = self._build_default_exporters(self.service, self.env, self.version)
