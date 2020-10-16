@@ -296,7 +296,6 @@ class Tracer(object):
             or port is not None
             or uds_path is not None
             or https is not None
-            or filters is not None
             or priority_sampling is not None
             or sampler is not None
         ):
