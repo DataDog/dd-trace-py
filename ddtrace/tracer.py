@@ -102,6 +102,7 @@ class Tracer(object):
         self.sampler = None
         self.priority_sampler = None
         self._runtime_worker = None
+        self.filters = []
 
         uds_path = None
         https = None
@@ -265,9 +266,11 @@ class Tracer(object):
         if enabled is not None:
             self.enabled = enabled
 
-        filters = None
+        filters = []
         if settings is not None:
             filters = settings.get(FILTERS_KEY)
+
+        self.filters = filters
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
@@ -301,10 +304,10 @@ class Tracer(object):
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
-                default_hostname = self.writer.api.hostname
-                default_port = self.writer.api.port
+                default_hostname = self.writer._hostname
+                default_port = self.writer._port
                 if https is None:
-                    https = self.writer.api.https
+                    https = self.writer._https
             else:
                 default_hostname = self.DEFAULT_HOSTNAME
                 default_port = self.DEFAULT_PORT
@@ -317,14 +320,9 @@ class Tracer(object):
                 port or default_port,
                 uds_path=uds_path,
                 https=https,
-                filters=filters,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
-                dogstatsd=self._dogstatsd_client,
             )
-
-        # HACK: since we recreated our dogstatsd agent, replace the old write one
-        self.writer.dogstatsd = self._dogstatsd_client
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -344,7 +342,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
+        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -690,7 +688,16 @@ class Tracer(object):
                 self.log.debug('\n%s', span.pprint())
 
         if self.enabled and self.writer:
-            # only submit the spans if we're actually enabled (and don't crash :)
+            for filtr in self.filters:
+                try:
+                    spans = filtr.process_trace(spans)
+                except Exception:
+                    log.error("error while filtering traces", exc_info=True)
+                    return
+                else:
+                    if not spans:
+                        return
+
             self.writer.write(spans=spans)
 
     @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
