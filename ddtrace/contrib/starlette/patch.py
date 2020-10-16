@@ -22,19 +22,9 @@ config._add(
 )
 
 
-def traced_init(wrapped, instance, args, kwargs):
-    global routes
-    routes = kwargs["routes"]
-    mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
-    kwargs.update({"middleware": mw})
-
-    wrapped(*args, **kwargs)
-
-
 def get_resource(scope):
     path = None
-    global routes
+    routes = scope["app"].routes
     for route in routes:
         match, _ = route.matches(scope)
         if match == Match.FULL:
@@ -45,15 +35,18 @@ def get_resource(scope):
     return path
 
 
-def call_decorator(func):
-    def call_wrapper(*args, **kwargs):
-        resource = get_resource(args[1])
-        if config.starlette["aggregate_resources"]:
-            args[1]["resource"] = resource
-        r = func(*args, **kwargs)
-        return r
+def span_modifier(span, scope):
+    resource = get_resource(scope)
+    if config.starlette["aggregate_resources"] and resource:
+        span.resource = "{} {}".format(scope["method"], resource)
 
-    return call_wrapper
+
+def traced_init(wrapped, instance, args, kwargs):
+    mw = kwargs.pop("middleware", [])
+    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette, span_modifier=span_modifier))
+    kwargs.update({"middleware": mw})
+
+    wrapped(*args, **kwargs)
 
 
 def patch():
@@ -63,7 +56,6 @@ def patch():
     setattr(starlette, "_datadog_patch", True)
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
-    TraceMiddleware.__call__ = call_decorator(TraceMiddleware.__call__)
 
 
 def unpatch():
