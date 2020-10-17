@@ -97,7 +97,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call("datadog.tracer.flushes"),
             mock.call("datadog.tracer.flush.traces.total", 11, tags=None),
             mock.call("datadog.tracer.flush.spans.total", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
             mock.call("datadog.tracer.api.requests.total", 11, tags=None),
             mock.call("datadog.tracer.api.errors.total", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull.total", 0, tags=None),
@@ -111,7 +110,6 @@ class AgentWriterTests(BaseTestCase):
         histogram_calls = [
             mock.call("datadog.tracer.flush.traces", 11, tags=None),
             mock.call("datadog.tracer.flush.spans", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
             mock.call("datadog.tracer.api.requests", 11, tags=None),
             mock.call("datadog.tracer.api.errors", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull", 0, tags=None),
@@ -134,7 +132,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call("datadog.tracer.flushes"),
             mock.call("datadog.tracer.flush.traces.total", 1, tags=None),
             mock.call("datadog.tracer.flush.spans.total", num_spans, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
             mock.call("datadog.tracer.api.requests.total", 1, tags=None),
             mock.call("datadog.tracer.api.errors.total", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull.total", 1, tags=None),
@@ -147,7 +144,6 @@ class AgentWriterTests(BaseTestCase):
         histogram_calls = [
             mock.call("datadog.tracer.flush.traces", 1, tags=None),
             mock.call("datadog.tracer.flush.spans", num_spans, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
             mock.call("datadog.tracer.api.requests", 1, tags=None),
             mock.call("datadog.tracer.api.errors", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull", 1, tags=None),
@@ -168,7 +164,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call("datadog.tracer.flushes"),
             mock.call("datadog.tracer.flush.traces.total", 11, tags=None),
             mock.call("datadog.tracer.flush.spans.total", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
             mock.call("datadog.tracer.api.requests.total", 1, tags=None),
             mock.call("datadog.tracer.api.errors.total", 1, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull.total", 0, tags=None),
@@ -181,7 +176,6 @@ class AgentWriterTests(BaseTestCase):
         histogram_calls = [
             mock.call("datadog.tracer.flush.traces", 11, tags=None),
             mock.call("datadog.tracer.flush.spans", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
             mock.call("datadog.tracer.api.requests", 1, tags=None),
             mock.call("datadog.tracer.api.errors", 1, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull", 0, tags=None),
