@@ -7,6 +7,7 @@ import logging
 
 import ddtrace
 from ddtrace.compat import PY2
+from ddtrace.utils.formats import asbool, get_env
 
 
 if PY2:
@@ -14,10 +15,6 @@ if PY2:
     class PermissionError(Exception):  # noqa
         pass
 
-
-debug = os.environ.get("DD_TRACE_DEBUG", os.environ.get("DATADOG_TRACE_DEBUG"))
-if debug and debug.lower() == "true":
-    logging.basicConfig(level=logging.DEBUG)
 
 # Do not use `ddtrace.internal.logger.get_logger` here
 # DEV: It isn't really necessary to use `DDLogger` here so we want to
@@ -69,7 +66,10 @@ def main():
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
-    if args.debug:
+    debug_mode = args.debug or asbool(get_env("trace", "debug", default=False))
+
+    if debug_mode:
+        logging.basicConfig(level=logging.DEBUG)
         os.environ["DD_TRACE_DEBUG"] = "true"
 
     if args.info:

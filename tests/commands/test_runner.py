@@ -297,7 +297,11 @@ def test_env_profiling_enabled(monkeypatch):
 
 
 def test_version():
-    p = subprocess.Popen(["ddtrace-run", "-v"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    p = subprocess.Popen(
+        ["ddtrace-run", "-v"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     p.wait()
     assert p.returncode == 0
 
@@ -308,7 +312,11 @@ def test_version():
     else:
         assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
 
-    p = subprocess.Popen(["ddtrace-run", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    p = subprocess.Popen(
+        ["ddtrace-run", "--version"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     p.wait()
     assert p.returncode == 0
     if PY3:
@@ -318,7 +326,11 @@ def test_version():
 
 
 def test_bad_executable():
-    p = subprocess.Popen(["ddtrace-run", "executable-does-not-exist"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    p = subprocess.Popen(
+        ["ddtrace-run", "executable-does-not-exist"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     p.wait()
     assert p.returncode == 1
     assert p.stdout.read() == six.b(
@@ -329,7 +341,11 @@ def test_bad_executable():
 
 def test_executable_no_perms():
     fd, path = tempfile.mkstemp(suffix=".py")
-    p = subprocess.Popen(["ddtrace-run", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    p = subprocess.Popen(
+        ["ddtrace-run", path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     p.wait()
     assert p.returncode == 1
     assert p.stdout.read() == six.b(
@@ -344,7 +360,9 @@ def test_command_flags():
 
 
 def test_return_code():
-    p = subprocess.Popen(["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(
+        ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     p.wait()
 
     assert p.returncode == 4
@@ -352,7 +370,9 @@ def test_return_code():
 
 def test_debug_mode():
     p = subprocess.Popen(
-        ["ddtrace-run", "--debug", "python", "-c", "''"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        ["ddtrace-run", "--debug", "python", "-c", "''"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     p.wait()
     assert p.returncode == 0
@@ -361,7 +381,11 @@ def test_debug_mode():
 
 
 def test_info():
-    p = subprocess.Popen(["ddtrace-run", "--info"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    p = subprocess.Popen(
+        ["ddtrace-run", "--info"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     p.wait()
     assert p.returncode == 0
     stdout = p.stdout.read()
@@ -369,7 +393,11 @@ def test_info():
 
 
 def test_no_args():
-    p = subprocess.Popen(["ddtrace-run"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    p = subprocess.Popen(
+        ["ddtrace-run"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     p.wait()
     assert p.returncode == 1
     assert six.b("usage:") in p.stdout.read()
