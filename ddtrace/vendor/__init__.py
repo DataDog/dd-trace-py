@@ -85,6 +85,19 @@ Source: https://github.com/python-attrs/attrs
 Version: 19.3.0
 License: MIT
 
+
+contextvars
+-------------
+
+Source: https://github.com/MagicStack/contextvars
+Version: 2.4
+License: Apache License 2.0
+
+Notes:
+  - removal of metaclass usage
+  - formatting
+  - use a plain old dict instead of immutables.Map
+  - removal of `*` syntax
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

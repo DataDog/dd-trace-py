@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
-    "asyncio": False,
+    "asyncio": True,
     "boto": True,
     "botocore": True,
     "bottle": False,
@@ -58,12 +58,15 @@ PATCH_MODULES = {
     "mako": True,
     "flask": True,
     "kombu": False,
+    "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": False,
     "pylons": False,
     "pyramid": False,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "pynamodb": True,
+    "pyodbc": True,
 }
 
 _LOCK = threading.Lock()
@@ -75,16 +78,25 @@ _PATCHED_MODULES = set()
 # DEV: This ensures we do not patch a module until it is needed
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
+    "aiohttp": ("aiohttp",),
+    "aiobotocore": ("aiobotocore",),
     "celery": ("celery",),
     "flask": ("flask, "),
     "gevent": ("gevent",),
     "requests": ("requests",),
+    "botocore": ("botocore",),
+    "elasticsearch": ("elasticsearch",),
+    "pynamodb": ("pynamodb",),
 }
 
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
 
+    pass
+
+
+class ModuleNotFoundException(PatchException):
     pass
 
 
@@ -157,7 +169,10 @@ def patch(raise_errors=True, **patch_modules):
 
     patched_modules = get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)", len(patched_modules), len(modules), ",".join(patched_modules),
+        "patched %s/%s modules (%s)",
+        len(patched_modules),
+        len(modules),
+        ",".join(patched_modules),
     )
 
 
@@ -168,6 +183,10 @@ def patch_module(module, raise_errors=True):
     """
     try:
         return _patch_module(module)
+    except ModuleNotFoundException:
+        if raise_errors:
+            raise
+        return False
     except Exception:
         if raise_errors:
             raise
@@ -195,14 +214,15 @@ def _patch_module(module):
 
         try:
             imported_module = importlib.import_module(path)
-            imported_module.patch()
         except ImportError:
             # if the import fails, the integration is not available
             raise PatchException("integration '%s' not available" % path)
-        except AttributeError:
+        else:
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
-            raise PatchException("module '%s' not installed" % module)
+            if not hasattr(imported_module, "patch"):
+                raise ModuleNotFoundException("module '%s' not installed" % module)
 
-        _PATCHED_MODULES.add(module)
-        return True
+            imported_module.patch()
+            _PATCHED_MODULES.add(module)
+            return True

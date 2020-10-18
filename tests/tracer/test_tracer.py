@@ -1103,3 +1103,15 @@ def test_runtime_id_fork():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_multiple_tracer_ctx():
+    t1 = ddtrace.Tracer()
+    t2 = ddtrace.Tracer()
+
+    with t1.trace("") as s1:
+        with t2.trace("") as s2:
+            pass
+
+    assert s2.parent_id == s1.span_id
+    assert s2.trace_id == s1.trace_id

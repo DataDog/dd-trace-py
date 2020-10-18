@@ -1,5 +1,7 @@
+import sys
+
 # Third party
-from ddtrace.vendor import wrapt
+from ddtrace.vendor import wrapt, six
 
 # Project
 from ...compat import PY2, httplib, parse
@@ -75,10 +77,21 @@ def _wrap_request(func, instance, args, kwargs):
                 headers = kwargs.setdefault('headers', {})
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
-
     except Exception:
         log.debug('error configuring request', exc_info=True)
-    return func(*args, **kwargs)
+        span = getattr(instance, "_datadog_span", None)
+        if span:
+            span.finish()
+
+    try:
+        return func(*args, **kwargs)
+    except Exception:
+        span = getattr(instance, "_datadog_span", None)
+        exc_info = sys.exc_info()
+        if span:
+            span.set_exc_info(*exc_info)
+            span.finish()
+        six.reraise(*exc_info)
 
 
 def _wrap_putrequest(func, instance, args, kwargs):
@@ -127,7 +140,21 @@ def _wrap_putrequest(func, instance, args, kwargs):
         )
     except Exception:
         log.debug('error applying request tags', exc_info=True)
-    return func(*args, **kwargs)
+
+        # Close the span to prevent memory leaks.
+        span = getattr(instance, "_datadog_span", None)
+        if span:
+            span.finish()
+
+    try:
+        return func(*args, **kwargs)
+    except Exception:
+        span = getattr(instance, "_datadog_span", None)
+        exc_info = sys.exc_info()
+        if span:
+            span.set_exc_info(*exc_info)
+            span.finish()
+        six.reraise(*exc_info)
 
 
 def _wrap_putheader(func, instance, args, kwargs):

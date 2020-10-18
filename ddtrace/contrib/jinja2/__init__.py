@@ -25,7 +25,7 @@ The library can be configured globally and per instance, using the Configuration
     cfg['service_name'] = 'jinja-templates'
 
 By default, the service name is set to None, so it is inherited from the parent span.
-If there is no parent span and the service name is not overriden the agent will drop the traces.
+If there is no parent span and the service name is not overridden the agent will drop the traces.
 """
 from ...utils.importlib import require_modules
 

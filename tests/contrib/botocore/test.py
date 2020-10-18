@@ -101,10 +101,16 @@ class BotocoreTest(TracerTestCase):
 
     @mock_s3
     def test_s3_put(self):
-        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
         s3 = self.session.create_client('s3', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
-        s3.create_bucket(Bucket='mybucket')
+        params = {
+            "Bucket": "mybucket",
+            "CreateBucketConfiguration": {
+                "LocationConstraint": "us-west-2",
+            }
+        }
+        s3.create_bucket(**params)
+        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
         s3.put_object(**params)
 
         spans = self.get_spans()

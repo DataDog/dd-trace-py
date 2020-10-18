@@ -72,7 +72,9 @@ def total_time(time_data, funcname):
 def test_accuracy(monkeypatch):
     # Set this to 100 so we don't sleep too often and mess with the precision.
     monkeypatch.setenv("DD_PROFILING_MAX_TIME_USAGE_PCT", "100")
-    p = profiler.Profiler(exporters=[])
+    p = profiler.Profiler()
+    # don't export data
+    p._scheduler = None
     p.start()
     spend_16()
     p.stop()

@@ -41,6 +41,7 @@ reload_module = six.moves.reload_module
 
 stringify = six.text_type
 string_type = six.string_types[0]
+binary_type = six.binary_type
 msgpack_type = six.binary_type
 # DEV: `six` doesn't have `float` in `integer_types`
 numeric_types = six.integer_types + (float,)
@@ -183,3 +184,13 @@ def get_connection_response(conn):
         return conn.getresponse(buffering=True)
     else:
         return conn.getresponse()
+
+
+try:
+    import contextvars  # noqa
+except ImportError:
+    from ddtrace.vendor import contextvars  # noqa
+
+    CONTEXTVARS_IS_AVAILABLE = False
+else:
+    CONTEXTVARS_IS_AVAILABLE = True

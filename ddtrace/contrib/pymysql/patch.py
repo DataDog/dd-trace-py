@@ -3,9 +3,15 @@ from ddtrace.vendor import wrapt
 import pymysql
 
 # project
-from ddtrace import Pin
+from ddtrace import config, Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ...ext import net, db
+
+
+config._add("pymysql", dict(
+    # TODO[v1.0] this should be "mysql"
+    _default_service="pymysql",
+))
 
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: 'host',
@@ -31,9 +37,9 @@ def _connect(func, instance, args, kwargs):
 
 def patch_conn(conn):
     tags = {t: getattr(conn, a, '') for t, a in CONN_ATTR_BY_TAG.items()}
-    pin = Pin(service='pymysql', app='pymysql', tags=tags)
+    pin = Pin(app='pymysql', tags=tags)
 
     # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin)
+    wrapped = TracedConnection(conn, pin=pin, cfg=config.pymysql)
     pin.onto(wrapped)
     return wrapped

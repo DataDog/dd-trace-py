@@ -1,5 +1,3 @@
-import os
-
 import grpc
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -13,27 +11,15 @@ from .server_interceptor import create_server_interceptor
 
 
 config._add('grpc_server', dict(
-    service_name=config._get_service(default=constants.GRPC_SERVICE_SERVER),
+    _default_service=constants.GRPC_SERVICE_SERVER,
     distributed_tracing_enabled=True,
 ))
-
-
-# Precedence for the service name:
-# 1) DD_GRPC_SERVICE if defined; or
-# 2) For compatibility, the globally set service + "-grpc-client"; or
-# 3) The fall-back "grpc-client"
-if "DD_GRPC_SERVICE" in os.environ:
-    service = os.getenv("DD_GRPC_SERVICE")
-elif config._get_service():
-    service = "{}-{}".format(config._get_service(), constants.GRPC_SERVICE_CLIENT)
-else:
-    service = constants.GRPC_SERVICE_CLIENT
 
 
 # TODO[tbutt]: keeping name for client config unchanged to maintain backwards
 # compatibility but should change in future
 config._add('grpc', dict(
-    service_name=service,
+    _default_service=constants.GRPC_SERVICE_CLIENT,
     distributed_tracing_enabled=True,
 ))
 

@@ -65,3 +65,15 @@ if is_module_patched("threading"):
 
 else:
     DoubleLock = threading.Lock
+
+
+if is_module_patched("threading"):
+    # NOTE: bold assumption: this module is always imported by the MainThread.
+    # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
+    # We don't have the choice has we can't access the original MainThread
+    main_thread_id = thread_get_ident()
+else:
+    if six.PY2:
+        main_thread_id = threading._MainThread().ident
+    else:
+        main_thread_id = threading.main_thread().ident

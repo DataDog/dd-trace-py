@@ -11,10 +11,12 @@ import mock
 import pytest
 
 from ddtrace.profiling.collector import exceptions
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
+from ddtrace.vendor import six
 
 
 TEST_EVENTS = {
@@ -24,7 +26,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             exc_type=TypeError,
             sampling_period=1000000,
             nframes=3,
@@ -34,7 +40,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
             sampling_period=1000000,
             exc_type=TypeError,
             nframes=3,
@@ -44,7 +54,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             sampling_period=1000000,
             exc_type=TypeError,
             nframes=4,
@@ -54,7 +68,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             sampling_period=1000000,
             exc_type=TypeError,
             nframes=6,
@@ -64,7 +82,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             sampling_period=1000000,
             exc_type=ValueError,
             nframes=3,
@@ -74,7 +96,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             sampling_period=1000000,
             exc_type=IOError,
             nframes=3,
@@ -84,8 +110,13 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             trace_ids=set([1322219321, 343332]),
+            span_ids=set([1322219]),
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             sampling_period=1000000,
             exc_type=IOError,
             nframes=3,
@@ -96,7 +127,11 @@ TEST_EVENTS = {
             timestamp=1,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             exc_type=ValueError,
         ),
@@ -104,7 +139,11 @@ TEST_EVENTS = {
             timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
             nframes=3,
             exc_type=ValueError,
         ),
@@ -112,7 +151,11 @@ TEST_EVENTS = {
             timestamp=3,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=4,
             exc_type=IOError,
         ),
@@ -120,7 +163,11 @@ TEST_EVENTS = {
             timestamp=4,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             nframes=6,
             exc_type=IOError,
         ),
@@ -128,7 +175,11 @@ TEST_EVENTS = {
             timestamp=5,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             nframes=3,
             exc_type=IOError,
         ),
@@ -136,7 +187,11 @@ TEST_EVENTS = {
             timestamp=6,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             exc_type=IOError,
         ),
@@ -144,9 +199,122 @@ TEST_EVENTS = {
             timestamp=7,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             exc_type=IOError,
+        ),
+    ],
+    memalloc.MemoryAllocSampleEvent: [
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=1,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=34,
+            capture_pct=44,
+            nframes=3,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=2,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
+            size=99,
+            capture_pct=100,
+            nframes=3,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=3,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=340,
+            capture_pct=50,
+            nframes=4,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=4,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            size=44,
+            capture_pct=33,
+            nframes=6,
+            nevents=1024,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=5,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            trace_ids=set([1322219321]),
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            span_ids=set([49393]),
+            size=68,
+            capture_pct=50,
+            nframes=3,
+            nevents=2048,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=6,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=24,
+            capture_pct=90,
+            nframes=3,
+            nevents=2048,
+        ),
+        memalloc.MemoryAllocSampleEvent(
+            timestamp=7,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=12,
+            capture_pct=100,
+            nframes=3,
+            nevents=2048,
         ),
     ],
     stack.StackSampleEvent: [
@@ -156,7 +324,12 @@ TEST_EVENTS = {
             thread_native_id=123987,
             thread_name="MainThread",
             trace_ids=set([1322219321]),
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            span_ids=set([49343]),
             wall_time_ns=1324,
             cpu_time_ns=1321,
             sampling_period=1000000,
@@ -168,7 +341,12 @@ TEST_EVENTS = {
             thread_native_id=123987,
             thread_name="MainThread",
             trace_ids=set([1322219321]),
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
+            span_ids=set([24930]),
             wall_time_ns=13244,
             cpu_time_ns=1312,
             sampling_period=1000000,
@@ -180,7 +358,12 @@ TEST_EVENTS = {
             thread_native_id=123987,
             thread_name="MainThread",
             trace_ids=set([1322219321]),
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            span_ids=set([24930]),
             wall_time_ns=1324,
             cpu_time_ns=29121,
             sampling_period=1000000,
@@ -191,7 +374,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             wall_time_ns=213244,
             cpu_time_ns=94021,
             sampling_period=1000000,
@@ -203,7 +390,12 @@ TEST_EVENTS = {
             thread_native_id=123987,
             thread_name="MainThread",
             trace_ids=set([1322219321]),
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            span_ids=set([249304]),
             wall_time_ns=132444,
             cpu_time_ns=9042,
             sampling_period=1000000,
@@ -214,7 +406,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             wall_time_ns=18244,
             cpu_time_ns=841019,
             sampling_period=1000000,
@@ -225,7 +421,11 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             wall_time_ns=13244,
             cpu_time_ns=501809,
             sampling_period=1000000,
@@ -238,7 +438,13 @@ TEST_EVENTS = {
             timestamp=1,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            trace_ids={23435},
+            span_ids={345432},
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
@@ -248,7 +454,11 @@ TEST_EVENTS = {
             timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
             nframes=3,
             wait_time_ns=7483,
             sampling_pct=10,
@@ -258,7 +468,11 @@ TEST_EVENTS = {
             timestamp=3,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=4,
             wait_time_ns=7489,
             sampling_pct=10,
@@ -268,7 +482,11 @@ TEST_EVENTS = {
             timestamp=4,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             nframes=6,
             wait_time_ns=4839,
             sampling_pct=10,
@@ -278,7 +496,11 @@ TEST_EVENTS = {
             timestamp=5,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             nframes=3,
             wait_time_ns=748394,
             sampling_pct=10,
@@ -288,7 +510,11 @@ TEST_EVENTS = {
             timestamp=6,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             wait_time_ns=748339,
             sampling_pct=10,
@@ -298,7 +524,11 @@ TEST_EVENTS = {
             timestamp=7,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             wait_time_ns=174839,
             sampling_pct=10,
@@ -310,7 +540,11 @@ TEST_EVENTS = {
             timestamp=1,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             locked_for_ns=74839,
             sampling_pct=5,
@@ -320,7 +554,11 @@ TEST_EVENTS = {
             timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 20, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
             nframes=3,
             locked_for_ns=7483,
             sampling_pct=5,
@@ -330,7 +568,11 @@ TEST_EVENTS = {
             timestamp=3,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=4,
             locked_for_ns=7489,
             sampling_pct=5,
@@ -340,7 +582,11 @@ TEST_EVENTS = {
             timestamp=4,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             nframes=6,
             locked_for_ns=4839,
             sampling_pct=5,
@@ -350,7 +596,11 @@ TEST_EVENTS = {
             timestamp=5,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar2.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
             nframes=3,
             locked_for_ns=748394,
             sampling_pct=5,
@@ -360,7 +610,11 @@ TEST_EVENTS = {
             timestamp=6,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 44, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             locked_for_ns=748339,
             sampling_pct=5,
@@ -370,7 +624,11 @@ TEST_EVENTS = {
             timestamp=7,
             thread_id=67892304,
             thread_name="MainThread",
-            frames=[("foobar.py", 23, "func1"), ("foobar.py", 49, "func2"), ("foobar.py", 19, "func5"),],
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
             nframes=3,
             locked_for_ns=174839,
             sampling_pct=50,
@@ -415,14 +673,10 @@ def test_ppprof_exporter():
     exp._get_program_name = mock.Mock()
     exp._get_program_name.return_value = "bonjour"
     exports = exp.export(TEST_EVENTS, 1, 7)
-    if tracemalloc:
-        if stack.FEATURES["stack-exceptions"]:
-            filename = "test-pprof-exporter_tracemalloc+stack-exceptions.txt"
-        else:
-            filename = "test-pprof-exporter_tracemalloc.txt"
+    if six.PY2:
+        filename = "test-pprof-exporter-py2.txt"
     else:
         filename = "test-pprof-exporter.txt"
-
     with open(os.path.join(os.path.dirname(__file__), filename)) as f:
         assert f.read() == str(exports), filename
 
@@ -499,19 +753,19 @@ sample_type {
 }
 sample_type {
   type: 12
-  unit: 8
+  unit: 6
 }
 sample_type {
   type: 13
-  unit: 6
-}
-sample_type {
-  type: 14
   unit: 8
 }
 sample_type {
-  type: 15
+  type: 14
   unit: 6
+}
+sample_type {
+  type: 15
+  unit: 8
 }
 sample_type {
   type: 16
@@ -587,11 +841,11 @@ string_table: "cpu-time"
 string_table: "nanoseconds"
 string_table: "wall-time"
 string_table: "uncaught-exceptions"
+string_table: "exception-samples"
 string_table: "lock-acquire"
 string_table: "lock-acquire-wait"
 string_table: "lock-release"
 string_table: "lock-release-hold"
-string_table: "exception-samples"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"

@@ -10,11 +10,12 @@ from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from .. import trace_utils
 from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
-config._add("sanic", dict(service=config._get_service(default="sanic"), distributed_tracing=True))
+config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
 
 
 def _extract_tags_from_request(request):
@@ -39,10 +40,18 @@ def _wrap_response_callback(span, callback):
     # based on response and finish span before returning response
 
     def update_span(response):
-        span.set_tag(http.STATUS_CODE, response.status)
-        if 500 <= response.status < 600:
-            span.error = 1
-        store_response_headers(response.headers, span, config.sanic)
+        error = 0
+        if isinstance(response, sanic.response.BaseHTTPResponse):
+            status_code = response.status
+            if 500 <= response.status < 600:
+                error = 1
+            store_response_headers(response.headers, span, config.sanic)
+        else:
+            # invalid response causes ServerError exception which must be handled
+            status_code = 500
+            error = 1
+        span.set_tag(http.STATUS_CODE, status_code)
+        span.error = error
         span.finish()
 
     @wrapt.function_wrapper
@@ -66,8 +75,7 @@ def _wrap_response_callback(span, callback):
 
 
 def patch():
-    """Patch the instrumented methods.
-    """
+    """Patch the instrumented methods."""
     if getattr(sanic, "__datadog_patch", False):
         return
     setattr(sanic, "__datadog_patch", True)
@@ -75,19 +83,21 @@ def patch():
 
 
 def unpatch():
-    """Unpatch the instrumented methods.
-    """
+    """Unpatch the instrumented methods."""
     _u(sanic.Sanic, "handle_request")
     if not getattr(sanic, "__datadog_patch", False):
         return
     setattr(sanic, "__datadog_patch", False)
 
 
-def patch_handle_request(wrapped, instance, args, kwargs):
+async def patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
     request = kwargs.get("request", args[0])
     write_callback = kwargs.get("write_callback", args[1])
     stream_callback = kwargs.get("stream_callback", args[2])
+
+    if request.scheme not in ("http", "https"):
+        return await wrapped(request, write_callback, stream_callback, **kwargs)
 
     resource = "{} {}".format(request.method, request.path)
 
@@ -100,7 +110,10 @@ def patch_handle_request(wrapped, instance, args, kwargs):
             ddtrace.tracer.context_provider.activate(context)
 
     span = ddtrace.tracer.trace(
-        "sanic.request", service=config.sanic.service, resource=resource, span_type=SpanTypes.WEB
+        "sanic.request",
+        service=trace_utils.int_service(None, config.sanic),
+        resource=resource,
+        span_type=SpanTypes.WEB,
     )
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
@@ -116,4 +129,4 @@ def patch_handle_request(wrapped, instance, args, kwargs):
     if stream_callback is not None:
         stream_callback = _wrap_response_callback(span, stream_callback)
 
-    return wrapped(request, write_callback, stream_callback, **kwargs)
+    return await wrapped(request, write_callback, stream_callback, **kwargs)

@@ -145,7 +145,7 @@ class GrpcTestCase(TracerTestCase):
         assert len(spans) == 0
 
     def test_pin_tags_are_put_in_span(self):
-        # DEV: stop and restart server to catch overriden pin
+        # DEV: stop and restart server to catch overridden pin
         self._stop_server()
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, service='server1')
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={'tag1': 'server'})
@@ -468,7 +468,7 @@ class GrpcTestCase(TracerTestCase):
         spans = self.get_spans_with_sync_and_assert(size=2)
 
         self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
-        self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
+        self._check_client_span(spans[1], "grpc-client", "SayHello", "unary")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):

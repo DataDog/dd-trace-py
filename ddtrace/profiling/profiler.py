@@ -3,11 +3,14 @@ import atexit
 import logging
 import os
 
+import ddtrace
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
+from ddtrace.utils import formats
 from ddtrace.vendor import attr
 from ddtrace.profiling.collector import exceptions
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -36,27 +39,6 @@ def _get_api_key():
         deprecation.deprecation("DD_PROFILING_API_KEY", "Use DD_API_KEY")
         return legacy
     return os.environ.get("DD_API_KEY")
-
-
-def _build_default_exporters(service, env, version):
-    _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
-    if _OUTPUT_PPROF:
-        return [
-            file.PprofFileExporter(_OUTPUT_PPROF),
-        ]
-
-    api_key = _get_api_key()
-    if api_key:
-        # Agentless mode
-        endpoint = _get_endpoint()
-    else:
-        hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-        port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
-        endpoint = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
-
-    return [
-        http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
-    ]
 
 
 def _get_service_name():
@@ -88,22 +70,38 @@ class Profiler(object):
     Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
     caught.
 
-    If no collectors are provided, default ones are created.
-    If no exporters are provided, default ones are created.
-
     """
 
     service = attr.ib(factory=_get_service_name)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
-    tracer = attr.ib(default=None)
-    collectors = attr.ib(default=None)
-    exporters = attr.ib(default=None)
-    _schedulers = attr.ib(init=False, factory=list)
+    tracer = attr.ib(default=ddtrace.tracer)
+    _collectors = attr.ib(init=False, default=None)
+    _scheduler = attr.ib(init=False, default=None)
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
-    def _build_default_collectors(tracer):
+    def _build_default_exporters(service, env, version):
+        _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
+        if _OUTPUT_PPROF:
+            return [
+                file.PprofFileExporter(_OUTPUT_PPROF),
+            ]
+
+        api_key = _get_api_key()
+        if api_key:
+            # Agentless mode
+            endpoint = _get_endpoint()
+        else:
+            hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
+            port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
+            endpoint = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
+
+        return [
+            http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
+        ]
+
+    def __attrs_post_init__(self):
         r = recorder.Recorder(
             max_events={
                 # Allow to store up to 10 threads for 60 seconds at 100 Hz
@@ -112,45 +110,47 @@ class Profiler(object):
                 # This can generate one event every 0.1s if 100% are taken — though we take 5% by default.
                 # = (60 seconds / 0.1 seconds)
                 memory.MemorySampleEvent: int(60 / 0.1),
+                # (default buffer size / interval) * export interval
+                memalloc.MemoryAllocSampleEvent: int((64 / 0.5) * 60),
             },
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
-        return [
-            stack.StackCollector(r, tracer=tracer),
-            memory.MemoryCollector(r),
+
+        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "false")):
+            mem_collector = memalloc.MemoryCollector(r)
+        else:
+            mem_collector = memory.MemoryCollector(r)
+
+        self._collectors = [
+            stack.StackCollector(r, tracer=self.tracer),
+            mem_collector,
             exceptions.UncaughtExceptionCollector(r),
-            threading.LockCollector(r),
+            threading.LockCollector(r, tracer=self.tracer),
         ]
 
-    def __attrs_post_init__(self):
-        if self.collectors is None:
-            self.collectors = self._build_default_collectors(self.tracer)
+        exporters = self._build_default_exporters(self.service, self.env, self.version)
 
-        if self.exporters is None:
-            self.exporters = _build_default_exporters(self.service, self.env, self.version)
-
-        if self.exporters:
-            for rec in self.recorders:
-                self._schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
+        if exporters:
+            self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)
 
     @property
     def recorders(self):
-        return set(c.recorder for c in self.collectors)
+        return set(c.recorder for c in self._collectors)
 
     def start(self, stop_on_exit=True):
         """Start the profiler.
 
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         """
-        for col in self.collectors:
+        for col in self._collectors:
             try:
                 col.start()
             except RuntimeError:
                 # `tracemalloc` is unavailable?
                 pass
 
-        for s in self._schedulers:
-            s.start()
+        if self._scheduler is not None:
+            self._scheduler.start()
 
         self.status = ProfilerStatus.RUNNING
 
@@ -162,18 +162,17 @@ class Profiler(object):
 
         :param flush: Wait for the flush of the remaining events before stopping.
         """
-        for col in reversed(self.collectors):
+        if self._scheduler:
+            self._scheduler.stop()
+
+        for col in reversed(self._collectors):
             col.stop()
 
-        for col in reversed(self.collectors):
+        for col in reversed(self._collectors):
             col.join()
 
-        for s in reversed(self._schedulers):
-            s.stop()
-
-        if flush:
-            for s in reversed(self._schedulers):
-                s.join()
+        if self._scheduler and flush:
+            self._scheduler.join()
 
         self.status = ProfilerStatus.STOPPED
 

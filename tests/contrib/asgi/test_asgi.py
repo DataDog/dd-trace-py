@@ -20,8 +20,19 @@ from tests.tracer.test_tracer import get_dummy_tracer
         {"server": ("dev", None)},
         {"http_version": "1.0", "asgi": {}},
         {"http_version": "1.0", "asgi": {"version": "3.2"}},
-        {"http_version": "1.0", "asgi": {"spec_version": "2.1",}},
-        {"http_version": "1.0", "asgi": {"version": "3.2", "spec_version": "2.1",}},
+        {
+            "http_version": "1.0",
+            "asgi": {
+                "spec_version": "2.1",
+            },
+        },
+        {
+            "http_version": "1.0",
+            "asgi": {
+                "version": "3.2",
+                "spec_version": "2.1",
+            },
+        },
     ]
 )
 def scope(request):
@@ -65,6 +76,13 @@ async def basic_app(scope, receive, send):
 
 async def error_app(scope, receive, send):
     raise RuntimeError("Test")
+
+
+async def error_handled_app(scope, receive, send):
+    message = await receive()
+    if message.get("type") == "http.request":
+        await send({"type": "http.response.start", "status": 500, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
 
 
 def double_callable_app(scope):
@@ -122,6 +140,7 @@ async def test_basic_asgi(scope, tracer):
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
     assert request_span.error == 0
+    assert request_span.get_tag("http.status_code") == "200"
     _check_span_tags(scope, request_span)
 
 
@@ -148,6 +167,7 @@ async def test_double_callable_asgi(scope, tracer):
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
     assert request_span.error == 0
+    assert request_span.get_tag("http.status_code") == "200"
     _check_span_tags(scope, request_span)
 
 
@@ -176,6 +196,7 @@ async def test_query_string(scope, tracer):
         request_span = spans[0][0]
         assert request_span.name == "asgi.request"
         assert request_span.error == 0
+        assert request_span.get_tag("http.status_code") == "200"
         _check_span_tags(scope, request_span)
 
 
@@ -193,6 +214,48 @@ async def test_asgi_error(scope, tracer):
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
     assert request_span.error == 1
+    assert request_span.get_tag("http.status_code") == "500"
+    assert request_span.get_tag("error.msg") == "Test"
+    assert request_span.get_tag("error.type") == "builtins.RuntimeError"
+    assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
+    _check_span_tags(scope, request_span)
+
+
+@pytest.mark.asyncio
+async def test_asgi_500(scope, tracer):
+    app = TraceMiddleware(error_handled_app, tracer=tracer)
+    instance = ApplicationCommunicator(app, scope)
+
+    await instance.send_input({"type": "http.request", "body": b""})
+    await instance.receive_output(1)
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.status_code") == "500"
+
+
+@pytest.mark.asyncio
+async def test_asgi_error_custom(scope, tracer):
+    def custom_handle_exception_span(exc, span):
+        span.set_tag("http.status_code", 501)
+
+    app = TraceMiddleware(error_app, tracer=tracer, handle_exception_span=custom_handle_exception_span)
+    instance = ApplicationCommunicator(app, scope)
+    with pytest.raises(RuntimeError):
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.error == 1
+    assert request_span.get_tag("http.status_code") == "501"
     assert request_span.get_tag("error.msg") == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
@@ -228,6 +291,8 @@ async def test_distributed_tracing(scope, tracer):
     assert request_span.name == "asgi.request"
     assert request_span.parent_id == 1234
     assert request_span.trace_id == 5678
+    assert request_span.error == 0
+    assert request_span.get_tag("http.status_code") == "200"
     _check_span_tags(scope, request_span)
 
 

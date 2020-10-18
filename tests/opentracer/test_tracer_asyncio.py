@@ -167,9 +167,7 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
         assert traces[0][0].trace_id == traces[0][1].trace_id
 
 
-@pytest.mark.skipif(
-    ddtrace.internal.context_manager.CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider"
-)
+@pytest.mark.skipif(ddtrace.compat.CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
 class TestUtilsAsyncio(object):
     """Test the util routines of the opentracer with asyncio specific
     configuration.
@@ -182,4 +180,7 @@ class TestUtilsAsyncio(object):
 
     def test_tracer_context_provider_config(self):
         tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=AsyncioScopeManager())
-        assert isinstance(tracer._dd_tracer.context_provider, ddtrace.contrib.asyncio.provider.AsyncioContextProvider,)
+        assert isinstance(
+            tracer._dd_tracer.context_provider,
+            ddtrace.contrib.asyncio.provider.AsyncioContextProvider,
+        )

@@ -5,33 +5,16 @@ import struct
 from unittest import TestCase
 
 import msgpack
+import pytest
 
 from ddtrace.tracer import Tracer
-from ddtrace.span import Span
+from ddtrace.span import Span, SpanTypes
 from ddtrace.compat import msgpack_type, string_type
 from ddtrace.encoding import _EncoderBase, JSONEncoder, JSONEncoderV2, MsgpackEncoder
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return "".join(random.choice(chars) for _ in range(size))
-
-
-def gen_span(length=None, **span_attrs):
-    # Helper to generate spans
-    name = span_attrs.pop("name", None)
-    if name is None:
-        name = "a" * length
-
-    span = Span(None, **span_attrs)
-
-    for attr in span_attrs:
-        if hasattr(span, attr):
-            setattr(span, attr, attr)
-        else:
-            pass
-
-    if length is not None:
-        pass
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
@@ -318,3 +301,29 @@ def test_custom_msgpack_join_encoded():
     ref = refencoder.join_encoded([refencoder.encode_trace(trace) for _ in range(1)])
     custom = encoder.join_encoded([encoder.encode_trace(trace) for _ in range(1)])
     assert decode(ref) == decode(custom)
+
+
+def span_type_span():
+    s = Span(None, "span_name")
+    s.span_type = SpanTypes.WEB
+    return s
+
+
+@pytest.mark.parametrize(
+    "span",
+    [
+        Span(None, "span_name", span_type=SpanTypes.WEB),
+        Span(None, "span_name", resource="/my-resource"),
+        Span(None, "span_name", service="my-svc"),
+        span_type_span(),
+    ],
+)
+def test_msgpack_span_property_variations(span):
+    refencoder = RefMsgpackEncoder()
+    encoder = MsgpackEncoder()
+
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    trace = [span]
+    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))

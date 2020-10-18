@@ -1,12 +1,12 @@
 .. include:: ./shared.rst
 
-Datadog Python Trace and Profile Client
-=======================================
+Datadog Python APM Client
+=========================
 
-``ddtrace`` is Datadog's Python tracing and profiling client. It is used to
-profile code and trace requests as they flow across web servers, databases and
-microservices. This enables developers to have greater visibility into
-bottlenecks and troublesome requests in their application.
+``ddtrace`` is Datadog's Python APM client. It is used to profile code and
+trace requests as they flow across web servers, databases and microservices.
+This enables developers to have greater visibility into bottlenecks and
+troublesome requests in their application.
 
 Getting Started
 ---------------
@@ -49,6 +49,8 @@ contacting support.
 | :ref:`algoliasearch`                             | >= 1.20.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asgi`                                      | >= 2.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`asyncio`                                   |               | Yes [5]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`boto2`                                     | >= 2.29.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -104,6 +106,10 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`pymongo`                                   | >= 3.0        | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`pynamodb`                                  | >= 4.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pyodbc`                                    | >= 4.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`pyramid`                                   | >= 1.7        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`redis`                                     | >= 2.6        | Yes            |
@@ -112,9 +118,11 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`requests`                                  | >= 2.08       | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`sanic`                                     | >= 18.12.0    | Yes [4]_       |
+| :ref:`sanic`                                     | >= 19.6.0     | Yes [4]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`sqlalchemy`                                | >= 1.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`starlette`                                 | >= 0.13.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`tornado`                                   | >= 4.0        | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -129,10 +137,12 @@ contacting support.
 
 .. [2] only third-party modules such as aiohttp_jinja2
 
-.. [3] only the syncronous client
+.. [3] only the synchronous client
 
 .. [4] only in Python 3.7 and above.
 
+.. [5] Activating the legacy context provider is required in Python < 3.7. See
+       :ref:`asyncio` for more details.
 
 Indices and tables
 ==================
@@ -146,10 +156,8 @@ Indices and tables
 
     installation_quickstart
     configuration
-    web_integrations
-    db_integrations
-    async_integrations
-    other_integrations
+    integrations
     basic_usage
     advanced_usage
     contributing
+    release_notes

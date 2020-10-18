@@ -5,7 +5,7 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-cimg_base_image: &cimg_base_image cimg/base:2020.01
+cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
@@ -210,14 +210,23 @@ jobs:
     steps:
       - checkout
       - setup_tox
-      - run: tox -e 'black' --result-json /tmp/black.results
+      - run: tox -e black
+
+  ccheck:
+    executor: cimg_base
+    steps:
+      - checkout
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
+      - run: scripts/cformat.sh
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   flake8:
     executor: python38
     steps:
       - checkout
       - setup_tox
-      - run: tox -e 'flake8' --result-json /tmp/flake8.results
+      - run: tox -e flake8
 
   build-docker-ci-image:
     executor: cimg_base
@@ -305,6 +314,14 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^py..-integration'
+
+  vendor:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-vendor'
 
   futures:
     executor: ddtrace_dev
@@ -555,6 +572,23 @@ jobs:
       - run_tox_scenario:
           pattern: '^pymongo_contrib-'
 
+  pynamodb:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^pynamodb_contrib-'
+
+  pyodbc:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends unixodbc-dev libsqliteodbc
+      - run_tox_scenario:
+          pattern: '^pyodbc_contrib-'
+
   pyramid:
     executor: ddtrace_dev
     steps:
@@ -581,6 +615,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
+  
+  starlette:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^starlette_contrib-'
 
   sqlalchemy:
     executor: ddtrace_dev
@@ -629,13 +669,15 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   redis:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^redis_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
 
   rediscluster:
     executor: ddtrace_dev
@@ -688,11 +730,7 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
-      - store_test_results:
-          path: /tmp/test-reports
-      - store_artifacts:
-          path: /tmp/test-reports
+            tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
       - save_tox_cache
 
   build_wheels:
@@ -740,7 +778,7 @@ jobs:
 
   build_docs:
     # deploy official documentation
-    executor: python38
+    executor: ddtrace_dev
     steps:
       - checkout
       - setup_tox
@@ -764,6 +802,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
+    - ccheck
 
 requires_tests: &requires_tests
   - build_docs
@@ -792,6 +831,7 @@ requires_tests: &requires_tests
   - grpc
   - httplib
   - integration
+  - vendor
   - profile
   - jinja2
   - kombu
@@ -808,6 +848,8 @@ requires_tests: &requires_tests
   - pymemcache
   - pymongo
   - pymysql
+  - pynamodb
+  - pyodbc
   - pyramid
   - redis
   - rediscluster
@@ -815,6 +857,7 @@ requires_tests: &requires_tests
   - requestsgevent
   - sqlalchemy
   - sqlite3
+  - starlette
   - test_build_alpine
   - test_build_py38
   - test_build_py37
@@ -849,6 +892,7 @@ workflows:
       - build_docs
       - black
       - flake8
+      - ccheck
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
@@ -889,6 +933,7 @@ workflows:
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
+      - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
@@ -905,12 +950,15 @@ workflows:
       - pymemcache: *requires_pre_test
       - pymongo: *requires_pre_test
       - pymysql: *requires_pre_test
+      - pynamodb: *requires_pre_test      
+      - pyodbc: *requires_pre_test
       - pyramid: *requires_pre_test
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
       - sanic: *requires_pre_test
+      - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
