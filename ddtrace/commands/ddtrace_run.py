@@ -15,7 +15,7 @@ if PY2:
         pass
 
 
-debug = os.environ.get("DATADOG_TRACE_DEBUG")
+debug = os.environ.get("DD_TRACE_DEBUG", os.environ.get("DATADOG_TRACE_DEBUG"))
 if debug and debug.lower() == "true":
     logging.basicConfig(level=logging.DEBUG)
 
@@ -27,8 +27,8 @@ if debug and debug.lower() == "true":
 log = logging.getLogger(__name__)
 
 USAGE = """
-Execute the given Python command after configuring it to emit Datadog traces.
-The Datadog profiler can also be enabled.
+Execute the given Python command after configuring it to emit Datadog traces
+and profiles.
 
 
 Examples

@@ -339,6 +339,13 @@ def test_command_flags():
     assert out.strip() == six.b("test!")
 
 
+def test_return_code():
+    p = subprocess.Popen(["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.wait()
+
+    assert p.returncode == 4
+
+
 def test_debug_mode():
     p = subprocess.Popen(
         ["ddtrace-run", "--debug", "python", "-c", "''"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
