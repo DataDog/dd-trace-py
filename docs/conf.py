@@ -19,6 +19,9 @@
 
 from datetime import datetime
 
+from docs.ext.filters import VersionTagFilter
+
+
 # append the ddtrace path to syspath
 # this is required when building the docs manually
 # import os
@@ -35,6 +38,9 @@ from datetime import datetime
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ["sphinx.ext.autodoc", "sphinx.ext.extlinks", "reno.sphinxext", "sphinxcontrib.spelling"]
+
+# Add filters for sphinxcontrib.spelling
+spelling_filters = [VersionTagFilter]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
