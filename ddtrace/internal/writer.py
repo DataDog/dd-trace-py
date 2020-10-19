@@ -20,28 +20,8 @@ DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 
-def _apply_filters(filters, traces):
-    """
-    Here we make each trace go through the filters configured in the
-    tracer. There is no need for a lock since the traces are owned by the
-    AgentWriter at that point.
-    """
-    if filters is not None:
-        filtered_traces = []
-        for trace in traces:
-            for filtr in filters:
-                trace = filtr.process_trace(trace)
-                if trace is None:
-                    break
-            if trace is not None:
-                filtered_traces.append(trace)
-        return filtered_traces
-    return traces
-
-
 class LogWriter:
-    def __init__(self, out=sys.stdout, filters=None, sampler=None, priority_sampler=None):
-        self._filters = filters
+    def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self.encoder = JSONEncoderV2()
@@ -53,9 +33,7 @@ class LogWriter:
         :rtype: :class:`LogWriter`
         :returns: A new :class:`LogWriter` instance
         """
-        writer = self.__class__(
-            out=self.out, filters=self._filters, sampler=self._sampler, priority_sampler=self._priority_sampler
-        )
+        writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
     def write(self, spans=None, services=None):
@@ -63,16 +41,7 @@ class LogWriter:
         if not spans:
             return
 
-        # Before logging the traces, make them go through the
-        # filters
-        try:
-            traces = _apply_filters(self._filters, [spans])
-        except Exception:
-            log.error("error while filtering traces", exc_info=True)
-            return
-        if len(traces) == 0:
-            return
-        encoded = self.encoder.encode_traces(traces)
+        encoded = self.encoder.encode_traces([spans])
         self.out.write(encoded + "\n")
         self.out.flush()
 
@@ -89,7 +58,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         uds_path=None,
         https=False,
         shutdown_timeout=DEFAULT_TIMEOUT,
-        filters=None,
         sampler=None,
         priority_sampler=None,
     ):
@@ -99,7 +67,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # DEV: provide a _temporary_ solution to allow users to specify a custom max
         maxsize = int(os.getenv("DD_TRACE_MAX_TPS", self.QUEUE_MAX_TRACES_DEFAULT))
         self._trace_queue = _queue.TraceQueue(maxsize=maxsize)
-        self._filters = filters
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
@@ -123,7 +90,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             uds_path=self.api.uds_path,
             https=self.api.https,
             shutdown_timeout=self.exit_timeout,
-            filters=self._filters,
             priority_sampler=self._priority_sampler,
         )
         return writer
@@ -144,14 +110,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         traces = self._trace_queue.get()
 
         if not traces:
-            return
-
-        # Before sending the traces, make them go through the
-        # filters
-        try:
-            traces = _apply_filters(self._filters, traces)
-        except Exception:
-            log.error("error while filtering traces", exc_info=True)
             return
 
         # If we have data, let's try to send it.
