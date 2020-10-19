@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-# scripts/check-releasenotes <base-ref> [github event path]
-BASE_REF="${1:-master}"
-GITHUB_EVENT_PATH="$2"
+# If we are running outside a GitHub action, default to `master`
+BASE_REF="${GITHUB_BASE_REF:-master}"
 
 # Print input data
 echo "Base ref: origin/${BASE_REF}"
@@ -11,7 +10,7 @@ echo "GitHub event path: ${GITHUB_EVENT_PATH}"
 echo "JQ: $(which jq)"
 
 
-# Skip if the label 'changelog/no-changelog' is on the PR
+# Skip the label check if we do not have a GitHub event path
 if [[ -f "${GITHUB_EVENT_PATH}" ]] && jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' "${GITHUB_EVENT_PATH}";
 then
     echo "PR has label 'changelog/no-changelog', skipping validation"

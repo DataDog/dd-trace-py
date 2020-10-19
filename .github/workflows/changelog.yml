@@ -22,7 +22,7 @@ jobs:
       - name: Ensure release note added
         # Only run this on pull requests
         if: github.event_name == 'pull_request'
-        run: scripts/check-releasenotes "${{github.base_ref}}" "${{github.event_path}}"
+        run: scripts/check-releasenotes
 
       - uses: actions/setup-python@v2
         name: Install Python
