@@ -206,9 +206,6 @@ class TestWorkers(TestCase):
     def test_worker_filter_request(self):
         self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r"http://example\.com/health")]})
         # spy the send() method
-        self.api = self.tracer.writer.api
-        self.api._put = mock.Mock(self.api._put, wraps=self.api._put)
-
         span = self.tracer.trace("testing.filteredurl")
         span.set_tag(http.URL, "http://example.com/health")
         span.finish()
