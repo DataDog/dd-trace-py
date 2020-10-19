@@ -4,6 +4,9 @@ on:
     branches:
       - master
   pull_request:
+    # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed
+    # DEV: [opened, reopened, synchronize] is the default
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
 jobs:
   validate:
     name: Validate changelog
@@ -20,9 +23,7 @@ jobs:
       - name: Ensure release note added
         # Only run this on pull requests
         if: github.event_name == 'pull_request'
-        run: |
-          jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' ${{github.event_path}} \
-          || git diff origin/${{github.base_ref}}... releasenotes/notes
+        run: scripts/check-releasenotes
 
       - uses: actions/setup-python@v2
         name: Install Python

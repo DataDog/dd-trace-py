@@ -92,6 +92,9 @@ def log_exception(func, handler, args, kwargs):
     tracer = handler.settings[CONFIG_KEY]['tracer']
     current_span = tracer.current_span()
 
+    if not current_span:
+        return func(*args, **kwargs)
+
     if isinstance(value, HTTPError):
         # Tornado uses HTTPError exceptions to stop and return a status code that
         # is not a 2xx. In this case we want to check the status code to be sure that
