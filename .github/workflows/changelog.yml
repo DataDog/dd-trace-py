@@ -20,9 +20,7 @@ jobs:
       - name: Ensure release note added
         # Only run this on pull requests
         if: github.event_name == 'pull_request'
-        run: |
-          jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' ${{github.event_path}} \
-          || git diff origin/${{github.base_ref}}... releasenotes/notes
+        run: scripts/check-releasenotes "${{github.base_ref}}" "${{github.event_path}}"
 
       - uses: actions/setup-python@v2
         name: Install Python
