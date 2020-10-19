@@ -5,7 +5,8 @@ on:
       - master
   pull_request:
     # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed
-    types: [opened, reopened, labeled, unlabeled, ready_for_review]
+    # DEV: [opened, reopened, synchronize] is the default
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
 jobs:
   validate:
     name: Validate changelog
