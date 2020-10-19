@@ -1,5 +1,4 @@
 # stdlib
-import itertools
 import os
 import sys
 import threading
@@ -10,7 +9,6 @@ from .. import compat
 from .. import _worker
 from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
-from ..settings import config
 from ..encoding import JSONEncoderV2
 from ..payload import PayloadFull
 from . import _queue
@@ -62,7 +60,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
-        dogstatsd=None,
     ):
         super(AgentWriter, self).__init__(
             interval=self.QUEUE_PROCESSING_INTERVAL, exit_timeout=shutdown_timeout, name=self.__class__.__name__
@@ -73,7 +70,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
-        self.dogstatsd = dogstatsd
         self.api = api.API(
             hostname, port, uds_path=uds_path, https=https, priority_sampling=priority_sampler is not None
         )
@@ -95,14 +91,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             https=self.api.https,
             shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
-            dogstatsd=self.dogstatsd,
         )
         return writer
-
-    @property
-    def _send_stats(self):
-        """Determine if we're sending stats or not."""
-        return bool(config.health_metrics_enabled and self.dogstatsd)
 
     def write(self, spans=None, services=None):
         # Start the AgentWriter on first write.
@@ -122,10 +112,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if not traces:
             return
 
-        if self._send_stats:
-            traces_queue_length = len(traces)
-            traces_queue_spans = sum(map(len, traces))
-
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
         for response in traces_responses:
@@ -144,73 +130,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                                 result_traces_json["rate_by_service"],
                             )
 
-        # Dump statistics
-        # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
-        # https://github.com/DataDog/datadogpy/issues/439
-        if self._send_stats:
-            # Statistics about the queue length, size and number of spans
-            self.dogstatsd.increment("datadog.tracer.flushes")
-            self._histogram_with_total("datadog.tracer.flush.traces", traces_queue_length)
-            self._histogram_with_total("datadog.tracer.flush.spans", traces_queue_spans)
-
-            # Statistics about API
-            self._histogram_with_total("datadog.tracer.api.requests", len(traces_responses))
-
-            self._histogram_with_total(
-                "datadog.tracer.api.errors",
-                len(list(t for t in traces_responses if isinstance(t, Exception) and not isinstance(t, PayloadFull))),
-            )
-
-            self._histogram_with_total(
-                "datadog.tracer.api.traces_payloadfull",
-                len(list(t for t in traces_responses if isinstance(t, PayloadFull))),
-            )
-
-            for status, grouped_responses in itertools.groupby(
-                sorted((t for t in traces_responses if not isinstance(t, Exception)), key=lambda r: r.status),
-                key=lambda r: r.status,
-            ):
-                self._histogram_with_total(
-                    "datadog.tracer.api.responses", len(list(grouped_responses)), tags=["status:%d" % status]
-                )
-
-            # Statistics about the writer thread
-            if hasattr(time, "thread_time"):
-                new_thread_time = time.thread_time()
-                diff = new_thread_time - self._last_thread_time
-                self._last_thread_time = new_thread_time
-                self.dogstatsd.histogram("datadog.tracer.writer.cpu_time", diff)
-
-    def _histogram_with_total(self, name, value, tags=None):
-        """Helper to add metric as a histogram and with a `.total` counter"""
-        self.dogstatsd.histogram(name, value, tags=tags)
-        self.dogstatsd.increment("%s.total" % (name,), value, tags=tags)
-
     def run_periodic(self):
-        if self._send_stats:
-            self.dogstatsd.gauge("datadog.tracer.heartbeat", 1)
-
-        try:
-            self.flush_queue()
-        finally:
-            if not self._send_stats:
-                return
-
-            # Statistics about the rate at which spans are inserted in the queue
-            dropped, enqueued, enqueued_lengths = self._trace_queue.pop_stats()
-            self.dogstatsd.gauge("datadog.tracer.queue.max_length", self._trace_queue.maxsize)
-            self.dogstatsd.increment("datadog.tracer.queue.dropped.traces", dropped)
-            self.dogstatsd.increment("datadog.tracer.queue.enqueued.traces", enqueued)
-            self.dogstatsd.increment("datadog.tracer.queue.enqueued.spans", enqueued_lengths)
+        self.flush_queue()
 
     def on_shutdown(self):
-        try:
-            self.run_periodic()
-        finally:
-            if not self._send_stats:
-                return
-
-            self.dogstatsd.increment("datadog.tracer.shutdown")
+        self.run_periodic()
 
     def _log_error_status(self, response):
         log_level = log.debug

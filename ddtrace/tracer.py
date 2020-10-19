@@ -319,11 +319,7 @@ class Tracer(object):
                 https=https,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
-                dogstatsd=self._dogstatsd_client,
             )
-
-        # HACK: since we recreated our dogstatsd agent, replace the old write one
-        self.writer.dogstatsd = self._dogstatsd_client
 
         if context_provider is not None:
             self.context_provider = context_provider
