@@ -959,6 +959,7 @@ workflows:
       - pynamodb: *requires_pre_test
       - pyodbc: *requires_pre_test
       - pyramid: *requires_pre_test
+      - pytest: *requires_pre_test
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
