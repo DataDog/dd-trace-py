@@ -511,6 +511,7 @@ def test_middleware_trace_callable_view(client, test_spans):
         assert span.resource == "GET ^feed-view/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.FeedView"
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
 def test_middleware_trace_errors(client, test_spans):
@@ -550,6 +551,7 @@ def test_middleware_trace_partial_based_view(client, test_spans):
         assert span.resource == "GET ^partial-view/$"
     else:
         assert span.resource == "GET partial"
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
 def test_simple_view_get(client, test_spans):
