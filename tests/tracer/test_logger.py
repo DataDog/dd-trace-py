@@ -5,7 +5,7 @@ from ddtrace.internal.logger import DDLogger, get_logger
 
 from tests import BaseTestCase
 
-ALL_LEVEL_NAMES = ('debug', 'info', 'warn', 'warning', 'error', 'exception', 'critical', 'fatal')
+ALL_LEVEL_NAMES = ('debug', 'info', 'warning', 'error', 'exception', 'critical', 'fatal')
 
 
 class DDLoggerTestCase(BaseTestCase):
