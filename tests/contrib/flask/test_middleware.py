@@ -387,7 +387,6 @@ class TestFlask(TestCase):
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.meta.get(http.METHOD) == 'GET'
 
-    
     def test_http_request_header_tracing(self):
         config.flask.http.trace_headers(['User-Agent', 'Host'])
         self.app.get('/')
