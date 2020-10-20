@@ -21,7 +21,7 @@ class TestPytest(TracerTestCase):
             def pytest_configure(config):
                 Pin.override(config, tracer=self.tracer)
 
-        return self.testdir.inline_run(*args, plugins=(PinTracer(),))
+        return self.testdir.inline_run(*args, plugins=[PinTracer()])
 
     def test_parameterize_case(self):
         """Test parametrize case."""

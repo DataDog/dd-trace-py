@@ -1,5 +1,4 @@
 import pytest
-from _pytest.skipping import evaluate_skip_marks
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, test
@@ -82,11 +81,8 @@ def pytest_runtest_setup(item):
 
 
 def _extract_reason(item, call):
-    skip = evaluate_skip_marks(item)
-    if skip is None and call.excinfo is not None:
+    if call.excinfo is not None:
         return call.excinfo.value
-    elif skip is not None:
-        return skip.reason
 
 
 @pytest.hookimpl(hookwrapper=True)

@@ -548,6 +548,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^pylibmc_contrib-'
 
+  pytest:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^pytest_contrib'
+
   pymemcache:
     executor: ddtrace_dev
     docker:
@@ -615,7 +621,7 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
-  
+
   starlette:
     executor: ddtrace_dev
     steps:
