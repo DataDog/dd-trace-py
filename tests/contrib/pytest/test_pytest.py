@@ -63,7 +63,9 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[0].get_tag(test.SKIP_REASON) == "decorator"
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[1].get_tag(test.SKIP_REASON) == "body"
 
     def test_fixture(self):
         """Test ddspan fixture."""

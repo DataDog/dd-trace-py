@@ -1,10 +1,17 @@
 import pytest
+from _pytest.skipping import evaluate_skip_marks
 
 from ddtrace.ext import SpanTypes, test
 
 from ...pin import Pin
 
 HELP_MSG = "Enable tracing of pytest functions."
+FRAMEWORK = "pytest"
+
+
+def is_enabled(config):
+    """Check if the ddtrace plugin is enabled."""
+    return config.getoption("ddtrace", default=config.getini("ddtrace"))
 
 
 def _extract_span(item):
@@ -35,7 +42,7 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
 
-    if config.getoption("ddtrace", default=config.getini("ddtrace")):
+    if is_enabled(config):
         Pin().onto(config)
 
 
@@ -58,6 +65,11 @@ def pytest_runtest_setup(item):
     pin = Pin.get_from(item.config)
     if pin:
         span = pin.tracer.start_span(SpanTypes.TEST.value, resource=item.nodeid, span_type=SpanTypes.TEST.value)
+
+        span.set_tag(test.FRAMEWORK, FRAMEWORK)
+        span.set_tag(test.NAME, item.name)
+        span.set_tag(test.SUITE, item.module.__name__)
+        span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
         tags = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tag in tags:
@@ -85,6 +97,11 @@ def pytest_runtest_makereport(item, call):
             result = outcome.get_result()
             if result.skipped:
                 span.set_tag(test.STATUS, test.Status.SKIP.value)
+                skip = evaluate_skip_marks(item)
+                if skip is None and call.excinfo is not None:
+                    span.set_tag(test.SKIP_REASON, call.excinfo.value)
+                elif skip is not None:
+                    span.set_tag(test.SKIP_REASON, skip.reason)
             elif result.passed:
                 span.set_tag(test.STATUS, test.Status.PASS.value)
             else:
