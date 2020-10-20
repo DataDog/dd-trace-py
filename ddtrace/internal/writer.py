@@ -149,7 +149,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         elif self._endpoint == "/v0.3/traces":
             self._endpoint = "/v0.2/traces"
             self._encoder = JSONEncoder()
-            # TODO: have to maintain a reference to the original traces
+            # FIXME: have to maintain a reference to the original traces
             # in order to reencode :|
             # Also have to reencode everything in self._buffer.
             self._buffer.clear()
@@ -208,14 +208,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
         encoded = self._encoder.encode_trace(spans)
         if len(encoded) > self._max_payload_size:
-            # Trace is bigger than the payload limit nothing we can do.
+            # Trace is bigger than the payload limit, nothing we can do.
             log.warning("trace larger than maximum payload limit, dropping")
             return
 
         self._buffer.put(encoded)
-
-        if self._buffer.size > self._max_payload_size:
-            self.flush_queue()
 
     def flush_queue(self):
         enc_traces = self._buffer.get(self._max_payload_size)
