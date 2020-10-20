@@ -7,6 +7,7 @@ from unittest import TestCase
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http, errors
+from ddtrace import config
 
 from tests.opentracer.utils import init_tracer
 from .web import create_app
@@ -385,3 +386,15 @@ class TestFlask(TestCase):
         assert dd_span.error == 0
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.meta.get(http.METHOD) == 'GET'
+
+    
+    def test_http_request_header_tracing(self):
+        config.flask.http.trace_headers(['User-Agent', 'Host'])
+        self.app.get('/')
+        traces = self.tracer.writer.pop_traces()
+
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        span = traces[0][0]
+        assert span.get_tag('http.request.headers.user-agent') == 'werkzeug/1.0.1'
+        assert span.get_tag('http.request.headers.host') == 'localhost'

@@ -4,7 +4,7 @@ from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
 from ddtrace.http import store_request_headers
-from ddtrace.settings import config
+from ddtrace import config
 
 import flask.templating
 from flask import g, request, signals
