@@ -19,9 +19,27 @@ class TestPytest(TracerTestCase):
         class PinTracer:
             @staticmethod
             def pytest_configure(config):
-                Pin.override(config, tracer=self.tracer)
+                if Pin.get_from(config) is not None:
+                    Pin.override(config, tracer=self.tracer)
 
         return self.testdir.inline_run(*args, plugins=[PinTracer()])
+
+    def test_disabled(self):
+        """Test without --ddtrace."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_no_trace(ddspan):
+                assert ddspan is None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.tracer.writer.pop()
+
+        assert len(spans) == 0
 
     def test_parameterize_case(self):
         """Test parametrize case."""

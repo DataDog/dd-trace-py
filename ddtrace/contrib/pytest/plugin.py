@@ -59,10 +59,13 @@ def ddspan(request):
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_setup(item):
+def pytest_runtest_protocol(item, nextitem):
     pin = Pin.get_from(item.config)
-    if pin:
-        span = pin.tracer.start_span(SpanTypes.TEST.value, resource=item.nodeid, span_type=SpanTypes.TEST.value)
+    if pin is None:
+        yield
+        return
+
+    with pin.tracer.trace(SpanTypes.TEST.value, resource=item.nodeid, span_type=SpanTypes.TEST.value) as span:
 
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, True)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
@@ -77,7 +80,7 @@ def pytest_runtest_setup(item):
 
         _store_span(item, span)
 
-    yield
+        yield
 
 
 def _extract_reason(item, call):
@@ -113,12 +116,3 @@ def pytest_runtest_makereport(item, call):
     except Exception:
         span.set_traceback()
         span.set_tag(test.STATUS, test.Status.FAIL.value)
-
-
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_teardown(item, nextitem):
-    yield
-
-    span = _extract_span(item)
-    if span:
-        span.finish()
