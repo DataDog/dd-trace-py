@@ -12,7 +12,7 @@ import sys
 import pytest
 
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
-pytest_plugins = "pytester"
+pytest_plugins = ("pytester",)
 
 PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 

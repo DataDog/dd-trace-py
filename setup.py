@@ -166,7 +166,7 @@ setup(
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
                 "pyddprofile = ddtrace.profiling.__main__:main",
             ],
-            "pytest11": ["ddtrace = ddtrace.contrib.pytest"],
+            "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
         },
         classifiers=[
             "Programming Language :: Python",
