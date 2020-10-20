@@ -126,7 +126,6 @@ commands:
             - run:
                 name: "Waiting for << parameters.wait >>"
                 command: pip install tox && tox -e 'wait' << parameters.wait >>
-      # TODO: for some reason the path doesn't contain the pyenv additions
       - run:
           name: "Running tests matching '<< parameters.pattern >>'"
           command: "riot -v run -s '<< parameters.pattern >>'"
