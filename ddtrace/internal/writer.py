@@ -7,7 +7,7 @@ from .. import compat
 from .. import _worker
 from ..compat import httplib
 from ..sampler import BasePrioritySampler
-from ..encoding import Encoder, JSONEncoder, JSONEncoderV2
+from ..encoding import Encoder, JSONEncoderV2
 from ..utils.time import StopWatch
 from .logger import get_logger
 from .runtime import container
@@ -141,20 +141,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             scheme = "http://"
         return "%s%s:%s" % (scheme, self._hostname, self._port)
 
-    def _downgrade(self, payload):
+    def _downgrade(self, payload, response):
         if self._endpoint == "/v0.4/traces":
             self._endpoint = "/v0.3/traces"
             return payload
-        elif self._endpoint == "/v0.3/traces":
-            self._endpoint = "/v0.2/traces"
-            self._encoder = JSONEncoder()
-            # FIXME: have to maintain a reference to the original traces
-            # in order to reencode :|
-            # Also have to reencode everything in self._buffer.
-            self._buffer.clear()
-            return payload
         else:
-            log.error("could not downgrade tracing connection %s", self._endpoint)
+            log.error("unsupported endpoint '%s' received response %s from Datadog Agent", self._endpoint, response.status)
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
@@ -168,7 +160,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             else:
                 if response.status in [404, 415]:
                     log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-                    payload = self._downgrade(payload)
+                    payload = self._downgrade(payload, response)
                     if payload:
                         return self._send_payload(payload, count)
                 elif response.status >= 400:
@@ -193,7 +185,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
         log.debug("reported %d traces in %.5fs", count, sw.elapsed())
 
-    def write(self, spans=None, services=None):
+    def write(self, spans):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
@@ -205,7 +197,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if not spans:
             return
 
-        encoded = self._encoder.encode_trace(spans)
+        try:
+            encoded = self._encoder.encode_trace(spans)
+        except Exception:
+            log.warning("failed to encode trace with encoder %r", self._encoder, exc_info=True)
 
         try:
             self._buffer.put(encoded)
