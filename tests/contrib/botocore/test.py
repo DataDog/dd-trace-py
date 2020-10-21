@@ -212,11 +212,15 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.resource, 'lambda.listfunctions')
 
     @mock_lambda
-    def test_lambda_invoke(self):
+    def test_lambda_invoke_no_context(self):
         lamb = self.session.create_client('lambda', region_name='us-east-1')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
-        lamb.invoke()
+        lamb.invoke(
+            FunctionName='ironmaiden',
+            InvocationType='RequestResponse',
+            Payload='{}'
+        )
 
         spans = self.get_spans()
         assert spans
@@ -230,6 +234,41 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
         self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
         self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.lambda')
+        self.assertEqual(span.resource, 'lambda.invoke')
+
+    @mock_lambda
+    def test_lambda_invoke_with_context(self):
+        lamb = self.session.create_client('lambda', region_name='us-east-1')
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+        client_context = base64.b64encode(json.dumps({
+          'Custom': {
+            'foo': 'bar'
+          }
+        }).encode('utf-8')).decode('utf-8')
+
+        lamb.invoke(
+            FunctionName='ironmaiden',
+            Payload='{}',
+            ClientContext=client_context
+        )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        context_json = base64.b64decode(str(span.get_tag('meta.params.ClientContext')))
+        context_obj = json.loads(context_json)
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+        self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
+        self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
+        self.assertEqual(context_obj['Custom']['foo'], 'bar')
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
