@@ -11,7 +11,7 @@ from ..encoding import Encoder, JSONEncoder, JSONEncoderV2
 from ..utils.time import StopWatch
 from .logger import get_logger
 from .runtime import container
-from . import _buffer
+from .buffer import TraceBuffer
 
 log = get_logger(__name__)
 
@@ -58,17 +58,16 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
-        buffer_size=20 * 1000000,
-        max_payload_size=5 * 1000000,
+        buffer_size=16 * 1000000,  # 16 MB
+        max_payload_size=8 * 1000000,  # 8MB
         timeout=2,
     ):
         super(AgentWriter, self).__init__(
             interval=self.QUEUE_PROCESSING_INTERVAL, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        assert max_payload_size < buffer_size
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = _buffer.TraceBuffer(maxsize=self._buffer_size)
+        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._hostname = hostname
@@ -209,10 +208,14 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         encoded = self._encoder.encode_trace(spans)
         if len(encoded) > self._max_payload_size:
             # Trace is bigger than the payload limit, nothing we can do.
-            log.warning("trace larger than maximum payload limit, dropping")
             return
 
-        self._buffer.put(encoded)
+        try:
+            self._buffer.put(encoded)
+        except TraceBuffer.BufferItemTooLarge:
+            log.warning("trace larger than payload limit (%s), dropping", self._max_payload_size)
+        except TraceBuffer.BufferFull:
+            log.warning("trace buffer is full, dropping trace")
 
     def flush_queue(self):
         enc_traces = self._buffer.get(self._max_payload_size)
