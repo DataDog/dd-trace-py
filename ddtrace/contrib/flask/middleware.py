@@ -3,6 +3,8 @@ from ...ext import SpanTypes, http, errors
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
+from ddtrace.http import store_request_headers
+from ddtrace import config
 
 import flask.templating
 from flask import g, request, signals
@@ -155,6 +157,7 @@ class TraceMiddleware(object):
         endpoint = ''
         url = ''
         if request:
+            store_request_headers(request.headers, span, config.flask)
             method = request.method
             endpoint = request.endpoint or code
             url = request.base_url or ''
