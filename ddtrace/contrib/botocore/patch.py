@@ -25,6 +25,7 @@ TRACED_ARGS = ['params', 'path', 'verb']
 
 propagator = HTTPPropagator()
 
+
 def modify_client_context(client_context_base64, trace_headers):
     client_context_json = base64.b64decode(str(client_context_base64))
     client_context_object = json.loads(client_context_json)
@@ -37,6 +38,7 @@ def modify_client_context(client_context_base64, trace_headers):
         }
 
     return base64.b64encode(json.dumps(client_context_object))
+
 
 def inject_trace_to_client_context(args, span):
     trace_headers = {}
