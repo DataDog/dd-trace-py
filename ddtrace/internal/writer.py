@@ -146,7 +146,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._endpoint = "/v0.3/traces"
             return payload
         else:
-            log.error("unsupported endpoint '%s' received response %s from Datadog Agent", self._endpoint, response.status)
+            log.error(
+                "unsupported endpoint '%s' received response %s from Datadog Agent", self._endpoint, response.status
+            )
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
