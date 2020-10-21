@@ -5,6 +5,8 @@ Trace queries to aws api done via botocore client
 from ddtrace.vendor import wrapt
 from ddtrace import config
 import botocore.client
+import base64
+import json
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
@@ -12,6 +14,7 @@ from ...pin import Pin
 from ...ext import SpanTypes, http, aws
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
+from ...propagation.http import HTTPPropagator
 
 
 # Original botocore client class
@@ -19,6 +22,38 @@ _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
+
+propagator = HTTPPropagator()
+
+def modify_client_context(client_context_base64, trace_headers):
+    client_context_json = base64.b64decode(str(client_context_base64))
+    client_context_object = json.loads(client_context_json)
+
+    if 'Custom' in client_context_object:
+        client_context_object['Custom']['_datadog'] = trace_headers
+    else:
+        client_context_object['Custom'] = {
+            '_datadog': trace_headers
+        }
+
+    return base64.b64encode(json.dumps(client_context_object))
+
+def inject_trace_to_client_context(args, span):
+    trace_headers = {}
+    propagator.inject(span.context, trace_headers)
+
+    params = args[1]
+    if 'ClientContext' in params:
+        params.ClientContext = modify_client_context(params.ClientContext, trace_headers)
+    else:
+        trace_headers = {}
+        propagator.inject(span.context, trace_headers)
+
+        params.ClientContext = {
+            'Custom': {
+                '_datadog': trace_headers
+            }
+        }
 
 
 def patch():
@@ -52,6 +87,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         if args:
             operation = args[0]
             span.resource = '%s.%s' % (endpoint_name, operation.lower())
+
+            if endpoint_name == 'lambda' and operation == 'Invoke':
+                inject_trace_to_client_context(args, span)
 
         else:
             span.resource = endpoint_name

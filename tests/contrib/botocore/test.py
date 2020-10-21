@@ -1,12 +1,15 @@
 # 3p
 import botocore.session
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
+import json
+import base64
 
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.compat import stringify
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 
 # testing
 from tests.opentracer.utils import init_tracer
@@ -207,6 +210,30 @@ class BotocoreTest(TracerTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
+
+    @mock_lambda
+    def test_lambda_invoke(self):
+        lamb = self.session.create_client('lambda', region_name='us-east-1')
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+        lamb.invoke()
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        context_json = base64.b64decode(str(span.get_tag('meta.params.ClientContext')))
+        context_obj = json.loads(context_json)
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+        self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
+        self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.lambda')
+        self.assertEqual(span.resource, 'lambda.invoke')
 
     @mock_kms
     def test_kms_client(self):
