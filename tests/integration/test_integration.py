@@ -1,23 +1,15 @@
 import os
 import logging
-import math
 import mock
 import subprocess
 import sys
-import types
-from unittest import TestCase, skip, skipUnless
+from unittest import TestCase, skipUnless
 
 import ddtrace
 from ddtrace import Tracer, tracer
-from ddtrace.api import API, Response
-from ddtrace.ext import http
-from ddtrace.filters import FilterRequestsOnUrl
-from ddtrace.constants import FILTERS_KEY
+from ddtrace.api import API
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
-from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
-from ddtrace.payload import Payload
-from ddtrace.span import Span
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -293,8 +285,8 @@ def test_child_spans():
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
         spans = []
-        for i in range(100000):
-            span = t.trace("op")
+        for i in range(10000):
+            spans.append(t.trace("op"))
         for s in spans:
             s.finish()
 
