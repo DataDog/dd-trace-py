@@ -245,9 +245,9 @@ class BotocoreTest(TracerTestCase):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         client_context = base64.b64encode(json.dumps({
-          'Custom': {
-            'foo': 'bar'
-          }
+            'Custom': {
+                'foo': 'bar'
+            }
         }).encode('utf-8')).decode('utf-8')
 
         lamb.invoke(
