@@ -219,14 +219,14 @@ class BotocoreTest(TracerTestCase):
         lamb.invoke(
             FunctionName='ironmaiden',
             InvocationType='RequestResponse',
-            Payload='{}'
+            Payload='{"band":"ironmaiden"}',
         )
 
         spans = self.get_spans()
         assert spans
         span = spans[0]
 
-        context_json = base64.b64decode(str(span.get_tag('meta.params.ClientContext')))
+        context_json = base64.b64decode(span.get_tag('meta.params.ClientContext')).decode('utf-8')
         context_obj = json.loads(context_json)
 
         self.assertEqual(len(spans), 1)
@@ -252,8 +252,8 @@ class BotocoreTest(TracerTestCase):
 
         lamb.invoke(
             FunctionName='ironmaiden',
-            Payload='{}',
-            ClientContext=client_context
+            Payload='{"band":"ironmaiden"}',
+            ClientContext=client_context,
         )
 
         spans = self.get_spans()

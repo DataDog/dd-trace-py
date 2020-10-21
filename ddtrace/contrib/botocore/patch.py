@@ -27,7 +27,7 @@ propagator = HTTPPropagator()
 
 
 def modify_client_context(client_context_base64, trace_headers):
-    client_context_json = base64.b64decode(str(client_context_base64))
+    client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
     client_context_object = json.loads(client_context_json)
 
     if 'Custom' in client_context_object:
