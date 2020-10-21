@@ -37,7 +37,7 @@ def modify_client_context(client_context_base64, trace_headers):
             '_datadog': trace_headers
         }
 
-    return base64.b64encode(json.dumps(client_context_object))
+    return base64.b64encode(json.dumps(client_context_object).encode('utf-8')).decode('utf-8')
 
 
 def inject_trace_to_client_context(args, span):
