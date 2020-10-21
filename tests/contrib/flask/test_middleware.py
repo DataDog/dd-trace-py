@@ -2,8 +2,6 @@
 import time
 import re
 
-from flask import request
-
 from unittest import TestCase
 
 from ddtrace.contrib.flask import TraceMiddleware
@@ -390,17 +388,21 @@ class TestFlask(TestCase):
         assert dd_span.meta.get(http.METHOD) == 'GET'
 
     def test_http_request_header_tracing(self):
-        config.flask.http.trace_headers(['User-Agent', 'Host'])
-        self.app.get('/')
+        config.flask.http.trace_headers(['User-Agent', 'Host', 'my-header'])
+        self.app.get('/', headers={
+            'my-header': 'my_value',
+        })
         traces = self.tracer.writer.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert span.get_tag('http.request.headers.my-header') == 'my_value'
         user_agent = span.get_tag('http.request.headers.user-agent')
         host = span.get_tag('http.request.headers.host')
 
-        #ensure span contains either header
+        # ensure span contains either header
         assert (user_agent or host) is not None
 
         if user_agent:
