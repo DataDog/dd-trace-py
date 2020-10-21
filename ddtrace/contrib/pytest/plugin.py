@@ -10,7 +10,7 @@ from .constants import FRAMEWORK, HELP_MSG
 
 def is_enabled(config):
     """Check if the ddtrace plugin is enabled."""
-    return config.getoption("ddtrace", default=config.getini("ddtrace"))
+    return config.getoption("ddtrace") or config.getini("ddtrace")
 
 
 def _extract_span(item):

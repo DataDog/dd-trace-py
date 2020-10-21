@@ -41,6 +41,24 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 0
 
+    def test_ini(self):
+        """Test ini config."""
+        self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_ini(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.tracer.writer.pop()
+
+        assert len(spans) == 1
+
     def test_parameterize_case(self):
         """Test parametrize case."""
         py_file = self.testdir.makepyfile(
@@ -85,12 +103,13 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == "body"
 
-    def test_fixture(self):
-        """Test ddspan fixture."""
+    def test_tags(self):
+        """Test ddspan tags."""
         py_file = self.testdir.makepyfile(
             """
             import pytest
 
+            @pytest.mark.dd_tags(mark="dd_tags")
             def test_fixture(ddspan):
                 assert ddspan is not None
                 ddspan.set_tag("world", "hello")
@@ -103,4 +122,5 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].get_tag("world") == "hello"
+        assert spans[0].get_tag("mark") == "dd_tags"
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value

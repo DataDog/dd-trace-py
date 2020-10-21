@@ -4,7 +4,6 @@ common CI providers
 
 import os
 import re
-from functools import partial
 
 from ddtrace.vendor import attr
 
@@ -62,6 +61,7 @@ class Provider(object):
 
     _registered_providers = (
         travis,
+        bitbucket,
         circle_ci,
         jenkins,
         gitlab,
@@ -82,7 +82,7 @@ class Provider(object):
                 try:
                     return cls(**provider.extract(env))
                 except Exception:
-                    log.error("could not create '{0}' provider info".format(provider.__name__))
+                    log.error("could not create '{0}' provider info", provider.__name__)
 
         return cls()
 

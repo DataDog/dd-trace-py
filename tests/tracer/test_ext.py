@@ -13,7 +13,10 @@ def test_flatten_dict():
 
 
 AZURE = [
-    ({"TF_BUILD": "true", "BUILD_DEFINITIONNAME": "name"}, {ci.PROVIDER_NAME: "azurepipelines", ci.PIPELINE_NAME: "name"}),
+    (
+        {"TF_BUILD": "true", "BUILD_DEFINITIONNAME": "name"},
+        {ci.PROVIDER_NAME: "azurepipelines", ci.PIPELINE_NAME: "name"},
+    ),
 ]
 
 
