@@ -5,16 +5,14 @@ import mock
 import subprocess
 import sys
 import types
-
-import ddtrace
-
 from unittest import TestCase, skip, skipUnless
 
+import ddtrace
+from ddtrace import Tracer, tracer
 from ddtrace.api import API, Response
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
@@ -36,12 +34,6 @@ class MockedLogHandler(logging.Handler):
             self.messages[record.levelname.lower()].append(record.getMessage())
         finally:
             self.release()
-
-
-def _flawed_put(self, data, headers):
-    conn = httplib.HTTPConnection(self._hostname, self._port)
-    conn.request("HEAD", self._endpoint, data, headers)
-    return Response.from_http_response(conn.getresponse())
 
 
 @skipUnless(
@@ -167,43 +159,6 @@ class TestWorkers(TestCase):
         assert len(payload[0]) == 2
         assert payload[0][0][b"name"] == b"client.testing"
         assert payload[0][1][b"name"] == b"client.testing"
-
-    def test_worker_http_error_logging(self):
-        # Tests the logging http error logic
-        tracer = self.tracer
-        self.tracer.writer._put = types.MethodType(_flawed_put, self.tracer.writer)
-        tracer.trace("client.testing").finish()
-
-        log = logging.getLogger("ddtrace.internal.writer")
-        log_handler = MockedLogHandler(level="DEBUG")
-        log.addHandler(log_handler)
-
-        self._wait_thread_flush()
-        logged_errors = log_handler.messages["error"]
-        assert len(logged_errors) == 1
-        assert (
-            "Failed to send traces to Datadog Agent at http://localhost:8126: "
-            "HTTP error status 400, reason Bad Request, message Content-Type:" in logged_errors[0]
-        )
-
-    def test_worker_filter_request(self):
-        self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r"http://example\.com/health")]})
-        # spy the send() method
-        span = self.tracer.trace("testing.filteredurl")
-        span.set_tag(http.URL, "http://example.com/health")
-        span.finish()
-        span = self.tracer.trace("testing.nonfilteredurl")
-        span.set_tag(http.URL, "http://example.com/api/resource")
-        span.finish()
-        self._wait_thread_flush()
-
-        # Only the second trace should have been sent
-        assert self.writer._put.call_count == 1
-        # check and retrieve the right call
-        assert self.writer._endpoint == "/v0.4/traces"
-        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
-        assert len(payload) == 1
-        assert payload[0][0][b"name"] == b"testing.nonfilteredurl"
 
 
 @skipUnless(
@@ -473,3 +428,45 @@ def test_debug_mode():
     assert p.stdout.read() == b""
     # Stderr should have some debug lines
     assert b"DEBUG:ddtrace" in p.stderr.read()
+
+
+def test_payload_too_large():
+    # 100000 * 100 = ~10MB
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        for i in range(100000):
+            with tracer.trace("operation") as s:
+                s.set_tag("a" * 10, "b" * 90)
+
+        assert log.warning.call_count > 0
+        calls = [
+            mock.call("trace buffer is full, dropping trace"),
+            # mock.call("trace larger than payload limit (16000000), dropping")
+        ]
+        log.warning.assert_has_calls(calls)
+
+
+def test_single_trace_too_large():
+    # 100000 * 50 = ~5MB
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        with tracer.trace("huge"):
+            for i in range(100000):
+                with tracer.trace("operation") as s:
+                    s.set_tag("a" * 10, "b" * 40)
+
+        assert log.warning.call_count > 0
+        calls = [mock.call("trace larger than payload limit (%s), dropping", 8000000)]
+        log.warning.assert_has_calls(calls)
+
+
+def test_trace_bad_url():
+    t = Tracer()
+    t.configure(hostname="bad", port=1111)
+
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        with t.trace("op"):
+            pass
+        t.shutdown()
+
+    assert log.error.call_count > 0
+    calls = [mock.call("Failed to send traces to Datadog Agent at %s", "http://bad:1111", exc_info=True)]
+    log.error.assert_has_calls(calls)

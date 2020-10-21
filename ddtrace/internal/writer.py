@@ -58,7 +58,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
-        buffer_size=16 * 1000000,  # 16 MB
+        buffer_size=16 * 1000000,  # 16MB
         max_payload_size=8 * 1000000,  # 8MB
         timeout=2,
     ):
@@ -206,9 +206,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             return
 
         encoded = self._encoder.encode_trace(spans)
-        if len(encoded) > self._max_payload_size:
-            # Trace is bigger than the payload limit, nothing we can do.
-            return
 
         try:
             self._buffer.put(encoded)
