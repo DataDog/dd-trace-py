@@ -54,6 +54,9 @@ commands:
         default: *s3_bucket
     steps:
       - setup_tox
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libenchant-dev
       - run: pip install awscli
       - run: tox -e docs
       - run:
