@@ -46,7 +46,7 @@ def inject_trace_to_client_context(args, span):
 
     params = args[1]
     if 'ClientContext' in params:
-        params['ClientContext'] = modify_client_context(params.ClientContext, trace_headers)
+        params['ClientContext'] = modify_client_context(params['ClientContext'], trace_headers)
     else:
         trace_headers = {}
         propagator.inject(span.context, trace_headers)
@@ -55,7 +55,8 @@ def inject_trace_to_client_context(args, span):
                 '_datadog': trace_headers
             }
         }
-        params['ClientContext'] = base64.b64encode(json.dumps(client_context_object))
+        json_context = json.dumps(client_context_object).encode('utf-8')
+        params['ClientContext'] = base64.b64encode(json_context).decode('utf-8')
 
 
 def patch():
