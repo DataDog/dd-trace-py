@@ -388,7 +388,7 @@ class TestFlask(TestCase):
         assert dd_span.meta.get(http.METHOD) == 'GET'
 
     def test_http_request_header_tracing(self):
-        config.flask.http.trace_headers(['User-Agent', 'Host', 'my-header'])
+        config.flask.http.trace_headers(['Host', 'my-header'])
         self.app.get('/', headers={
             'my-header': 'my_value',
         })
@@ -399,13 +399,4 @@ class TestFlask(TestCase):
         span = traces[0][0]
 
         assert span.get_tag('http.request.headers.my-header') == 'my_value'
-        user_agent = span.get_tag('http.request.headers.user-agent')
-        host = span.get_tag('http.request.headers.host')
-
-        # ensure span contains either header
-        assert (user_agent or host) is not None
-
-        if user_agent:
-            assert user_agent == 'werkzeug/1.0.1'
-        if host:
-            assert host == 'localhost'
+        assert span.get_tag('http.request.headers.host') == 'localhost'
