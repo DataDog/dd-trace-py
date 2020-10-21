@@ -36,6 +36,7 @@ class TraceBuffer(object):
         with self._lock:
             if self.maxsize <= 0 or self._size + len(item) < self.maxsize:
                 self._buffer.append(item)
+                self._size += len(item)
             else:
                 self._dropped += 1
                 self._dropped_size += len(item)
