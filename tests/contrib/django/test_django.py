@@ -15,7 +15,7 @@ from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
 
-from tests import override_config, override_global_config, override_http_config, assert_dict_issuperset
+from tests import override_config, override_global_config, override_http_config, assert_dict_issuperset, snapshot
 from tests.opentracer.utils import init_tracer
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
@@ -500,18 +500,18 @@ def test_middleware_trace_function_based_view(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.function_view"
 
 
-def test_middleware_trace_callable_view(client, test_spans):
+@pytest.mark.skipif(not django.VERSION < (2, 2, 0), reason="")
+@snapshot()
+def test_middleware_trace_callable_view(client):
     # ensures that the internals are properly traced when using callable views
     assert client.get("/feed-view/").status_code == 200
 
-    span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/feed-view/"
-    if django.VERSION >= (2, 2, 0):
-        assert span.resource == "GET ^feed-view/$"
-    else:
-        assert span.resource == "GET tests.contrib.django.views.FeedView"
-    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+@pytest.mark.skipif(django.VERSION < (2, 2, 0), reason="")
+@snapshot()
+def test_middleware_trace_callable_view_22x(client):
+    # ensures that the internals are properly traced when using callable views
+    assert client.get("/feed-view/").status_code == 200
 
 
 def test_middleware_trace_errors(client, test_spans):
@@ -540,18 +540,18 @@ def test_middleware_trace_staticmethod(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.StaticMethodView"
 
 
-def test_middleware_trace_partial_based_view(client, test_spans):
+@pytest.mark.skipif(not django.VERSION < (2, 2, 0), reason="")
+@snapshot()
+def test_middleware_trace_partial_based_view(client):
     # ensures that the internals are properly traced when using a function views
     assert client.get("/partial-view/").status_code == 200
 
-    span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/partial-view/"
-    if django.VERSION >= (2, 2, 0):
-        assert span.resource == "GET ^partial-view/$"
-    else:
-        assert span.resource == "GET partial"
-    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+@pytest.mark.skipif(django.VERSION < (2, 2, 0), reason="")
+@snapshot()
+def test_middleware_trace_partial_based_view_22x(client):
+    # ensures that the internals are properly traced when using a function views
+    assert client.get("/partial-view/").status_code == 200
 
 
 def test_simple_view_get(client, test_spans):
@@ -1354,16 +1354,24 @@ def test_urlpatterns_path(client, test_spans):
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="include only exists in >=2.0.0")
-def test_urlpatterns_include(client, test_spans):
+@pytest.mark.skipif(django.VERSION < (2, 0, 0) or django.VERSION >= (2, 2, 0), reason="include only exists in >=2.0.0")
+@snapshot()
+def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
         The view is traced
     """
     assert client.get("/include/test/").status_code == 200
 
-    # Ensure the view was traced
-    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+@pytest.mark.skipif(django.VERSION < (2, 2, 0), reason="")
+@snapshot()
+def test_urlpatterns_include_22x(client):
+    """
+    When a view is specified using `django.urls.include`
+        The view is traced
+    """
+    assert client.get("/include/test/").status_code == 200
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="repath only exists in >=2.0.0")
