@@ -122,44 +122,6 @@ class TestWorkers(TestCase):
         assert len(payload[0]) == 1
         assert payload[0][0][b"name"] == b"client.testing"
 
-    # DEV: If we can make the writer flushing deterministic for the case of tests, then we can re-enable this
-    @skip("Writer flush intervals are impossible to time correctly to make this test not flaky")
-    def test_worker_multiple_traces(self):
-        # make a single send() if multiple traces are created before the flush interval
-        tracer = self.tracer
-        tracer.trace("client.testing").finish()
-        tracer.trace("client.testing").finish()
-
-        # one send is expected
-        self._wait_thread_flush()
-        assert self.writer._put.call_count == 1
-        assert self.writer._endpoint == "/v0.4/traces"
-        # check and retrieve the right call
-        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
-        assert len(payload) == 2
-        assert len(payload[0]) == 1
-        assert len(payload[1]) == 1
-        assert payload[0][0][b"name"] == b"client.testing"
-        assert payload[1][0][b"name"] == b"client.testing"
-
-    def test_worker_single_trace_multiple_spans(self):
-        # make a single send() if a single trace with multiple spans is created before the flush
-        tracer = self.tracer
-        parent = tracer.trace("client.testing")
-        tracer.trace("client.testing").finish()
-        parent.finish()
-
-        # one send is expected
-        self._wait_thread_flush()
-        assert self.writer._put.call_count == 1
-        # check and retrieve the right call
-        assert self.writer._endpoint == "/v0.4/traces"
-        payload = self._get_endpoint_payload(self.writer._put.call_args_list)
-        assert len(payload) == 1
-        assert len(payload[0]) == 2
-        assert payload[0][0][b"name"] == b"client.testing"
-        assert payload[0][1][b"name"] == b"client.testing"
-
 
 @skipUnless(
     os.environ.get("TEST_DATADOG_INTEGRATION", False),
@@ -185,53 +147,6 @@ class TestAPITransport(TestCase):
         self.api_json = API("localhost", 8126, encoder=JSONEncoder())
         self.api_msgpack = API("localhost", 8126, encoder=MsgpackEncoder())
 
-    @mock.patch("ddtrace.api.httplib.HTTPConnection")
-    def test_send_presampler_headers(self, mocked_http):
-        # register a single trace with a span and send them to the trace agent
-        self.tracer.trace("client.testing").finish()
-        trace = self.tracer.writer.pop()
-        traces = [trace]
-
-        # make a call and retrieve the `conn` Mock object
-        self.api_msgpack.send_traces(traces)
-        request_call = mocked_http.return_value.request
-        assert request_call.call_count == 1
-
-        # retrieve the headers from the mocked request call
-        expected_headers = {
-            "Datadog-Container-Id": "test-container-id",  # mocked in setUp()
-            "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Lang-Interpreter": PYTHON_INTERPRETER,
-            "Datadog-Meta-Lang-Version": PYTHON_VERSION,
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
-            "X-Datadog-Trace-Count": "1",
-            "Content-Type": "application/msgpack",
-        }
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        assert expected_headers == headers
-
-    def _send_traces_and_check(self, traces, nresponses=1):
-        # test JSON encoder
-        responses = self.api_json.send_traces(traces)
-        assert len(responses) == nresponses
-        for response in responses:
-            assert isinstance(response, Exception) or response.status == 200
-
-        # test Msgpack encoder
-        responses = self.api_msgpack.send_traces(traces)
-        assert len(responses) == nresponses
-        for response in responses:
-            assert isinstance(response, Exception) or response.status == 200
-
-    def test_send_single_trace(self):
-        # register a single trace with a span and send them to the trace agent
-        self.tracer.trace("client.testing").finish()
-        trace = self.tracer.writer.pop()
-        traces = [trace]
-
-        self._send_traces_and_check(traces)
-
     def test_send_many_traces(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace("client.testing").finish()
@@ -240,53 +155,6 @@ class TestAPITransport(TestCase):
         traces = [trace] * 20000
 
         self._send_traces_and_check(traces, 2)
-
-    def test_send_single_trace_max_payload(self):
-        payload = Payload()
-
-        # compute number of spans to create to surpass max payload
-        trace = [Span(self.tracer, "child.span")]
-        trace_size = len(payload.encoder.encode_trace(trace))
-        num_spans = int(math.floor(payload.max_payload_size / trace_size))
-
-        # setup logging capture
-        log = logging.getLogger("ddtrace.api")
-        log_handler = MockedLogHandler(level="WARNING")
-        log.addHandler(log_handler)
-
-        with self.tracer.trace("client.testing"):
-            for n in range(num_spans):
-                self.tracer.trace("child.span").finish()
-
-        trace = self.tracer.writer.pop()
-
-        self._send_traces_and_check([trace], 1)
-
-        logged_warnings = log_handler.messages["warning"]
-        assert len(logged_warnings) == 1
-        assert "Trace is larger than the max payload size, dropping it" in logged_warnings[0]
-
-    def test_send_single_with_wrong_errors(self):
-        # if the error field is set to True, it must be cast as int so
-        # that the agent decoder handles that properly without providing
-        # a decoding error
-        span = self.tracer.trace("client.testing")
-        span.error = True
-        span.finish()
-        trace = self.tracer.writer.pop()
-        traces = [trace]
-
-        self._send_traces_and_check(traces)
-
-    def test_send_multiple_traces(self):
-        # register some traces and send them to the trace agent
-        self.tracer.trace("client.testing").finish()
-        trace_1 = self.tracer.writer.pop()
-        self.tracer.trace("client.testing").finish()
-        trace_2 = self.tracer.writer.pop()
-        traces = [trace_1, trace_2]
-
-        self._send_traces_and_check(traces)
 
     def test_send_single_trace_multiple_spans(self):
         # register some traces and send them to the trace agent
@@ -310,37 +178,6 @@ class TestAPITransport(TestCase):
         traces = [trace_1, trace_2]
 
         self._send_traces_and_check(traces)
-
-
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
-class TestAPIDowngrade(TestCase):
-    """
-    Ensures that if the tracing client found an earlier trace agent,
-    it will downgrade the current connection to a stable API version
-    """
-
-    @skip("msgpack package split breaks this test; it works for newer version of msgpack")
-    def test_downgrade_api(self):
-        # make a call to a not existing endpoint, downgrades
-        # the current API to a stable one
-        tracer = get_dummy_tracer()
-        tracer.trace("client.testing").finish()
-        trace = tracer.writer.pop()
-
-        # the encoder is right but we're targeting an API
-        # endpoint that is not available
-        api = API("localhost", 8126)
-        api._traces = "/v0.0/traces"
-        assert isinstance(api._encoder, MsgpackEncoder)
-
-        # after the call, we downgrade to a working endpoint
-        response = api.send_traces([trace])
-        assert response
-        assert response.status == 200
-        assert isinstance(api._encoder, JSONEncoder)
 
 
 @skipUnless(
@@ -385,26 +222,20 @@ class TestRateByService(TestCase):
         assert responses[0].get_json() == dict(rate_by_service={"service:,env:": 1})
 
 
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
-class TestConfigure(TestCase):
+def test_configure_keeps_api_hostname_and_port(self):
     """
     Ensures that when calling configure without specifying hostname and port,
     previous overrides have been kept.
     """
-
-    def test_configure_keeps_api_hostname_and_port(self):
-        tracer = Tracer()  # use real tracer with real api
-        assert "localhost" == tracer.writer._hostname
-        assert 8126 == tracer.writer._port
-        tracer.configure(hostname="127.0.0.1", port=8127)
-        assert "127.0.0.1" == tracer.writer._hostname
-        assert 8127 == tracer.writer._port
-        tracer.configure(priority_sampling=True)
-        assert "127.0.0.1" == tracer.writer._hostname
-        assert 8127 == tracer.writer._port
+    tracer = Tracer()  # use real tracer with real api
+    assert "localhost" == tracer.writer._hostname
+    assert 8126 == tracer.writer._port
+    tracer.configure(hostname="127.0.0.1", port=8127)
+    assert "127.0.0.1" == tracer.writer._hostname
+    assert 8127 == tracer.writer._port
+    tracer.configure(priority_sampling=True)
+    assert "127.0.0.1" == tracer.writer._hostname
+    assert 8127 == tracer.writer._port
 
 
 def test_debug_mode():
@@ -431,27 +262,55 @@ def test_debug_mode():
 
 
 def test_payload_too_large():
+    t = Tracer()
     # 100000 * 100 = ~10MB
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(100000):
-            with tracer.trace("operation") as s:
+            with t.trace("operation") as s:
                 s.set_tag("a" * 10, "b" * 90)
 
+        t.shutdown()
         assert log.warning.call_count > 0
         calls = [
             mock.call("trace buffer is full, dropping trace"),
-            # mock.call("trace larger than payload limit (16000000), dropping")
         ]
         log.warning.assert_has_calls(calls)
 
 
+def test_large_payload():
+    t = Tracer()
+    # 100000 * 20 = ~2MB + additional tags
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        for i in range(100000):
+            with t.trace("operation") as s:
+                s.set_tag("a" * 1, "b" * 19)
+
+        t.shutdown()
+        assert log.warning.call_count == 0
+
+
+def test_child_spans():
+    t = Tracer()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        spans = []
+        for i in range(100000):
+            span = t.trace("op")
+        for s in spans:
+            s.finish()
+
+        t.shutdown()
+        assert log.warning.call_count == 0
+
+
 def test_single_trace_too_large():
+    t = Tracer()
     # 100000 * 50 = ~5MB
     with mock.patch("ddtrace.internal.writer.log") as log:
-        with tracer.trace("huge"):
+        with t.trace("huge"):
             for i in range(100000):
                 with tracer.trace("operation") as s:
                     s.set_tag("a" * 10, "b" * 40)
+        t.shutdown()
 
         assert log.warning.call_count > 0
         calls = [mock.call("trace larger than payload limit (%s), dropping", 8000000)]
@@ -470,3 +329,27 @@ def test_trace_bad_url():
     assert log.error.call_count > 0
     calls = [mock.call("Failed to send traces to Datadog Agent at %s", "http://bad:1111", exc_info=True)]
     log.error.assert_has_calls(calls)
+
+
+def test_writer_headers():
+    t = Tracer()
+    t.writer._put = mock.Mock(wraps=t.writer._put)
+    with t.trace("op"):
+        pass
+    t.shutdown()
+    assert t.writer._put.call_count == 1
+    data, headers = t.writer._put.call_args[0]
+    assert headers.get("Datadog-Meta-Tracer-Version") == ddtrace.__version__
+    assert headers.get("Datadog-Meta-Lang") == "python"
+    assert headers.get("Content-Type") == "application/msgpack"
+    assert headers.get("X-Datadog-Trace-Count") == "1"
+
+    t = Tracer()
+    t.writer._put = mock.Mock(wraps=t.writer._put)
+    for i in range(100):
+        with t.trace("op"):
+            pass
+    t.shutdown()
+    assert t.writer._put.call_count == 1
+    data, headers = t.writer._put.call_args[0]
+    assert headers.get("X-Datadog-Trace-Count") == "100"
