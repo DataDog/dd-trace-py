@@ -27,3 +27,4 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
 - [ ] 500-level responses are tagged as errors
 - [ ] Async (if applicable)
   - [ ] Span parenting behaves as expected.
+- [ ] Request headers specified in the config are stored
