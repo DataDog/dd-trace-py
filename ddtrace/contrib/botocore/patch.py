@@ -51,7 +51,7 @@ def inject_trace_to_client_context(args, span):
         trace_headers = {}
         propagator.inject(span.context, trace_headers)
 
-        params.ClientContext = {
+        params['ClientContext'] = {
             'Custom': {
                 '_datadog': trace_headers
             }
