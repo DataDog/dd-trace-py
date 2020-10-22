@@ -25,7 +25,7 @@ def field(name, *args, **kwargs):
 _RE_BRANCH_PREFIX = re.compile(r"^refs/(heads/)?")
 
 
-@attr.s(kw_only=True, eq=False, order=False, slots=True, frozen=True)
+@attr.s(kw_only=True, eq=False, order=False, slots=True)
 class Provider(object):
 
     # CI properties
@@ -42,6 +42,13 @@ class Provider(object):
     commit_sha = field(git.COMMIT_SHA)
     repository_url = field(git.REPOSITORY_URL)
     tag = field(git.TAG)
+
+    # Deprecated properties
+    _deprecated_commit_sha = field("git.commit_sha")
+
+    @_deprecated_commit_sha.default
+    def _default_deprecated_commit_sha(self):
+        return self.commit_sha
 
     def astags(self):
         """Add provider information to span."""
