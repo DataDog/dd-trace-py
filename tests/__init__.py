@@ -844,7 +844,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
             r = conn.getresponse()
             if r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
-                raise SnapshotFailed(r.read().decode())
+                raise SnapshotFailed(r.read())
 
             # Run the test.
             ret = wrapped(*args, **kwargs)
@@ -855,14 +855,14 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
             # Query for the results of the test.
             conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-            response = conn.getresponse()
-            if response.status != 200:
-                raise SnapshotFailed(response.read().decode())
+            r = conn.getresponse()
+            if r.status != 200:
+                raise SnapshotFailed(r.read())
             return ret
         except SnapshotFailed as e:
             # Fail the test if a failure has occurred and print out the
             # message we got from the test agent.
-            pytest.fail(str(e), pytrace=False)
+            pytest.fail(to_unicode(e.args[0]), pytrace=False)
         finally:
             conn.close()
 
