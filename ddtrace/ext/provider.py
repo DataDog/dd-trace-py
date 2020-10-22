@@ -37,7 +37,9 @@ class Provider(object):
     workspace_path = field(ci.WORKSPACE_PATH, default=None)
 
     # Git properties
-    branch = field(git.BRANCH, default=None, converter=attr.converters.optional(lambda value: _RE_BRANCH_PREFIX.sub("", value)))
+    branch = field(
+        git.BRANCH, default=None, converter=attr.converters.optional(lambda value: _RE_BRANCH_PREFIX.sub("", value))
+    )
     commit_sha = field(git.COMMIT_SHA, default=None)
     repository_url = field(git.REPOSITORY_URL, default=None)
     tag = field(git.TAG, default=None)
