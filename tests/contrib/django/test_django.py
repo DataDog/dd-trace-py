@@ -500,16 +500,23 @@ def test_middleware_trace_function_based_view(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.function_view"
 
 
-@pytest.mark.skipif(not django.VERSION < (2, 2, 0), reason="")
+@pytest.mark.skipif(django.VERSION > (1, 12), reason="")
 @snapshot()
-def test_middleware_trace_callable_view(client):
+def test_middleware_trace_callable_view_111x(client):
     # ensures that the internals are properly traced when using callable views
     assert client.get("/feed-view/").status_code == 200
 
 
-@pytest.mark.skipif(django.VERSION < (2, 2, 0), reason="")
+@pytest.mark.skipif(not (django.VERSION > (1, 12) and django.VERSION < (2, 2)), reason="")
 @snapshot()
-def test_middleware_trace_callable_view_22x(client):
+def test_middleware_trace_callable_view_21x(client):
+    # ensures that the internals are properly traced when using callable views
+    assert client.get("/feed-view/").status_code == 200
+
+
+@pytest.mark.skipif(django.VERSION < (2, 2), reason="")
+@snapshot()
+def test_middleware_trace_callable_view(client):
     # ensures that the internals are properly traced when using callable views
     assert client.get("/feed-view/").status_code == 200
 
@@ -540,16 +547,23 @@ def test_middleware_trace_staticmethod(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.StaticMethodView"
 
 
-@pytest.mark.skipif(not django.VERSION < (2, 2, 0), reason="")
+@pytest.mark.skipif(django.VERSION > (1, 12), reason="")
 @snapshot()
-def test_middleware_trace_partial_based_view(client):
+def test_middleware_trace_partial_based_view_111x(client):
     # ensures that the internals are properly traced when using a function views
     assert client.get("/partial-view/").status_code == 200
 
 
-@pytest.mark.skipif(django.VERSION < (2, 2, 0), reason="")
+@pytest.mark.skipif(not (django.VERSION > (1, 12) and django.VERSION < (2, 2)), reason="")
 @snapshot()
-def test_middleware_trace_partial_based_view_22x(client):
+def test_middleware_trace_partial_based_view_21x(client):
+    # ensures that the internals are properly traced when using a function views
+    assert client.get("/partial-view/").status_code == 200
+
+
+@pytest.mark.skipif(django.VERSION < (2, 2), reason="")
+@snapshot()
+def test_middleware_trace_partial_based_view(client):
     # ensures that the internals are properly traced when using a function views
     assert client.get("/partial-view/").status_code == 200
 
@@ -1354,9 +1368,9 @@ def test_urlpatterns_path(client, test_spans):
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0, 0) or django.VERSION >= (2, 2, 0), reason="include only exists in >=2.0.0")
+@pytest.mark.skipif(not (django.VERSION > (2, 0) and django.VERSION < (2, 2)), reason="")
 @snapshot()
-def test_urlpatterns_include(client):
+def test_urlpatterns_include_21x(client):
     """
     When a view is specified using `django.urls.include`
         The view is traced
@@ -1364,9 +1378,9 @@ def test_urlpatterns_include(client):
     assert client.get("/include/test/").status_code == 200
 
 
-@pytest.mark.skipif(django.VERSION < (2, 2, 0), reason="")
+@pytest.mark.skipif(django.VERSION < (2, 2), reason="")
 @snapshot()
-def test_urlpatterns_include_22x(client):
+def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
         The view is traced
