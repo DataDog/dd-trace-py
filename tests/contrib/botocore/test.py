@@ -4,7 +4,6 @@ import base64
 import io
 import zipfile
 import botocore.session
-from botocore.exceptions import ClientError
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
 
 # project
@@ -18,11 +17,12 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from tests.opentracer.utils import init_tracer
 from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
+
 def create_zip():
     code = '''
-            def lambda_handler(event, context):
-                return event
-            '''
+        def lambda_handler(event, context):
+            return event
+    '''
     zip_output = io.BytesIO()
     zip_file = zipfile.ZipFile(zip_output, 'w', zipfile.ZIP_DEFLATED)
     zip_file.writestr('lambda_function.py', code)
@@ -237,7 +237,7 @@ class BotocoreTest(TracerTestCase):
             Role='test-iam-role',
             Handler="lambda_function.lambda_handler",
             Code={
-            'ZipFile': create_zip(),
+                'ZipFile': create_zip(),
             },
             Publish=True,
             Timeout=30,
@@ -254,7 +254,7 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
 
-        context_json = base64.b64decode(span.get_tag('meta.params.ClientContext')).decode('utf-8')
+        context_json = base64.b64decode(span.get_tag('meta.params.ClientContext').encode()).decode()
         context_obj = json.loads(context_json)
 
         self.assertEqual(len(spans), 1)
@@ -272,11 +272,7 @@ class BotocoreTest(TracerTestCase):
         lamb = self.session.create_client('lambda', api_version='2015-03-31', region_name='us-east-1')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
-        client_context = base64.b64encode(json.dumps({
-            'Custom': {
-                'foo': 'bar'
-            }
-        }).encode('utf-8')).decode('utf-8')
+        client_context = base64.b64encode(json.dumps({'Custom': {'foo': 'bar'}}).encode()).decode()
 
         lamb.create_function(
             FunctionName="ironmaiden",
@@ -284,7 +280,7 @@ class BotocoreTest(TracerTestCase):
             Role='test-iam-role',
             Handler="lambda_function.lambda_handler",
             Code={
-            'ZipFile': create_zip(),
+                'ZipFile': create_zip(),
             },
             Publish=True,
             Timeout=30,
@@ -301,7 +297,7 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
 
-        context_json = base64.b64decode(str(span.get_tag('meta.params.ClientContext')))
+        context_json = base64.b64decode(span.get_tag('meta.params.ClientContext').encode()).decode()
         context_obj = json.loads(context_json)
 
         self.assertEqual(len(spans), 1)
