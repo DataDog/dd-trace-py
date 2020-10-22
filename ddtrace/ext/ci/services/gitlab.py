@@ -1,10 +1,6 @@
 ENV_KEY = "GITLAB_CI"
 
 
-def match(env):
-    return env.get(ENV_KEY) is not None
-
-
 def extract(env):
     return dict(
         provider_name="gitlab",

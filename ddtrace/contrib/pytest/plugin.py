@@ -82,7 +82,7 @@ def pytest_runtest_protocol(item, nextitem):
         yield
 
 
-def _extract_reason(item, call):
+def _extract_reason(call):
     if call.excinfo is not None:
         return call.excinfo.value
 
@@ -105,7 +105,7 @@ def pytest_runtest_makereport(item, call):
         result = outcome.get_result()
         if result.skipped:
             span.set_tag(test.STATUS, test.Status.SKIP.value)
-            reason = _extract_reason(item, call)
+            reason = _extract_reason(call)
             if reason is not None:
                 span.set_tag(test.SKIP_REASON, reason)
         elif result.passed:

@@ -78,7 +78,7 @@ class Provider(object):
         env = os.environ if env is None else env
 
         for provider in cls._registered_providers:
-            if provider.match(env):
+            if env.get(provider.ENV_KEY) is not None:
                 try:
                     return cls(**provider.extract(env))
                 except Exception:
