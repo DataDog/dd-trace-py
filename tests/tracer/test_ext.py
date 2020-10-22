@@ -2,6 +2,7 @@ import pytest
 
 from ddtrace.ext import aws
 from ddtrace.ext import ci
+from ddtrace.ext import git
 from ddtrace.ext import provider
 
 
@@ -14,8 +15,17 @@ def test_flatten_dict():
 
 AZURE = [
     (
-        {"TF_BUILD": "true", "BUILD_DEFINITIONNAME": "name"},
-        {ci.PROVIDER_NAME: "azurepipelines", ci.PIPELINE_NAME: "name"},
+        {
+            "TF_BUILD": "true",
+            "BUILD_DEFINITIONNAME": "name",
+            "BUILD_SOURCEVERSION": "0000000000000000000000000000000000000000",
+        },
+        {
+            ci.PROVIDER_NAME: "azurepipelines",
+            ci.PIPELINE_NAME: "name",
+            git.COMMIT_SHA: "0000000000000000000000000000000000000000",
+            "git.commit_sha": "0000000000000000000000000000000000000000",  # deprecated field
+        },
     ),
 ]
 

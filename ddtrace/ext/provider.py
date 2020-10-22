@@ -16,7 +16,6 @@ _PROVIDER_METADATA_KEY = "ddtrace.ext.provider"
 
 
 def field(name, *args, **kwargs):
-    kwargs.setdefault("default", None)
     kwargs.setdefault("metadata", {})
     kwargs["metadata"][_PROVIDER_METADATA_KEY] = name
     return attr.ib(*args, **kwargs)
@@ -29,19 +28,19 @@ _RE_BRANCH_PREFIX = re.compile(r"^refs/(heads/)?")
 class Provider(object):
 
     # CI properties
-    job_url = field(ci.JOB_URL)
-    pipeline_id = field(ci.PIPELINE_ID)
-    pipeline_name = field(ci.PIPELINE_NAME)
-    pipeline_number = field(ci.PIPELINE_NUMBER)
-    pipeline_url = field(ci.PIPELINE_URL)
-    provider_name = field(ci.PROVIDER_NAME)
-    workspace_path = field(ci.WORKSPACE_PATH)
+    job_url = field(ci.JOB_URL, default=None)
+    pipeline_id = field(ci.PIPELINE_ID, default=None)
+    pipeline_name = field(ci.PIPELINE_NAME, default=None)
+    pipeline_number = field(ci.PIPELINE_NUMBER, default=None)
+    pipeline_url = field(ci.PIPELINE_URL, default=None)
+    provider_name = field(ci.PROVIDER_NAME, default=None)
+    workspace_path = field(ci.WORKSPACE_PATH, default=None)
 
     # Git properties
-    branch = field(git.BRANCH, converter=attr.converters.optional(lambda value: _RE_BRANCH_PREFIX.sub("", value)))
-    commit_sha = field(git.COMMIT_SHA)
-    repository_url = field(git.REPOSITORY_URL)
-    tag = field(git.TAG)
+    branch = field(git.BRANCH, default=None, converter=attr.converters.optional(lambda value: _RE_BRANCH_PREFIX.sub("", value)))
+    commit_sha = field(git.COMMIT_SHA, default=None)
+    repository_url = field(git.REPOSITORY_URL, default=None)
+    tag = field(git.TAG, default=None)
 
     # Deprecated properties
     _deprecated_commit_sha = field("git.commit_sha")
