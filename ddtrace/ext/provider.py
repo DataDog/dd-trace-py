@@ -7,18 +7,6 @@ import re
 
 from ddtrace.vendor import attr
 
-from .ci.services import (
-    appveyor,
-    azure_pipelines,
-    bitbucket,
-    buildkite,
-    circle_ci,
-    github_actions,
-    gitlab,
-    jenkins,
-    teamcity,
-    travis,
-)
 from . import ci, git
 from ..internal.logger import get_logger
 
@@ -59,25 +47,14 @@ class Provider(object):
         """Add provider information to span."""
         return {_PROVIDER_LABELS[name]: value for name, value in attr.asdict(self).items() if value is not None}
 
-    _registered_providers = (
-        travis,
-        bitbucket,
-        circle_ci,
-        jenkins,
-        gitlab,
-        appveyor,
-        azure_pipelines,
-        github_actions,
-        teamcity,
-        buildkite,
-    )
-
     @classmethod
     def from_env(cls, env=None):
         """Build provider information from environment variables."""
+        from .ci import services
+
         env = os.environ if env is None else env
 
-        for provider in cls._registered_providers:
+        for provider in services.PROVIDERS:
             if env.get(provider.ENV_KEY) is not None:
                 try:
                     return cls(**provider.extract(env))
