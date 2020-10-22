@@ -831,6 +831,10 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
 
         conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
         try:
+            # clear queue in case traces have been generated before test case is
+            # itself run
+            tracer.writer.flush_queue()
+
             # Signal the start of this test case to the test agent.
             try:
                 conn.request("GET", "/test/start?token=%s" % token)
