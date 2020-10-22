@@ -2,10 +2,11 @@ import pytest
 
 from ddtrace import config as ddconfig
 
+from ...constants import SPAN_KIND
 from ...ext import SpanTypes, test
 from ...ext.provider import Provider
 from ...pin import Pin
-from .constants import FRAMEWORK, HELP_MSG
+from .constants import FRAMEWORK, HELP_MSG, KIND
 
 
 def is_enabled(config):
@@ -68,6 +69,7 @@ def pytest_runtest_protocol(item, nextitem):
 
     with pin.tracer.trace(SpanTypes.TEST.value, resource=item.nodeid, span_type=SpanTypes.TEST.value) as span:
         span.set_tags(pin.tags)
+        span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.NAME, item.name)
         span.set_tag(test.SUITE, item.module.__name__)
