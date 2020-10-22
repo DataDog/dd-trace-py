@@ -1,11 +1,11 @@
 import contextlib
-import functools
 import inspect
 import os
 import sys
 from contextlib import contextmanager
 
 import pytest
+from ddtrace.vendor import wrapt
 
 import ddtrace
 from ddtrace import Tracer, Span
@@ -815,54 +815,51 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
     """
     ignores = ignores or []
 
-    def dec(f):
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            if len(args) > 1:
-                self = args[0]
-                clsname = self.__class__.__name__
-            else:
-                clsname = ""
+    @wrapt.decorator
+    def wrapper(wrapped, instance, args, kwargs):
+        if len(args) > 1:
+            self = args[0]
+            clsname = self.__class__.__name__
+        else:
+            clsname = ""
 
-            module = inspect.getmodule(f)
+        module = inspect.getmodule(wrapped)
 
-            # Use the fully qualified function name as a unique test token to
-            # identify the snapshot.
-            token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, f.__name__)
+        # Use the fully qualified function name as a unique test token to
+        # identify the snapshot.
+        token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
 
-            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+        conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+        try:
+            # Signal the start of this test case to the test agent.
             try:
-                # Signal the start of this test case to the test agent.
-                try:
-                    conn.request("GET", "/test/start?token=%s" % token)
-                except Exception as e:
-                    pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
+                conn.request("GET", "/test/start?token=%s" % token)
+            except Exception as e:
+                pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
 
-                r = conn.getresponse()
-                if r.status != 200:
-                    # The test agent returns nice error messages we can forward to the user.
-                    raise SnapshotFailed(r.read().decode())
+            r = conn.getresponse()
+            if r.status != 200:
+                # The test agent returns nice error messages we can forward to the user.
+                raise SnapshotFailed(r.read().decode())
 
-                # Run the test.
-                ret = f(*args, **kwargs)
+            # Run the test.
+            ret = wrapped(*args, **kwargs)
 
-                # Flush out any remnant traces.
-                tracer.writer.flush_queue()
+            # Flush out any remnant traces.
+            tracer.writer.flush_queue()
 
-                # Query for the results of the test.
-                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
-                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-                r = conn.getresponse()
-                if r.status != 200:
-                    raise SnapshotFailed(r.read().decode())
-                return ret
-            except SnapshotFailed as e:
-                # Fail the test if a failure has occurred and print out the
-                # message we got from the test agent.
-                pytest.fail(str(e), pytrace=False)
-            finally:
-                conn.close()
+            # Query for the results of the test.
+            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+            response = conn.getresponse()
+            if response.status != 200:
+                raise SnapshotFailed(response.read().decode())
+            return ret
+        except SnapshotFailed as e:
+            # Fail the test if a failure has occurred and print out the
+            # message we got from the test agent.
+            pytest.fail(str(e), pytrace=False)
+        finally:
+            conn.close()
 
-        return wrapper
-
-    return dec
+    return wrapper
