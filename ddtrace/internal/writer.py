@@ -19,6 +19,16 @@ DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 
+def _human_size(nbytes):
+    i = 0
+    suffixes = ["B", "KB", "MB", "GB", "TB", "PB"]
+    while nbytes >= 1000 and i < len(suffixes) - 1:
+        nbytes /= 1000.0
+        i += 1
+    f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
+    return "%s%s" % (f, suffixes[i])
+
+
 class LogWriter:
     def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
         self._sampler = sampler
@@ -207,9 +217,19 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         try:
             self._buffer.put(encoded)
         except TraceBuffer.BufferItemTooLarge:
-            log.warning("trace larger than payload limit (%s), dropping", self._max_payload_size)
+            log.warning(
+                "trace (%s) larger than payload limit (%s), dropping",
+                _human_size(len(encoded)),
+                _human_size(self._max_payload_size),
+            )
         except TraceBuffer.BufferFull:
-            log.warning("trace buffer is full, dropping trace")
+            log.warning(
+                "trace buffer (%s traces %s/%s), cannot fit trace of size %s, dropping",
+                len(self._buffer),
+                _human_size(self._buffer.size),
+                _human_size(self._buffer.max_size),
+                _human_size(len(encoded)),
+            )
 
     def flush_queue(self):
         enc_traces = self._buffer.get(self._max_payload_size)

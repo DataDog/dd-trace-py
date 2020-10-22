@@ -7,6 +7,16 @@ from ddtrace import Tracer, tracer
 from ddtrace.internal.runtime import container
 
 
+class AnyStr(object):
+    def __eq__(self, other):
+        return isinstance(other, str)
+
+
+class AnyInt(object):
+    def __eq__(self, other):
+        return isinstance(other, int)
+
+
 def test_configure_keeps_api_hostname_and_port():
     """
     Ensures that when calling configure without specifying hostname and port,
@@ -70,7 +80,6 @@ def test_worker_single_trace_uds_wrong_socket_path():
 
 def test_payload_too_large():
     t = Tracer()
-    # 100000 * 100 = ~10MB
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(100000):
             with t.trace("operation") as s:
@@ -78,7 +87,13 @@ def test_payload_too_large():
 
         t.shutdown()
         calls = [
-            mock.call("trace buffer is full, dropping trace"),
+            mock.call(
+                "trace buffer (%s traces %s/%s), cannot fit trace of size %s, dropping",
+                AnyInt(),
+                "16MB",
+                "16MB",
+                AnyStr(),
+            )
         ]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
@@ -86,11 +101,12 @@ def test_payload_too_large():
 
 def test_large_payload():
     t = Tracer()
-    # 100000 * 20 = ~2MB + additional tags
+    # Traces are approx. 275 bytes.
+    # 10,000*275 ~ 3MB
     with mock.patch("ddtrace.internal.writer.log") as log:
-        for i in range(100000):
+        for i in range(10000):
             with t.trace("operation") as s:
-                s.set_tag("a" * 1, "b" * 19)
+                pass
 
         t.shutdown()
         log.warning.assert_not_called()
@@ -113,15 +129,14 @@ def test_child_spans():
 
 def test_single_trace_too_large():
     t = Tracer()
-    # 100000 * 50 = ~5MB
     with mock.patch("ddtrace.internal.writer.log") as log:
         with t.trace("huge"):
             for i in range(100000):
                 with tracer.trace("operation") as s:
-                    s.set_tag("a" * 10, "b" * 40)
+                    s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        calls = [mock.call("trace larger than payload limit (%s), dropping", 8000000)]
+        calls = [mock.call("trace (%s) larger than payload limit (%s), dropping", "16MB", "8MB")]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
