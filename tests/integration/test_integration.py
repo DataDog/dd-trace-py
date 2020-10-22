@@ -10,10 +10,10 @@ from ddtrace import Tracer, tracer
 from ddtrace.internal.runtime import container
 
 
-if os.environ.get("DATADOG_AGENT_VERSION") == "5":
+if os.environ.get("AGENT_VERSION") == "5":
     AGENT_VERSION = 5
 else:
-    AGENT_VERSION = 6
+    AGENT_VERSION = 7
 
 
 class AnyStr(object):
@@ -66,9 +66,11 @@ def test_debug_mode():
 
 
 @pytest.mark.skipif(AGENT_VERSION < 6, reason="Agent v5 doesn't support UDS")
-def test_worker_single_trace_uds():
+def test_single_trace_uds():
     t = Tracer()
-    t.configure(uds_path="/tmp/ddagent/trace.sock")
+    sockdir = "/tmp/ddagent/trace.sock"
+    t.configure(uds_path=sockdir)
+
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
@@ -76,7 +78,7 @@ def test_worker_single_trace_uds():
         log.error.assert_not_called()
 
 
-def test_worker_single_trace_uds_wrong_socket_path():
+def test_uds_wrong_socket_path():
     t = Tracer()
     t.configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -93,7 +95,8 @@ def test_payload_too_large():
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(100000):
             with t.trace("operation") as s:
-                s.set_tag("a" * 10, "b" * 90)
+                s.set_tag("a" * 10, "b" * 190)
+                s.set_tag("b" * 10, "a" * 190)
 
         t.shutdown()
         calls = [
@@ -202,10 +205,25 @@ def test_writer_headers():
 
 
 def test_priority_sampling_response():
+    # Send the data once because the agent doesn't respond with them on the
+    # first payload.
     t = Tracer()
     s = t.trace("operation", service="my-svc")
     s.set_tag("env", "my-env")
     s.finish()
+    assert "service:my-svc,env:my-env" not in t.writer._priority_sampler._by_service_samplers
+    t.shutdown()
+
+    # For some reason the agent doesn't start returning the service information
+    # immediately
+    import time
+    time.sleep(5)
+
+    t = Tracer()
+    s = t.trace("operation", service="my-svc")
+    s.set_tag("env", "my-env")
+    s.finish()
+    assert "service:my-svc,env:my-env" not in t.writer._priority_sampler._by_service_samplers
     t.shutdown()
     assert "service:my-svc,env:my-env" in t.writer._priority_sampler._by_service_samplers
 

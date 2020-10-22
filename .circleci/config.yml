@@ -316,24 +316,26 @@ jobs:
           pattern: '^py..-profile'
 
   integration_agent5:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-        environment:
-          DATADOG_AGENT_VERSION: 5
-      - *datadog_agent5
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-integration'
+      - checkout
+      - run:  docker-compose up -d ddagent5
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
 
   integration_agent:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - *datadog_agent
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-integration'
+      - checkout
+      - run: docker-compose up -d ddagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration'
 
   vendor:
     executor: ddtrace_dev
