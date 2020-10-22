@@ -13,7 +13,8 @@ python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
-datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
+datadog_agent5_image: &datadog_agent5_image datadog/docker-dd-agent:latest
+datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
@@ -182,13 +183,21 @@ deploy_docs_filters: &deploy_docs_filters
     branches:
       ignore: /.*/
 
+datadog_agent5: &datadog_agent5
+  image: *datadog_agent5_image
+  environment:
+    DD_API_KEY: invalid_key_but_this_is_fine
+    DD_APM_ENABLED: true
+    DD_BIND_HOST: 0.0.0.0
+    DD_LOG_LEVEL: DEBUG
+
 datadog_agent: &datadog_agent
   image: *datadog_agent_image
   environment:
-    DD_APM_ENABLED: true
-    DD_BIND_HOST: 0.0.0.0
     DD_API_KEY: invalid_key_but_this_is_fine
+    DD_APM_ENABLED: true
     DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
+    DD_BIND_HOST: 0.0.0.0
     DD_LOG_LEVEL: DEBUG
 
 mysql_server: &mysql_server
@@ -306,7 +315,18 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-profile'
 
-  integration:
+  integration_agent5:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+        environment:
+          DATADOG_AGENT_VERSION: 5
+      - *datadog_agent5
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-integration'
+
+  integration_agent:
     executor: ddtrace_dev
     docker:
       - image: *ddtrace_dev_image
@@ -827,7 +847,8 @@ requires_tests: &requires_tests
   - gevent
   - grpc
   - httplib
-  - integration
+  - integration_agent5
+  - integration_agent
   - vendor
   - profile
   - jinja2
@@ -929,7 +950,8 @@ workflows:
       - gevent: *requires_pre_test
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
-      - integration: *requires_pre_test
+      - integration_agent5: *requires_pre_test
+      - integration_agent: *requires_pre_test
       - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test

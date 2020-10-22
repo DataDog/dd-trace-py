@@ -1,10 +1,19 @@
 import mock
+import os
 import subprocess
 import sys
+
+import pytest
 
 import ddtrace
 from ddtrace import Tracer, tracer
 from ddtrace.internal.runtime import container
+
+
+if os.environ.get("DATADOG_AGENT_VERSION") == "5":
+    AGENT_VERSION = 5
+else:
+    AGENT_VERSION = 6
 
 
 class AnyStr(object):
@@ -56,6 +65,7 @@ def test_debug_mode():
     assert b"DEBUG:ddtrace" in p.stderr.read()
 
 
+@pytest.mark.skipif(AGENT_VERSION < 6, reason="Agent v5 doesn't support UDS")
 def test_worker_single_trace_uds():
     t = Tracer()
     t.configure(uds_path="/tmp/ddagent/trace.sock")
@@ -105,7 +115,7 @@ def test_large_payload():
     # 10,000*275 ~ 3MB
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(10000):
-            with t.trace("operation") as s:
+            with t.trace("operation"):
                 pass
 
         t.shutdown()
