@@ -4,6 +4,7 @@ import sys
 
 import ddtrace
 from ddtrace import Tracer, tracer
+from ddtrace.internal.runtime import container
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -48,10 +49,11 @@ def test_debug_mode():
 def test_worker_single_trace_uds():
     t = Tracer()
     t.configure(uds_path="/tmp/ddagent/trace.sock")
-    with mock.patch("ddtrace.internal.writer.log") as log_mock:
+    with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
-        assert log_mock.error.call_count == 0
+        log.warning.assert_not_called()
+        log.error.assert_not_called()
 
 
 def test_worker_single_trace_uds_wrong_socket_path():
@@ -60,7 +62,6 @@ def test_worker_single_trace_uds_wrong_socket_path():
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
-    assert log.error.call_count > 0
     calls = [
         mock.call("Failed to send traces to Datadog Agent at %s", "unix:///tmp/ddagent/nosockethere", exc_info=True)
     ]
@@ -76,11 +77,11 @@ def test_payload_too_large():
                 s.set_tag("a" * 10, "b" * 90)
 
         t.shutdown()
-        assert log.warning.call_count > 0
         calls = [
             mock.call("trace buffer is full, dropping trace"),
         ]
         log.warning.assert_has_calls(calls)
+        log.error.assert_not_called()
 
 
 def test_large_payload():
@@ -92,7 +93,8 @@ def test_large_payload():
                 s.set_tag("a" * 1, "b" * 19)
 
         t.shutdown()
-        assert log.warning.call_count == 0
+        log.warning.assert_not_called()
+        log.error.assert_not_called()
 
 
 def test_child_spans():
@@ -105,7 +107,8 @@ def test_child_spans():
             s.finish()
 
         t.shutdown()
-        assert log.warning.call_count == 0
+        log.warning.assert_not_called()
+        log.error.assert_not_called()
 
 
 def test_single_trace_too_large():
@@ -118,9 +121,9 @@ def test_single_trace_too_large():
                     s.set_tag("a" * 10, "b" * 40)
         t.shutdown()
 
-        assert log.warning.call_count > 0
         calls = [mock.call("trace larger than payload limit (%s), dropping", 8000000)]
         log.warning.assert_has_calls(calls)
+        log.error.assert_not_called()
 
 
 def test_trace_bad_url():
@@ -132,7 +135,6 @@ def test_trace_bad_url():
             pass
         t.shutdown()
 
-    assert log.error.call_count > 0
     calls = [mock.call("Failed to send traces to Datadog Agent at %s", "http://bad:1111", exc_info=True)]
     log.error.assert_has_calls(calls)
 
@@ -149,7 +151,8 @@ def test_writer_headers():
     assert headers.get("Datadog-Meta-Lang") == "python"
     assert headers.get("Content-Type") == "application/msgpack"
     assert headers.get("X-Datadog-Trace-Count") == "1"
-    assert "Datadog-Container-Id" in headers
+    if container.get_container_info():
+        assert "Datadog-Container-Id" in headers
 
     t = Tracer()
     t.writer._put = mock.Mock(wraps=t.writer._put)
@@ -190,7 +193,6 @@ def test_bad_endpoint():
         s.set_tag("env", "my-env")
         s.finish()
         t.shutdown()
-    assert log.error.call_count > 0
     calls = [mock.call("unsupported endpoint '%s' received response %s from Datadog Agent", "/bad", 404)]
     log.error.assert_has_calls(calls)
 
@@ -203,4 +205,5 @@ def test_downgrade():
         s = t.trace("operation", service="my-svc")
         s.finish()
         t.shutdown()
-    assert log.error.call_count == 0
+    log.warning.assert_not_called()
+    log.error.assert_not_called()
