@@ -1,35 +1,20 @@
 # 3p
 import json
 import base64
-import io
-import zipfile
 import botocore.session
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
 
 # project
-from ddtrace import Pin
+from ddtrace import Pin, tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.botocore.patch import patch, unpatch
+from ddtrace.contrib.botocore.patch import patch, unpatch, inject_trace_to_client_context
 from ddtrace.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
+from ddtrace.ext import SpanTypes
 
 # testing
 from tests.opentracer.utils import init_tracer
 from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
-
-
-def create_zip():
-    code = '''
-        def lambda_handler(event, context):
-            return event
-    '''
-    zip_output = io.BytesIO()
-    zip_file = zipfile.ZipFile(zip_output, 'w', zipfile.ZIP_DEFLATED)
-    zip_file.writestr('lambda_function.py', code)
-    zip_file.close()
-    zip_output.seek(0)
-
-    return zip_output.read()
 
 
 class BotocoreTest(TracerTestCase):
@@ -227,90 +212,37 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
 
-    @mock_lambda
-    def test_lambda_invoke_no_context(self):
-        lamb = self.session.create_client('lambda', region_name='us-west-2')
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
-        lamb.create_function(
-            FunctionName="ironmaiden",
-            Runtime="python2.7",
-            Role='test-iam-role',
-            Handler="lambda_function.lambda_handler",
-            Code={
-                'ZipFile': create_zip(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128
-        )
+    def test_inject_trace_no_context(self):
+        with tracer.trace('test', service='lambda.invoke.test',
+          span_type=SpanTypes.HTTP) as test_span:
+            params = {}
 
-        lamb.invoke(
-            FunctionName='ironmaiden',
-            InvocationType='RequestResponse',
-            Payload='{"band":"ironmaiden"}',
-        )
+            test_args = ('Invoke', params)
+            inject_trace_to_client_context(test_args, test_span)
+            context_json = base64.b64decode(test_args[1]['ClientContext'].encode()).decode()
+            context_obj = json.loads(context_json)
 
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
+            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
+            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
 
-        context_json = base64.b64decode(span.get_tag('meta.params.ClientContext').encode()).decode()
-        context_obj = json.loads(context_json)
 
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
-        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
-        self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
-        self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, 'test-botocore-tracing.lambda')
-        self.assertEqual(span.resource, 'lambda.invoke')
+    def test_inject_trace_with_context(self):
+        with tracer.trace('test', service='lambda.invoke.test',
+          span_type=SpanTypes.HTTP) as test_span:
+            client_context = base64.b64encode(json.dumps({'Custom': {'foo': 'bar'}}).encode()).decode()
+            params = {
+                'ClientContext': client_context
+            }
 
-    @mock_lambda
-    def test_lambda_invoke_with_context(self):
-        lamb = self.session.create_client('lambda', region_name='us-west-2')
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+            test_args = ('Invoke', params)
+            inject_trace_to_client_context(test_args, test_span)
+            context_json = base64.b64decode(test_args[1]['ClientContext'].encode()).decode()
+            context_obj = json.loads(context_json)
 
-        client_context = base64.b64encode(json.dumps({'Custom': {'foo': 'bar'}}).encode()).decode()
+            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
+            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
 
-        lamb.create_function(
-            FunctionName="ironmaiden",
-            Runtime="python2.7",
-            Role='test-iam-role',
-            Handler="lambda_function.lambda_handler",
-            Code={
-                'ZipFile': create_zip(),
-            },
-            Publish=True,
-            Timeout=30,
-            MemorySize=128
-        )
-
-        lamb.invoke(
-            FunctionName='ironmaiden',
-            Payload='{"band":"ironmaiden"}',
-            ClientContext=client_context,
-        )
-
-        spans = self.get_spans()
-        assert spans
-        span = spans[0]
-
-        context_json = base64.b64decode(span.get_tag('meta.params.ClientContext').encode()).decode()
-        context_obj = json.loads(context_json)
-
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
-        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
-        self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
-        self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
-        self.assertEqual(context_obj['Custom']['foo'], 'bar')
-        assert_is_measured(span)
-        assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, 'test-botocore-tracing.lambda')
-        self.assertEqual(span.resource, 'lambda.invoke')
 
     @mock_kms
     def test_kms_client(self):
