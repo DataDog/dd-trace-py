@@ -212,10 +212,8 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
 
-
     def test_inject_trace_no_context(self):
-        with tracer.trace('test', service='lambda.invoke.test',
-          span_type=SpanTypes.HTTP) as test_span:
+        with tracer.trace('test', service='lambda.invoke.test', span_type=SpanTypes.HTTP) as test_span:
             params = {}
 
             test_args = ('Invoke', params)
@@ -226,10 +224,8 @@ class BotocoreTest(TracerTestCase):
             self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
             self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
 
-
     def test_inject_trace_with_context(self):
-        with tracer.trace('test', service='lambda.invoke.test',
-          span_type=SpanTypes.HTTP) as test_span:
+        with tracer.trace('test', service='lambda.invoke.test', span_type=SpanTypes.HTTP) as test_span:
             client_context = base64.b64encode(json.dumps({'Custom': {'foo': 'bar'}}).encode()).decode()
             params = {
                 'ClientContext': client_context
@@ -242,7 +238,6 @@ class BotocoreTest(TracerTestCase):
 
             self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
             self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
-
 
     @mock_kms
     def test_kms_client(self):
