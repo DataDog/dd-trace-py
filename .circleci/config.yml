@@ -55,8 +55,8 @@ commands:
     steps:
       - setup_tox
       - run: |
-          apt-get update
-          apt-get install -y --no-install-recommends libenchant-dev
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libenchant-dev
       - run: pip install awscli
       - run: tox -e docs
       - run:
@@ -105,6 +105,30 @@ commands:
           key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
           paths:
             - ".tox"
+
+  run_test:
+    description: "Run tests matching a pattern"
+    parameters:
+      pattern:
+        type: string
+        default: ""
+      wait:
+        type: string
+        default: ""
+    steps:
+      - attach_workspace:
+          at: .
+      - run: pip3 install riot
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: pip install tox && tox -e 'wait' << parameters.wait >>
+      - run:
+          name: "Running tests matching '<< parameters.pattern >>'"
+          command: "riot -v run -s '<< parameters.pattern >>'"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -231,6 +255,19 @@ jobs:
       - setup_tox
       - run: tox -e flake8
 
+  build_base:
+    executor: ddtrace_dev
+    steps:
+      - checkout
+      - run: pip3 install riot
+      - run:
+          name: "Generate base virtual environments."
+          command: "riot -v generate"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "."
+
   build-docker-ci-image:
     executor: cimg_base
     steps:
@@ -292,8 +329,8 @@ jobs:
   tracer:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-tracer'
+      - run_test:
+          pattern: "tracer"
 
   opentracer:
     executor: ddtrace_dev
@@ -444,15 +481,15 @@ jobs:
           pattern: '^falcon_contrib'
 
   django:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
-      - *datadog_agent
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^django_contrib'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^django_contrib-'
 
   djangorestframework:
     executor: ddtrace_dev
@@ -803,6 +840,7 @@ requires_pre_test: &requires_pre_test
     - black
     - flake8
     - ccheck
+    - build_base
 
 requires_tests: &requires_tests
   - build_docs
@@ -893,6 +931,7 @@ workflows:
       - black
       - flake8
       - ccheck
+      - build_base
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
@@ -963,7 +1002,6 @@ workflows:
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
-      # tracer
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
