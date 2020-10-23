@@ -118,6 +118,7 @@ commands:
     steps:
       - attach_workspace:
           at: .
+      - checkout
       - run: pip3 install riot
       - when:
           condition:
@@ -235,9 +236,8 @@ jobs:
   black:
     executor: python38
     steps:
-      - checkout
-      - setup_tox
-      - run: tox -e black
+      - run_test:
+          pattern: "black"
 
   ccheck:
     executor: cimg_base
@@ -251,9 +251,8 @@ jobs:
   flake8:
     executor: python38
     steps:
-      - checkout
-      - setup_tox
-      - run: tox -e flake8
+      - run_test:
+          pattern: "flake8"
 
   build_base:
     executor: ddtrace_dev
