@@ -1,3 +1,4 @@
+import logging
 import sys
 import threading
 
@@ -133,12 +134,19 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         else:
             conn = UDSHTTPConnection(self._uds_path, self._https, self._hostname, self._port, timeout=self._timeout)
 
-        try:
-            conn.request("PUT", self._endpoint, data, headers)
-            resp = compat.get_connection_response(conn)
-            return Response.from_http_response(resp)
-        finally:
-            conn.close()
+        with StopWatch() as sw:
+            try:
+                conn.request("PUT", self._endpoint, data, headers)
+                resp = compat.get_connection_response(conn)
+                return Response.from_http_response(resp)
+            finally:
+                conn.close()
+                t = sw.elapsed()
+                if t >= 1:
+                    log_level = logging.WARNING
+                else:
+                    log_level = logging.DEBUG
+                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), sw.elapsed())
 
     @property
     def agent_url(self):
@@ -156,45 +164,42 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             return payload
         else:
             log.error(
-                "unsupported endpoint '%s' received response %s from Datadog Agent", self._endpoint, response.status
+                "unsupported endpoint '%s': received response %s from Datadog Agent", self._endpoint, response.status
             )
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
 
-        with StopWatch() as sw:
-            try:
-                response = self._put(payload, headers)
-            except (httplib.HTTPException, OSError, IOError):
-                log.error("Failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
-            else:
-                if response.status in [404, 415]:
-                    log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-                    payload = self._downgrade(payload, response)
-                    if payload:
-                        return self._send_payload(payload, count)
-                elif response.status >= 400:
-                    log.error(
-                        "Failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, message %s",
-                        self.agent_url,
-                        response.status,
-                        response.reason,
-                        response.msg,
-                    )
-                elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-                    result_traces_json = response.get_json()
-                    if result_traces_json and "rate_by_service" in result_traces_json:
-                        if self._priority_sampler:
-                            self._priority_sampler.update_rate_by_service_sample_rates(
-                                result_traces_json["rate_by_service"],
-                            )
-                        if isinstance(self._sampler, BasePrioritySampler):
-                            self._sampler.update_rate_by_service_sample_rates(
-                                result_traces_json["rate_by_service"],
-                            )
-
-        log.debug("reported %d traces in %.5fs", count, sw.elapsed())
+        try:
+            response = self._put(payload, headers)
+        except (httplib.HTTPException, OSError, IOError):
+            log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
+        else:
+            if response.status in [404, 415]:
+                log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
+                payload = self._downgrade(payload, response)
+                if payload:
+                    return self._send_payload(payload, count)
+            elif response.status >= 400:
+                log.error(
+                    "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, message %s",
+                    self.agent_url,
+                    response.status,
+                    response.reason,
+                    response.msg,
+                )
+            elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
+                result_traces_json = response.get_json()
+                if result_traces_json and "rate_by_service" in result_traces_json:
+                    if self._priority_sampler:
+                        self._priority_sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                    if isinstance(self._sampler, BasePrioritySampler):
+                        self._sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
 
     def write(self, spans):
         # Start the AgentWriter on first write.
@@ -217,17 +222,17 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._buffer.put(encoded)
         except TraceBuffer.BufferItemTooLarge:
             log.warning(
-                "trace (%s) larger than payload limit (%s), dropping",
-                _human_size(len(encoded)),
-                _human_size(self._max_payload_size),
+                "trace (%db) larger than payload limit (%db), dropping",
+                len(encoded),
+                self._max_payload_size,
             )
         except TraceBuffer.BufferFull:
             log.warning(
-                "trace buffer (%s traces %s/%s), cannot fit trace of size %s, dropping",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
                 len(self._buffer),
-                _human_size(self._buffer.size),
-                _human_size(self._buffer.max_size),
-                _human_size(len(encoded)),
+                self._buffer.size,
+                self._buffer.max_size,
+                len(encoded),
             )
 
     def flush_queue(self):
