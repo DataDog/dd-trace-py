@@ -28,6 +28,7 @@ def create_zip():
     zip_file.writestr('lambda_function.py', code)
     zip_file.close()
     zip_output.seek(0)
+
     return zip_output.read()
 
 
@@ -210,7 +211,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_lambda
     def test_lambda_client(self):
-        lamb = self.session.create_client('lambda', region_name='us-east-1')
+        lamb = self.session.create_client('lambda', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
@@ -219,7 +220,7 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListFunctions')
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
@@ -228,7 +229,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_lambda
     def test_lambda_invoke_no_context(self):
-        lamb = self.session.create_client('lambda', api_version='2015-03-31', region_name='us-east-1')
+        lamb = self.session.create_client('lambda', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         lamb.create_function(
@@ -258,7 +259,7 @@ class BotocoreTest(TracerTestCase):
         context_obj = json.loads(context_json)
 
         self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
         self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
         self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
@@ -269,7 +270,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_lambda
     def test_lambda_invoke_with_context(self):
-        lamb = self.session.create_client('lambda', api_version='2015-03-31', region_name='us-east-1')
+        lamb = self.session.create_client('lambda', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         client_context = base64.b64encode(json.dumps({'Custom': {'foo': 'bar'}}).encode()).decode()
@@ -301,7 +302,7 @@ class BotocoreTest(TracerTestCase):
         context_obj = json.loads(context_json)
 
         self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
         self.assertEqual(context_obj['Custom'][HTTP_HEADER_TRACE_ID], span.context.trace_id)
         self.assertEqual(context_obj['Custom'][HTTP_HEADER_PARENT_ID], span.context.span_id)
