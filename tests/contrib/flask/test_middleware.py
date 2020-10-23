@@ -389,7 +389,7 @@ class TestFlask(TestCase):
 
     def test_http_request_header_tracing(self):
         config.flask.http.trace_headers(['Host', 'my-header'])
-        self.app.get('/', headers={
+        self.client.get('/', headers={
             'my-header': 'my_value',
         })
         traces = self.tracer.writer.pop_traces()
