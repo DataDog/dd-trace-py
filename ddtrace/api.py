@@ -117,7 +117,7 @@ class UDSHTTPConnection(httplib.HTTPConnection):
         self.sock = sock
 
 
-@debtcollector.removals.removed_class("API", removal_version="0.46")
+@debtcollector.removals.removed_class("API", removal_version="0.47")
 class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format

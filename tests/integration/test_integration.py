@@ -217,6 +217,7 @@ def test_priority_sampling_response():
     # For some reason the agent doesn't start returning the service information
     # immediately
     import time
+
     time.sleep(5)
 
     t = Tracer()
