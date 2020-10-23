@@ -444,15 +444,15 @@ jobs:
           pattern: '^falcon_contrib'
 
   django:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
-      - *datadog_agent
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^django_contrib'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^django_contrib-'
 
   djangorestframework:
     executor: ddtrace_dev
