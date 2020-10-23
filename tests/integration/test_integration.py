@@ -7,6 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace import Tracer, tracer
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.runtime import container
 
 
@@ -92,11 +93,13 @@ def test_uds_wrong_socket_path():
 
 def test_payload_too_large():
     t = Tracer()
+    # Make sure we don't flush partway through.
+    t.configure(AgentWriter(processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(100000):
             with t.trace("operation") as s:
-                s.set_tag("a" * 10, "b" * 190)
-                s.set_tag("b" * 10, "a" * 190)
+                s.set_tag(str(i), "b" * 190)
+                s.set_tag(str(i), "a" * 190)
 
         t.shutdown()
         calls = [

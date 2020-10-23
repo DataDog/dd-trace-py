@@ -57,8 +57,6 @@ class LogWriter:
 class AgentWriter(_worker.PeriodicWorkerThread):
     """Writer to the Datadog Agent."""
 
-    QUEUE_PROCESSING_INTERVAL = 1
-
     def __init__(
         self,
         hostname="localhost",
@@ -68,12 +66,13 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
+        processing_interval=1,
         buffer_size=16 * 1000000,  # 16MB
         max_payload_size=8 * 1000000,  # 8MB
         timeout=2,
     ):
         super(AgentWriter, self).__init__(
-            interval=self.QUEUE_PROCESSING_INTERVAL, exit_timeout=shutdown_timeout, name=self.__class__.__name__
+            interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
