@@ -10,12 +10,12 @@ import json
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...pin import Pin
 from ...ext import SpanTypes, http, aws
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...propagation.http import HTTPPropagator
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
-from ...propagation.http import HTTPPropagator
-
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -24,20 +24,27 @@ ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
 
 propagator = HTTPPropagator()
+log = get_logger(__name__)
 
 
 def modify_client_context(client_context_base64, trace_headers):
-    client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
-    client_context_object = json.loads(client_context_json)
+    try 
+        client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
+        client_context_object = json.loads(client_context_json)
 
-    if 'Custom' in client_context_object:
-        client_context_object['Custom']['_datadog'] = trace_headers
-    else:
-        client_context_object['Custom'] = {
-            '_datadog': trace_headers
-        }
+        if 'Custom' in client_context_object:
+            client_context_object['Custom']['_datadog'] = trace_headers
+        else:
+            client_context_object['Custom'] = {
+                '_datadog': trace_headers
+            }
 
-    return base64.b64encode(json.dumps(client_context_object).encode('utf-8')).decode('utf-8')
+        new_context = base64.b64encode(json.dumps(client_context_object).encode('utf-8')).decode('utf-8')
+        return new_context
+    except Exception as e:
+        log.warning('malformed client_context=%s', client_context_base64)
+        return client_context_base64
+
 
 
 def inject_trace_to_client_context(args, span):
