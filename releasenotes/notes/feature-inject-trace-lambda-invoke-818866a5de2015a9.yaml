@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Injects trace data to `ClientContext` in lambda incovations.
+    botocore: inject distributed tracing data to `ClientContext` to trace lambda invocations.
