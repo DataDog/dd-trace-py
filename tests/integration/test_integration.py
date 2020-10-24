@@ -112,7 +112,7 @@ def test_payload_too_large():
             )
         ]
         log.warning.assert_has_calls(calls)
-        # log.error.assert_not_called()
+        log.error.assert_not_called()
 
 
 def test_large_payload():
@@ -244,12 +244,51 @@ def test_bad_endpoint():
     log.error.assert_has_calls(calls)
 
 
+def test_bad_payload():
+    t = Tracer()
+
+    class BadEncoder:
+        def encode_trace(self, spans):
+            return []
+
+        def join_encoded(self, traces):
+            return "not msgpack"
+
+    t.writer._encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        t.trace("asdf").finish()
+        t.shutdown()
+    calls = [
+        mock.call(
+            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
+            "http://localhost:8126",
+            400,
+            "Bad Request",
+        )
+    ]
+    log.error.assert_has_calls(calls)
+
+
 def test_downgrade():
     t = Tracer()
     t.writer._downgrade(None, None)
     assert t.writer._endpoint == "/v0.3/traces"
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
+        s.finish()
+        t.shutdown()
+    log.warning.assert_not_called()
+    log.error.assert_not_called()
+
+
+def test_span_tags():
+    t = Tracer()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        s = t.trace("operation", service="my-svc")
+        s.set_tag("env", "my-env")
+        s.set_metric("number", 123)
+        s.set_metric("number", 12.0)
+        s.set_metric("number", "1")
         s.finish()
         t.shutdown()
     log.warning.assert_not_called()

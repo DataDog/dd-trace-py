@@ -183,11 +183,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                     return self._send_payload(payload, count)
             elif response.status >= 400:
                 log.error(
-                    "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, message %s",
+                    "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
                     self.agent_url,
                     response.status,
                     response.reason,
-                    response.msg,
                 )
             elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
                 result_traces_json = response.get_json()
