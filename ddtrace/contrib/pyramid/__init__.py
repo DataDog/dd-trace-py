@@ -20,7 +20,6 @@ Available settings are:
 * ``datadog_trace_service``: change the `pyramid` service name
 * ``datadog_trace_enabled``: sets if the Tracer is enabled or not
 * ``datadog_distributed_tracing``: set it to ``False`` to disable Distributed Tracing
-* ``datadog_analytics_enabled``: set it to ``True`` to analyze spans for Pyramid in App Analytics
 
 If you use the ``pyramid.tweens`` settings value to set the tweens for your
 application, you need to add ``ddtrace.contrib.pyramid:trace_tween_factory``
