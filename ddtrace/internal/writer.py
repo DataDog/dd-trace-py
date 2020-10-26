@@ -68,8 +68,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
-        buffer_size=16 * 1000000,  # 16MB
-        max_payload_size=8 * 1000000,  # 8MB
+        buffer_size=8 * 1000000,  # 8MB
+        max_payload_size=8 * 1000000,
         timeout=2,
     ):
         super(AgentWriter, self).__init__(
