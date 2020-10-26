@@ -328,7 +328,7 @@ jobs:
       - run:
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration'
 
-  integration_agent:
+  integration_testagent:
     <<: *machine_executor
     steps:
       - checkout
