@@ -328,6 +328,17 @@ jobs:
       - run:
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration'
 
+  integration_agent:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+
   vendor:
     executor: ddtrace_dev
     docker:
@@ -812,7 +823,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
-      # - ccheck
+    - ccheck
 
 requires_tests: &requires_tests
   - build_docs
@@ -842,6 +853,7 @@ requires_tests: &requires_tests
   - httplib
   - integration_agent5
   - integration_agent
+  - integration_testagent
   - vendor
   - profile
   - jinja2
@@ -945,6 +957,7 @@ workflows:
       - httplib: *requires_pre_test
       - integration_agent5: *requires_pre_test
       - integration_agent: *requires_pre_test
+      - integration_testagent: *requires_pre_test
       - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test

@@ -1,0 +1,17 @@
+[[{"name" "operation"
+   "service" "my-svc"
+   "resource" "operation"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1603741898689457000
+   "duration" 344000
+   "meta" {"runtime-id" "38390cbcbaf6479baa4ce051c0392f59"
+           "k" "v"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 34562
+              "num" 1234
+              "float_metric" 12.34
+              "int_metric" 4321}}]]

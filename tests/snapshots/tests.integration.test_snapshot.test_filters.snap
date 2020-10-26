@@ -1,0 +1,24 @@
+[[{"name" "root"
+   "service" nil
+   "resource" "root"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1603742206273676000
+   "duration" 156000
+   "meta" {"runtime-id" "6adf99a28fe640ff829d663beef346db"
+           "boop" "beep"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 34909}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1603742206273813000
+       "duration" 8000
+       "meta" {"boop" "beep"}}]]

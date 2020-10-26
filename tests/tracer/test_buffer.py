@@ -38,6 +38,8 @@ def test_buffer_item_size_limit():
     with pytest.raises(TraceBuffer.BufferItemTooLarge):
         buf.put([1, 2, 3, 4])
 
+    buf.put([1, 2, 3])
+
 
 def test_buffer_partial_get():
     buf = TraceBuffer(max_size=10, max_item_size=3)
