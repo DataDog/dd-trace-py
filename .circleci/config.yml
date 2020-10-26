@@ -337,7 +337,7 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
     executor: ddtrace_dev

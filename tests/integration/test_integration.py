@@ -10,11 +10,15 @@ from ddtrace import Tracer, tracer
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.runtime import container
 
+from tests import TracerTestCase, snapshot
 
-if os.environ.get("AGENT_VERSION") == "5":
-    AGENT_VERSION = 5
+agent_version = os.environ.get("AGENT_VERSION")
+if agent_version == "5":
+    AGENT_VERSION = "v5"
+elif agent_version == "testagent":
+    AGENT_VERSION = "testagent"
 else:
-    AGENT_VERSION = 7
+    AGENT_VERSION = "latest"
 
 
 class AnyStr(object):
@@ -32,15 +36,15 @@ def test_configure_keeps_api_hostname_and_port():
     Ensures that when calling configure without specifying hostname and port,
     previous overrides have been kept.
     """
-    tracer = Tracer()  # use real tracer with real api
-    assert "localhost" == tracer.writer._hostname
-    assert 8126 == tracer.writer._port
+    tracer = Tracer()
+    assert tracer.writer._hostname == "localhost"
+    assert tracer.writer._port == 8126
     tracer.configure(hostname="127.0.0.1", port=8127)
-    assert "127.0.0.1" == tracer.writer._hostname
-    assert 8127 == tracer.writer._port
+    assert tracer.writer._hostname == "127.0.0.1"
+    assert tracer.writer._port == 8127
     tracer.configure(priority_sampling=True)
-    assert "127.0.0.1" == tracer.writer._hostname
-    assert 8127 == tracer.writer._port
+    assert tracer.writer._hostname == "127.0.0.1"
+    assert tracer.writer._port == 8127
 
 
 def test_debug_mode():
@@ -66,7 +70,7 @@ def test_debug_mode():
     assert b"DEBUG:ddtrace" in p.stderr.read()
 
 
-@pytest.mark.skipif(AGENT_VERSION < 6, reason="Agent v5 doesn't support UDS")
+@pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
 def test_single_trace_uds():
     t = Tracer()
     sockdir = "/tmp/ddagent/trace.sock"
@@ -91,6 +95,7 @@ def test_uds_wrong_socket_path():
     log.error.assert_has_calls(calls)
 
 
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_payload_too_large():
     t = Tracer()
     # Make sure a flush doesn't happen partway through.
@@ -207,6 +212,7 @@ def test_writer_headers():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
 def test_priority_sampling_response():
     # Send the data once because the agent doesn't respond with them on the
     # first payload.
@@ -244,6 +250,7 @@ def test_bad_endpoint():
     log.error.assert_has_calls(calls)
 
 
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent response is different.")
 def test_bad_payload():
     t = Tracer()
 
@@ -269,6 +276,7 @@ def test_bad_payload():
     log.error.assert_has_calls(calls)
 
 
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support v0.3")
 def test_downgrade():
     t = Tracer()
     t.writer._downgrade(None, None)
@@ -293,3 +301,65 @@ def test_span_tags():
         t.shutdown()
     log.warning.assert_not_called()
     log.error.assert_not_called()
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+class TestTraces(TracerTestCase):
+    """
+    These snapshot tests ensure that trace payloads are being sent as expected.
+    """
+
+    @snapshot()
+    def test_single_trace_single_span(self):
+        t = Tracer()
+        s = t.trace("operation", service="my-svc")
+        s.set_tag("k", "v")
+        # numeric tag
+        s.set_tag("num", 1234)
+        s.set_metric("float_metric", 12.34)
+        s.set_metric("int_metric", 4321)
+        s.finish()
+        t.shutdown()
+
+    @snapshot()
+    def test_multiple_traces(self):
+        tracer = Tracer()
+        with tracer.trace("operation1", service="my-svc") as s:
+            s.set_tag("k", "v")
+            s.set_tag("num", 1234)
+            s.set_metric("float_metric", 12.34)
+            s.set_metric("int_metric", 4321)
+            tracer.trace("child").finish()
+
+        with tracer.trace("operation2", service="my-svc") as s:
+            s.set_tag("k", "v")
+            s.set_tag("num", 1234)
+            s.set_metric("float_metric", 12.34)
+            s.set_metric("int_metric", 4321)
+            tracer.trace("child").finish()
+        tracer.shutdown()
+
+    @snapshot()
+    def test_filters(self):
+        t = Tracer()
+
+        class FilterMutate(object):
+            def __init__(self, key, value):
+                self.key = key
+                self.value = value
+
+            def process_trace(self, trace):
+                for s in trace:
+                    s.set_tag(self.key, self.value)
+                return trace
+
+        t.configure(
+            settings={
+                "FILTERS": [FilterMutate("boop", "beep")],
+            }
+        )
+
+        with t.trace("root"):
+            with t.trace("child"):
+                pass
+        t.shutdown()

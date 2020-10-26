@@ -5,13 +5,13 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1603741898689457000
-   "duration" 344000
-   "meta" {"runtime-id" "38390cbcbaf6479baa4ce051c0392f59"
+   "start" 1603750872994992000
+   "duration" 278000
+   "meta" {"runtime-id" "3069ce0f5ace427ab66cb89c9161a4ae"
            "k" "v"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 34562
+              "system.pid" 42296
               "num" 1234
               "float_metric" 12.34
               "int_metric" 4321}}]]

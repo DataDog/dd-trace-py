@@ -235,7 +235,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             )
 
     def flush_queue(self):
-        enc_traces = self._buffer.get(self._max_payload_size)
+        enc_traces = self._buffer.get()
         if not enc_traces:
             return
 

@@ -5,13 +5,13 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1603742382790561000
-   "duration" 319000
-   "meta" {"runtime-id" "a671c1585f0b40f1b8cb4a85beaf40e9"
+   "start" 1603750872929188000
+   "duration" 334000
+   "meta" {"runtime-id" "3069ce0f5ace427ab66cb89c9161a4ae"
            "k" "v"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 35037
+              "system.pid" 42296
               "num" 1234
               "float_metric" 12.34
               "int_metric" 4321}}
@@ -22,8 +22,8 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1603742382790863000
-       "duration" 8000}]
+       "start" 1603750872929503000
+       "duration" 10000}]
  [{"name" "operation2"
    "service" "my-svc"
    "resource" "operation2"
@@ -31,13 +31,13 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1603742382791056000
-   "duration" 43000
-   "meta" {"runtime-id" "a671c1585f0b40f1b8cb4a85beaf40e9"
+   "start" 1603750872929712000
+   "duration" 36000
+   "meta" {"runtime-id" "3069ce0f5ace427ab66cb89c9161a4ae"
            "k" "v"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 35037
+              "system.pid" 42296
               "num" 1234
               "float_metric" 12.34
               "int_metric" 4321}}
@@ -48,5 +48,5 @@
        "span_id" 1
        "trace_id" 1
        "parent_id" 0
-       "start" 1603742382791089000
-       "duration" 5000}]]
+       "start" 1603750872929740000
+       "duration" 4000}]]
