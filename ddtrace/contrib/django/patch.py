@@ -465,13 +465,11 @@ def instrument_view(django, view):
 
     We want to wrap all lifecycle/http method functions for every class in the MRO for this view
     """
-    if isfunction(view):
-        return _instrument_view(django, view)
+    if hasattr(view, "__mro__"):
+        for cls in reversed(getmro(view)):
+            _instrument_view(django, cls)
 
-    for cls in reversed(getmro(view)):
-        _instrument_view(django, cls)
-
-    return view
+    return _instrument_view(django, view)
 
 
 def _instrument_view(django, view):

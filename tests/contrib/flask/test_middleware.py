@@ -7,6 +7,7 @@ from unittest import TestCase
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http, errors
+from ddtrace import config
 
 from tests.opentracer.utils import init_tracer
 from .web import create_app
@@ -19,25 +20,25 @@ class TestFlask(TestCase):
 
     def setUp(self):
         self.tracer = get_dummy_tracer()
-        self.flask_app = create_app()
+        self.app = create_app()
         self.traced_app = TraceMiddleware(
-            self.flask_app,
+            self.app,
             self.tracer,
             service='test.flask.service',
             distributed_tracing=True,
         )
 
         # make the app testable
-        self.flask_app.config['TESTING'] = True
-        self.app = self.flask_app.test_client()
+        self.app.config['TESTING'] = True
+        self.client = self.app.test_client()
 
     def test_double_instrumentation(self):
         # ensure Flask is never instrumented twice when `ddtrace-run`
         # and `TraceMiddleware` are used together. `traced_app` MUST
         # be assigned otherwise it's not possible to reproduce the
         # problem (the test scope must keep a strong reference)
-        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa: F841
-        rv = self.app.get('/child')
+        traced_app = TraceMiddleware(self.app, self.tracer)  # noqa: F841
+        rv = self.client.get('/child')
         assert rv.status_code == 200
         spans = self.tracer.writer.pop()
         assert len(spans) == 2
@@ -47,21 +48,21 @@ class TestFlask(TestCase):
         # there are no breaking changes for who uses `ddtrace-run`
         # with the `TraceMiddleware`
         TraceMiddleware(
-            self.flask_app,
+            self.app,
             self.tracer,
             service='new-intake',
             distributed_tracing=False,
         )
-        assert self.flask_app._service == 'new-intake'
-        assert self.flask_app._use_distributed_tracing is False
-        rv = self.app.get('/child')
+        assert self.app._service == 'new-intake'
+        assert self.app._use_distributed_tracing is False
+        rv = self.client.get('/child')
         assert rv.status_code == 200
         spans = self.tracer.writer.pop()
         assert len(spans) == 2
 
     def test_child(self):
         start = time.time()
-        rv = self.app.get('/child')
+        rv = self.client.get('/child')
         end = time.time()
         # ensure request worked
         assert rv.status_code == 200
@@ -94,7 +95,7 @@ class TestFlask(TestCase):
 
     def test_success(self):
         start = time.time()
-        rv = self.app.get('/')
+        rv = self.client.get('/')
         end = time.time()
 
         # ensure request worked
@@ -120,7 +121,7 @@ class TestFlask(TestCase):
 
     def test_template(self):
         start = time.time()
-        rv = self.app.get('/tmpl')
+        rv = self.client.get('/tmpl')
         end = time.time()
 
         # ensure request worked
@@ -149,7 +150,7 @@ class TestFlask(TestCase):
 
     def test_handleme(self):
         start = time.time()
-        rv = self.app.get('/handleme')
+        rv = self.client.get('/handleme')
         end = time.time()
 
         # ensure request worked
@@ -172,7 +173,7 @@ class TestFlask(TestCase):
     def test_template_err(self):
         start = time.time()
         try:
-            self.app.get('/tmpl/err')
+            self.client.get('/tmpl/err')
         except Exception:
             pass
         else:
@@ -196,7 +197,7 @@ class TestFlask(TestCase):
     def test_template_render_err(self):
         start = time.time()
         try:
-            self.app.get('/tmpl/render_err')
+            self.client.get('/tmpl/render_err')
         except Exception:
             pass
         else:
@@ -224,7 +225,7 @@ class TestFlask(TestCase):
 
     def test_error(self):
         start = time.time()
-        rv = self.app.get('/error')
+        rv = self.client.get('/error')
         end = time.time()
 
         # ensure the request itself worked
@@ -249,7 +250,7 @@ class TestFlask(TestCase):
 
         start = time.time()
         try:
-            self.app.get('/fatal')
+            self.client.get('/fatal')
         except ZeroDivisionError:
             pass
         else:
@@ -273,7 +274,7 @@ class TestFlask(TestCase):
 
     def test_unicode(self):
         start = time.time()
-        rv = self.app.get(u'/üŋïĉóđē')
+        rv = self.client.get(u'/üŋïĉóđē')
         end = time.time()
 
         # ensure request worked
@@ -296,7 +297,7 @@ class TestFlask(TestCase):
 
     def test_404(self):
         start = time.time()
-        rv = self.app.get(u'/404/üŋïĉóđē')
+        rv = self.client.get(u'/404/üŋïĉóđē')
         end = time.time()
 
         # ensure that we hit a 404
@@ -317,7 +318,7 @@ class TestFlask(TestCase):
         assert s.meta.get(http.URL) == u'http://localhost/404/üŋïĉóđē'
 
     def test_propagation(self):
-        rv = self.app.get('/', headers={
+        rv = self.client.get('/', headers={
             'x-datadog-trace-id': '1234',
             'x-datadog-parent-id': '4567',
             'x-datadog-sampling-priority': '2'
@@ -339,7 +340,7 @@ class TestFlask(TestCase):
         assert s.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
     def test_custom_span(self):
-        rv = self.app.get('/custom_span')
+        rv = self.client.get('/custom_span')
         assert rv.status_code == 200
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
@@ -359,7 +360,7 @@ class TestFlask(TestCase):
 
         with ot_tracer.start_active_span('ot_span'):
             start = time.time()
-            rv = self.app.get('/')
+            rv = self.client.get('/')
             end = time.time()
 
         # ensure request worked
@@ -385,3 +386,17 @@ class TestFlask(TestCase):
         assert dd_span.error == 0
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.meta.get(http.METHOD) == 'GET'
+
+    def test_http_request_header_tracing(self):
+        config.flask.http.trace_headers(['Host', 'my-header'])
+        self.client.get('/', headers={
+            'my-header': 'my_value',
+        })
+        traces = self.tracer.writer.pop_traces()
+
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        span = traces[0][0]
+
+        assert span.get_tag('http.request.headers.my-header') == 'my_value'
+        assert span.get_tag('http.request.headers.host') == 'localhost'
