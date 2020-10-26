@@ -2,9 +2,9 @@ import pytest
 
 from ddtrace import config as ddconfig
 
+from ..trace_utils import int_service
 from ...constants import SPAN_KIND
-from ...ext import SpanTypes, test
-from ...ext.provider import Provider
+from ...ext import SpanTypes, ci, test
 from ...pin import Pin
 from .constants import FRAMEWORK, HELP_MSG, KIND
 
@@ -43,7 +43,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
 
     if is_enabled(config):
-        Pin(tags=Provider.from_env().astags(), _config=ddconfig.pytest).onto(config)
+        Pin(tags=ci.tags(), _config=ddconfig.pytest).onto(config)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -67,7 +67,12 @@ def pytest_runtest_protocol(item, nextitem):
         yield
         return
 
-    with pin.tracer.trace(SpanTypes.TEST.value, resource=item.nodeid, span_type=SpanTypes.TEST.value) as span:
+    with pin.tracer.trace(
+        SpanTypes.TEST.value,
+        service=int_service(pin, ddconfig.pytest),
+        resource=item.nodeid,
+        span_type=SpanTypes.TEST.value,
+    ) as span:
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)

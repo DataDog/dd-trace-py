@@ -11,4 +11,4 @@ file read by Pytest (``pytest.ini``, ``setup.cfg``, ...)::
 from ddtrace import config
 
 # pytest default settings
-config._add("pytest", {})
+config._add("pytest", dict(_default_service="pytest"))

@@ -3,7 +3,6 @@ import pytest
 from ddtrace.ext import aws
 from ddtrace.ext import ci
 from ddtrace.ext import git
-from ddtrace.ext import provider
 
 
 def test_flatten_dict():
@@ -32,4 +31,4 @@ AZURE = [
 
 @pytest.mark.parametrize("environment,tags", AZURE)
 def test_ci_providers(environment, tags):
-    assert tags == provider.Provider.from_env(environment).astags()
+    assert tags == ci.tags(environment)

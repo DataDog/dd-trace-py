@@ -121,6 +121,7 @@ class TestPytest(TracerTestCase):
         spans = self.tracer.writer.pop()
 
         assert len(spans) == 1
+        assert spans[0].service == "pytest"
         assert spans[0].get_tag("world") == "hello"
         assert spans[0].get_tag("mark") == "dd_tags"
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
