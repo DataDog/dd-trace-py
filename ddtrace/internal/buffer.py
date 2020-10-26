@@ -34,40 +34,23 @@ class TraceBuffer(object):
         self._size = 0
 
     def put(self, item):
-        if len(item) > self.max_item_size or len(item) > self.max_size:
+        item_len = len(item)
+        if item_len > self.max_item_size or item_len > self.max_size:
             raise BufferItemTooLarge()
 
         with self._lock:
-            if self._size + len(item) <= self.max_size:
+            if self._size + item_len <= self.max_size:
                 self._buffer.append(item)
-                self._size += len(item)
+                self._size += item_len
             else:
                 raise BufferFull()
 
-    def popleft(self):
-        i = self._buffer.popleft()
-        self._size -= len(i)
-        return i
-
-    def get(self, size):
+    def get(self):
         with self._lock:
-            # Find and pop up to `size` amount of traces.
-            if self._size <= size:
-                try:
-                    return list(self._buffer)
-                finally:
-                    self._clear()
-            else:
-                b = []
-                b_size = 0
-                while len(self._buffer):
-                    if len(self._buffer[0]) + b_size <= size:
-                        i = self.popleft()
-                        b_size += len(i)
-                        b.append(i)
-                    else:
-                        break
-                return b
+            try:
+                return list(self._buffer)
+            finally:
+                self._clear()
 
 
 TraceBuffer.BufferFull = BufferFull
