@@ -7,11 +7,17 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 import ddtrace
 import ddtrace.sampler
 from ddtrace.internal import debug
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from .test_integration import AGENT_VERSION
+
+
+pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
 
 
 def re_matcher(pattern):
