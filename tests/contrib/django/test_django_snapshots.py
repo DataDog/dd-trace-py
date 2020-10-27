@@ -78,3 +78,9 @@ def test_middleware_trace_partial_based_view_21x(client):
 def test_middleware_trace_partial_based_view(client):
     # ensures that the internals are properly traced when using a function views
     assert client.get("/partial-view/").status_code == 200
+
+
+@pytest.mark.django_db
+@snapshot()
+def test_safe_string_encoding(client):
+    assert client.get("/safe-template/").status_code == 200
