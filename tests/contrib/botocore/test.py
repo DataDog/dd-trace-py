@@ -239,6 +239,16 @@ class BotocoreTest(TracerTestCase):
             self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
             self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
 
+    def test_bad_context(self):
+        with tracer.trace('test', service='lambda.invoke.test', span_type=SpanTypes.HTTP) as test_span:
+            params = {
+                'ClientContext': 'bad_client_context'
+            }
+
+            test_args = ('Invoke', params)
+            inject_trace_to_client_context(test_args, test_span)
+            self.assertEqual(test_args[1]['ClientContext'], 'bad_client_context')
+
     @mock_kms
     def test_kms_client(self):
         kms = self.session.create_client('kms', region_name='us-east-1')

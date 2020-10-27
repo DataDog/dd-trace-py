@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 
 def modify_client_context(client_context_base64, trace_headers):
-    try 
+    try:
         client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
         client_context_object = json.loads(client_context_json)
 
@@ -44,7 +44,6 @@ def modify_client_context(client_context_base64, trace_headers):
     except Exception as e:
         log.warning('malformed client_context=%s', client_context_base64)
         return client_context_base64
-
 
 
 def inject_trace_to_client_context(args, span):
