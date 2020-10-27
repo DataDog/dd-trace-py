@@ -802,6 +802,10 @@ class SnapshotFailed(Exception):
     pass
 
 
+class SnapshotUnexpectedError(Exception):
+    pass
+
+
 def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
     """Performs a snapshot integration test with the testing agent.
 
@@ -844,7 +848,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             try:
                 tracer.writer.flush_queue()
             except Exception as e:
-                pytest.fail("Could not flush the queue: %s" % str(e), pytrace=True)
+                pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
             # Signal the start of this test case to the test agent.
             try:
@@ -860,29 +864,27 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             # Run the test.
             ret = wrapped(*args, **kwargs)
 
-            # Flush out any remnant traces.
-            try:
-                tracer.writer.flush_queue()
-            except Exception as e:
-                # Even though it's unlikely any traces have been sent, make the
-                # final request to the test agent so that the test case is finished.
-                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
-                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-                conn.getresponse()
-                pytest.fail("Could not flush the queue: %s" % str(e), pytrace=True)
+            # Force a flush so all traces are submitted.
+            tracer.writer.flush_queue()
 
-            else:
-                # Query for the results of the test.
-                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
-                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-                r = conn.getresponse()
-                if r.status != 200:
-                    raise SnapshotFailed(r.read())
-                return ret
+            # Query for the results of the test.
+            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+            r = conn.getresponse()
+            if r.status != 200:
+                raise SnapshotFailed(r.read())
+            return ret
         except SnapshotFailed as e:
             # Fail the test if a failure has occurred and print out the
             # message we got from the test agent.
             pytest.fail(to_unicode(e.args[0]), pytrace=False)
+        except Exception as e:
+            # Even though it's unlikely any traces have been sent, make the
+            # final request to the test agent so that the test case is finished.
+            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+            conn.getresponse()
+            pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
         finally:
             conn.close()
 
