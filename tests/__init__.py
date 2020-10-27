@@ -832,7 +832,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
         # Use variant that applies to update test token. One must apply. If none
         # apply, the test should have been marked as skipped.
         if variants:
-            applicable_variant_ids = [k for (k, v) in variants.items() if v is True]
+            applicable_variant_ids = [k for (k, v) in variants.items() if v]
             assert len(applicable_variant_ids) == 1
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token

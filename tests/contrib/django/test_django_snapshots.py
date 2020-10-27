@@ -5,7 +5,7 @@ from tests import snapshot
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
-@snapshot(variants={"21x": django.VERSION >= (2, 0) and django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
+@snapshot(variants={"21x": (2, 0) <= django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
 def test_urlpatterns_include(client):
     """
     When a view is specified using `django.urls.include`
@@ -17,8 +17,8 @@ def test_urlpatterns_include(client):
 @snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
-        "111x": django.VERSION >= (1, 9) and django.VERSION < (1, 12),
-        "21x": django.VERSION > (1, 12) and django.VERSION < (2, 2),
+        "111x": (1, 9) <= django.VERSION < (1, 12),
+        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
@@ -30,8 +30,8 @@ def test_middleware_trace_callable_view(client):
 @snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
-        "111x": django.VERSION >= (1, 9) and django.VERSION < (1, 12),
-        "21x": django.VERSION > (1, 12) and django.VERSION < (2, 2),
+    "111x": (1, 9) <= django.VERSION < (1, 12),
+        "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
 )
