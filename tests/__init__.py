@@ -802,7 +802,7 @@ class SnapshotFailed(Exception):
     pass
 
 
-def snapshot(ignores=None, tracer=ddtrace.tracer):
+def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -828,6 +828,14 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
         # Use the fully qualified function name as a unique test token to
         # identify the snapshot.
         token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
+
+        # Use variant that applies to update test token. One must apply. If none
+        # apply, the test should have been marked as skipped.
+        if variants:
+            applicable_variant_ids = [k for (k, v) in variants.items() if v]
+            assert len(applicable_variant_ids) == 1
+            variant_id = applicable_variant_ids[0]
+            token = "{}_{}".format(token, variant_id) if variant_id else token
 
         conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
         try:
