@@ -30,7 +30,7 @@ def test_middleware_trace_callable_view(client):
 @snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
-    "111x": (1, 9) <= django.VERSION < (1, 12),
+        "111x": (1, 9) <= django.VERSION < (1, 12),
         "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
     }
