@@ -139,7 +139,7 @@ cdef class Packer(object):
                 ret = msgpack_pack_raw(&self.pk, L)
                 if ret == 0:
                     ret = msgpack_pack_raw_body(&self.pk, rawval, L)
-            elif PyUnicode_Check(o):  #  if strict_types else PyUnicode_Check(o):
+            elif PyUnicode_Check(o):
                 if self.encoding == NULL:
                     ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
                     if ret == -2:
