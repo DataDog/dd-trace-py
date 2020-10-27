@@ -27,8 +27,8 @@ PROVIDER_NAME = "ci.provider.name"
 # Workspace Path
 WORKSPACE_PATH = "ci.workspace_path"
 
-_RE_ORIGIN = re.compile(r"^origin/")
-_RE_BRANCH_PREFIX = re.compile(r"^refs/(heads/)?")
+_RE_TAGS = re.compile(r"^tags/")
+_RE_BRANCH_PREFIX = re.compile(r"^(refs/(heads/)|origin/)?")
 
 
 def tags(env=None):
@@ -40,8 +40,14 @@ def tags(env=None):
             # Post process special cases
             branch = tags.get(git.BRANCH)
             if branch:
-                tags[git.BRANCH] = _RE_BRANCH_PREFIX.sub("", branch)
+                tags[git.BRANCH] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", branch))
+            tag = tags.get(git.TAG)
+            if tag:
+                tags[git.TAG] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", tag))
             tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
+            workspace_path = tags.get(WORKSPACE_PATH)
+            if workspace_path:
+                tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
             tags = {k: v for k, v in tags.items() if v is not None}
 
             return tags
@@ -64,33 +70,37 @@ def extract_appveyor(env):
 
 
 def extract_azure_pipelines(env):
+    print(env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID"))
+    if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECT") and env.get("BUILD_BUILDID"):
+        base_url = "{0}{1}/_build/results?buildId={2}".format(
+            env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID")
+        )
+        pipeline_url = base_url + "&_a=summary"
+        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))
+    else:
+        pipeline_url = job_url = None
+    branch_or_tag = (
+        env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH") or env.get("BUILD_SOURCEBRANCH") or env.get("BUILD_SOURCEBRANCHNAME")
+    )
     return {
-        PROVIDER_NAME:"azurepipelines",
+        PROVIDER_NAME: "azurepipelines",
         WORKSPACE_PATH: env.get("BUILD_SOURCESDIRECTORY"),
         PIPELINE_ID: env.get("BUILD_BUILDID"),
         PIPELINE_NAME: env.get("BUILD_DEFINITIONNAME"),
-        PIPELINE_NUMBER: env.get("BUILD_BUILDNUMBER"),
-        PIPELINE_URL: all(
-            (env.get("SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID"))
-        )
-        and "{0}{1}/_build/results?buildId={2}&_a=summary".format(
-            env.get("SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID")
-        )
-        or None,
-        git.REPOSITORY_URL:env.get("BUILD_REPOSITORY_URI"),
+        PIPELINE_NUMBER: env.get("BUILD_BUILDID"),
+        PIPELINE_URL: pipeline_url,
+        JOB_URL: job_url,
+        git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or  env.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
-        git.BRANCH: (
-            env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
-            or env.get("BUILD_SOURCEBRANCH")
-            or env.get("BUILD_SOURCEBRANCHNAME")
-        ),
+        git.BRANCH: branch_or_tag if "tags/" not in branch_or_tag else None,
+        git.TAG: branch_or_tag if "tags/" in branch_or_tag else None,
     }
 
 
 def extract_bitbucket(env):
     return {
-        PROVIDER_NAME:"bitbucketpipelines",
-        git.REPOSITORY_URL:env.get("BITBUCKET_GIT_SSH_ORIGIN"),
+        PROVIDER_NAME: "bitbucketpipelines",
+        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
         git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
         WORKSPACE_PATH: env.get("BITBUCKET_CLONE_DIR"),
         PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID"),
@@ -100,8 +110,8 @@ def extract_bitbucket(env):
 
 def extract_buildkite(env):
     return {
-        PROVIDER_NAME:"buildkite",
-        git.REPOSITORY_URL:env.get("BUILDKITE_REPO"),
+        PROVIDER_NAME: "buildkite",
+        git.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
         git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
         WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
         PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
@@ -113,8 +123,8 @@ def extract_buildkite(env):
 
 def extract_circle_ci(env):
     return {
-        PROVIDER_NAME:"circleci",
-        git.REPOSITORY_URL:env.get("CIRCLE_REPOSITORY_URL"),
+        PROVIDER_NAME: "circleci",
+        git.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
         git.COMMIT_SHA: env.get("CIRCLE_SHA1"),
         WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
         PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
@@ -125,8 +135,8 @@ def extract_circle_ci(env):
 
 def extract_github_actions(env):
     return {
-        PROVIDER_NAME:"github",
-        git.REPOSITORY_URL:env.get("GITHUB_REPOSITORY"),
+        PROVIDER_NAME: "github",
+        git.REPOSITORY_URL: env.get("GITHUB_REPOSITORY"),
         git.COMMIT_SHA: env.get("GITHUB_SHA"),
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
         PIPELINE_ID: env.get("GITHUB_RUN_ID"),
@@ -138,8 +148,8 @@ def extract_github_actions(env):
 
 def extract_gitlab(env):
     return {
-        PROVIDER_NAME:"gitlab",
-        git.REPOSITORY_URL:env.get("CI_REPOSITORY_URL"),
+        PROVIDER_NAME: "gitlab",
+        git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
         WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
         PIPELINE_ID: env.get("CI_PIPELINE_ID"),
@@ -152,22 +162,22 @@ def extract_gitlab(env):
 
 def extract_jenkins(env):
     return {
-        PROVIDER_NAME:"jenkins",
-        git.REPOSITORY_URL:env.get("GIT_URL"),
+        PROVIDER_NAME: "jenkins",
+        git.REPOSITORY_URL: env.get("GIT_URL"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
         WORKSPACE_PATH: env.get("WORKSPACE"),
         PIPELINE_ID: env.get("BUILD_ID"),
         PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
         PIPELINE_URL: env.get("BUILD_URL"),
         JOB_URL: env.get("JOB_URL"),
-        git.BRANCH: _RE_ORIGIN.sub("", env.get("GIT_BRANCH")),
+        git.BRANCH: env.get("GIT_BRANCH"),
     }
 
 
 def extract_teamcity(env):
     return {
-        PROVIDER_NAME:"teamcity",
-        git.REPOSITORY_URL:env.get("BUILD_VCS_URL"),
+        PROVIDER_NAME: "teamcity",
+        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
         git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
         WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
         PIPELINE_ID: env.get("BUILD_ID"),
@@ -182,8 +192,8 @@ def extract_teamcity(env):
 
 def extract_travis(env):
     return {
-        PROVIDER_NAME:"travis",
-        git.REPOSITORY_URL:env.get("TRAVIS_REPO_SLUG"),
+        PROVIDER_NAME: "travis",
+        git.REPOSITORY_URL: env.get("TRAVIS_REPO_SLUG"),
         git.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
         WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
         PIPELINE_ID: env.get("TRAVIS_BUILD_ID"),
@@ -195,14 +205,14 @@ def extract_travis(env):
 
 
 PROVIDERS = (
-    ('APPVEYOR', extract_appveyor),
-    ('TF_BUILD', extract_azure_pipelines),
-    ('BITBUCKET_COMMIT', extract_bitbucket),
-    ('BUILDKITE', extract_buildkite),
-    ('CIRCLECI', extract_circle_ci),
-    ('GITHUB_SHA', extract_github_actions),
-    ('GITLAB_CI', extract_gitlab),
-    ('JENKINS_URL', extract_jenkins),
-    ('TEAMCITY_VERSION', extract_teamcity),
-    ('TRAVIS', extract_travis),
+    ("APPVEYOR", extract_appveyor),
+    ("TF_BUILD", extract_azure_pipelines),
+    ("BITBUCKET_COMMIT", extract_bitbucket),
+    ("BUILDKITE", extract_buildkite),
+    ("CIRCLECI", extract_circle_ci),
+    ("GITHUB_SHA", extract_github_actions),
+    ("GITLAB_CI", extract_gitlab),
+    ("JENKINS_URL", extract_jenkins),
+    ("TEAMCITY_VERSION", extract_teamcity),
+    ("TRAVIS", extract_travis),
 )
