@@ -41,7 +41,7 @@ def modify_client_context(client_context_base64, trace_headers):
 
         new_context = base64.b64encode(json.dumps(client_context_object).encode('utf-8')).decode('utf-8')
         return new_context
-    except Exception as e:
+    except Exception:
         log.warning('malformed client_context=%s', client_context_base64)
         return client_context_base64
 
