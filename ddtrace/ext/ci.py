@@ -38,12 +38,15 @@ def tags(env=None):
             tags = extract(env)
 
             # Post process special cases
-            branch = tags.get(git.BRANCH)
-            if branch:
-                tags[git.BRANCH] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", branch))
             tag = tags.get(git.TAG)
             if tag:
                 tags[git.TAG] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", tag))
+                if git.BRANCH in tags:
+                    del tags[git.BRANCH]
+
+            branch = tags.get(git.BRANCH)
+            if branch:
+                tags[git.BRANCH] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", branch))
             tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
             workspace_path = tags.get(WORKSPACE_PATH)
             if workspace_path:
@@ -57,15 +60,20 @@ def tags(env=None):
 def extract_appveyor(env):
     return {
         PROVIDER_NAME: "appveyor",
-        git.REPOSITORY_URL: env.get("APPVEYOR_REPO_NAME"),
+        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME")),
         git.COMMIT_SHA: env.get("APPVEYOR_REPO_COMMIT"),
         WORKSPACE_PATH: env.get("APPVEYOR_BUILD_FOLDER"),
         PIPELINE_ID: env.get("APPVEYOR_BUILD_ID"),
+        PIPELINE_NAME: env.get("APPVEYOR_REPO_NAME"),
         PIPELINE_NUMBER: env.get("APPVEYOR_BUILD_NUMBER"),
         PIPELINE_URL: "https://ci.appveyor.com/project/{0}/builds/{1}".format(
-            env.get("APPVEYOR_PROJECT_SLUG"), env.get("APPVEYOR_BUILD_ID")
+            env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
+        ),
+        JOB_URL: "https://ci.appveyor.com/project/{0}/builds/{1}".format(
+            env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
         ),
         git.BRANCH: env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH"),
+        git.TAG: env.get("APPVEYOR_REPO_TAG_NAME"),
     }
 
 

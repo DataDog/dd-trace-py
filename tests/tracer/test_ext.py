@@ -12,6 +12,418 @@ def test_flatten_dict():
     assert aws._flatten_dict(d, sep="_") == e
 
 
+APPVEYOR = [
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar~",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar~",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/~/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/~/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "~/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github",
+      "HOME": "/not-my-home",
+      "USERPROFILE": "/not-my-home"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/not-my-home/foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "~foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "~foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "~",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github",
+      "HOME": "/not-my-home",
+      "USERPROFILE": "/not-my-home"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/not-my-home",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "origin/master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "refs/heads/master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "master",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "refs/heads/feature/one",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "feature/one",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "origin/pr",
+      "APPVEYOR_REPO_BRANCH": "origin/master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "pr",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "refs/heads/pr",
+      "APPVEYOR_REPO_BRANCH": "refs/heads/master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.branch": "pr",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "origin/master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github",
+      "APPVEYOR_REPO_TAG_NAME": "origin/tags/0.1.0"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git",
+      "git.tag": "0.1.0"
+    }
+  ],
+  [
+    {
+      "APPVEYOR": "true",
+      "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+      "APPVEYOR_BUILD_ID": "appveyor-build-id",
+      "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+      "APPVEYOR_REPO_BRANCH": "refs/heads/master",
+      "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+      "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+      "APPVEYOR_REPO_PROVIDER": "github",
+      "APPVEYOR_REPO_TAG_NAME": "refs/heads/tags/0.1.0"
+    },
+    {
+      "ci.job.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.pipeline.id": "appveyor-build-id",
+      "ci.pipeline.name": "appveyor-repo-name",
+      "ci.pipeline.number": "appveyor-pipeline-number",
+      "ci.pipeline.url": "https://ci.appveyor.com/project/appveyor-repo-name/builds/appveyor-build-id",
+      "ci.provider.name": "appveyor",
+      "ci.workspace_path": "/foo/bar",
+      "git.commit.sha": "appveyor-repo-commit",
+      "git.commit_sha": "appveyor-repo-commit",
+      "git.repository_url": "https://github.com/appveyor-repo-name.git",
+      "git.tag": "0.1.0"
+    }
+  ]
+]
+
+
 AZURE = [
     [
         {
@@ -573,7 +985,7 @@ def _updateenv(monkeypatch, env):
         monkeypatch.setenv(k, v)
 
 
-@pytest.mark.parametrize("environment,tags", AZURE)
+@pytest.mark.parametrize("environment,tags", APPVEYOR + AZURE)
 def test_ci_providers(monkeypatch, environment, tags):
     _updateenv(monkeypatch, environment)
     assert tags == ci.tags(), environment
