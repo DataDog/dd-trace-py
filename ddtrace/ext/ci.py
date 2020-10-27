@@ -90,7 +90,7 @@ def extract_azure_pipelines(env):
         PIPELINE_NUMBER: env.get("BUILD_BUILDID"),
         PIPELINE_URL: pipeline_url,
         JOB_URL: job_url,
-        git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or  env.get("BUILD_REPOSITORY_URI"),
+        git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or env.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
         git.BRANCH: branch_or_tag if "tags/" not in branch_or_tag else None,
         git.TAG: branch_or_tag if "tags/" in branch_or_tag else None,
