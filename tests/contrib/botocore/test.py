@@ -221,12 +221,12 @@ class BotocoreTest(TracerTestCase):
             context_json = base64.b64decode(test_args[1]['ClientContext'].encode()).decode()
             context_obj = json.loads(context_json)
 
-            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
-            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
+            self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
+            self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
 
     def test_inject_trace_with_context(self):
         with tracer.trace('test', service='lambda.invoke.test', span_type=SpanTypes.HTTP) as test_span:
-            client_context = base64.b64encode(json.dumps({'Custom': {'foo': 'bar'}}).encode()).decode()
+            client_context = base64.b64encode(json.dumps({'custom': {'foo': 'bar'}}).encode()).decode()
             params = {
                 'ClientContext': client_context
             }
@@ -236,8 +236,8 @@ class BotocoreTest(TracerTestCase):
             context_json = base64.b64decode(test_args[1]['ClientContext'].encode()).decode()
             context_obj = json.loads(context_json)
 
-            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
-            self.assertEqual(context_obj['Custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
+            self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(test_span.context.trace_id))
+            self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(test_span.context.span_id))
 
     @mock_kms
     def test_kms_client(self):

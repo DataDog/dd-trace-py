@@ -32,10 +32,10 @@ def modify_client_context(client_context_base64, trace_headers):
         client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
         client_context_object = json.loads(client_context_json)
 
-        if 'Custom' in client_context_object:
-            client_context_object['Custom']['_datadog'] = trace_headers
+        if 'custom' in client_context_object:
+            client_context_object['custom']['_datadog'] = trace_headers
         else:
-            client_context_object['Custom'] = {
+            client_context_object['custom'] = {
                 '_datadog': trace_headers
             }
 
@@ -58,7 +58,7 @@ def inject_trace_to_client_context(args, span):
         trace_headers = {}
         propagator.inject(span.context, trace_headers)
         client_context_object = {
-            'Custom': {
+            'custom': {
                 '_datadog': trace_headers
             }
         }
