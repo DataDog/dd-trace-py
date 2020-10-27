@@ -841,7 +841,10 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
-            tracer.writer.flush_queue()
+            try:
+                tracer.writer.flush_queue()
+            except Exception as e:
+                pytest.fail("Could not flush the queue: %s" % str(e), pytrace=True)
 
             # Signal the start of this test case to the test agent.
             try:
@@ -858,15 +861,24 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             ret = wrapped(*args, **kwargs)
 
             # Flush out any remnant traces.
-            tracer.writer.flush_queue()
+            try:
+                tracer.writer.flush_queue()
+            except Exception as e:
+                # Even though it's unlikely any traces have been sent, make the
+                # final request to the test agent so that the test case is finished.
+                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+                conn.getresponse()
+                pytest.fail("Could not flush the queue: %s" % str(e), pytrace=True)
 
-            # Query for the results of the test.
-            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
-            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-            r = conn.getresponse()
-            if r.status != 200:
-                raise SnapshotFailed(r.read())
-            return ret
+            else:
+                # Query for the results of the test.
+                conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+                conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+                r = conn.getresponse()
+                if r.status != 200:
+                    raise SnapshotFailed(r.read())
+                return ret
         except SnapshotFailed as e:
             # Fail the test if a failure has occurred and print out the
             # message we got from the test agent.
