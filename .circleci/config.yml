@@ -13,7 +13,7 @@ python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
-datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
+datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
@@ -241,9 +241,11 @@ deploy_docs_filters: &deploy_docs_filters
 datadog_agent: &datadog_agent
   image: *datadog_agent_image
   environment:
-    DD_APM_ENABLED: true
-    DD_BIND_HOST: 0.0.0.0
     DD_API_KEY: invalid_key_but_this_is_fine
+    DD_APM_ENABLED: true
+    DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
+    DD_BIND_HOST: 0.0.0.0
+    DD_LOG_LEVEL: DEBUG
 
 mysql_server: &mysql_server
   image: *mysql_image
@@ -373,16 +375,38 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-profile'
 
-  integration:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-        environment:
-          TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
+  integration_agent5:
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-integration'
+      - checkout
+      - run:  docker-compose up -d ddagent5
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
+
+  integration_agent:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: docker-compose up -d ddagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration$'
+
+  integration_testagent:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
     <<: *contrib_job
@@ -897,7 +921,9 @@ requires_tests: &requires_tests
   - gevent
   - grpc
   - httplib
-  - integration
+  - integration_agent5
+  - integration_agent
+  - integration_testagent
   - vendor
   - profile
   - jinja2
@@ -999,7 +1025,9 @@ workflows:
       - gevent: *requires_pre_test
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
-      - integration: *requires_pre_test
+      - integration_agent5: *requires_pre_test
+      - integration_agent: *requires_pre_test
+      - integration_testagent: *requires_pre_test
       - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test

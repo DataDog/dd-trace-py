@@ -1,11 +1,15 @@
+from ddtrace.vendor import debtcollector
+
 from .encoding import Encoder
 
 
+@debtcollector.removals.removed_class("PayloadFull", removal_version="0.47")
 class PayloadFull(Exception):
     """The payload is full."""
     pass
 
 
+@debtcollector.removals.removed_class("Payload", removal_version="0.47")
 class Payload(object):
     """
     Trace agent API payload buffer class

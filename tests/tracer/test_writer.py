@@ -52,7 +52,7 @@ class AgentWriterTests(BaseTestCase):
     def create_worker(self, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS):
         with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
             self.dogstatsd = mock.Mock()
-            worker = AgentWriter(dogstatsd=self.dogstatsd)
+            worker = AgentWriter()
             worker._STATS_EVERY_INTERVAL = 1
             self.api = api_class()
             worker.api = self.api

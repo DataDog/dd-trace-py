@@ -170,8 +170,8 @@ def should_skip_request(pin, request):
     if not pin or not pin.enabled():
         return True
 
-    api = pin.tracer.writer.api
-    return request.host == api.hostname and request.port == api.port
+    writer = pin.tracer.writer
+    return request.host == writer._hostname and request.port == writer._port
 
 
 def patch():
