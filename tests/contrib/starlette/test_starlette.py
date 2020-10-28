@@ -10,7 +10,7 @@ from ddtrace.contrib.starlette import patch as starlettePatch, unpatch as starle
 from ddtrace.propagation import http as http_propagation
 
 from starlette.testclient import TestClient
-from tests import override_http_config
+from tests import override_http_config, snapshot
 from tests.tracer.test_tracer import get_dummy_tracer
 
 from app import get_app
@@ -41,6 +41,18 @@ def app(tracer):
 @pytest.fixture
 def client(app):
     with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def snapshot_app():
+    app = get_app()
+    yield app
+
+
+@pytest.fixture
+def snapshot_client(snapshot_app):
+    with TestClient(snapshot_app) as test_client:
         yield test_client
 
 
@@ -414,3 +426,11 @@ def test_table_query(client, tracer):
     assert sql_span.resource == "SELECT * FROM NOTES"
     assert sql_span.error == 0
     assert sql_span.get_tag("sql.db") == "test.db"
+
+
+@snapshot()
+def test_table_query_snapshot(snapshot_client):
+    r = snapshot_client.get("/notes")
+
+    assert r.status_code == 200
+    assert r.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"

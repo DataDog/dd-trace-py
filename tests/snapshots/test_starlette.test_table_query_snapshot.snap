@@ -1,0 +1,30 @@
+[[{"name" "starlette.request"
+   "service" "starlette"
+   "resource" "GET /notes"
+   "type" "http"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1603915708243016300
+   "duration" 974800
+   "meta" {"runtime-id" "7b243cf4c08b45cea90d6ea37079d58f"
+           "http.method" "GET"
+           "http.url" "http://testserver/notes"
+           "http.version" "1.1"
+           "http.status_code" "200"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 18054}}
+      {"name" "sqlite.query"
+       "service" "sqlite"
+       "resource" "SELECT * FROM NOTES"
+       "type" "sql"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1603915708243501800
+       "duration" 225500
+       "meta" {"sql.db" "test.db"}
+       "metrics" {"_dd.measured" 1}}]]
