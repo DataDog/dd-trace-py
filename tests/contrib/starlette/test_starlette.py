@@ -7,7 +7,6 @@ import pytest
 import ddtrace
 from ddtrace import config
 from ddtrace.contrib.starlette import patch as starlettePatch, unpatch as starletteUnpatch
-from ddtrace.contrib.sqlalchemy import patch as sqlPatch, unpatch as sqlUnpatch
 from ddtrace.propagation import http as http_propagation
 
 from starlette.testclient import TestClient
@@ -27,11 +26,9 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
-    sqlPatch()
     starlettePatch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
-    sqlUnpatch()
     starletteUnpatch()
 
 
@@ -374,15 +371,23 @@ def test_table_add(client, tracer):
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.service == "starlette"
-    assert request_span.name == "starlette.request"
-    assert request_span.resource == "POST /notes"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "POST"
-    assert request_span.get_tag("http.url") == "http://testserver/notes"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert len(spans[0]) == 2
+
+    starlette_span = spans[0][0]
+    assert starlette_span.service == "starlette"
+    assert starlette_span.name == "starlette.request"
+    assert starlette_span.resource == "POST /notes"
+    assert starlette_span.error == 0
+    assert starlette_span.get_tag("http.method") == "POST"
+    assert starlette_span.get_tag("http.url") == "http://testserver/notes"
+    assert starlette_span.get_tag("http.status_code") == "200"
+
+    sql_span = spans[0][1]
+    assert sql_span.service == "sqlite"
+    assert sql_span.name == "sqlite.query"
+    assert sql_span.resource == "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)"
+    assert sql_span.error == 0
+    assert sql_span.get_tag("sql.db") == "test.db"
 
 
 def test_table_query(client, tracer):
@@ -393,12 +398,19 @@ def test_table_query(client, tracer):
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.service == "starlette"
-    assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET /notes"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/notes"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert len(spans[0]) == 2
+    starlette_span = spans[0][0]
+    assert starlette_span.service == "starlette"
+    assert starlette_span.name == "starlette.request"
+    assert starlette_span.resource == "GET /notes"
+    assert starlette_span.error == 0
+    assert starlette_span.get_tag("http.method") == "GET"
+    assert starlette_span.get_tag("http.url") == "http://testserver/notes"
+    assert starlette_span.get_tag("http.status_code") == "200"
+
+    sql_span = spans[0][1]
+    assert sql_span.service == "sqlite"
+    assert sql_span.name == "sqlite.query"
+    assert sql_span.resource == "SELECT * FROM NOTES"
+    assert sql_span.error == 0
+    assert sql_span.get_tag("sql.db") == "test.db"

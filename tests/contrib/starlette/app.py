@@ -5,6 +5,9 @@ from tempfile import NamedTemporaryFile
 import time
 import databases
 import sqlalchemy
+from ddtrace.contrib.sqlalchemy import patch as sqlPatch
+
+sqlPatch()
 
 
 def create_test_database(DATABASE_URL):
@@ -99,7 +102,6 @@ async def add_note(request):
     request_json = await request.json()
     with engine.connect() as connection:
         with connection.begin():
-            connection.execute(notes_table.select())
             connection.execute(notes_table.insert(), request_json)
     response = "Success"
     return PlainTextResponse(response)
