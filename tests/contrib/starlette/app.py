@@ -1,5 +1,5 @@
 from starlette.applications import Starlette
-from starlette.responses import Response, PlainTextResponse, StreamingResponse, FileResponse, JSONResponse
+from starlette.responses import Response, PlainTextResponse, StreamingResponse, FileResponse
 from starlette.routing import Route
 from tempfile import NamedTemporaryFile
 import time
@@ -11,7 +11,7 @@ def create_test_database(DATABASE_URL):
     engine = sqlalchemy.create_engine(DATABASE_URL)
     engine.execute("DROP TABLE IF EXISTS notes;")
     metadata = sqlalchemy.MetaData()
-    notes = sqlalchemy.Table(
+    sqlalchemy.Table(
         "notes",
         metadata,
         sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
@@ -99,7 +99,7 @@ async def add_note(request):
     request_json = await request.json()
     with engine.connect() as connection:
         with connection.begin():
-            r = connection.execute(notes_table.select())
+            connection.execute(notes_table.select())
             connection.execute(notes_table.insert(), request_json)
     response = "Success"
     return PlainTextResponse(response)

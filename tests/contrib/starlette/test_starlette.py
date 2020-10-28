@@ -3,7 +3,6 @@ import sys
 
 import httpx
 import pytest
-import databases
 
 import ddtrace
 from ddtrace import config
@@ -14,9 +13,6 @@ from ddtrace.propagation import http as http_propagation
 from starlette.testclient import TestClient
 from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
-
-import sqlalchemy
-from sqlalchemy_utils import create_database, drop_database
 
 from app import get_app
 
@@ -31,11 +27,11 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
-    # sqlPatch()
+    sqlPatch()
     starlettePatch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
-    # sqlUnpatch()
+    sqlUnpatch()
     starletteUnpatch()
 
 
