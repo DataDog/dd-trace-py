@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from ddtrace import Pin, config
+from ddtrace import Pin
 from ddtrace.ext import test
 
 from ... import TracerTestCase

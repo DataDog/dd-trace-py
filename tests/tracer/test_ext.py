@@ -5,7 +5,6 @@ import pytest
 
 from ddtrace.ext import aws
 from ddtrace.ext import ci
-from ddtrace.ext import git
 
 
 def test_flatten_dict():
