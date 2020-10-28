@@ -534,25 +534,25 @@ class TracerTestCases(TracerTestCase):
 
 def test_tracer_url():
     t = ddtrace.Tracer()
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 8126
+    assert t.writer._hostname == "localhost"
+    assert t.writer._port == 8126
 
     t = ddtrace.Tracer(url="http://foobar:12")
-    assert t.writer.api.hostname == "foobar"
-    assert t.writer.api.port == 12
+    assert t.writer._hostname == "foobar"
+    assert t.writer._port == 12
 
     t = ddtrace.Tracer(url="unix:///foobar")
-    assert t.writer.api.uds_path == "/foobar"
+    assert t.writer._uds_path == "/foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 80
-    assert not t.writer.api.https
+    assert t.writer._hostname == "localhost"
+    assert t.writer._port == 80
+    assert not t.writer._https
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 443
-    assert t.writer.api.https
+    assert t.writer._hostname == "localhost"
+    assert t.writer._port == 443
+    assert t.writer._https
 
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(url="foo://foobar:12")
@@ -649,18 +649,17 @@ def test_tracer_fork():
 
     def task(t, errors):
         # Start a new span to trigger process checking
-        with t.trace("test", service="test") as span:
+        with t.trace("test", service="test"):
 
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid
                 assert t.writer != original_writer
-                assert t.writer._trace_queue != original_writer._trace_queue
+                assert t.writer._buffer != original_writer._buffer
 
         # Assert the trace got written into the correct queue
-        assert len(original_writer._trace_queue) == 0
-        assert len(t.writer._trace_queue) == 1
-        assert [[span]] == list(t.writer._trace_queue.get())
+        assert len(original_writer._buffer) == 0
+        assert len(t.writer._buffer) == 1
 
     # Assert tracer in a new process correctly recreates the writer
     errors = multiprocessing.Queue()
@@ -673,15 +672,14 @@ def test_tracer_fork():
     assert errors.empty(), errors.get()
 
     # Ensure writing into the tracer in this process still works as expected
-    with t.trace("test", service="test") as span:
+    with t.trace("test", service="test"):
         assert t._pid == original_pid
         assert t.writer == original_writer
-        assert t.writer._trace_queue == original_writer._trace_queue
+        assert t.writer._buffer == original_writer._buffer
 
     # Assert the trace got written into the correct queue
-    assert len(original_writer._trace_queue) == 1
-    assert len(t.writer._trace_queue) == 1
-    assert [[span]] == list(t.writer._trace_queue.get())
+    assert len(original_writer._buffer) == 1
+    assert len(t.writer._buffer) == 1
 
 
 def test_tracer_trace_across_fork():
@@ -946,12 +944,6 @@ class EnvTracerTestCase(TracerTestCase):
             assert s.get_tag("version") == "0.123"
 
 
-def test_tracer_custom_max_traces(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
-    tracer = ddtrace.Tracer()
-    assert tracer.writer._trace_queue.maxsize == 2000
-
-
 def test_tracer_set_runtime_tags():
     t = ddtrace.Tracer()
     span = t.start_span("foobar")
@@ -1138,3 +1130,33 @@ def test_filters():
     for s in spans:
         assert s.get_tag("boop") == "beep"
         assert s.get_tag("mats") == "sundin"
+
+    class FilterBroken(object):
+        def process_trace(self, trace):
+            _ = 1 / 0
+
+    t.configure(
+        settings={"FILTERS": [FilterBroken()],}
+    )
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 2
+
+    t.configure(
+        settings={"FILTERS": [FilterMutate("boop", "beep"), FilterBroken()],}
+    )
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 2
+    for s in spans:
+        assert s.get_tag("boop") == "beep"

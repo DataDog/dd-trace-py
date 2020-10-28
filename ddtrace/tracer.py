@@ -301,11 +301,11 @@ class Tracer(object):
         ):
             # Preserve hostname and port when overriding priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
-                default_hostname = self.writer.api.hostname
-                default_port = self.writer.api.port
+            if hasattr(self, 'writer') and isinstance(self.writer, AgentWriter):
+                default_hostname = self.writer._hostname
+                default_port = self.writer._port
                 if https is None:
-                    https = self.writer.api.https
+                    https = self.writer._https
             else:
                 default_hostname = self.DEFAULT_HOSTNAME
                 default_port = self.DEFAULT_PORT
