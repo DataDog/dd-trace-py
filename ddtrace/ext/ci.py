@@ -180,24 +180,22 @@ def extract_gitlab(env):
 
 def extract_jenkins(env):
     return {
-        PROVIDER_NAME: "jenkins",
-        git.REPOSITORY_URL: env.get("GIT_URL"),
+        git.BRANCH: env.get("GIT_BRANCH"),
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
-        WORKSPACE_PATH: env.get("WORKSPACE"),
+        git.REPOSITORY_URL: env.get("GIT_URL"),
+        JOB_URL: env.get("JOB_URL"),
         PIPELINE_ID: env.get("BUILD_ID"),
         PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
         PIPELINE_URL: env.get("BUILD_URL"),
-        JOB_URL: env.get("JOB_URL"),
-        git.BRANCH: env.get("GIT_BRANCH"),
+        PROVIDER_NAME: "jenkins",
+        WORKSPACE_PATH: env.get("WORKSPACE"),
     }
 
 
 def extract_teamcity(env):
     return {
-        PROVIDER_NAME: "teamcity",
-        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
         git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
-        WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
+        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
         PIPELINE_ID: env.get("BUILD_ID"),
         PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
         PIPELINE_URL: (
@@ -205,20 +203,24 @@ def extract_teamcity(env):
             if env.get("SERVER_URL") and env.get("BUILD_ID")
             else None
         ),
+        PROVIDER_NAME: "teamcity",
+        WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
     }
 
 
 def extract_travis(env):
     return {
-        PROVIDER_NAME: "travis",
-        git.REPOSITORY_URL: env.get("TRAVIS_REPO_SLUG"),
+        git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
         git.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
-        WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
+        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("TRAVIS_REPO_SLUG")),
+        git.TAG: env.get("TRAVIS_TAG"),
+        JOB_URL: env.get("TRAVIS_JOB_WEB_URL"),
         PIPELINE_ID: env.get("TRAVIS_BUILD_ID"),
+        PIPELINE_NAME: env.get("TRAVIS_REPO_SLUG"),
         PIPELINE_NUMBER: env.get("TRAVIS_BUILD_NUMBER"),
         PIPELINE_URL: env.get("TRAVIS_BUILD_WEB_URL"),
-        JOB_URL: env.get("TRAVIS_JOB_WEB_URL"),
-        git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
+        PROVIDER_NAME: "travisci",
+        WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
     }
 
 

@@ -71,6 +71,7 @@ pymongo
 pymysql
 pynamodb
 pyodbc
+pytest
 quickstart
 redis
 rediscluster
