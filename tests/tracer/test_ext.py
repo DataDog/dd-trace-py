@@ -27,7 +27,7 @@ def _updateenv(monkeypatch, env):
         monkeypatch.setenv(k, v)
 
 
-@pytest.mark.parametrize("name,environment,tags", _ci_fixtures("appveyor", "azurepipelines"))
+@pytest.mark.parametrize("name,environment,tags", _ci_fixtures("appveyor", "azurepipelines", "bitbucket"))
 def test_ci_providers(monkeypatch, name, environment, tags):
     _updateenv(monkeypatch, environment)
     assert tags == ci.tags(), (name, environment)

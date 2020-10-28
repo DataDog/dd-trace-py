@@ -47,13 +47,16 @@ def tags(env=None):
             branch = tags.get(git.BRANCH)
             if branch:
                 tags[git.BRANCH] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", branch))
+
+            # Add deprecated fields
             tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
+
+            # Expand ~
             workspace_path = tags.get(WORKSPACE_PATH)
             if workspace_path:
                 tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
-            tags = {k: v for k, v in tags.items() if v is not None}
 
-            return tags
+            return {k: v for k, v in tags.items() if v is not None}
     return {}
 
 
@@ -105,13 +108,21 @@ def extract_azure_pipelines(env):
 
 
 def extract_bitbucket(env):
+    url = "https://bitbucket.org/{0}/addon/pipelines/home#!/results/{1}".format(
+        env.get("BITBUCKET_REPO_FULL_NAME"), env.get("BITBUCKET_BUILD_NUMBER")
+    )
     return {
-        PROVIDER_NAME: "bitbucketpipelines",
-        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
+        git.BRANCH: env.get("BITBUCKET_BRANCH"),
         git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
-        WORKSPACE_PATH: env.get("BITBUCKET_CLONE_DIR"),
-        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID"),
+        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
+        git.TAG: env.get("BITBUCKET_TAG"),
+        JOB_URL: url,
+        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,
+        PIPELINE_NAME: env.get("BITBUCKET_REPO_FULL_NAME"),
         PIPELINE_NUMBER: env.get("BITBUCKET_BUILD_NUMBER"),
+        PIPELINE_URL: url,
+        PROVIDER_NAME: "bitbucket",
+        WORKSPACE_PATH: env.get("BITBUCKET_CLONE_DIR"),
     }
 
 
