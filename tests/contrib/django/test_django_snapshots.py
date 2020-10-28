@@ -40,29 +40,14 @@ def test_middleware_trace_partial_based_view(client):
     assert client.get("/partial-view/").status_code == 200
 
 
-@pytest.mark.skipif(django.VERSION >= (1, 9), reason="")
 @pytest.mark.django_db
-@snapshot()
-def test_safe_string_encoding_18x(client):
-    assert client.get("/safe-template/").status_code == 200
-
-
-@pytest.mark.skipif(not (django.VERSION >= (1, 9) and django.VERSION < (1, 12)), reason="")
-@pytest.mark.django_db
-@snapshot()
-def test_safe_string_encoding_111x(client):
-    assert client.get("/safe-template/").status_code == 200
-
-
-@pytest.mark.skipif(not (django.VERSION > (1, 12) and django.VERSION < (2, 2)), reason="")
-@pytest.mark.django_db
-@snapshot()
-def test_safe_string_encoding_21x(client):
-    assert client.get("/safe-template/").status_code == 200
-
-
-@pytest.mark.skipif(django.VERSION < (2, 2), reason="")
-@pytest.mark.django_db
-@snapshot()
+@snapshot(
+    variants={
+        "18x": django.VERSION < (1, 9),
+        "111x": (1, 9) <= django.VERSION < (1, 12),
+        "21x": (1, 12) < django.VERSION < (2, 2),
+        "": django.VERSION >= (2, 2),
+    }
+)
 def test_safe_string_encoding(client):
     assert client.get("/safe-template/").status_code == 200
