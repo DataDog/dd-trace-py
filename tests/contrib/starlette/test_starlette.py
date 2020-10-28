@@ -3,13 +3,21 @@ import sys
 
 import httpx
 import pytest
+import databases
+
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.starlette import patch, unpatch
+from ddtrace.contrib.starlette import patch as starlettePatch, unpatch as starletteUnpatch
+from ddtrace.contrib.sqlalchemy import patch as sqlPatch, unpatch as sqlUnpatch
 from ddtrace.propagation import http as http_propagation
+
 from starlette.testclient import TestClient
 from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
+
+import sqlalchemy
+from sqlalchemy_utils import create_database, drop_database
+
 from app import get_app
 
 
@@ -23,10 +31,12 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
-    patch()
+    # sqlPatch()
+    starlettePatch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
-    unpatch()
+    # sqlUnpatch()
+    starletteUnpatch()
 
 
 @pytest.fixture
@@ -356,4 +366,43 @@ def test_path_param_no_aggregate(client, tracer):
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
+    assert request_span.get_tag("http.status_code") == "200"
+    config.starlette["aggregate_resources"] = True
+
+
+def test_table_add(client, tracer):
+    r = client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "POST /notes"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "POST"
+    assert request_span.get_tag("http.url") == "http://testserver/notes"
+    assert request_span.get_tag("http.status_code") == "200"
+
+
+def test_table_query(client, tracer):
+    r = client.get("/notes")
+
+    assert r.status_code == 200
+    assert r.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "starlette"
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /notes"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/notes"
     assert request_span.get_tag("http.status_code") == "200"
