@@ -78,7 +78,6 @@ def extract_appveyor(env):
 
 
 def extract_azure_pipelines(env):
-    print(env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID"))
     if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECT") and env.get("BUILD_BUILDID"):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID")
