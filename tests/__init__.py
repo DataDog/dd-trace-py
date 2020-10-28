@@ -841,7 +841,10 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
-            tracer.writer.flush_queue()
+            try:
+                tracer.writer.flush_queue()
+            except Exception as e:
+                pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
             # Signal the start of this test case to the test agent.
             try:
@@ -857,7 +860,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             # Run the test.
             ret = wrapped(*args, **kwargs)
 
-            # Flush out any remnant traces.
+            # Force a flush so all traces are submitted.
             tracer.writer.flush_queue()
 
             # Query for the results of the test.
@@ -871,6 +874,13 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             # Fail the test if a failure has occurred and print out the
             # message we got from the test agent.
             pytest.fail(to_unicode(e.args[0]), pytrace=False)
+        except Exception as e:
+            # Even though it's unlikely any traces have been sent, make the
+            # final request to the test agent so that the test case is finished.
+            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+            conn.getresponse()
+            pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
         finally:
             conn.close()
 
