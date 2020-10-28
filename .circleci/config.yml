@@ -326,7 +326,7 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration'
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration$'
 
   integration_testagent:
     <<: *machine_executor
