@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Handle when the current span is None in log_exception().
+    tornado: handle when the current span is None in log_exception().
