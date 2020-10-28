@@ -653,8 +653,14 @@ jobs:
           pattern: '^sanic_contrib-'
   
   starlette:
+    <<: *machine_executor
     executor: ddtrace_dev
     steps:
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d starlette testagent
+      - run:
+        command: docker-compose logs -f
+        background: true
       - run_tox_scenario:
           pattern: '^starlette_contrib-'
 
