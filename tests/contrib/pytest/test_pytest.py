@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.ext import test
 
 from ... import TracerTestCase
@@ -10,8 +10,9 @@ from ... import TracerTestCase
 
 class TestPytest(TracerTestCase):
     @pytest.fixture(autouse=True)
-    def initdir(self, testdir):
+    def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
+        self.monkeypatch = monkeypatch
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
@@ -23,6 +24,10 @@ class TestPytest(TracerTestCase):
                     Pin.override(config, tracer=self.tracer)
 
         return self.testdir.inline_run(*args, plugins=[PinTracer()])
+
+    def subprocess_run(self, *args):
+        """Execute test script with test tracer."""
+        return self.testdir.runpytest_subprocess(*args)
 
     def test_disabled(self):
         """Test without --ddtrace."""
@@ -121,7 +126,61 @@ class TestPytest(TracerTestCase):
         spans = self.tracer.writer.pop()
 
         assert len(spans) == 1
-        assert spans[0].service == "pytest"
         assert spans[0].get_tag("world") == "hello"
         assert spans[0].get_tag("mark") == "dd_tags"
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+
+    def test_default_service_name(self):
+        """Test default service name."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_service(ddspan):
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.tracer.writer.pop()
+
+        assert len(spans) == 1
+        assert spans[0].service == "pytest"
+
+    def test_dd_service_name(self):
+        """Test integration service name."""
+        self.monkeypatch.setenv("DD_SERVICE", "mysvc")
+        if "DD_PYTEST_SERVICE" in os.environ:
+            self.monkeypatch.delenv("DD_PYTEST_SERVICE")
+
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+
+            def test_service(ddspan):
+                assert 'mysvc' == os.getenv('DD_SERVICE')
+                assert os.getenv('DD_PYTEST_SERVICE') is None
+                assert 'mysvc' == ddspan.service
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.subprocess_run("--ddtrace", file_name)
+        assert 0 == rec.ret
+
+    def test_dd_pytest_service_name(self):
+        """Test integration service name."""
+        self.monkeypatch.setenv("DD_SERVICE", "mysvc")
+        self.monkeypatch.setenv("DD_PYTEST_SERVICE", "pymysvc")
+
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+
+            def test_service(ddspan):
+                assert 'mysvc' == os.getenv('DD_SERVICE')
+                assert 'pymysvc' == os.getenv('DD_PYTEST_SERVICE')
+                assert 'pymysvc' == ddspan.service
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.subprocess_run("--ddtrace", file_name)
+        assert 0 == rec.ret
