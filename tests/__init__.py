@@ -802,10 +802,6 @@ class SnapshotFailed(Exception):
     pass
 
 
-class SnapshotUnexpectedError(Exception):
-    pass
-
-
 def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
     """Performs a snapshot integration test with the testing agent.
 
