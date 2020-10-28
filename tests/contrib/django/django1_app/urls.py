@@ -10,6 +10,7 @@ urlpatterns = [
     url(r"^simple/$", views.BasicView.as_view()),
     url(r"^users/$", views.UserList.as_view(), name="users-list"),
     url(r"^cached-template/$", views.TemplateCachedUserList.as_view(), name="cached-template-list"),
+    url(r"^safe-template/$", views.SafeTemplateUserList.as_view(), name="safe-template-list"),
     url(r"^cached-users/$", cache_page(60)(views.UserList.as_view()), name="cached-users-list"),
     url(r"^fail-view/$", views.ForbiddenView.as_view(), name="forbidden-view"),
     url(r"^static-method-view/$", views.StaticMethodView.as_view(), name="static-method-view"),
