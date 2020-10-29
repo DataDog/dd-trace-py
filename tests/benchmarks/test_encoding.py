@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.encoding import _EncoderBase, MsgpackEncoder
 
-from ..test_encoders import RefMsgpackEncoder, gen_trace
+from tests.tracer.test_encoders import RefMsgpackEncoder, gen_trace
 
 
 msgpack_encoder = RefMsgpackEncoder()
