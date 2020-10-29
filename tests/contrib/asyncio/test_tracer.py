@@ -16,7 +16,10 @@ class TestAsyncioTracer(AsyncioTestCase):
     def test_get_call_context(self):
         # it should return the context attached to the current Task
         # or create a new one
-        task = asyncio.Task.current_task()
+        if hasattr(asyncio.Task, "current_task"):
+            task = asyncio.Task.current_task()
+        else:
+            task = asyncio.current_task()
         ctx = getattr(task, "__datadog_context", None)
         assert ctx is None
         # get the context from the loop creates a new one that
@@ -77,7 +80,10 @@ class TestAsyncioTracer(AsyncioTestCase):
         # it should handle the case where a Task is not available
         # Note: the @mark_asyncio is missing to simulate an execution
         # without a Task
-        task = asyncio.Task.current_task()
+        if hasattr(asyncio.Task, "current_task"):
+            task = asyncio.Task.current_task()
+        else:
+            task = asyncio.current_task()
         # the task is not available
         assert task is None
         # but a new Context is still created making the operation safe
