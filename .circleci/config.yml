@@ -81,6 +81,16 @@ commands:
             S3_DIR: << parameters.s3_dir >>
             S3_BUCKET: << parameters.s3_bucket >>
 
+  save_codecov:
+    description: "Persist code coverage results"
+    steps:
+      - run: touch .coverage
+      - run: mv .coverage ".coverage.report.$(date +%s%3N)"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ".coverage.report.*"
+
   setup_tox:
     description: "Install tox"
     steps:
@@ -130,6 +140,7 @@ commands:
       - run:
           name: "Running tests matching '<< parameters.pattern >>'"
           command: "riot -v run -s '<< parameters.pattern >>'"
+      - save_codecov
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -154,6 +165,7 @@ commands:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
+      - save_codecov
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
@@ -794,6 +806,21 @@ jobs:
       - *pyenv-set-global
       - deploy_wheels
 
+  coverage:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - *pyenv-set-global
+      - attach_workspace:
+          at: .
+      - run: pip install coverage
+      - run: ls -lah
+      - run: coverage combine
+      - run: coverage report --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
+      - run: coverage html --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
+      - store_artifacts:
+          path: ./htmlcov
+
   jinja2:
     executor: ddtrace_dev
     steps:
@@ -1004,6 +1031,8 @@ workflows:
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
+      - coverage:
+          requires: *requires_tests
       - deploy_master:
           requires: *requires_tests
           filters:

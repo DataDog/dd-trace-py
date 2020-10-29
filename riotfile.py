@@ -3,6 +3,8 @@ from riot import Suite, Case
 global_deps = [
     "mock",
     "pytest<4",
+    "coverage",
+    "pytest-cov",
 ]
 
 global_env = [("PYTEST_ADDOPTS", "--color=yes")]
@@ -40,7 +42,7 @@ suites = [
     ),
     Suite(
         name="tracer",
-        command="pytest tests/tracer/",
+        command="coverage run --parallel-mode -m pytest tests/tracer/",
         cases=[
             Case(
                 pys=[

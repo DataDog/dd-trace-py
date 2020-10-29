@@ -1,0 +1,8 @@
+[run]
+omit = tests/* ddtrace/vendor/*
+
+[paths]
+source =
+    ddtrace/
+    /home/circleci/project/ddtrace
+    /root/project/ddtrace
