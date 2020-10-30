@@ -4,14 +4,15 @@ from starlette.routing import Route
 from tempfile import NamedTemporaryFile
 import time
 import databases
-import sqlalchemy
+
 from ddtrace.contrib.sqlalchemy import patch as sqlPatch
 
 sqlPatch()
 
+import sqlalchemy
 
-def create_test_database(DATABASE_URL):
-    engine = sqlalchemy.create_engine(DATABASE_URL)
+
+def create_test_database(engine):
     engine.execute("DROP TABLE IF EXISTS notes;")
     metadata = sqlalchemy.MetaData()
     sqlalchemy.Table(
@@ -25,11 +26,12 @@ def create_test_database(DATABASE_URL):
 
 
 DATABASE_URL = "sqlite:///test.db"
-create_test_database(DATABASE_URL)
+engine = sqlalchemy.create_engine(DATABASE_URL)
+create_test_database(engine)
 
 database = databases.Database(DATABASE_URL)
-engine = sqlalchemy.create_engine(DATABASE_URL)
-metadata = sqlalchemy.MetaData(bind=engine, reflect=True)
+metadata = sqlalchemy.MetaData(bind=engine)
+metadata.reflect()
 notes_table = metadata.tables["notes"]
 
 

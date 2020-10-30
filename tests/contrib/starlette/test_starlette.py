@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace.contrib.starlette import patch as starlettePatch, unpatch as starletteUnpatch
 from ddtrace.propagation import http as http_propagation
 
+
 from starlette.testclient import TestClient
 from tests import override_http_config, snapshot
 from tests.tracer.test_tracer import get_dummy_tracer
@@ -30,6 +31,11 @@ def tracer():
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     starletteUnpatch()
+
+
+def get_tracer():
+    global tracer
+    return tracer
 
 
 @pytest.fixture
