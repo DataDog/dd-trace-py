@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
+from ddtrace.contrib.asyncio.compat import asyncio_current_task
 
 from .utils import AsyncioTestCase, mark_asyncio
 
@@ -80,10 +81,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         # it should handle the case where a Task is not available
         # Note: the @mark_asyncio is missing to simulate an execution
         # without a Task
-        if hasattr(asyncio.Task, "current_task"):
-            task = asyncio.Task.current_task()
-        else:
-            task = asyncio.current_task()
+        task = asyncio_current_task()
         # the task is not available
         assert task is None
         # but a new Context is still created making the operation safe
