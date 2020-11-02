@@ -352,6 +352,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
+    @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
     def test_contextmanager_connection(self):
         service = "fo"
         with self._get_conn(service=service) as conn:
