@@ -196,7 +196,7 @@ class Span(object):
         # DEV: `http.status_code` *has* to be in `meta` for metrics
         #   calculated in the trace agent
         if key == http.STATUS_CODE:
-            if(500 <= int(value) <= 599):
+            if 500 <= int(value) <= 599:
                 self.error = 1
             value = str(value)
 
