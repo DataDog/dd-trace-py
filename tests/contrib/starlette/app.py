@@ -6,10 +6,9 @@ import time
 import databases
 
 from ddtrace.contrib.sqlalchemy import patch as sqlPatch
+import sqlalchemy
 
 sqlPatch()
-
-import sqlalchemy
 
 
 def create_test_database(engine):
