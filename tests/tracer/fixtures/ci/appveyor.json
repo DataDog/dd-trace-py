@@ -30,7 +30,6 @@
       "APPVEYOR_BUILD_FOLDER": "/foo/bar",
       "APPVEYOR_BUILD_ID": "appveyor-build-id",
       "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
-      "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "",
       "APPVEYOR_REPO_BRANCH": "master",
       "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
       "APPVEYOR_REPO_NAME": "appveyor-repo-name",

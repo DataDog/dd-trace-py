@@ -27,40 +27,47 @@ PROVIDER_NAME = "ci.provider.name"
 # Workspace Path
 WORKSPACE_PATH = "ci.workspace_path"
 
+_RE_REFS = re.compile(r"^refs/(heads/)?")
+_RE_ORIGIN = re.compile(r"^origin/")
 _RE_TAGS = re.compile(r"^tags/")
-_RE_BRANCH_PREFIX = re.compile(r"^(refs/(heads/)|origin/)?")
+_RE_URL = re.compile(r"(https?://)[^/]*@")
+
+
+def _normalize_ref(name):
+    return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
+
+
+def _filter_sensitive_info(url):
+    return _RE_URL.sub("\\1", url) if url is not None else None
 
 
 def tags(env=None):
     env = os.environ if env is None else env
+    tags = {}
     for key, extract in PROVIDERS:
         if key in env:
             tags = extract(env)
+            break
 
-            # Post process special cases
-            tag = tags.get(git.TAG)
-            if tag:
-                tags[git.TAG] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", tag))
-                if git.BRANCH in tags:
-                    del tags[git.BRANCH]
+    tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
+    if tags.get(git.TAG) and git.BRANCH in tags:
+        del tags[git.BRANCH]
+    tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
+    tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
+    tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
-            branch = tags.get(git.BRANCH)
-            if branch:
-                tags[git.BRANCH] = _RE_TAGS.sub("", _RE_BRANCH_PREFIX.sub("", branch))
+    # Expand ~
+    workspace_path = tags.get(WORKSPACE_PATH)
+    if workspace_path:
+        tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
 
-            # Add deprecated fields
-            tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
-
-            # Expand ~
-            workspace_path = tags.get(WORKSPACE_PATH)
-            if workspace_path:
-                tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
-
-            return {k: v for k, v in tags.items() if v is not None}
-    return {}
+    return {k: v for k, v in tags.items() if v is not None}
 
 
 def extract_appveyor(env):
+    url = "https://ci.appveyor.com/project/{0}/builds/{1}".format(
+        env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
+    )
     return {
         PROVIDER_NAME: "appveyor",
         git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME")),
@@ -69,12 +76,8 @@ def extract_appveyor(env):
         PIPELINE_ID: env.get("APPVEYOR_BUILD_ID"),
         PIPELINE_NAME: env.get("APPVEYOR_REPO_NAME"),
         PIPELINE_NUMBER: env.get("APPVEYOR_BUILD_NUMBER"),
-        PIPELINE_URL: "https://ci.appveyor.com/project/{0}/builds/{1}".format(
-            env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
-        ),
-        JOB_URL: "https://ci.appveyor.com/project/{0}/builds/{1}".format(
-            env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
-        ),
+        PIPELINE_URL: url,
+        JOB_URL: url,
         git.BRANCH: env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH"),
         git.TAG: env.get("APPVEYOR_REPO_TAG_NAME"),
     }
@@ -128,63 +131,100 @@ def extract_bitbucket(env):
 
 def extract_buildkite(env):
     return {
-        PROVIDER_NAME: "buildkite",
-        git.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
+        git.BRANCH: env.get("BUILDKITE_BRANCH"),
         git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
-        WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
+        git.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
+        git.TAG: env.get("BUILDKITE_TAG"),
         PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
+        PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
         PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
         PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
-        git.BRANCH: env.get("BUILDKITE_BRANCH"),
+        JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
+        PROVIDER_NAME: "buildkite",
+        WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
     }
 
 
 def extract_circle_ci(env):
     return {
-        PROVIDER_NAME: "circleci",
-        git.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
+        git.BRANCH: env.get("CIRCLE_BRANCH"),
         git.COMMIT_SHA: env.get("CIRCLE_SHA1"),
-        WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
+        git.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
+        git.TAG: env.get("CIRCLE_TAG"),
+        PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
+        PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
         PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
         PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
-        git.BRANCH: env.get("CIRCLE_BRANCH"),
+        JOB_URL: env.get("CIRCLE_BUILD_URL"),
+        PROVIDER_NAME: "circleci",
+        WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
     }
 
 
 def extract_github_actions(env):
+    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF")
+    branch = tag = None
+    if "tags/" in branch_or_tag:
+        tag = branch_or_tag
+    else:
+        branch = branch_or_tag
     return {
-        PROVIDER_NAME: "github",
-        git.REPOSITORY_URL: env.get("GITHUB_REPOSITORY"),
+        git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GITHUB_SHA"),
-        WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
+        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("GITHUB_REPOSITORY")),
+        git.TAG: tag,
+        JOB_URL: "https://github.com/{0}/commit/{1}/checks".format(env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")),
         PIPELINE_ID: env.get("GITHUB_RUN_ID"),
+        PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        PIPELINE_URL: "{0}/commit/{1}/checks".format(env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")),
-        git.BRANCH: env.get("GITHUB_REF"),
+        PIPELINE_URL: "https://github.com/{0}/commit/{1}/checks".format(
+            env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
+        ),
+        PROVIDER_NAME: "github",
+        WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
     }
 
 
 def extract_gitlab(env):
+    url = env.get("CI_PIPELINE_URL")
+    if url:
+        url = re.sub("/-/pipelines/", "/pipelines/", url)
     return {
-        PROVIDER_NAME: "gitlab",
-        git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
+        git.BRANCH: env.get("CI_COMMIT_BRANCH"),
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
-        WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
-        PIPELINE_ID: env.get("CI_PIPELINE_ID"),
-        PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
-        PIPELINE_URL: env.get("CI_PIPELINE_URL"),
+        git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
+        git.TAG: env.get("CI_COMMIT_TAG"),
         JOB_URL: env.get("CI_JOB_URL"),
-        git.BRANCH: env.get("CI_COMMIT_BRANCH") or env.get("CI_COMMIT_REF_NAME"),
+        PIPELINE_ID: env.get("CI_PIPELINE_ID"),
+        PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
+        PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
+        PIPELINE_URL: url,
+        PROVIDER_NAME: "gitlab",
+        WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
     }
 
 
 def extract_jenkins(env):
+    branch_or_tag = env.get("GIT_BRANCH")
+    branch = tag = None
+    if "tags/" in branch_or_tag:
+        tag = branch_or_tag
+    else:
+        branch = branch_or_tag
+    name = env.get("JOB_NAME")
+    if name and branch:
+        name = re.sub("/" + _normalize_ref(branch), "", name)
+    if name:
+        name = "/".join((v for v in name.split("/") if v and "=" not in v))
+
     return {
-        git.BRANCH: env.get("GIT_BRANCH"),
+        git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
         git.REPOSITORY_URL: env.get("GIT_URL"),
+        git.TAG: tag,
         JOB_URL: env.get("JOB_URL"),
-        PIPELINE_ID: env.get("BUILD_ID"),
+        PIPELINE_ID: env.get("BUILD_TAG"),
+        PIPELINE_NAME: name,
         PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
         PIPELINE_URL: env.get("BUILD_URL"),
         PROVIDER_NAME: "jenkins",

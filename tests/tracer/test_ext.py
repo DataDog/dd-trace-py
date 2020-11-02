@@ -1,3 +1,4 @@
+import glob
 import os
 import json
 
@@ -14,12 +15,12 @@ def test_flatten_dict():
     assert aws._flatten_dict(d, sep="_") == e
 
 
-def _ci_fixtures(*names):
+def _ci_fixtures():
     basepath = os.path.join(os.path.dirname(__file__), "fixtures", "ci")
-    for name in names:
-        with open(os.path.join(basepath, name + ".json")) as fp:
-            for item in json.load(fp):
-                yield name, item[0], item[1]
+    for filename in glob.glob(os.path.join(basepath, '*.json')):
+        with open(filename) as fp:
+            for i, item in enumerate(json.load(fp)):
+                yield os.path.basename(filename)[:-5] + ':' + str(i), item[0], item[1]
 
 
 def _updateenv(monkeypatch, env):
@@ -27,7 +28,7 @@ def _updateenv(monkeypatch, env):
         monkeypatch.setenv(k, v)
 
 
-@pytest.mark.parametrize("name,environment,tags", _ci_fixtures("appveyor", "azurepipelines", "bitbucket", "travis"))
+@pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
 def test_ci_providers(monkeypatch, name, environment, tags):
     _updateenv(monkeypatch, environment)
-    assert tags == ci.tags(), (name, environment)
+    assert tags == ci.tags(), "wrong tags in {0} for {1}".format(name, environment)
