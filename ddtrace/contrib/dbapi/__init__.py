@@ -181,7 +181,7 @@ class TracedConnection(wrapt.ObjectProxy):
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
 
-        This means unforunately that the database clients each define their own
+        This means unfortunately that the database clients each define their own
         implementations.
 
         The ones we know about are:
