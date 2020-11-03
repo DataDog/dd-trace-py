@@ -145,6 +145,7 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].service == "pytest"
+        assert spans[0].name == "pytest.test"
 
     def test_dd_service_name(self):
         """Test integration service name."""
@@ -170,6 +171,7 @@ class TestPytest(TracerTestCase):
         """Test integration service name."""
         self.monkeypatch.setenv("DD_SERVICE", "mysvc")
         self.monkeypatch.setenv("DD_PYTEST_SERVICE", "pymysvc")
+        self.monkeypatch.setenv("DD_PYTEST_OPERATION_NAME", "mytest")
 
         py_file = self.testdir.makepyfile(
             """
@@ -179,6 +181,7 @@ class TestPytest(TracerTestCase):
                 assert 'mysvc' == os.getenv('DD_SERVICE')
                 assert 'pymysvc' == os.getenv('DD_PYTEST_SERVICE')
                 assert 'pymysvc' == ddspan.service
+                assert 'mytest' == ddspan.name
         """
         )
         file_name = os.path.basename(py_file.strpath)

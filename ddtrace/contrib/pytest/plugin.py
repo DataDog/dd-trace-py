@@ -68,7 +68,7 @@ def pytest_runtest_protocol(item, nextitem):
         return
 
     with pin.tracer.trace(
-        SpanTypes.TEST.value,
+        ddconfig.pytest.operation_name,
         service=int_service(pin, ddconfig.pytest),
         resource=item.nodeid,
         span_type=SpanTypes.TEST.value,
