@@ -816,9 +816,12 @@ jobs:
       - run: pip install coverage
       - run: coverage combine
       - run: coverage report --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
-      - run: coverage html --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
+      - run: coverage html --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py" -d codecov
+      - run: coverage html --include="tests/*.py" -d testcov
       - store_artifacts:
-          path: ./htmlcov
+          path: ./codecov
+      - store_artifacts:
+          path: ./testcov
 
   jinja2:
     executor: ddtrace_dev
