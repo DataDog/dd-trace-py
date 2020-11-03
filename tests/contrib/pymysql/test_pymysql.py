@@ -446,7 +446,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     def test_context_manager(self):
         conn, tracer = self._get_conn_tracer()
         # connection doesn't support context manager usage
-        with conn2.cursor() as cursor:
+        with conn.cursor() as cursor:
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1

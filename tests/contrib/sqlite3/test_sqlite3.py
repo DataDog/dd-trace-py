@@ -370,5 +370,6 @@ class TestSQLite(TracerTestCase):
         with conn as conn2:
             cursor = conn2.execute("select * from sqlite_master")
             cursor.fetchall()
-            rows = cursor.fetchall()
+            cursor.fetchall()
             spans = self.get_spans()
+            assert len(spans) == 1

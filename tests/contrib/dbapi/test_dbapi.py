@@ -1,5 +1,7 @@
 import mock
 
+import pytest
+
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
@@ -741,6 +743,27 @@ class TestTracedConnection(TracerTestCase):
             with conn2.cursor() as cursor:
                 cursor.execute("query")
                 cursor.fetchall()
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 0
+
+        # Errors should be the same when no context management is defined.
+
+        class ConnectionNoCtx(object):
+            def cursor(self):
+                return Cursor()
+
+            def commit(self):
+                pass
+
+        conn = TracedConnection(ConnectionNoCtx(), pin)
+        with pytest.raises(AttributeError):
+            with conn:
+                pass
+
+        with pytest.raises(AttributeError):
+            with conn as conn2:
+                pass
 
         spans = self.tracer.writer.pop()
         assert len(spans) == 0
