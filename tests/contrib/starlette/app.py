@@ -4,11 +4,7 @@ from starlette.routing import Route
 from tempfile import NamedTemporaryFile
 import time
 import databases
-
-from ddtrace.contrib.sqlalchemy import patch as sqlPatch
 import sqlalchemy
-
-sqlPatch()
 
 
 def create_test_database(engine):
@@ -22,16 +18,6 @@ def create_test_database(engine):
         sqlalchemy.Column("completed", sqlalchemy.Boolean),
     )
     metadata.create_all(engine)
-
-
-DATABASE_URL = "sqlite:///test.db"
-engine = sqlalchemy.create_engine(DATABASE_URL)
-create_test_database(engine)
-
-database = databases.Database(DATABASE_URL)
-metadata = sqlalchemy.MetaData(bind=engine)
-metadata.reflect()
-notes_table = metadata.tables["notes"]
 
 
 async def homepage(request):
@@ -82,11 +68,13 @@ async def file(request):
 
 
 async def get_tables(request):
+    global engine
     response = engine.table_names()
     return PlainTextResponse(str(response))
 
 
 async def list_notes(request):
+    global engine
     query = "SELECT * FROM NOTES"
     with engine.connect() as connection:
         result = connection.execute(query)
@@ -100,6 +88,8 @@ async def list_notes(request):
 
 
 async def add_note(request):
+    global engine
+    global notes_table
     request_json = await request.json()
     with engine.connect() as connection:
         with connection.begin():
@@ -108,7 +98,25 @@ async def add_note(request):
     return PlainTextResponse(response)
 
 
-def get_app():
+def get_app(test_engine):
+    global engine
+    engine = test_engine
+
+    create_test_database(engine)
+
+    DATABASE_URL = "sqlite:///test.db"
+    database = databases.Database(DATABASE_URL)
+    metadata = sqlalchemy.MetaData(bind=engine)
+    metadata.reflect()
+
+    global notes_table
+    notes_table = metadata.tables["notes"]
+
+    row = {"id": 1, "text": "test", "completed": 1}
+    with engine.connect() as connection:
+        with connection.begin():
+            connection.execute(notes_table.insert(), row)
+
     routes = [
         Route("/", endpoint=homepage, name="homepage", methods=["GET"]),
         Route("/200", endpoint=success, name="200", methods=["GET"]),

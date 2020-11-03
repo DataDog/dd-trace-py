@@ -3,10 +3,13 @@ import sys
 
 import httpx
 import pytest
+import sqlalchemy
 
 import ddtrace
+from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.starlette import patch as starlettePatch, unpatch as starletteUnpatch
+from ddtrace.contrib.sqlalchemy import patch as sqlPatch, unpatch as sqlUnpatch
 from ddtrace.propagation import http as http_propagation
 
 
@@ -18,14 +21,25 @@ from app import get_app
 
 
 @pytest.fixture
-def tracer():
+def engine():
+    DATABASE_URL = "sqlite:///test.db"
+    sqlPatch()
+    engine = sqlalchemy.create_engine(DATABASE_URL)
+    yield engine
+    sqlUnpatch()
+
+
+@pytest.fixture
+def tracer(engine):
     original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
 
+        Pin.override(engine, tracer=tracer)
         tracer.configure(context_provider=AsyncioContextProvider())
+
     setattr(ddtrace, "tracer", tracer)
     starlettePatch()
     yield tracer
@@ -33,14 +47,9 @@ def tracer():
     starletteUnpatch()
 
 
-def get_tracer():
-    global tracer
-    return tracer
-
-
 @pytest.fixture
-def app(tracer):
-    app = get_app()
+def app(tracer, engine):
+    app = get_app(engine)
     yield app
 
 
@@ -51,8 +60,8 @@ def client(app):
 
 
 @pytest.fixture
-def snapshot_app():
-    app = get_app()
+def snapshot_app(engine):
+    app = get_app(engine)
     yield app
 
 
@@ -382,8 +391,7 @@ def test_path_param_no_aggregate(client, tracer):
 
 
 def test_table_add(client, tracer):
-    r = client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
-
+    r = client.post("/notes", json={"id": 2, "text": "test", "completed": 1})
     assert r.status_code == 200
     assert r.text == "Success"
 
