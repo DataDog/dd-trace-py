@@ -12,7 +12,7 @@ from ddtrace.utils.formats import asbool, get_env
 
 if PY2:
     # Python 2 does not have PermissionError but Python 3 does.
-    class PermissionError(Exception):  # noqa
+    class PermissionError(OSError):  # noqa
         pass
 
 
