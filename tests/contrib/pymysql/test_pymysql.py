@@ -443,6 +443,16 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         span = spans[0]
         assert span.service == "pin-svc"
 
+    def test_context_manager(self):
+        conn, tracer = self._get_conn_tracer()
+        # connection doesn't support context manager usage
+        with conn2.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            assert len(rows) == 1
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYMYSQL_SERVICE="mysvc"))
     def test_user_specified_service_integration(self):
         conn, tracer = self._get_conn_tracer()

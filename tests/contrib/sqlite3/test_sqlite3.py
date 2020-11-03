@@ -364,3 +364,11 @@ class TestSQLite(TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         assert span.service == "my-svc"
+
+    def test_context_manager(self):
+        conn = self._given_a_traced_connection(self.tracer)
+        with conn as conn2:
+            cursor = conn2.execute("select * from sqlite_master")
+            cursor.fetchall()
+            rows = cursor.fetchall()
+            spans = self.get_spans()
