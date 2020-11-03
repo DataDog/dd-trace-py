@@ -23,6 +23,7 @@ coroutines
 datadog
 datadoghq
 datastore
+dbapi
 ddtrace
 django
 dogstatsd
