@@ -50,6 +50,7 @@ kwarg
 lifecycle
 mako
 memcached
+metadata
 microservices
 middleware
 mongoengine
@@ -86,12 +87,14 @@ starlette
 stringable
 subdomains
 submodules
+timestamp
 tweens
 uWSGI
 unix
 unregister
 url
 urls
+username
 uvicorn
 vertica
 whitelist
