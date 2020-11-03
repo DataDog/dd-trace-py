@@ -894,7 +894,7 @@ requires_tests: &requires_tests
   - gevent
   - grpc
   - httplib
-  - integration
+    # - integration
   - vendor
   - profile
   - jinja2
@@ -997,7 +997,7 @@ workflows:
       - gevent: *requires_pre_test
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
-      - integration: *requires_pre_test
+        # - integration: *requires_pre_test
       - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
