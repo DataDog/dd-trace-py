@@ -42,7 +42,7 @@ suites = [
     ),
     Suite(
         name="tracer",
-        command="coverage run --parallel-mode -m pytest tests/tracer/",
+        command="pytest tests/tracer/",
         cases=[
             Case(
                 pys=[

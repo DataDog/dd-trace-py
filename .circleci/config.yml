@@ -814,7 +814,6 @@ jobs:
       - attach_workspace:
           at: .
       - run: pip install coverage
-      - run: ls -lah
       - run: coverage combine
       - run: coverage report --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
       - run: coverage html --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
