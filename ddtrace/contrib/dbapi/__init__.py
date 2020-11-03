@@ -206,10 +206,8 @@ class TracedConnection(wrapt.ObjectProxy):
         elif hasattr(r, "execute"):
             # r is Cursor-like.
             if iswrapped(r):
-                # Cursor is already instrumented.
                 return r
             else:
-                # Got a cursor but it's not yet instrumented.
                 pin = Pin.get_from(self)
                 cfg = _get_config(self._self_config)
                 if not pin:
