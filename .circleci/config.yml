@@ -53,12 +53,8 @@ commands:
         type: string
         default: *s3_bucket
     steps:
-      - setup_tox
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libenchant-dev
+      - build_docs
       - run: pip install awscli
-      - run: tox -e docs
       - run:
           name: Release docs
           command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
@@ -162,6 +158,14 @@ commands:
       - run:
           name: Run test build
           command: .circleci/scripts/test_build.sh
+
+  build_docs:
+    steps:
+      - setup_tox
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libenchant-dev
+      - run: tox -e docs
 
 executors:
   cimg_base:
@@ -819,11 +823,11 @@ jobs:
 
   build_docs:
     # deploy official documentation
-    executor: ddtrace_dev
+    <<: *machine_executor
     steps:
       - checkout
-      - setup_tox
-      - run: tox -e docs
+      - *pyenv-set-global
+      - build_docs
       - run:
           command: |
              mkdir -p /tmp/docs
