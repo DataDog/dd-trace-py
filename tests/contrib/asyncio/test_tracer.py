@@ -17,10 +17,7 @@ class TestAsyncioTracer(AsyncioTestCase):
     def test_get_call_context(self):
         # it should return the context attached to the current Task
         # or create a new one
-        if hasattr(asyncio.Task, "current_task"):
-            task = asyncio.Task.current_task()
-        else:
-            task = asyncio.current_task()
+        task = asyncio_current_task()
         ctx = getattr(task, "__datadog_context", None)
         assert ctx is None
         # get the context from the loop creates a new one that
