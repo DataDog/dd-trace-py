@@ -189,6 +189,9 @@ class TracedConnection(wrapt.ObjectProxy):
         - mysqlclient<2.0 which returns a cursor instance. >=2.0 returns a
           connection instance.
         - psycopg returns a connection.
+        - pyodbc returns a connection.
+        - pymysql doesn't implement it.
+        - sqlite3 returns the connection.
         """
         r = self.__wrapped__.__enter__()
 
