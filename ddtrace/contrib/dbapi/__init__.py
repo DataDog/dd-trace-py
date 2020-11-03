@@ -196,10 +196,10 @@ class TracedConnection(wrapt.ObjectProxy):
             # r is Connection-like.
             if r is self.__wrapped__:
                 # Return the reference to this proxy object. Returning r would
-                # return the not wrapped reference.
+                # return the untraced reference.
                 return self
             else:
-                # r is a different connection object
+                # r is a different connection object.
                 # This should not happen in practice but play it safe so that
                 # the original functionality is maintained.
                 return r
@@ -214,6 +214,8 @@ class TracedConnection(wrapt.ObjectProxy):
                     return r
                 return self._self_cursor_cls(r, pin, cfg)
         else:
+            # Otherwise r is some other object, so maintain the functionality
+            # of the original.
             return r
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):
