@@ -11,7 +11,9 @@ target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
-  ddtrace/internal/_encoding.pyx$
+  .venv*
+  | .riot
+  | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/profiling/collector/_traceback.pyx$
   | ddtrace/profiling/collector/_threading.pyx$

@@ -87,12 +87,18 @@ class TraceMiddleware:
     """
 
     def __init__(
-        self, app, tracer=None, integration_config=config.asgi, handle_exception_span=_default_handle_exception_span
+        self,
+        app,
+        tracer=None,
+        integration_config=config.asgi,
+        handle_exception_span=_default_handle_exception_span,
+        span_modifier=None,
     ):
         self.app = guarantee_single_callable(app)
         self.tracer = tracer or ddtrace.tracer
         self.integration_config = integration_config
         self.handle_exception_span = handle_exception_span
+        self.span_modifier = span_modifier
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -107,12 +113,16 @@ class TraceMiddleware:
                 self.tracer.context_provider.activate(context)
 
         resource = "{} {}".format(scope["method"], scope["path"])
+
         span = self.tracer.trace(
             name=self.integration_config.get("request_span_name", "asgi.request"),
             service=trace_utils.int_service(None, self.integration_config),
             resource=resource,
             span_type=SpanTypes.HTTP,
         )
+
+        if self.span_modifier:
+            self.span_modifier(span, scope)
 
         sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:

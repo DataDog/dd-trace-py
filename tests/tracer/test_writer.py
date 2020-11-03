@@ -11,36 +11,6 @@ from tests import BaseTestCase
 MAX_NUM_SPANS = 7
 
 
-class RemoveAllFilter:
-    def __init__(self):
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        return None
-
-
-class KeepAllFilter:
-    def __init__(self):
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        return trace
-
-
-class AddTagFilter:
-    def __init__(self, tag_name):
-        self.tag_name = tag_name
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        for span in trace:
-            span.set_tag(self.tag_name, "A value")
-        return trace
-
-
 class DummyAPI(API):
     def __init__(self):
         # Call API.__init__ to setup required properties
@@ -81,12 +51,10 @@ class FailingAPI(object):
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
-    def create_worker(
-        self, filters=None, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS
-    ):
+    def create_worker(self, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS):
         with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
             self.dogstatsd = mock.Mock()
-            worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
+            worker = AgentWriter(dogstatsd=self.dogstatsd)
             worker._STATS_EVERY_INTERVAL = 1
             self.api = api_class()
             worker.api = self.api
@@ -113,35 +81,6 @@ class AgentWriterTests(BaseTestCase):
         with self.override_global_config(dict(health_metrics_enabled=True)):
             assert worker._send_stats is False
 
-    def test_filters_keep_all(self):
-        filtr = KeepAllFilter()
-        self.create_worker([filtr])
-        self.assertEqual(len(self.api.traces), self.N_TRACES)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
-
-    def test_filters_remove_all(self):
-        filtr = RemoveAllFilter()
-        self.create_worker([filtr])
-        self.assertEqual(len(self.api.traces), 0)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
-
-    def test_filters_add_tag(self):
-        tag_name = "Tag"
-        filtr = AddTagFilter(tag_name)
-        self.create_worker([filtr])
-        self.assertEqual(len(self.api.traces), self.N_TRACES)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
-        for trace in self.api.traces:
-            for span in trace:
-                self.assertIsNotNone(span.get_tag(tag_name))
-
-    def test_filters_short_circuit(self):
-        filtr = KeepAllFilter()
-        filters = [RemoveAllFilter(), filtr]
-        self.create_worker(filters)
-        self.assertEqual(len(self.api.traces), 0)
-        self.assertEqual(filtr.filtered_traces, 0)
-
     def test_no_dogstats(self):
         worker = self.create_worker()
         assert worker._send_stats is False
@@ -158,7 +97,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call("datadog.tracer.flushes"),
             mock.call("datadog.tracer.flush.traces.total", 11, tags=None),
             mock.call("datadog.tracer.flush.spans.total", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
             mock.call("datadog.tracer.api.requests.total", 11, tags=None),
             mock.call("datadog.tracer.api.errors.total", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull.total", 0, tags=None),
@@ -172,7 +110,6 @@ class AgentWriterTests(BaseTestCase):
         histogram_calls = [
             mock.call("datadog.tracer.flush.traces", 11, tags=None),
             mock.call("datadog.tracer.flush.spans", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
             mock.call("datadog.tracer.api.requests", 11, tags=None),
             mock.call("datadog.tracer.api.errors", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull", 0, tags=None),
@@ -195,7 +132,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call("datadog.tracer.flushes"),
             mock.call("datadog.tracer.flush.traces.total", 1, tags=None),
             mock.call("datadog.tracer.flush.spans.total", num_spans, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
             mock.call("datadog.tracer.api.requests.total", 1, tags=None),
             mock.call("datadog.tracer.api.errors.total", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull.total", 1, tags=None),
@@ -208,7 +144,6 @@ class AgentWriterTests(BaseTestCase):
         histogram_calls = [
             mock.call("datadog.tracer.flush.traces", 1, tags=None),
             mock.call("datadog.tracer.flush.spans", num_spans, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
             mock.call("datadog.tracer.api.requests", 1, tags=None),
             mock.call("datadog.tracer.api.errors", 0, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull", 1, tags=None),
@@ -229,7 +164,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call("datadog.tracer.flushes"),
             mock.call("datadog.tracer.flush.traces.total", 11, tags=None),
             mock.call("datadog.tracer.flush.spans.total", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
             mock.call("datadog.tracer.api.requests.total", 1, tags=None),
             mock.call("datadog.tracer.api.errors.total", 1, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull.total", 0, tags=None),
@@ -242,7 +176,6 @@ class AgentWriterTests(BaseTestCase):
         histogram_calls = [
             mock.call("datadog.tracer.flush.traces", 11, tags=None),
             mock.call("datadog.tracer.flush.spans", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
             mock.call("datadog.tracer.api.requests", 1, tags=None),
             mock.call("datadog.tracer.api.errors", 1, tags=None),
             mock.call("datadog.tracer.api.traces_payloadfull", 0, tags=None),
@@ -256,23 +189,11 @@ class AgentWriterTests(BaseTestCase):
 class LogWriterTests(BaseTestCase):
     N_TRACES = 11
 
-    def create_writer(self, filters=None):
+    def create_writer(self):
         self.output = DummyOutput()
-        writer = LogWriter(out=self.output, filters=filters)
+        writer = LogWriter(out=self.output)
         for i in range(self.N_TRACES):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)]
             )
         return writer
-
-    def test_filters_keep_all(self):
-        filtr = KeepAllFilter()
-        self.create_writer([filtr])
-        self.assertEqual(len(self.output.entries), self.N_TRACES)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
-
-    def test_filters_remove_all(self):
-        filtr = RemoveAllFilter()
-        self.create_writer([filtr])
-        self.assertEqual(len(self.output.entries), 0)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)

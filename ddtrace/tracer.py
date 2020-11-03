@@ -102,6 +102,7 @@ class Tracer(object):
         self.sampler = None
         self.priority_sampler = None
         self._runtime_worker = None
+        self._filters = []
 
         uds_path = None
         https = None
@@ -265,9 +266,10 @@ class Tracer(object):
         if enabled is not None:
             self.enabled = enabled
 
-        filters = None
         if settings is not None:
             filters = settings.get(FILTERS_KEY)
+            if filters is not None:
+                self._filters = filters
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
@@ -294,11 +296,10 @@ class Tracer(object):
             or port is not None
             or uds_path is not None
             or https is not None
-            or filters is not None
             or priority_sampling is not None
             or sampler is not None
         ):
-            # Preserve hostname and port when overriding filters or priority sampling
+            # Preserve hostname and port when overriding priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
                 default_hostname = self.writer.api.hostname
@@ -317,7 +318,6 @@ class Tracer(object):
                 port or default_port,
                 uds_path=uds_path,
                 https=https,
-                filters=filters,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,
@@ -690,7 +690,15 @@ class Tracer(object):
                 self.log.debug('\n%s', span.pprint())
 
         if self.enabled and self.writer:
-            # only submit the spans if we're actually enabled (and don't crash :)
+            for filtr in self._filters:
+                try:
+                    spans = filtr.process_trace(spans)
+                except Exception:
+                    log.error("error while applying filter %s to traces", filtr, exc_info=True)
+                else:
+                    if not spans:
+                        return
+
             self.writer.write(spans=spans)
 
     @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
