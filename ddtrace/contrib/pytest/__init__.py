@@ -1,4 +1,9 @@
 """
+The Pytest ingration traces test executions.
+
+Enabling
+~~~~~~~~
+
 Enable traced execution of tests using ``pytest`` runner by
 running ``pytest --ddtrace`` or by modifying any configuration
 file read by Pytest (``pytest.ini``, ``setup.cfg``, ...)::
@@ -6,6 +11,28 @@ file read by Pytest (``pytest.ini``, ``setup.cfg``, ...)::
     [pytest]
     ddtrace = 1
 
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.pytest["service"]
+
+   The service name reported by default for pytest traces.
+
+   This option can also be set with the ``DD_PYTEST_SERVICE`` environment
+   variable.
+
+   Default: ``"pytest"``
+
+
+.. py:data:: ddtrace.config.pytest["operation_name"]
+
+   The operation name reported by default for pytest traces.
+
+   This option can also be set with the ``DD_PYTEST_OPERATION_NAME`` environment
+   variable.
+
+   Default: ``"pytest.test"``
 """
 
 from ddtrace import config
