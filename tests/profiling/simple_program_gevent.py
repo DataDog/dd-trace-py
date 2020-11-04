@@ -19,11 +19,9 @@ def fibonacci(n):
         return fibonacci(n - 1) + fibonacci(n - 2)
 
 
-recorder = list(bootstrap.profiler.recorders)[0]
-
 # When not using our special PeriodicThread based on real threads, there's 0 event captured.
 i = 1
-while len(recorder.events[stack.StackSampleEvent]) < 10:
+while len(bootstrap.profiler._profiler._recorder.events[stack.StackSampleEvent]) < 10:
     threads = []
     for _ in range(10):
         t = threading.Thread(target=fibonacci, args=(i,))
