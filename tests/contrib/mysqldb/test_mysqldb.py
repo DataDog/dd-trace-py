@@ -1,3 +1,4 @@
+import pytest
 import MySQLdb
 
 from ddtrace import Pin
@@ -25,7 +26,7 @@ class MySQLCore(object):
         if self.conn:
             try:
                 self.conn.ping()
-            except MySQLdb.InterfaceError:
+            except (MySQLdb.InterfaceError, MySQLdb.OperationalError):
                 pass
             else:
                 self.conn.close()
@@ -435,6 +436,35 @@ class MySQLCore(object):
         spans = writer.pop()
 
         assert spans[0].service != "mysvc"
+
+    @pytest.mark.skipif((1, 4) < MySQLdb.version_info < (2, 0), reason="context manager interface not supported")
+    def test_contextmanager_connection(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        with conn as c:
+            if MySQLdb.version_info < (2, 0):
+                cursor = c
+            else:
+                cursor = c.cursor()
+            rowcount = cursor.execute('SELECT 1')
+            assert rowcount == 1
+            rows = cursor.fetchall()
+            assert len(rows) == 1
+            spans = writer.pop()
+            assert len(spans) == 1
+
+            span = spans[0]
+            assert_is_measured(span)
+            assert span.service == "mysql"
+            assert span.name == 'mysql.query'
+            assert span.span_type == 'sql'
+            assert span.error == 0
+            assert span.get_metric('out.port') == 3306
+            assert_dict_issuperset(span.meta, {
+                'out.host': u'127.0.0.1',
+                'db.name': u'test',
+                'db.user': u'test',
+            })
 
 
 class TestMysqlPatch(MySQLCore, TracerTestCase):
