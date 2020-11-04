@@ -161,6 +161,8 @@ commands:
                 command: docker-compose logs -f
                 background: true
             - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
       - unless:
           condition:
@@ -186,6 +188,35 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+
+  run_tox_scenario_with_testagent:
+    description: Run scripts/run-tox-scenario with setup, caching persistence and the testagent
+    parameters:
+      pattern:
+        type: string
+      wait:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - restore_tox_cache
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          name: "Run scripts/run-tox-scenario"
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
+          command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
+      - save_tox_cache
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -856,13 +887,8 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+      - run_tox_scenario_with_testagent:
+          pattern: '^redis_contrib-'
 
   rediscluster:
     <<: *contrib_job
