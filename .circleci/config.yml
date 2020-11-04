@@ -898,6 +898,7 @@ requires_tests: &requires_tests
   - pynamodb
   - pyodbc
   - pyramid
+  - pytest
   - redis
   - rediscluster
   - requests
