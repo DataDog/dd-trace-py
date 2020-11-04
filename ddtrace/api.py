@@ -4,6 +4,7 @@ from json import loads
 import socket
 
 # project
+from . import compat
 from .encoding import Encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
@@ -16,18 +17,11 @@ from .utils import time
 log = get_logger(__name__)
 
 
-_VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
-                      'services': '/v0.4/services',
-                      'compatibility_mode': False,
-                      'fallback': 'v0.3'},
-             'v0.3': {'traces': '/v0.3/traces',
-                      'services': '/v0.3/services',
-                      'compatibility_mode': False,
-                      'fallback': 'v0.2'},
-             'v0.2': {'traces': '/v0.2/traces',
-                      'services': '/v0.2/services',
-                      'compatibility_mode': True,
-                      'fallback': None}}
+_VERSIONS = {
+    "v0.4": {"traces": "/v0.4/traces", "services": "/v0.4/services", "compatibility_mode": False, "fallback": "v0.3"},
+    "v0.3": {"traces": "/v0.3/traces", "services": "/v0.3/services", "compatibility_mode": False, "fallback": "v0.2"},
+    "v0.2": {"traces": "/v0.2/traces", "services": "/v0.2/services", "compatibility_mode": True, "fallback": None},
+}
 
 
 class Response(object):
@@ -38,7 +32,8 @@ class Response(object):
     can call `resp.read()` and load the body once into an instance before we
     close the HTTPConnection used for the request.
     """
-    __slots__ = ['status', 'body', 'reason', 'msg']
+
+    __slots__ = ["status", "body", "reason", "msg"]
 
     def __init__(self, status=None, body=None, reason=None, msg=None):
         self.status = status
@@ -61,8 +56,8 @@ class Response(object):
         return cls(
             status=resp.status,
             body=resp.read(),
-            reason=getattr(resp, 'reason', None),
-            msg=getattr(resp, 'msg', None),
+            reason=getattr(resp, "reason", None),
+            msg=getattr(resp, "msg", None),
         )
 
     def get_json(self):
@@ -70,25 +65,25 @@ class Response(object):
         try:
             body = self.body
             if not body:
-                log.debug('Empty reply from Datadog Agent, %r', self)
+                log.debug("Empty reply from Datadog Agent, %r", self)
                 return
 
-            if not isinstance(body, str) and hasattr(body, 'decode'):
-                body = body.decode('utf-8')
+            if not isinstance(body, str) and hasattr(body, "decode"):
+                body = body.decode("utf-8")
 
-            if hasattr(body, 'startswith') and body.startswith('OK'):
+            if hasattr(body, "startswith") and body.startswith("OK"):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug('Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date')
+                log.debug("Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date")
                 return
 
             return loads(body)
         except (ValueError, TypeError):
-            log.debug('Unable to parse Datadog Agent JSON response: %r', body, exc_info=True)
+            log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
 
     def __repr__(self):
-        return '{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})'.format(
+        return "{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})".format(
             self.__class__.__name__,
             self.status,
             self.body,
@@ -120,74 +115,67 @@ class API(object):
     Send data to the trace agent using the HTTP protocol and JSON format
     """
 
-    TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
+    TRACE_COUNT_HEADER = "X-Datadog-Trace-Count"
 
     # Default timeout when establishing HTTP connection and sending/receiving from socket.
     # This ought to be enough as the agent is local
     TIMEOUT = 2
 
-    def __init__(self, hostname, port, uds_path=None, https=False, headers=None, encoder=None, priority_sampling=False):
+    def __init__(self, url, headers=None, encoder=None, priority_sampling=False):
         """Create a new connection to the Tracer API.
 
-        :param hostname: The hostname.
-        :param port: The TCP port to use.
-        :param uds_path: The path to use if the connection is to be established with a Unix Domain Socket.
+        :param url: The agent URL.
         :param headers: The headers to pass along the request.
         :param encoder: The encoder to use to serialize data.
         :param priority_sampling: Whether to use priority sampling.
         """
-        self.hostname = hostname
-        self.port = int(port)
-        self.uds_path = uds_path
-        self.https = https
+        self.url = url
 
         self._headers = headers or {}
         self._version = None
 
         if priority_sampling:
-            self._set_version('v0.4', encoder=encoder)
+            self._set_version("v0.4", encoder=encoder)
         else:
-            self._set_version('v0.3', encoder=encoder)
+            self._set_version("v0.3", encoder=encoder)
 
-        self._headers.update({
-            'Datadog-Meta-Lang': 'python',
-            'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-            'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-            'Datadog-Meta-Tracer-Version': ddtrace.__version__,
-        })
+        self._headers.update(
+            {
+                "Datadog-Meta-Lang": "python",
+                "Datadog-Meta-Lang-Version": PYTHON_VERSION,
+                "Datadog-Meta-Lang-Interpreter": PYTHON_INTERPRETER,
+                "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            }
+        )
 
         # Add container information if we have it
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
-            self._headers.update({
-                'Datadog-Container-Id': self._container_info.container_id,
-            })
+            self._headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                }
+            )
 
     def __str__(self):
-        if self.uds_path:
-            return 'unix://' + self.uds_path
-        if self.https:
-            scheme = 'https://'
-        else:
-            scheme = 'http://'
-        return '%s%s:%s' % (scheme, self.hostname, self.port)
+        return self.url
 
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
-            version = 'v0.2'
+            version = "v0.2"
         if version == self._version:
             return
         self._version = version
-        self._traces = _VERSIONS[version]['traces']
-        self._services = _VERSIONS[version]['services']
-        self._fallback = _VERSIONS[version]['fallback']
-        self._compatibility_mode = _VERSIONS[version]['compatibility_mode']
+        self._traces = _VERSIONS[version]["traces"]
+        self._services = _VERSIONS[version]["services"]
+        self._fallback = _VERSIONS[version]["fallback"]
+        self._compatibility_mode = _VERSIONS[version]["compatibility_mode"]
         if self._compatibility_mode:
             self._encoder = JSONEncoder()
         else:
             self._encoder = encoder or Encoder()
         # overwrite the Content-type with the one chosen in the Encoder
-        self._headers.update({'Content-Type': self._encoder.content_type})
+        self._headers.update({"Content-Type": self._encoder.content_type})
 
     def _downgrade(self):
         """
@@ -227,10 +215,10 @@ class API(object):
                             payload.add_trace(trace)
                         except PayloadFull as e:
                             # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                            log.warning('Trace is too big to fit in a payload, dropping it')
+                            log.warning("Trace is too big to fit in a payload, dropping it")
                             responses.append(e)
                     else:
-                        log.warning('Trace is larger than the max payload size, dropping it')
+                        log.warning("Trace is larger than the max payload size, dropping it")
                         responses.append(e)
 
             # Check that the Payload is not empty:
@@ -238,7 +226,7 @@ class API(object):
             if not payload.empty:
                 responses.append(self._flush(payload))
 
-        log.debug('reported %d traces in %.5fs', len(traces), sw.elapsed())
+        log.debug("reported %d traces in %.5fs", len(traces), sw.elapsed())
 
         return responses
 
@@ -256,24 +244,32 @@ class API(object):
 
         return response
 
-    @deprecated(message='Sending services to the API is no longer necessary', version='1.0.0')
+    @deprecated(message="Sending services to the API is no longer necessary", version="1.0.0")
     def send_services(self, *args, **kwargs):
         return
+
+    def _get_connection(self):
+        parsed = compat.parse.urlparse(self.url)
+
+        port = parsed.port or 8126
+
+        if parsed.scheme == "https":
+            return httplib.HTTPSConnection(parsed.hostname, port, timeout=self.TIMEOUT)
+        elif parsed.scheme == "http":
+            return httplib.HTTPConnection(parsed.hostname, port, timeout=self.TIMEOUT)
+        elif parsed.scheme == "unix":
+            return UDSHTTPConnection(parsed.path, False, parsed.hostname or "", port, timeout=self.TIMEOUT)
+
+        raise ValueError("Unknown agent protocol %s" % parsed.scheme)
 
     def _put(self, endpoint, data, count):
         headers = self._headers.copy()
         headers[self.TRACE_COUNT_HEADER] = str(count)
 
-        if self.uds_path is None:
-            if self.https:
-                conn = httplib.HTTPSConnection(self.hostname, self.port, timeout=self.TIMEOUT)
-            else:
-                conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
-        else:
-            conn = UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
+        conn = self._get_connection()
 
         try:
-            conn.request('PUT', endpoint, data, headers)
+            conn.request("PUT", endpoint, data, headers)
 
             # Parse the HTTPResponse into an API.Response
             # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,

@@ -532,31 +532,33 @@ class TracerTestCases(TracerTestCase):
             self.assertIsNone(child.get_tag("language"))
 
 
-def test_tracer_url():
-    t = ddtrace.Tracer()
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 8126
+@pytest.mark.parametrize(
+    "url,result",
+    (
+        (None, "http://localhost:8126"),
+        ("http://foobar:12", "http://foobar:12"),
+        ("unix:///foobar", "unix:///foobar"),
+        ("https://foobar", "https://foobar:443"),
+        ("http://localhost", "http://localhost:80"),
+    ),
+)
+def test_tracer_url(url, result):
+    t = ddtrace.Tracer(url)
+    assert t.writer.api.url == result
 
-    t = ddtrace.Tracer(url="http://foobar:12")
-    assert t.writer.api.hostname == "foobar"
-    assert t.writer.api.port == 12
 
-    t = ddtrace.Tracer(url="unix:///foobar")
-    assert t.writer.api.uds_path == "/foobar"
-
-    t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 80
-    assert not t.writer.api.https
-
-    t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 443
-    assert t.writer.api.https
-
+def test_tracer_wrong_url():
     with pytest.raises(ValueError) as e:
-        t = ddtrace.Tracer(url="foo://foobar:12")
+        ddtrace.Tracer(url="foo://foobar:12")
         assert str(e) == "Unknown scheme `https` for agent URL"
+
+
+def test_configure_keeps_api_hostname_and_port():
+    tracer = ddtrace.Tracer()
+    tracer.configure(hostname="127.0.0.1", port=8127)
+    assert "http://127.0.0.1:8127" == tracer.writer.url
+    tracer.configure(priority_sampling=True)
+    assert "http://127.0.0.1:8127" == tracer.writer.url
 
 
 def test_tracer_shutdown_no_timeout():

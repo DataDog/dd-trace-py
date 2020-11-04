@@ -14,7 +14,7 @@ from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
-from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.compat import PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.payload import Payload
 from ddtrace.span import Span
@@ -43,7 +43,7 @@ class FlawedAPI(API):
     """
 
     def _put(self, endpoint, data, count=0):
-        conn = httplib.HTTPConnection(self.hostname, self.port)
+        conn = self._get_connection()
         conn.request("HEAD", endpoint, data, self._headers)
         return Response.from_http_response(conn.getresponse())
 
@@ -186,7 +186,7 @@ class TestWorkers(TestCase):
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
-        self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
+        self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_AGENT_URL)
         tracer.trace("client.testing").finish()
 
         log = logging.getLogger("ddtrace.internal.writer")
@@ -244,8 +244,8 @@ class TestAPITransport(TestCase):
 
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API("localhost", 8126, encoder=JSONEncoder())
-        self.api_msgpack = API("localhost", 8126, encoder=MsgpackEncoder())
+        self.api_json = API("http://localhost:8126", encoder=JSONEncoder())
+        self.api_msgpack = API("http://localhost:8126", encoder=MsgpackEncoder())
 
     @mock.patch("ddtrace.api.httplib.HTTPConnection")
     def test_send_presampler_headers(self, mocked_http):
@@ -423,7 +423,7 @@ class TestAPIDowngrade(TestCase):
 
         # the encoder is right but we're targeting an API
         # endpoint that is not available
-        api = API("localhost", 8126)
+        api = API("http://localhost:8126")
         api._traces = "/v0.0/traces"
         assert isinstance(api._encoder, MsgpackEncoder)
 
@@ -449,8 +449,8 @@ class TestRateByService(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API("localhost", 8126, encoder=JSONEncoder(), priority_sampling=True)
-        self.api_msgpack = API("localhost", 8126, encoder=MsgpackEncoder(), priority_sampling=True)
+        self.api_json = API("http://localhost:8126", encoder=JSONEncoder(), priority_sampling=True)
+        self.api_msgpack = API("http://localhost:8126", encoder=MsgpackEncoder(), priority_sampling=True)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -474,28 +474,6 @@ class TestRateByService(TestCase):
         assert len(responses) == 1
         assert responses[0].status == 200
         assert responses[0].get_json() == dict(rate_by_service={"service:,env:": 1})
-
-
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
-class TestConfigure(TestCase):
-    """
-    Ensures that when calling configure without specifying hostname and port,
-    previous overrides have been kept.
-    """
-
-    def test_configure_keeps_api_hostname_and_port(self):
-        tracer = Tracer()  # use real tracer with real api
-        assert "localhost" == tracer.writer.api.hostname
-        assert 8126 == tracer.writer.api.port
-        tracer.configure(hostname="127.0.0.1", port=8127)
-        assert "127.0.0.1" == tracer.writer.api.hostname
-        assert 8127 == tracer.writer.api.port
-        tracer.configure(priority_sampling=True)
-        assert "127.0.0.1" == tracer.writer.api.hostname
-        assert 8127 == tracer.writer.api.port
 
 
 def test_debug_mode():

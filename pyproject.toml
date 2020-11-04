@@ -30,7 +30,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    (?!(compat|monkey|span|__init__|_hooks)\.py$)[^/]+\.py$
+    (?!(api|compat|monkey|span|__init__|_hooks)\.py$)[^/]+\.py$
     | commands/
     | contrib/
     (
@@ -164,7 +164,9 @@ exclude = '''
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
-    | tracer/
+    | tracer/ (
+      (?!(test_api|test_writer)\.py$).+\.py$
+    )
     | vendor
     | wait-for-services.py
   )

@@ -9,7 +9,7 @@ from ddtrace.vendor import wrapt
 
 import ddtrace
 from ddtrace import Tracer, Span
-from ddtrace.compat import httplib, to_unicode
+from ddtrace.compat import httplib, to_unicode, urlparse
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
@@ -380,9 +380,9 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 class DummyWriter(AgentWriter):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, url=None, *args, **kwargs):
         # original call
-        super(DummyWriter, self).__init__(*args, **kwargs)
+        super(DummyWriter, self).__init__(url, *args, **kwargs)
 
         # dummy components
         self.spans = []
@@ -447,14 +447,11 @@ class DummyTracer(Tracer):
         # exists before using it to assign hostname/port
         if hasattr(self.writer, "api"):
             self.writer = DummyWriter(
-                hostname=self.writer.api.hostname,
-                port=self.writer.api.port,
+                url=self.writer.api.url,
                 priority_sampler=self.writer._priority_sampler,
             )
         else:
             self.writer = DummyWriter(
-                hostname="",
-                port=0,
                 priority_sampler=self.writer._priority_sampler,
             )
 
@@ -837,7 +834,8 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token
 
-        conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+        parsed = urlparse(tracer.writer.api.url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
@@ -864,7 +862,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             tracer.writer.flush_queue()
 
             # Query for the results of the test.
-            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             r = conn.getresponse()
             if r.status != 200:
@@ -877,7 +875,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
         except Exception as e:
             # Even though it's unlikely any traces have been sent, make the
             # final request to the test agent so that the test case is finished.
-            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             conn.getresponse()
             pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)

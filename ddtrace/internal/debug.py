@@ -14,17 +14,14 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 
-def ping_agent(api=None, hostname=None, port=None, uds_path=None):
-    # Attempt to query the agent, returns an api.Response
-    # or one of the following exceptions: httplib.HTTPException, OSError, IOError
+def ping_agent(agent_url):
+    """Attempt to query the agent.
 
-    if not api:
-        api = ddtrace.api.API(
-            hostname=hostname,
-            port=port,
-            uds_path=uds_path,
-        )
+    Can raise: httplib.HTTPException, OSError, IOError.
 
+    :returns: An api.Response
+    """
+    api = ddtrace.api.API(agent_url)
     # We can't use api.send_traces([]) since it'll shortcut
     # if traces is falsy.
     p = ddtrace.payload.Payload(encoder=api._encoder)
@@ -67,28 +64,15 @@ def collect(tracer):
     # sets to the defaults and ignores afterwards.
     if tracer.writer:
         if isinstance(tracer.writer, writer.LogWriter):
-            agent_url = "AGENTLESS"
-            hostname = port = uds_path = None
+            agent_url = None
         else:
-            hostname = tracer.writer.api.hostname
-            port = tracer.writer.api.port
-            uds_path = tracer.writer.api.uds_path
-            https = tracer.writer.api.https
-
-            # If all specified, uds_path will take precedence
-            if uds_path:
-                agent_url = "uds://%s" % uds_path
-            else:
-                proto = "https" if https else "http"
-                agent_url = "%s://%s:%s" % (proto, hostname, port)
+            agent_url = tracer.writer.api.url
     else:
         # Else if we can't infer anything from the tracer, rely on the defaults.
-        hostname = tracer.hostname
-        port = tracer.port
-        agent_url = "http://%s:%s" % (hostname, port)
+        agent_url = "http://%s:%s" % (tracer.hostname, tracer.port)
 
-    if (hostname and port) or uds_path:
-        resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
+    if agent_url:
+        resp = ping_agent(agent_url)
         if isinstance(resp, ddtrace.api.Response):
             if resp.status == 200:
                 agent_error = None
@@ -154,7 +138,7 @@ def collect(tracer):
         lang_version=platform.python_version(),
         pip_version=pip_version,
         in_virtual_env=is_venv,
-        agent_url=agent_url,
+        agent_url=agent_url or "AGENTLESS",
         agent_error=agent_error,
         env=ddtrace.config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,

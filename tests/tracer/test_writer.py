@@ -14,7 +14,7 @@ MAX_NUM_SPANS = 7
 class DummyAPI(API):
     def __init__(self):
         # Call API.__init__ to setup required properties
-        super(DummyAPI, self).__init__(hostname="localhost", port=8126)
+        super(DummyAPI, self).__init__("http://localhost:8126")
 
         self.traces = []
 
@@ -54,7 +54,7 @@ class AgentWriterTests(BaseTestCase):
     def create_worker(self, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS):
         with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
             self.dogstatsd = mock.Mock()
-            worker = AgentWriter(dogstatsd=self.dogstatsd)
+            worker = AgentWriter(None, dogstatsd=self.dogstatsd)
             worker._STATS_EVERY_INTERVAL = 1
             self.api = api_class()
             worker.api = self.api
@@ -71,12 +71,12 @@ class AgentWriterTests(BaseTestCase):
 
     def test_send_stats(self):
         dogstatsd = mock.Mock()
-        worker = AgentWriter(dogstatsd=dogstatsd)
+        worker = AgentWriter(None, dogstatsd=dogstatsd)
         assert worker._send_stats is False
         with self.override_global_config(dict(health_metrics_enabled=True)):
             assert worker._send_stats is True
 
-        worker = AgentWriter(dogstatsd=None)
+        worker = AgentWriter(None, dogstatsd=None)
         assert worker._send_stats is False
         with self.override_global_config(dict(health_metrics_enabled=True)):
             assert worker._send_stats is False

@@ -17,6 +17,7 @@ import importlib
 
 from django.conf import settings as django_settings
 
+import ddtrace
 from ...internal.logger import get_logger
 
 
@@ -193,8 +194,9 @@ def configure_from_settings(pin, config, settings):
     if "ENABLED" in settings:
         pin.tracer.enabled = settings["ENABLED"]
 
-    if "AGENT_HOSTNAME" in settings:
-        pin.tracer.writer.api.hostname = settings["AGENT_HOSTNAME"]
-
-    if "AGENT_PORT" in settings:
-        pin.tracer.writer.api.port = settings["AGENT_PORT"]
+    if "AGENT_HOSTNAME" in settings or "AGENT_PORT" in settings:
+        # WTF changing the URL like that?
+        pin.tracer.writer.api.url = "http://%s:%d" % (
+            settings.get("AGENT_HOSTNAME", ddtrace.Tracer.DEFAULT_HOSTNAME),
+            settings.get("AGENT_PORT", ddtrace.Tracer.DEFAULT_PORT),
+        )

@@ -126,7 +126,7 @@ def test_debug_post_configure():
     f = debug.collect(tracer)
 
     agent_url = f.get("agent_url")
-    assert agent_url == "uds:///file.sock"
+    assert agent_url == "unix:///file.sock"
 
     agent_error = f.get("agent_error")
     assert re.match("^Agent not reachable.*No such file or directory", agent_error)

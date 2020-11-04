@@ -55,10 +55,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def __init__(
         self,
-        hostname="localhost",
-        port=8126,
-        uds_path=None,
-        https=False,
+        url,
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
@@ -74,9 +71,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
         self.dogstatsd = dogstatsd
-        self.api = api.API(
-            hostname, port, uds_path=uds_path, https=https, priority_sampling=priority_sampler is not None
-        )
+        self.url = url
+        self.api = api.API(url, priority_sampling=priority_sampler is not None)
         if hasattr(time, "thread_time"):
             self._last_thread_time = time.thread_time()
         self._started = False
@@ -89,10 +85,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         :returns: A new :class:`AgentWriter` instance
         """
         writer = self.__class__(
-            hostname=self.api.hostname,
-            port=self.api.port,
-            uds_path=self.api.uds_path,
-            https=self.api.https,
+            self.url,
             shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
             dogstatsd=self.dogstatsd,
