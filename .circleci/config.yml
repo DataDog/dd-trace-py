@@ -374,22 +374,15 @@ jobs:
           pattern: '^futures_contrib-'
 
   boto:
-    executor: ddtrace_dev
-    docker:
-      - image: *localstack_image
-        environment:
-          - SERVICES=${SERVICES- }
-          - DEBUG=${DEBUG- }
-          - DATA_DIR=${DATA_DIR- }
-          - PORT_WEB_UI=${PORT_WEB_UI- }
-          - LAMBDA_EXECUTOR=${LAMBDA_EXECUTOR- }
-          - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
-          - DOCKER_HOST=unix:///var/run/docker.sock
-          - HOST_TMP_FOLDER=${TMPDIR}
-          - INIT_SCRIPTS_PATH=/setup
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^boto\(core\)\?_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d localstack testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
 
   ddtracerun:
     executor: ddtrace_dev
