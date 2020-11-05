@@ -7,9 +7,9 @@ import botocore.session
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
 
 # project
-from ddtrace import Pin, tracer
+from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.botocore.patch import patch, unpatch, inject_trace_to_client_context
+from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.ext import SpanTypes
@@ -18,6 +18,7 @@ from ddtrace.ext import SpanTypes
 # testing
 from tests.opentracer.utils import init_tracer
 from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
+
 
 def get_zip_lambda():
     code = '''
@@ -344,7 +345,10 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+        assert_is_measured(span)
         lamb.delete_function(FunctionName='black-sabbath')
 
     @mock_kms
