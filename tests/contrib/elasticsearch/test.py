@@ -25,7 +25,6 @@ class ElasticsearchTest(TracerTestCase):
     ES_TYPE = "ddtrace_type"
 
     TEST_SERVICE = "test"
-    ELASTICSEARCH_CONFIG["port"] = 9200
     TEST_PORT = str(ELASTICSEARCH_CONFIG["port"])
 
     def setUp(self):

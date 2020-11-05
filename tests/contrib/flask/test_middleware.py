@@ -268,6 +268,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert_span_http_status_code(s, 500)
+        assert s.error == 1
         assert s.meta.get(http.METHOD) == 'GET'
         assert 'ZeroDivisionError' in s.meta.get(errors.ERROR_TYPE), s.meta
         assert 'by zero' in s.meta.get(errors.ERROR_MSG)
