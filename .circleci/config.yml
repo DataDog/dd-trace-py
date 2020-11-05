@@ -377,6 +377,19 @@ jobs:
     executor: ddtrace_dev
     docker:
       - image: *localstack_image
+        network_mode: bridge
+        ports:
+          - "4566:4566"
+        environment:
+          - SERVICES=${SERVICES- }
+          - DEBUG=${DEBUG- }
+          - DATA_DIR=${DATA_DIR- }
+          - PORT_WEB_UI=${PORT_WEB_UI- }
+          - LAMBDA_EXECUTOR=${LAMBDA_EXECUTOR- }
+          - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+          - DOCKER_HOST=unix:///var/run/docker.sock
+          - HOST_TMP_FOLDER=${TMPDIR}
+          - INIT_SCRIPTS_PATH=/setup
     steps:
       - run_tox_scenario:
           pattern: '^boto\(core\)\?_contrib-'
