@@ -264,7 +264,6 @@ class BotocoreTest(TracerTestCase):
         context_json = base64.b64decode(context_b64.encode()).decode()
         context_obj = json.loads(context_json)
 
-        # converted_span = JSONEncoderV2._convert_span(span)
         self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(span.trace_id))
         self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(span.span_id))
 
