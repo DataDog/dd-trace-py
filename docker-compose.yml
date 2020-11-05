@@ -129,7 +129,7 @@ services:
         command: bash
 
     localstack:
-        image: localstack/localstack
+        image: localstack/localstack:0.12.1
         network_mode: bridge
         ports:
           - "127.0.0.1:4566:4566"
