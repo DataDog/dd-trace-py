@@ -37,14 +37,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.flask['analytics_enabled']
-
-   Whether to analyze spans for Flask in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_FLASK_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.flask['service_name']
 
    The service name reported for your Flask app.
