@@ -352,6 +352,13 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
+    @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
+    def test_contextmanager_connection(self):
+        service = "fo"
+        with self._get_conn(service=service) as conn:
+            conn.cursor().execute("""select 'blah'""")
+            self.assert_structure(dict(name='postgres.query', service=service))
+
 
 def test_backwards_compatibilty_v3():
     tracer = DummyTracer()

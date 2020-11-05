@@ -16,7 +16,7 @@ test_lock_name = "simple_program_fork.py:12"
 
 assert ddtrace.profiling.bootstrap.profiler.status == ddtrace.profiling.profiler.ProfilerStatus.RUNNING
 
-parent_recorder = list(ddtrace.profiling.bootstrap.profiler.recorders)[0]
+parent_recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 
 child_pid = os.fork()
 if child_pid == 0:
@@ -25,7 +25,7 @@ if child_pid == 0:
     if sys.version_info[:2] < (3, 7):
         ddtrace.profiling.auto.start_profiler()
 
-    recorder = list(ddtrace.profiling.bootstrap.profiler.recorders)[0]
+    recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 
     assert recorder is not parent_recorder
 
@@ -54,7 +54,7 @@ if child_pid == 0:
         pass
     assert recorder.events[cthreading.LockAcquireEvent]
 else:
-    recorder = list(ddtrace.profiling.bootstrap.profiler.recorders)[0]
+    recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
     assert recorder is parent_recorder
     assert test_lock_name not in set(e.lock_name for e in recorder.events[cthreading.LockReleaseEvent])
     lock.release()
