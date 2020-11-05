@@ -152,19 +152,6 @@ class ElasticsearchTest(TracerTestCase):
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
-        # Raise error 500
-        es.transport.close()
-        try:
-            es.indices.create(index="hello")
-            assert "error_not_raised" == "elasticsearch.exceptions.ConnectionError"
-        except elasticsearch.exceptions.ConnectionError:
-            spans = writer.pop()
-            assert spans
-            span = spans[-1]
-            TracerTestCase.assert_is_measured(span)
-            assert_span_http_status_code(span, 500)
-            assert span.error == 1
-
     def test_elasticsearch_ot(self):
         """Shortened OpenTracing version of test_elasticsearch."""
         tracer = get_dummy_tracer()
