@@ -263,14 +263,15 @@ jobs:
       - run_test:
           pattern: "flake8"
 
-  build_base:
+  build_base_venvs:
     executor: ddtrace_dev
+    parallelism: 6
     steps:
       - checkout
-      - run: pip3 install riot
+      - run: pip install riot
       - run:
           name: "Generate base virtual environments."
-          command: "riot -v generate"
+          command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
@@ -850,7 +851,7 @@ requires_pre_test: &requires_pre_test
     - black
     - flake8
     - ccheck
-    - build_base
+    - build_base_venvs
 
 requires_tests: &requires_tests
   - build_docs
@@ -941,7 +942,7 @@ workflows:
       - black
       - flake8
       - ccheck
-      - build_base
+      - build_base_venvs
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
