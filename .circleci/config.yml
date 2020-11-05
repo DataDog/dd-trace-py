@@ -377,9 +377,6 @@ jobs:
     executor: ddtrace_dev
     docker:
       - image: *localstack_image
-        network_mode: bridge
-        ports:
-          - "4566:4566"
         environment:
           - SERVICES=${SERVICES- }
           - DEBUG=${DEBUG- }
