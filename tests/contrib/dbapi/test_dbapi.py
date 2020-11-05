@@ -1,5 +1,7 @@
 import mock
 
+import pytest
+
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
@@ -589,3 +591,179 @@ class TestTracedConnection(TracerTestCase):
             traced_connection.commit()
             span = tracer.writer.pop()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_connection_context_manager(self):
+
+        class Cursor(object):
+            rowcount = 0
+
+            def execute(self, *args, **kwargs):
+                pass
+
+            def fetchall(self, *args, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def commit(self, *args, **kwargs):
+                pass
+
+        # When a connection is returned from a context manager the object proxy
+        # should be returned so that tracing works.
+
+        class ConnectionConnection(object):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def cursor(self):
+                return Cursor()
+
+            def commit(self):
+                pass
+
+        pin = Pin("pin", tracer=self.tracer)
+        conn = TracedConnection(ConnectionConnection(), pin)
+        with conn as conn2:
+            conn2.commit()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+
+        with conn as conn2:
+            with conn2.cursor() as cursor:
+                cursor.execute("query")
+                cursor.fetchall()
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+
+        # If a cursor is returned from the context manager
+        # then it should be instrumented.
+
+        class ConnectionCursor(object):
+            def __enter__(self):
+                return Cursor()
+
+            def __exit__(self, *exc):
+                return False
+
+            def commit(self):
+                pass
+
+        with TracedConnection(ConnectionCursor(), pin) as cursor:
+            cursor.execute("query")
+            cursor.fetchall()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+
+        # If a traced cursor is returned then it should not
+        # be double instrumented.
+
+        class ConnectionTracedCursor(object):
+            def __enter__(self):
+                return self.cursor()
+
+            def __exit__(self, *exc):
+                return False
+
+            def cursor(self):
+                return TracedCursor(Cursor(), pin, {})
+
+            def commit(self):
+                pass
+
+        with TracedConnection(ConnectionTracedCursor(), pin) as cursor:
+            cursor.execute("query")
+            cursor.fetchall()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+
+        # Check when a different connection object is returned
+        # from a connection context manager.
+        # No traces should be produced.
+
+        other_conn = ConnectionConnection()
+
+        class ConnectionDifferentConnection(object):
+            def __enter__(self):
+                return other_conn
+
+            def __exit__(self, *exc):
+                return False
+
+            def cursor(self):
+                return Cursor()
+
+            def commit(self):
+                pass
+
+        conn = TracedConnection(ConnectionDifferentConnection(), pin)
+        with conn as conn2:
+            conn2.commit()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 0
+
+        with conn as conn2:
+            with conn2.cursor() as cursor:
+                cursor.execute("query")
+                cursor.fetchall()
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 0
+
+        # When some unexpected value is returned from the context manager
+        # it should be handled gracefully.
+
+        class ConnectionUnknown(object):
+            def __enter__(self):
+                return 123456
+
+            def __exit__(self, *exc):
+                return False
+
+            def cursor(self):
+                return Cursor()
+
+            def commit(self):
+                pass
+
+        conn = TracedConnection(ConnectionDifferentConnection(), pin)
+        with conn as conn2:
+            conn2.commit()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 0
+
+        with conn as conn2:
+            with conn2.cursor() as cursor:
+                cursor.execute("query")
+                cursor.fetchall()
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 0
+
+        # Errors should be the same when no context management is defined.
+
+        class ConnectionNoCtx(object):
+            def cursor(self):
+                return Cursor()
+
+            def commit(self):
+                pass
+
+        conn = TracedConnection(ConnectionNoCtx(), pin)
+        with pytest.raises(AttributeError):
+            with conn:
+                pass
+
+        with pytest.raises(AttributeError):
+            with conn as conn2:
+                pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 0

@@ -802,7 +802,7 @@ class SnapshotFailed(Exception):
     pass
 
 
-def snapshot(ignores=None, tracer=ddtrace.tracer):
+def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -829,11 +829,22 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
         # identify the snapshot.
         token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
 
+        # Use variant that applies to update test token. One must apply. If none
+        # apply, the test should have been marked as skipped.
+        if variants:
+            applicable_variant_ids = [k for (k, v) in variants.items() if v]
+            assert len(applicable_variant_ids) == 1
+            variant_id = applicable_variant_ids[0]
+            token = "{}_{}".format(token, variant_id) if variant_id else token
+
         conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
-            tracer.writer.flush_queue()
+            try:
+                tracer.writer.flush_queue()
+            except Exception as e:
+                pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
             # Signal the start of this test case to the test agent.
             try:
@@ -849,7 +860,7 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
             # Run the test.
             ret = wrapped(*args, **kwargs)
 
-            # Flush out any remnant traces.
+            # Force a flush so all traces are submitted.
             tracer.writer.flush_queue()
 
             # Query for the results of the test.
@@ -863,6 +874,13 @@ def snapshot(ignores=None, tracer=ddtrace.tracer):
             # Fail the test if a failure has occurred and print out the
             # message we got from the test agent.
             pytest.fail(to_unicode(e.args[0]), pytrace=False)
+        except Exception as e:
+            # Even though it's unlikely any traces have been sent, make the
+            # final request to the test agent so that the test case is finished.
+            conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
+            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+            conn.getresponse()
+            pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
         finally:
             conn.close()
 
