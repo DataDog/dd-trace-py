@@ -12,8 +12,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-from ddtrace.ext import SpanTypes
-# from ddtrace.encoding import JSONEncoderV2
 
 # testing
 from tests.opentracer.utils import init_tracer
