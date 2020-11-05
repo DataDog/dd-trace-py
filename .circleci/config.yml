@@ -132,6 +132,9 @@ commands:
     parameters:
       pattern:
         type: string
+      split:
+        type: string
+        default: "false"
       wait:
         type: string
         default: ""
@@ -149,6 +152,8 @@ commands:
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
+          environment:
+            CI_SPLIT: << parameters.split >>
       - save_tox_cache
 
   test_build:
@@ -449,9 +454,11 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
+    parallelism: 4
     steps:
       - run_tox_scenario:
           pattern: '^celery_contrib-'
+          split: 'true'
 
   consul:
     executor: ddtrace_dev
