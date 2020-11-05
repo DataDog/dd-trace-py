@@ -242,6 +242,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert_span_http_status_code(s, 500)
+        assert s.error == 1
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_fatal(self):
