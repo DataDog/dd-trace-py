@@ -129,7 +129,6 @@ services:
         command: bash
 
     localstack:
-        # container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
         image: localstack/localstack
         network_mode: bridge
         ports:
