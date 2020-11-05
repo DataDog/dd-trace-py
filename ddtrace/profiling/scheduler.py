@@ -43,7 +43,7 @@ class Scheduler(_periodic.PeriodicService):
                 try:
                     exp.export(events, start, self._last_export)
                 except exporter.ExportError as e:
-                    LOG.error("%s. Ignoring.", _traceback.format_exception(e))
+                    LOG.error("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
                 except Exception:
                     LOG.exception(
                         "Unexpected error while exporting events. "
