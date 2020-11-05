@@ -23,14 +23,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.molten['analytics_enabled']
-
-   Whether to analyze spans for Molten in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_MOLTEN_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.molten['service_name']
 
    The service name reported for your Molten app.
