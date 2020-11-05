@@ -375,6 +375,8 @@ jobs:
 
   boto:
     executor: ddtrace_dev
+    docker:
+      - image: *localstack_image
     steps:
       - run_tox_scenario:
           pattern: '^boto\(core\)\?_contrib-'
@@ -695,7 +697,6 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
-      - image: *localstack_image
     steps:
       - run_tox_scenario:
           pattern: '^aiobotocore_contrib'
