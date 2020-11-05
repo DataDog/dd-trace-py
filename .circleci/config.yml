@@ -20,6 +20,7 @@ memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
+localstack_image: &localstack_image localstack/localstack
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
 mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
@@ -694,6 +695,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
+      - image: *localstack_image
     steps:
       - run_tox_scenario:
           pattern: '^aiobotocore_contrib'
