@@ -53,12 +53,8 @@ commands:
         type: string
         default: *s3_bucket
     steps:
-      - setup_tox
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libenchant-dev
+      - build_docs
       - run: pip install awscli
-      - run: tox -e docs
       - run:
           name: Release docs
           command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
@@ -106,6 +102,31 @@ commands:
           paths:
             - ".tox"
 
+  run_test:
+    description: "Run tests matching a pattern"
+    parameters:
+      pattern:
+        type: string
+        default: ""
+      wait:
+        type: string
+        default: ""
+    steps:
+      - attach_workspace:
+          at: .
+      - checkout
+      - run: pip3 install riot
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: pip install tox && tox -e 'wait' << parameters.wait >>
+      - run:
+          name: "Running tests matching '<< parameters.pattern >>'"
+          command: "riot -v run -s '<< parameters.pattern >>'"
+
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
     parameters:
@@ -137,6 +158,14 @@ commands:
       - run:
           name: Run test build
           command: .circleci/scripts/test_build.sh
+
+  build_docs:
+    steps:
+      - setup_tox
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libenchant-dev
+      - run: tox -e docs
 
 executors:
   cimg_base:
@@ -211,9 +240,8 @@ jobs:
   black:
     executor: python38
     steps:
-      - checkout
-      - setup_tox
-      - run: tox -e black
+      - run_test:
+          pattern: "black"
 
   ccheck:
     executor: cimg_base
@@ -227,9 +255,21 @@ jobs:
   flake8:
     executor: python38
     steps:
+      - run_test:
+          pattern: "flake8"
+
+  build_base:
+    executor: ddtrace_dev
+    steps:
       - checkout
-      - setup_tox
-      - run: tox -e flake8
+      - run: pip3 install riot
+      - run:
+          name: "Generate base virtual environments."
+          command: "riot -v generate"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "."
 
   build-docker-ci-image:
     executor: cimg_base
@@ -292,8 +332,8 @@ jobs:
   tracer:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-tracer'
+      - run_test:
+          pattern: "tracer"
 
   opentracer:
     executor: ddtrace_dev
@@ -444,15 +484,15 @@ jobs:
           pattern: '^falcon_contrib'
 
   django:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
-      - *datadog_agent
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^django_contrib'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^django_contrib-'
 
   djangorestframework:
     executor: ddtrace_dev
@@ -778,11 +818,11 @@ jobs:
 
   build_docs:
     # deploy official documentation
-    executor: ddtrace_dev
+    <<: *machine_executor
     steps:
       - checkout
-      - setup_tox
-      - run: tox -e docs
+      - *pyenv-set-global
+      - build_docs
       - run:
           command: |
              mkdir -p /tmp/docs
@@ -803,6 +843,7 @@ requires_pre_test: &requires_pre_test
     - black
     - flake8
     - ccheck
+    - build_base
 
 requires_tests: &requires_tests
   - build_docs
@@ -893,6 +934,7 @@ workflows:
       - black
       - flake8
       - ccheck
+      - build_base
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
@@ -963,7 +1005,6 @@ workflows:
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
-      # tracer
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test

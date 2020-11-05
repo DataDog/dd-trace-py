@@ -10,6 +10,7 @@ from django.http import HttpResponse
 from django.template import loader
 from django.template.response import TemplateResponse
 from django.views.generic import ListView, TemplateView, View
+from django.utils.safestring import mark_safe
 
 
 class UserList(ListView):
@@ -20,6 +21,11 @@ class UserList(ListView):
 class TemplateCachedUserList(ListView):
     model = User
     template_name = "cached_list.html"
+
+
+class SafeTemplateUserList(ListView):
+    model = User
+    template_name = mark_safe("cached_list.html")
 
 
 class BasicView(View):

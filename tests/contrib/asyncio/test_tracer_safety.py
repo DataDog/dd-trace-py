@@ -1,6 +1,7 @@
 import asyncio
 
 from ddtrace.provider import DefaultContextProvider
+from ddtrace.contrib.asyncio.compat import asyncio_current_task
 from .utils import AsyncioTestCase, mark_asyncio
 
 
@@ -22,7 +23,8 @@ class TestAsyncioSafety(AsyncioTestCase):
         ctx = self.tracer.get_call_context()
         assert ctx is not None
         # test that it behaves the wrong way
-        task = asyncio.Task.current_task()
+        task = asyncio_current_task()
+        assert task
         task_ctx = getattr(task, "__datadog_context", None)
         assert task_ctx is None
 
