@@ -840,6 +840,7 @@ jobs:
       - run: coverage report --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
       - run: coverage html --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py" -d codecov
       - run: coverage html --include="tests/*.py" -d testcov
+      - run: bash <(curl -s https://codecov.io/bash)
       - store_artifacts:
           path: ./codecov
       - store_artifacts:

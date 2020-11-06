@@ -2,7 +2,7 @@ from riot import Suite, Case
 
 global_deps = [
     "mock",
-    "pytest<4",
+    "pytest",
     "coverage",
     "pytest-cov",
     "opentracing",
