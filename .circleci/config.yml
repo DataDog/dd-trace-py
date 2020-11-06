@@ -620,8 +620,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *mongo_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pymongo_contrib-'
+      - run_test:
+          pattern: "pymongo"
 
   pynamodb:
     executor: ddtrace_dev
