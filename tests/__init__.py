@@ -852,11 +852,10 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             # Run the test.
             try:
                 ret = wrapped(*args, **kwargs)
+                # Force a flush so all traces are submitted.
+                tracer.writer.flush_queue()
             finally:
                 del tracer.writer.api._headers["X-Datadog-Test-Token"]
-
-            # Force a flush so all traces are submitted.
-            tracer.writer.flush_queue()
 
             # Query for the results of the test.
             conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)
