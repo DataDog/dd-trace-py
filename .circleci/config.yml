@@ -20,6 +20,7 @@ memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
+localstack_image: &localstack_image localstack/localstack:0.12.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
 mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
@@ -378,10 +379,16 @@ jobs:
           pattern: '^futures_contrib-'
 
   boto:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^boto\(core\)\?_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d localstack testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
 
   ddtracerun:
     <<: *contrib_job
