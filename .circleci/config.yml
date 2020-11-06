@@ -1023,12 +1023,10 @@ workflows:
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - deploy_master:
-          requires: *requires_tests
           filters:
             branches:
               only: master
       - deploy_staging:
-          requires: *requires_tests
           filters:
             branches:
               only: staging
