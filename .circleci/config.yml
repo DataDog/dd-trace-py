@@ -349,6 +349,7 @@ jobs:
 
   profile:
     <<: *contrib_job
+    parallelism: 6
     steps:
       - run_tox_scenario:
           pattern: '^py..-profile'
