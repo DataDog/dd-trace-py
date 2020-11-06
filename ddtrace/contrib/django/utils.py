@@ -85,9 +85,13 @@ def get_request_uri(request):
             log.debug("Failed to build Django request host", exc_info=True)
             host = "unknown"
 
+    # If request scheme is missing, possible in case where wsgi.url_scheme
+    # environ has not been set, then default to http
+    scheme = request.scheme or "http"
+
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+    urlparts = dict(scheme=scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
 
     # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
     # type of the scheme to check the type to expect from all url parts, raising
