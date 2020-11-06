@@ -10,7 +10,8 @@ from unittest import TestCase
 
 import pytest
 
-from ddtrace.api import API, Response, UDSHTTPConnection
+from ddtrace.api import API, Response
+from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.compat import iteritems, httplib, PY3, get_connection_response
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver

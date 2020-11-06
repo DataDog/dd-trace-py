@@ -1,11 +1,11 @@
 # stdlib
 import ddtrace
 from json import loads
-import socket
 
 # project
 from .encoding import Encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+from .internal import uds
 from .internal.logger import get_logger
 from .internal.runtime import container
 from .payload import Payload, PayloadFull
@@ -95,24 +95,6 @@ class Response(object):
             self.reason,
             self.msg,
         )
-
-
-class UDSHTTPConnection(httplib.HTTPConnection):
-    """An HTTP connection established over a Unix Domain Socket."""
-
-    # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
-    # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(self, path, https, *args, **kwargs):
-        if https:
-            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
-        else:
-            httplib.HTTPConnection.__init__(self, *args, **kwargs)
-        self.path = path
-
-    def connect(self):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(self.path)
-        self.sock = sock
 
 
 class API(object):
@@ -270,7 +252,7 @@ class API(object):
             else:
                 conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
         else:
-            conn = UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
+            conn = uds.UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
 
         try:
             conn.request('PUT', endpoint, data, headers)
