@@ -660,7 +660,7 @@ jobs:
     <<: *machine_executor
     steps:
       - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
       - run:
           command: docker-compose logs -f
           background: true
