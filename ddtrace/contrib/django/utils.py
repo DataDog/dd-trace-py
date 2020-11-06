@@ -1,3 +1,5 @@
+from django.utils.functional import SimpleLazyObject
+
 from ...compat import PY3, binary_type, parse, to_unicode
 from ...internal.logger import get_logger
 
@@ -92,6 +94,16 @@ def get_request_uri(request):
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
     urlparts = dict(scheme=scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+
+    # If any url part is a SimpleLazyObject, use it's __class__ property to cast
+    # str/bytes and allow for _setup() to execute
+    for (k, v) in urlparts.items():
+        if isinstance(v, SimpleLazyObject):
+            if v.__class__ == str:
+                v = str(v)
+            elif v.__class__ == bytes:
+                v = bytes(v)
+        urlparts[k] = v
 
     # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
     # type of the scheme to check the type to expect from all url parts, raising
