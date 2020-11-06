@@ -39,14 +39,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.asgi['analytics_enabled']
-
-   Whether to analyze spans for Asgi in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_ASGI_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.asgi['service_name']
 
    The service name reported for your ASGI app.

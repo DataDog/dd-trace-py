@@ -43,6 +43,10 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.6.5
 
+contrib_job: &contrib_job
+  executor: ddtrace_dev
+  parallelism: 4
+
 commands:
   deploy_docs:
     description: "Deploy docs"
@@ -125,7 +129,7 @@ commands:
                 command: pip install tox && tox -e 'wait' << parameters.wait >>
       - run:
           name: "Running tests matching '<< parameters.pattern >>'"
-          command: "riot -v run -s '<< parameters.pattern >>'"
+          command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -258,14 +262,15 @@ jobs:
       - run_test:
           pattern: "flake8"
 
-  build_base:
+  build_base_venvs:
     executor: ddtrace_dev
+    parallelism: 6
     steps:
       - checkout
-      - run: pip3 install riot
+      - run: pip install riot
       - run:
           name: "Generate base virtual environments."
-          command: "riot -v generate"
+          command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
@@ -330,25 +335,25 @@ jobs:
       PYTHON_VERSION: 3.5.4
 
   tracer:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: "tracer"
 
   opentracer:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
   profile:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^py..-profile'
 
   integration:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
         environment:
@@ -359,7 +364,7 @@ jobs:
           pattern: '^py..-integration'
 
   vendor:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
     steps:
@@ -367,19 +372,19 @@ jobs:
           pattern: '^py..-vendor'
 
   futures:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^futures_contrib-'
 
   boto:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^boto\(core\)\?_contrib-'
 
   ddtracerun:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -388,49 +393,49 @@ jobs:
           pattern: '^py..-ddtracerun$'
 
   test_logging:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^py..-test_logging$'
 
   asyncio:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^asyncio_contrib-'
 
   pylons:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^pylons_contrib-'
 
   aiohttp:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^aiohttp_contrib-'
 
   asgi:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^asgi_contrib-'
 
   tornado:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^tornado_contrib-'
 
   bottle:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^bottle_contrib\(_autopatch\)\?-'
 
   cassandra:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
         environment:
@@ -445,7 +450,7 @@ jobs:
           pattern: '^cassandra_contrib-'
 
   celery:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -454,7 +459,7 @@ jobs:
           pattern: '^celery_contrib-'
 
   consul:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *consul_image
@@ -463,13 +468,13 @@ jobs:
           pattern: '^consul_contrib-'
 
   dogpile_cache:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^dogpile_contrib-'
 
   elasticsearch:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
@@ -478,13 +483,14 @@ jobs:
           pattern: '^elasticsearch_contrib-'
 
   falcon:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^falcon_contrib'
 
   django:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - checkout
       - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
@@ -495,7 +501,7 @@ jobs:
           command: ./scripts/ddtest scripts/run-tox-scenario '^django_contrib-'
 
   djangorestframework:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -506,7 +512,7 @@ jobs:
           pattern: '^django_drf_contrib'
 
   flask:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -516,31 +522,31 @@ jobs:
           pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
 
   gevent:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
   httplib:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^httplib_contrib'
 
   grpc:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^grpc_contrib-'
 
   molten:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^molten_contrib-'
 
   mysqlconnector:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -550,7 +556,7 @@ jobs:
           pattern: '^mysql_contrib-.*-mysqlconnector'
 
   mysqlpython:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -570,7 +576,7 @@ jobs:
           pattern: '^mysqldb_contrib-.*-mysqldb'
 
   pymysql:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -580,7 +586,7 @@ jobs:
           pattern: '^pymysql_contrib-'
 
   pylibmc:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -595,7 +601,7 @@ jobs:
           pattern: '^pytest_contrib'
 
   pymemcache:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -604,7 +610,7 @@ jobs:
           pattern: '^pymemcache_contrib\(_autopatch\)\?-'
 
   mongoengine:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
@@ -613,22 +619,22 @@ jobs:
           pattern: '^mongoengine_contrib-'
 
   pymongo:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pymongo_contrib-'
+      - run_test:
+          pattern: "pymongo"
 
   pynamodb:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^pynamodb_contrib-'
 
   pyodbc:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
     steps:
@@ -636,13 +642,13 @@ jobs:
           pattern: '^pyodbc_contrib-'
 
   pyramid:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^pyramid_contrib\(_autopatch\)\?-'
 
   requests:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *httpbin_local
@@ -651,25 +657,25 @@ jobs:
           pattern: '^requests_contrib\(_autopatch\)\?-'
 
   requestsgevent:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^requests_gevent_contrib-'
 
   sanic:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
 
   starlette:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^starlette_contrib-'
 
   sqlalchemy:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -680,13 +686,13 @@ jobs:
           pattern: '^sqlalchemy_contrib-'
 
   dbapi:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^dbapi_contrib-'
 
   psycopg:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -696,7 +702,7 @@ jobs:
           pattern: '^psycopg_contrib-'
 
   aiobotocore:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
@@ -705,7 +711,7 @@ jobs:
           pattern: '^aiobotocore_contrib'
 
   aiopg:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -716,6 +722,7 @@ jobs:
 
   redis:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - checkout
       - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
@@ -726,7 +733,7 @@ jobs:
           command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
 
   rediscluster:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *rediscluster_image
@@ -738,7 +745,7 @@ jobs:
           pattern: '^rediscluster_contrib-'
 
   vertica:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *vertica_image
@@ -752,7 +759,7 @@ jobs:
           pattern: '^vertica_contrib-'
 
   kombu:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -762,7 +769,7 @@ jobs:
           pattern: '^kombu_contrib-'
 
   sqlite3:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^sqlite3_contrib-'
@@ -805,19 +812,19 @@ jobs:
       - deploy_wheels
 
   jinja2:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^jinja2_contrib-'
 
   mako:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^mako_contrib-'
 
   algoliasearch:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^algoliasearch_contrib-'
@@ -849,7 +856,7 @@ requires_pre_test: &requires_pre_test
     - black
     - flake8
     - ccheck
-    - build_base
+    - build_base_venvs
 
 requires_tests: &requires_tests
   - build_docs
@@ -941,7 +948,7 @@ workflows:
       - black
       - flake8
       - ccheck
-      - build_base
+      - build_base_venvs
 
       # Test building the package
       - test_build_alpine: *requires_pre_test

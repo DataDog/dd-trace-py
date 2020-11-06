@@ -116,9 +116,6 @@ RateByServiceSampler._default_key = RateByServiceSampler._key()
 
 
 class DatadogSampler(BaseSampler, BasePrioritySampler):
-    """
-    This sampler is currently in ALPHA and it's API may change at any time, use at your own risk.
-    """
     __slots__ = ('default_sampler', 'limiter', 'rules')
 
     NO_RATE_LIMIT = -1
