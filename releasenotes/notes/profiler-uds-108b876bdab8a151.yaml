@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The profiler is now able to upload profiles to the Datadog Agent by using a
+    Unix Domain Socket.
