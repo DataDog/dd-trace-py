@@ -87,8 +87,10 @@ commands:
     steps:
       # Make a coverage file if one wasn't generated
       # persist_to_workspace will fail if no files are matched.
+      # Use `date` to come up with a unique name for the file
+      # to avoid collisions when workspaces are merged.
       - run: touch .coverage
-      - run: mv .coverage ".coverage.report.$(date +%s%3N)"
+      - run: mv .coverage ".coverage.report.$(date +%s%6N)"
       - persist_to_workspace:
           root: .
           paths:
