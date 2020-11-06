@@ -781,14 +781,6 @@ jobs:
             tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
       - save_tox_cache
 
-  build_wheels:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - run: pip install cython
-      - run: scripts/build-dist
-
   deploy_master:
     # build the master branch releasing development docs and wheels
     <<: *machine_executor
@@ -955,7 +947,6 @@ workflows:
       - test_build_win_py37: *requires_pre_test
       - test_build_win_py36: *requires_pre_test
       - test_build_win_py35: *requires_pre_test
-      - build_wheels: *requires_pre_test
 
       # Integration test suites
       - aiobotocore: *requires_pre_test
