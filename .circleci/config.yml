@@ -893,11 +893,11 @@ requires_tests: &requires_tests
     # - aiobotocore
     # - aiohttp
     # - aiopg
-    # - asyncio
+  - asyncio
     # - algoliasearch
   - asgi
     # - benchmarks
-    # - boto
+  - boto
     # - bottle
   - cassandra
     # - celery
@@ -914,23 +914,23 @@ requires_tests: &requires_tests
     # - gevent
     # - grpc
   - httplib
-    # - integration
-    # - vendor
-    # - profile
-    # - jinja2
+  # - integration
+  - vendor
+  - profile
+  - jinja2
     # - kombu
     # - mako
   - molten
     # - mongoengine
-    # - mysqlconnector
-    # - mysqldb
-    # - mysqlpython
+  - mysqlconnector
+  - mysqldb
+  - mysqlpython
   - opentracer
   - psycopg
-    # - pylibmc
-    # - pylons
-    # - pymemcache
-    # - pymongo
+  - pylibmc
+  - pylons
+  - pymemcache
+  - pymongo
   - pymysql
     # - pynamodb
   - pyodbc
@@ -995,11 +995,11 @@ workflows:
       # - aiobotocore: *requires_pre_test
       # - aiohttp: *requires_pre_test
       # - aiopg: *requires_pre_test
-      # - asyncio: *requires_pre_test
+      - asyncio: *requires_pre_test
       # - algoliasearch: *requires_pre_test
       - asgi: *requires_pre_test
       # - benchmarks: *requires_pre_test
-      # - boto: *requires_pre_test
+      - boto: *requires_pre_test
       # - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       # - celery: *requires_pre_test
@@ -1017,22 +1017,22 @@ workflows:
       # - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       # - integration: *requires_pre_test
-      # - vendor: *requires_pre_test
-      # - profile: *requires_pre_test
-      # - jinja2: *requires_pre_test
+      - vendor: *requires_pre_test
+      - profile: *requires_pre_test
+      - jinja2: *requires_pre_test
       # - kombu: *requires_pre_test
       # - mako: *requires_pre_test
       - molten: *requires_pre_test
       # - mongoengine: *requires_pre_test
-      # - mysqlconnector: *requires_pre_test
-      # - mysqldb: *requires_pre_test
-      # - mysqlpython: *requires_pre_test
+      - mysqlconnector: *requires_pre_test
+      - mysqldb: *requires_pre_test
+      - mysqlpython: *requires_pre_test
       - opentracer: *requires_pre_test
       - psycopg: *requires_pre_test
-      # - pylibmc: *requires_pre_test
-      # - pylons: *requires_pre_test
-      # - pymemcache: *requires_pre_test
-      # - pymongo: *requires_pre_test
+      - pylibmc: *requires_pre_test
+      - pylons: *requires_pre_test
+      - pymemcache: *requires_pre_test
+      - pymongo: *requires_pre_test
       - pymysql: *requires_pre_test
       # - pynamodb: *requires_pre_test
       - pyodbc: *requires_pre_test
