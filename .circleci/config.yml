@@ -925,33 +925,33 @@ requires_tests: &requires_tests
     # - mysqlconnector
     # - mysqldb
     # - mysqlpython
-    # - opentracer
-    # - psycopg
+  - opentracer
+  - psycopg
     # - pylibmc
     # - pylons
     # - pymemcache
     # - pymongo
-    # - pymysql
+  - pymysql
     # - pynamodb
-    # - pyodbc
+  - pyodbc
   - pyramid
     # - redis
     # - rediscluster
     # - requests
     # - requestsgevent
-    # - sqlalchemy
+  - sqlalchemy
   - sqlite3
-    # - starlette
+  - starlette
     # - test_build_alpine
     # - test_build_py38
     # - test_build_py37
     # - test_build_py36
     # - test_build_py35
     # - test_build_py27
-    # - test_logging
+  - test_logging
   - tracer
     # - tornado
-    # - vertica
+  - vertica
     # - build-docker-ci-image
 
 workflows:
@@ -1027,28 +1027,28 @@ workflows:
       # - mysqlconnector: *requires_pre_test
       # - mysqldb: *requires_pre_test
       # - mysqlpython: *requires_pre_test
-      # - opentracer: *requires_pre_test
-      # - psycopg: *requires_pre_test
+      - opentracer: *requires_pre_test
+      - psycopg: *requires_pre_test
       # - pylibmc: *requires_pre_test
       # - pylons: *requires_pre_test
       # - pymemcache: *requires_pre_test
       # - pymongo: *requires_pre_test
-      # - pymysql: *requires_pre_test
+      - pymysql: *requires_pre_test
       # - pynamodb: *requires_pre_test
-      # - pyodbc: *requires_pre_test
+      - pyodbc: *requires_pre_test
       - pyramid: *requires_pre_test
       # - redis: *requires_pre_test
       # - rediscluster: *requires_pre_test
       # - requests: *requires_pre_test
       # - requestsgevent: *requires_pre_test
       # - sanic: *requires_pre_test
-      # - starlette: *requires_pre_test
-      # - sqlalchemy: *requires_pre_test
+      - starlette: *requires_pre_test
+      - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
-      # - test_logging: *requires_pre_test
+      - test_logging: *requires_pre_test
       # - tornado: *requires_pre_test
       - tracer: *requires_pre_test
-      # - vertica: *requires_pre_test
+      - vertica: *requires_pre_test
       # - build-docker-ci-image: *requires_pre_test
       - coverage:
           requires: *requires_tests
