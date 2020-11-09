@@ -3,41 +3,70 @@ import sys
 
 import httpx
 import pytest
+import sqlalchemy
+
 import ddtrace
+from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.starlette import patch, unpatch
+from ddtrace.contrib.starlette import patch as starlette_patch, unpatch as starlette_unpatch
+from ddtrace.contrib.sqlalchemy import patch as sql_patch, unpatch as sql_unpatch
 from ddtrace.propagation import http as http_propagation
+
+
 from starlette.testclient import TestClient
-from tests import override_http_config
+from tests import override_http_config, snapshot
 from tests.tracer.test_tracer import get_dummy_tracer
+
 from app import get_app
 
 
 @pytest.fixture
-def tracer():
+def engine():
+    sql_patch()
+    engine = sqlalchemy.create_engine("sqlite:///test.db")
+    yield engine
+    sql_unpatch()
+
+
+@pytest.fixture
+def tracer(engine):
     original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
 
+        Pin.override(engine, tracer=tracer)
         tracer.configure(context_provider=AsyncioContextProvider())
+
     setattr(ddtrace, "tracer", tracer)
-    patch()
+    starlette_patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
-    unpatch()
+    starlette_unpatch()
 
 
 @pytest.fixture
-def app(tracer):
-    app = get_app()
+def app(tracer, engine):
+    app = get_app(engine)
     yield app
 
 
 @pytest.fixture
 def client(app):
     with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def snapshot_app(engine):
+    app = get_app(engine)
+    yield app
+
+
+@pytest.fixture
+def snapshot_client(snapshot_app):
+    with TestClient(snapshot_app) as test_client:
         yield test_client
 
 
@@ -357,3 +386,66 @@ def test_path_param_no_aggregate(client, tracer):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
     assert request_span.get_tag("http.status_code") == "200"
+    config.starlette["aggregate_resources"] = True
+
+
+def test_table_query(client, tracer):
+    r = client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+
+    starlette_span = spans[0][0]
+    assert starlette_span.service == "starlette"
+    assert starlette_span.name == "starlette.request"
+    assert starlette_span.resource == "POST /notes"
+    assert starlette_span.error == 0
+    assert starlette_span.get_tag("http.method") == "POST"
+    assert starlette_span.get_tag("http.url") == "http://testserver/notes"
+    assert starlette_span.get_tag("http.status_code") == "200"
+
+    sql_span = spans[0][1]
+    assert sql_span.service == "sqlite"
+    assert sql_span.name == "sqlite.query"
+    assert sql_span.resource == "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)"
+    assert sql_span.error == 0
+    assert sql_span.get_tag("sql.db") == "test.db"
+
+    r = client.get("/notes")
+
+    assert r.status_code == 200
+    assert r.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    starlette_span = spans[0][0]
+    assert starlette_span.service == "starlette"
+    assert starlette_span.name == "starlette.request"
+    assert starlette_span.resource == "GET /notes"
+    assert starlette_span.error == 0
+    assert starlette_span.get_tag("http.method") == "GET"
+    assert starlette_span.get_tag("http.url") == "http://testserver/notes"
+    assert starlette_span.get_tag("http.status_code") == "200"
+
+    sql_span = spans[0][1]
+    assert sql_span.service == "sqlite"
+    assert sql_span.name == "sqlite.query"
+    assert sql_span.resource == "SELECT * FROM NOTES"
+    assert sql_span.error == 0
+    assert sql_span.get_tag("sql.db") == "test.db"
+
+
+@snapshot()
+def test_table_query_snapshot(snapshot_client):
+    r_post = snapshot_client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
+
+    assert r_post.status_code == 200
+    assert r_post.text == "Success"
+
+    r_get = snapshot_client.get("/notes")
+    assert r_get.status_code == 200
+    assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
