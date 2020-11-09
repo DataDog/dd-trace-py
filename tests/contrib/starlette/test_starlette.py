@@ -8,8 +8,8 @@ import sqlalchemy
 import ddtrace
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.starlette import patch as starlettePatch, unpatch as starletteUnpatch
-from ddtrace.contrib.sqlalchemy import patch as sqlPatch, unpatch as sqlUnpatch
+from ddtrace.contrib.starlette import patch as starlette_patch, unpatch as starlette_unpatch
+from ddtrace.contrib.sqlalchemy import patch as sql_patch, unpatch as sql_unpatch
 from ddtrace.propagation import http as http_propagation
 
 
@@ -22,15 +22,14 @@ from app import get_app
 
 @pytest.fixture
 def engine():
-    DATABASE_URL = "sqlite:///test.db"
-    sqlPatch()
-    engine = sqlalchemy.create_engine(DATABASE_URL)
+    sql_patch()
+    engine = sqlalchemy.create_engine("sqlite:///test.db")
     yield engine
-    sqlUnpatch()
+    sql_unpatch()
 
 
 @pytest.fixture
-def tracer(engine):
+def tracer():
     original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
     if sys.version_info < (3, 7):
@@ -41,10 +40,10 @@ def tracer(engine):
         tracer.configure(context_provider=AsyncioContextProvider())
 
     setattr(ddtrace, "tracer", tracer)
-    starlettePatch()
+    starlette_patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
-    starletteUnpatch()
+    starlette_unpatch()
 
 
 @pytest.fixture

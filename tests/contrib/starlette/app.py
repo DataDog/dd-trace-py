@@ -7,6 +7,10 @@ import databases
 import sqlalchemy
 
 
+engine = None
+notes_table = None
+
+
 def create_test_database(engine):
     engine.execute("DROP TABLE IF EXISTS notes;")
     metadata = sqlalchemy.MetaData()
@@ -67,41 +71,7 @@ async def file(request):
         return FileResponse(fp.name)
 
 
-async def get_tables(request):
-    global engine
-    response = engine.table_names()
-    return PlainTextResponse(str(response))
-
-
-async def list_notes(request):
-    global engine
-    query = "SELECT * FROM NOTES"
-    with engine.connect() as connection:
-        result = connection.execute(query)
-        d, a = {}, []
-        for rowproxy in result:
-            for column, value in rowproxy.items():
-                d = {**d, **{column: value}}
-            a.append(d)
-    response = str(a)
-    return PlainTextResponse(response)
-
-
-async def add_note(request):
-    global engine
-    global notes_table
-    request_json = await request.json()
-    with engine.connect() as connection:
-        with connection.begin():
-            connection.execute(notes_table.insert(), request_json)
-    response = "Success"
-    return PlainTextResponse(response)
-
-
-def get_app(test_engine):
-    global engine
-    engine = test_engine
-
+def get_app(engine):
     create_test_database(engine)
 
     DATABASE_URL = "sqlite:///test.db"
@@ -109,13 +79,39 @@ def get_app(test_engine):
     metadata = sqlalchemy.MetaData(bind=engine)
     metadata.reflect()
 
-    global notes_table
     notes_table = metadata.tables["notes"]
-
     row = {"id": 1, "text": "test", "completed": 1}
     with engine.connect() as connection:
         with connection.begin():
             connection.execute(notes_table.insert(), row)
+
+    async def get_tables(request):
+        response = engine.table_names()
+        return PlainTextResponse(str(response))
+
+    async def list_notes(request):
+        if not engine:
+            raise RuntimeError("Server error")
+        query = "SELECT * FROM NOTES"
+        with engine.connect() as connection:
+            result = connection.execute(query)
+            d, a = {}, []
+            for rowproxy in result:
+                for column, value in rowproxy.items():
+                    d = {**d, **{column: value}}
+                a.append(d)
+        response = str(a)
+        return PlainTextResponse(response)
+
+    async def add_note(request):
+        if not engine:
+            raise RuntimeError("Server error")
+        request_json = await request.json()
+        with engine.connect() as connection:
+            with connection.begin():
+                connection.execute(notes_table.insert(), request_json)
+        response = "Success"
+        return PlainTextResponse(response)
 
     routes = [
         Route("/", endpoint=homepage, name="homepage", methods=["GET"]),
