@@ -4,7 +4,6 @@ global_deps = [
     "mock",
     "opentracing",
     "pytest<4",
-    "opentracing",
 ]
 
 global_env = [("PYTEST_ADDOPTS", "--color=yes")]

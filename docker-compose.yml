@@ -108,26 +108,26 @@ services:
             - TEST_DATADOG_INTEGRATION=1
             - TEST_DATADOG_INTEGRATION_UDS=1
         network_mode: host
-        working_dir: /src
+        working_dir: /root/project/
         volumes:
             - ddagent:/tmp/ddagent
             # DEV: Make ddtrace rw so setup.py can build C-extensions
-            - ./ddtrace:/src/ddtrace:rw
-            - ./tests:/src/tests:ro
-            - ./setup.cfg:/src/setup.cfg:ro
-            - ./setup.py:/src/setup.py:ro
-            - ./conftest.py:/src/conftest.py:ro
-            - ./tox.ini:/src/tox.ini:ro
-            - ./riotfile.py:/src/riotfile.py:ro
-            - ./docs:/src/docs:rw
-            - ./pyproject.toml:/src/pyproject.toml:ro
-            - ./.riot:/src/.riot
-            - ./.ddtox:/src/.tox
-            - ./scripts:/src/scripts
+            - ./ddtrace:/root/project/ddtrace:rw
+            - ./tests:/root/project/tests:ro
+            - ./setup.cfg:/root/project/setup.cfg:ro
+            - ./setup.py:/root/project/setup.py:ro
+            - ./conftest.py:/root/project/conftest.py:ro
+            - ./tox.ini:/root/project/tox.ini:ro
+            - ./riotfile.py:/root/project/riotfile.py:ro
+            - ./docs:/root/project/docs:rw
+            - ./pyproject.toml:/root/project/pyproject.toml:ro
+            - ./.riot:/root/project/.riot
+            - ./.ddtox:/root/project/.tox
+            - ./scripts:/root/project/scripts
             # setuptools_scm needs `.git` to figure out what version we are on
             # DEV: We could use `SETUPTOOLS_SCM_PRETEND_VERSION` but prefer `.git`
             #      to get the same behavior as during releases
-            - ./.git:/src/.git:ro
+            - ./.git:/root/project/.git:ro
         command: bash
 
 volumes:
