@@ -61,10 +61,6 @@ below:
      - Override the modules patched for this execution of the program. Must be
        a list in the ``module1:boolean,module2:boolean`` format. For example,
        ``boto:true,redis:false``.
-   * - ``DATADOG_PRIORITY_SAMPLING``
-     - Boolean
-     - True
-     - Enables :ref:`Priority Sampling`.
    * - ``DD_LOGS_INJECTION``
      - Boolean
      - True
@@ -75,6 +71,14 @@ below:
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.
+   * - ``DD_TRACE_STARTUP_LOGS``
+     - Boolean
+     - True
+     - Enable or disable start up diagnostic logging.
+   * - ``DD_TRACE_SAMPLE_RATE``
+     - Float
+     - 1.0
+     - A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
    * - ``DD_PROFILING_ENABLED``
      - Boolean
      - False
@@ -112,7 +116,3 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
-   * - ``DD_TRACE_STARTUP_LOGS``
-     - Boolean
-     - True
-     - Enable or disable start up diagnostic logging.

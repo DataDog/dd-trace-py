@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: inject distributed tracing data to `ClientContext` to trace lambda invocations.

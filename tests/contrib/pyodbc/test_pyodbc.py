@@ -226,6 +226,16 @@ class PyODBCTest(object):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    def test_context_manager(self):
+        conn, tracer = self._get_conn_tracer()
+        with conn as conn2:
+            with conn2.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                rows = cursor.fetchall()
+                assert len(rows) == 1
+            spans = tracer.writer.pop()
+            assert len(spans) == 1
+
 
 class TestPyODBCPatch(PyODBCTest, TracerTestCase):
     def _get_conn_tracer(self):
