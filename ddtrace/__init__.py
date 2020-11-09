@@ -1,10 +1,5 @@
 import pkg_resources
 
-# Always import and patch import hooks before loading anything else
-from .internal.import_hooks import patch as patch_import_hooks
-
-patch_import_hooks()  # noqa: E402
-
 from .monkey import patch, patch_all  # noqa: E402
 from .pin import Pin  # noqa: E402
 from .span import Span  # noqa: E402

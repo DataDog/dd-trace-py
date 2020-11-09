@@ -2,7 +2,7 @@
 The Flask__ integration will add tracing to all requests to your Flask application.
 
 This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
-signals, and templating rendering.
+signals, and template rendering.
 
 To configure tracing manually::
 
@@ -36,14 +36,6 @@ Configuration
    Whether to parse distributed tracing headers from requests received by your Flask app.
 
    Default: ``True``
-
-.. py:data:: ddtrace.config.flask['analytics_enabled']
-
-   Whether to analyze spans for Flask in App Analytics.
-
-   Can also be enabled with the ``DD_FLASK_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
 
 .. py:data:: ddtrace.config.flask['service_name']
 

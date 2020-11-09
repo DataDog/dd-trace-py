@@ -4,6 +4,7 @@ import sys
 
 # Third party
 from ddtrace.vendor import wrapt
+import pytest
 
 # Project
 from ddtrace import config
@@ -16,9 +17,7 @@ from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
 
-from ...base import BaseTracerTestCase
-from ...util import override_global_tracer
-from ...utils import assert_span_http_status_code
+from ... import TracerTestCase, assert_span_http_status_code, override_global_tracer
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -53,7 +52,7 @@ class HTTPLibBaseMixin(object):
 
 
 # Main test cases for httplib/http.client and urllib2/urllib.request
-class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
+class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
     SPAN_NAME = 'httplib.request' if PY2 else 'http.client.request'
 
     def to_str(self, value):
@@ -76,7 +75,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
             we patch the correct module/methods
         """
         self.assertIsInstance(httplib.HTTPConnection.__init__, wrapt.BoundFunctionWrapper)
-        self.assertIsInstance(httplib.HTTPConnection.putrequest, wrapt.BoundFunctionWrapper)
+        self.assertIsInstance(httplib.HTTPConnection.request, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(httplib.HTTPConnection.getresponse, wrapt.BoundFunctionWrapper)
 
     def test_unpatch(self):
@@ -85,12 +84,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
             we restore the correct module/methods
         """
         original_init = httplib.HTTPConnection.__init__.__wrapped__
-        original_putrequest = httplib.HTTPConnection.putrequest.__wrapped__
+        original_request = httplib.HTTPConnection.request.__wrapped__
         original_getresponse = httplib.HTTPConnection.getresponse.__wrapped__
         unpatch()
 
         self.assertEqual(httplib.HTTPConnection.__init__, original_init)
-        self.assertEqual(httplib.HTTPConnection.putrequest, original_putrequest)
+        self.assertEqual(httplib.HTTPConnection.request, original_request)
         self.assertEqual(httplib.HTTPConnection.getresponse, original_getresponse)
 
     def test_should_skip_request(self):
@@ -541,12 +540,29 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    def test_httplib_bad_url(self):
+        conn = self.get_http_connection("DNE", "80")
+        with contextlib.closing(conn):
+            with pytest.raises(Exception):
+                conn.request('GET', '/status/500')
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assert_is_not_measured(span)
+        self.assertEqual(span.span_type, 'http')
+        self.assertIsNone(span.service)
+        self.assertEqual(span.name, self.SPAN_NAME)
+        self.assertEqual(span.error, 1)
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag('http.url'), "http://DNE:80/status/500")
+
 
 # Additional Python2 test cases for urllib
 if PY2:
     import urllib
 
-    class HTTPLibPython2Test(HTTPLibBaseMixin, BaseTracerTestCase):
+    class HTTPLibPython2Test(HTTPLibBaseMixin, TracerTestCase):
         def test_urllib_request(self):
             """
             When making a request via urllib.urlopen

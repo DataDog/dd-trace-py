@@ -38,7 +38,7 @@ def test_repr():
         memory.MemoryCollector,
         "MemoryCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=32768, max_events={}), "
-        "capture_pct=5.0, nframes=64, ignore_profiler=True)",
+        "capture_pct=2.0, nframes=64, ignore_profiler=True)",
     )
 
 
@@ -62,7 +62,7 @@ def _test_memory_ignore(ignore):
         c = memory.MemoryCollector(r, ignore_profiler=ignore, capture_pct=100)
         with c as mc:
             while not r.events[memory.MemorySampleEvent]:
-                _ = _alloc()
+                _ = object()
                 # Allow gevent to switch to the memory collector thread
                 time.sleep(0)
     sc.join()
@@ -88,7 +88,8 @@ def test_memory_ignore_false():
 
 @pytest.mark.benchmark(group="memory-capture", min_time=1)
 @pytest.mark.parametrize(
-    "pct", range(10, 101, 10),
+    "pct",
+    range(10, 101, 10),
 )
 @pytest.mark.skipif(tracemalloc is None, reason="tracemalloc is unavailable")
 def test_memory_alloc_speed_patched(benchmark, pct):
@@ -97,6 +98,8 @@ def test_memory_alloc_speed_patched(benchmark, pct):
         benchmark(_alloc)
 
 
-@pytest.mark.benchmark(group="memory-capture",)
+@pytest.mark.benchmark(
+    group="memory-capture",
+)
 def test_memory_alloc_speed(benchmark):
     benchmark(_alloc)

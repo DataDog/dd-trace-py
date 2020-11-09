@@ -6,23 +6,16 @@ import timeit
 
 import pytest
 
-import ddtrace
 from ddtrace.vendor import six
 
+from ddtrace.profiling import _nogevent
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import _threading
 
 from . import test_collector
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
-
-try:
-    from gevent import monkey
-except ImportError:
-    real_sleep = time.sleep
-else:
-    real_sleep = monkey.get_original("time", "sleep")
-    real_Thread = monkey.get_original("threading", "Thread")
 
 
 def func1():
@@ -42,7 +35,7 @@ def func4():
 
 
 def func5():
-    return real_sleep(1)
+    return _nogevent.sleep(1)
 
 
 def test_collect_truncate():
@@ -119,7 +112,7 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=2.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
@@ -135,7 +128,7 @@ def test_new_interval():
     new_interval = c._compute_new_interval(200000)
     assert new_interval == 0.01
     new_interval = c._compute_new_interval(1)
-    assert new_interval == c.MIN_INTERVAL_TIME
+    assert new_interval == c.min_interval_time
 
 
 # Function to use for stress-test of polling
@@ -161,7 +154,7 @@ exec(
 
 
 def test_stress_threads():
-    NB_THREADS = 10
+    NB_THREADS = 40
 
     threads = []
     for i in range(NB_THREADS):
@@ -170,13 +163,40 @@ def test_stress_threads():
         threads.append(t)
 
     s = stack.StackCollector(recorder=recorder.Recorder())
-    # Make sure that the collector thread does not interfere with the test
-    s.MIN_INTERVAL_TIME = 60
     number = 20000
     s._init()
     exectime = timeit.timeit(s.collect, number=number)
     # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
-    print("%.3f ms per call" % (1000.0 * exectime / number))
+    exectime_per_collect = exectime / number
+    print("%.3f ms per call" % (1000.0 * exectime_per_collect))
+    print(
+        "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
+        % (
+            NB_THREADS,
+            MAX_FN_NUM,
+            1 / s.min_interval_time,
+            100 * exectime_per_collect / s.min_interval_time,
+        )
+    )
+    for t in threads:
+        t.join()
+
+
+def test_stress_threads_run_as_thread():
+    NB_THREADS = 40
+
+    threads = []
+    for i in range(NB_THREADS):
+        t = threading.Thread(target=_f0)  # noqa: E149,F821
+        t.start()
+        threads.append(t)
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(recorder=r)
+    # This mainly check nothing bad happens when we collect a lot of threads and store the result in the Recorder
+    with s:
+        time.sleep(3)
+    assert r.events[stack.StackSampleEvent]
     for t in threads:
         t.join()
 
@@ -210,33 +230,31 @@ def test_exception_collection_threads():
 def test_exception_collection():
     r = recorder.Recorder()
     c = stack.StackCollector(r)
-    c.start()
-    try:
-        raise ValueError("hello")
-    except Exception:
-        real_sleep(1)
-    c.stop()
+    with c:
+        try:
+            raise ValueError("hello")
+        except Exception:
+            _nogevent.sleep(1)
 
     exception_events = r.events[stack.StackExceptionSampleEvent]
     assert len(exception_events) >= 1
     e = exception_events[0]
     assert e.timestamp > 0
     assert e.sampling_period > 0
-    assert e.thread_id == stack._thread_get_ident()
+    assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 217, "test_exception_collection")]
+    assert e.frames == [(__file__, 237, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
 
 @pytest.fixture
-def tracer_and_collector():
-    t = ddtrace.Tracer()
+def tracer_and_collector(tracer):
     r = recorder.Recorder()
-    c = stack.StackCollector(r, tracer=t)
+    c = stack.StackCollector(r, tracer=tracer)
     c.start()
     try:
-        yield t, c
+        yield tracer, c
     finally:
         c.stop()
 
@@ -244,17 +262,22 @@ def tracer_and_collector():
 def test_thread_to_span_thread_isolation(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+
+    quit_thread = threading.Event()
+    span_started = threading.Event()
 
     store = {}
 
     def start_span():
         store["span2"] = t.start_span("thread2")
+        span_started.set()
+        quit_thread.wait()
 
     th = threading.Thread(target=start_span)
     th.start()
-    th.join()
+    span_started.wait()
     if TESTING_GEVENT:
         # We track *real* threads, gevent is using only one in this case
         assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root, store["span2"]}
@@ -262,12 +285,15 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     else:
         assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
         assert c._thread_span_links.get_active_leaf_spans_from_thread_id(th.ident) == {store["span2"]}
+    # Do not quit the thread before we test, otherwise the collector might clean up the thread from the list of spans
+    quit_thread.set()
+    th.join()
 
 
 def test_thread_to_span_multiple(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subspan}
@@ -286,7 +312,7 @@ def test_thread_to_child_span_multiple_unknown_thread(tracer_and_collector):
 def test_thread_to_child_span_clear(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     c._thread_span_links.clear_threads(set())
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
@@ -295,7 +321,7 @@ def test_thread_to_child_span_clear(tracer_and_collector):
 def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = stack._thread_get_ident()
+    thread_id = _nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     subsubspan = t.start_span("subsubtrace", child_of=subspan)
@@ -318,7 +344,7 @@ def test_collect_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id in event.trace_ids:
+        if span.trace_id in event.trace_ids and span.span_id in event.span_ids:
             break
 
 
@@ -333,7 +359,7 @@ def test_collect_multiple_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id in event.trace_ids:
+        if child.trace_id in event.trace_ids and child.span_id in event.span_ids:
             break
 
 
@@ -357,3 +383,51 @@ def test_stress_trace_collection(tracer_and_collector):
 
     for t in threads:
         t.join()
+
+
+@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
+def test_thread_time_cache():
+    tt = stack._ThreadTime()
+
+    lock = _nogevent.Lock()
+    lock.acquire()
+
+    t = _nogevent.Thread(target=lock.acquire)
+    t.start()
+
+    main_thread_id = threading.current_thread().ident
+
+    threads = [
+        main_thread_id,
+        t.ident,
+    ]
+
+    cpu_time = tt(threads)
+
+    assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id, t.ident])
+    assert all(t >= 0 for t in cpu_time.values())
+
+    cpu_time = tt(threads)
+
+    assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id, t.ident])
+    assert all(t >= 0 for t in cpu_time.values())
+
+    if stack.FEATURES["cpu-time"]:
+        assert set(tt._get_last_thread_time().keys()) == set(
+            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
+        )
+
+    lock.release()
+
+    threads = {
+        main_thread_id: _threading.get_thread_native_id(main_thread_id),
+    }
+
+    cpu_time = tt(threads)
+    assert sorted(k[0] for k in cpu_time.keys()) == sorted([main_thread_id])
+    assert all(t >= 0 for t in cpu_time.values())
+
+    if stack.FEATURES["cpu-time"]:
+        assert set(tt._get_last_thread_time().keys()) == set(
+            (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
+        )

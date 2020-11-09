@@ -45,7 +45,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         # 1 for tearing down the request
         # 1 for tearing down the app context we created
         spans = self.get_spans()
-        self.assertEqual(len(spans), 3)
+        self.assertEqual(len(spans), 4)
 
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, 'flask.render_template')
@@ -53,8 +53,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(set(spans[0].meta.keys()), set(['flask.template_name', "runtime-id"]))
         self.assertEqual(spans[0].meta['flask.template_name'], 'test.html')
 
-        self.assertEqual(spans[1].name, 'flask.do_teardown_request')
-        self.assertEqual(spans[2].name, 'flask.do_teardown_appcontext')
+        self.assertEqual(spans[1].name, 'flask.template')
+        self.assertEqual(spans[2].name, 'flask.do_teardown_request')
+        self.assertEqual(spans[3].name, 'flask.do_teardown_appcontext')
 
     def test_render_template_pin_disabled(self):
         """
@@ -86,7 +87,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         # 1 for tearing down the request
         # 1 for tearing down the app context we created
         spans = self.get_spans()
-        self.assertEqual(len(spans), 3)
+        self.assertEqual(len(spans), 4)
 
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, 'flask.render_template_string')
@@ -94,8 +95,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(set(spans[0].meta.keys()), set(['flask.template_name', "runtime-id"]))
         self.assertEqual(spans[0].meta['flask.template_name'], '<memory>')
 
-        self.assertEqual(spans[1].name, 'flask.do_teardown_request')
-        self.assertEqual(spans[2].name, 'flask.do_teardown_appcontext')
+        self.assertEqual(spans[1].name, 'flask.template')
+        self.assertEqual(spans[2].name, 'flask.do_teardown_request')
+        self.assertEqual(spans[3].name, 'flask.do_teardown_appcontext')
 
     def test_render_template_string_pin_disabled(self):
         """

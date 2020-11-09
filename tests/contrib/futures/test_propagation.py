@@ -4,10 +4,10 @@ import concurrent
 from ddtrace.contrib.futures import patch, unpatch
 
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 
 
-class PropagationTestCase(BaseTracerTestCase):
+class PropagationTestCase(TracerTestCase):
     """Ensures the Context Propagation works between threads
     when the ``futures`` library is used, or when the
     ``concurrent`` module is available (Python 3 only)
@@ -55,7 +55,6 @@ class PropagationTestCase(BaseTracerTestCase):
 
         def fn(value, key=None):
             # an active context must be available
-            # DEV: With `ThreadLocalContext` `.active()` will never be `None`
             self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace('executor.thread'):
                 return value, key
@@ -83,7 +82,6 @@ class PropagationTestCase(BaseTracerTestCase):
 
         def fn():
             # an active context must be available
-            # DEV: With `ThreadLocalContext` `.active()` will never be `None`
             self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace('executor.thread'):
                 return 42

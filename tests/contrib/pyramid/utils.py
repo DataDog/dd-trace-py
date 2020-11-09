@@ -13,11 +13,10 @@ from ddtrace.ext import http
 from .app import create_app
 
 from ...opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
-class PyramidBase(BaseTracerTestCase):
+class PyramidBase(TracerTestCase):
     """Base Pyramid test application"""
 
     def setUp(self):
@@ -99,7 +98,9 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-            self.assert_structure(dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),)
+            self.assert_structure(
+                dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
+            )
 
     def test_analytics_global_on_integration_on(self):
         """
@@ -112,7 +113,9 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-            self.assert_structure(dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),)
+            self.assert_structure(
+                dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
 
     def test_analytics_global_off_integration_default(self):
         """
@@ -138,7 +141,9 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-            self.assert_structure(dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),)
+            self.assert_structure(
+                dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
 
     def test_404(self):
         self.app.get("/404", status=404)

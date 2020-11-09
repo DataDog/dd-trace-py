@@ -33,7 +33,7 @@ class Span(object):
         "meta",
         "error",
         "metrics",
-        "span_type",
+        "_span_type",
         "start_ns",
         "duration_ns",
         "tracer",
@@ -81,7 +81,8 @@ class Span(object):
         self.name = name
         self.service = service
         self.resource = resource or name
-        self.span_type = span_type.value if isinstance(span_type, SpanTypes) else span_type
+        self._span_type = None
+        self.span_type = span_type
 
         # tags / metadata
         self.meta = {}
@@ -112,6 +113,14 @@ class Span(object):
     @start.setter
     def start(self, value):
         self.start_ns = int(value * 1e9)
+
+    @property
+    def span_type(self):
+        return self._span_type
+
+    @span_type.setter
+    def span_type(self, value):
+        self._span_type = value.value if isinstance(value, SpanTypes) else value
 
     @property
     def finished(self):
@@ -254,13 +263,12 @@ class Span(object):
             del self.meta[key]
 
     def get_tag(self, key):
-        """ Return the given tag or None if it doesn't exist.
-        """
+        """Return the given tag or None if it doesn't exist."""
         return self.meta.get(key, None)
 
     def set_tags(self, tags):
-        """ Set a dictionary of tags on the given span. Keys and values
-            must be strings (or stringable)
+        """Set a dictionary of tags on the given span. Keys and values
+        must be strings (or stringable)
         """
         if tags:
             for k, v in iter(tags.items()):
@@ -348,8 +356,8 @@ class Span(object):
         return d
 
     def set_traceback(self, limit=20):
-        """ If the current stack has an exception, tag the span with the
-            relevant error info. If not, set the span to the current python stack.
+        """If the current stack has an exception, tag the span with the
+        relevant error info. If not, set the span to the current python stack.
         """
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 

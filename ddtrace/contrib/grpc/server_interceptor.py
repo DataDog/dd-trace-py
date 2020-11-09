@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.ext import errors
 from ddtrace.compat import to_unicode
 
+from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
@@ -74,7 +75,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span = tracer.trace(
             'grpc',
             span_type=SpanTypes.GRPC,
-            service=self._pin.service,
+            service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
         )
         span.set_tag(SPAN_MEASURED_KEY)

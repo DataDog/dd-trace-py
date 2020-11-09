@@ -5,6 +5,8 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 from ddtrace.compat import to_unicode
 from ddtrace.ext import SpanTypes, errors
+
+from .. import trace_utils
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -152,7 +154,10 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            "grpc", span_type=SpanTypes.GRPC, service=self._pin.service, resource=client_call_details.method,
+            "grpc",
+            span_type=SpanTypes.GRPC,
+            service=trace_utils.ext_service(self._pin, config.grpc),
+            resource=client_call_details.method,
         )
 
         # tags for method details
@@ -187,13 +192,19 @@ class _ClientInterceptor(
         metadata.extend(headers.items())
 
         client_call_details = _ClientCallDetails(
-            client_call_details.method, client_call_details.timeout, metadata, client_call_details.credentials,
+            client_call_details.method,
+            client_call_details.timeout,
+            metadata,
+            client_call_details.credentials,
         )
 
         return span, client_call_details
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
-        span, client_call_details = self._intercept_client_call(constants.GRPC_METHOD_KIND_UNARY, client_call_details,)
+        span, client_call_details = self._intercept_client_call(
+            constants.GRPC_METHOD_KIND_UNARY,
+            client_call_details,
+        )
         try:
             response = continuation(client_call_details, request)
             _handle_response(span, response)
@@ -208,7 +219,8 @@ class _ClientInterceptor(
 
     def intercept_unary_stream(self, continuation, client_call_details, request):
         span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_SERVER_STREAMING, client_call_details,
+            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
+            client_call_details,
         )
         response_iterator = continuation(client_call_details, request)
         response_iterator = _WrappedResponseCallFuture(response_iterator, span)
@@ -216,7 +228,8 @@ class _ClientInterceptor(
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
         span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_CLIENT_STREAMING, client_call_details,
+            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
+            client_call_details,
         )
         try:
             response = continuation(client_call_details, request_iterator)
@@ -232,7 +245,8 @@ class _ClientInterceptor(
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
         span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_BIDI_STREAMING, client_call_details,
+            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
+            client_call_details,
         )
         response_iterator = continuation(client_call_details, request_iterator)
         response_iterator = _WrappedResponseCallFuture(response_iterator, span)

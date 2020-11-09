@@ -1,10 +1,9 @@
 # stdlib
 import itertools
 import os
-import random
+import sys
 import threading
 import time
-import sys
 
 from .. import api
 from .. import compat
@@ -13,7 +12,8 @@ from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..encoding import JSONEncoderV2
-from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
+from ..payload import PayloadFull
+from . import _queue
 
 log = get_logger(__name__)
 
@@ -22,42 +22,20 @@ DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 
-def _apply_filters(filters, traces):
-    """
-    Here we make each trace go through the filters configured in the
-    tracer. There is no need for a lock since the traces are owned by the
-    AgentWriter at that point.
-    """
-    if filters is not None:
-        filtered_traces = []
-        for trace in traces:
-            for filtr in filters:
-                trace = filtr.process_trace(trace)
-                if trace is None:
-                    break
-            if trace is not None:
-                filtered_traces.append(trace)
-        return filtered_traces
-    return traces
-
-
 class LogWriter:
-    def __init__(self, out=sys.stdout, filters=None, sampler=None, priority_sampler=None):
-        self._filters = filters
+    def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self.encoder = JSONEncoderV2()
         self.out = out
 
     def recreate(self):
-        """ Create a new instance of :class:`LogWriter` using the same settings from this instance
+        """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
         :returns: A new :class:`LogWriter` instance
         """
-        writer = self.__class__(
-            out=self.out, filters=self._filters, sampler=self._sampler, priority_sampler=self._priority_sampler
-        )
+        writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
     def write(self, spans=None, services=None):
@@ -65,16 +43,7 @@ class LogWriter:
         if not spans:
             return
 
-        # Before logging the traces, make them go through the
-        # filters
-        try:
-            traces = _apply_filters(self._filters, [spans])
-        except Exception:
-            log.error("error while filtering traces", exc_info=True)
-            return
-        if len(traces) == 0:
-            return
-        encoded = self.encoder.encode_traces(traces)
+        encoded = self.encoder.encode_traces([spans])
         self.out.write(encoded + "\n")
         self.out.flush()
 
@@ -91,7 +60,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         uds_path=None,
         https=False,
         shutdown_timeout=DEFAULT_TIMEOUT,
-        filters=None,
         sampler=None,
         priority_sampler=None,
         dogstatsd=None,
@@ -101,8 +69,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         )
         # DEV: provide a _temporary_ solution to allow users to specify a custom max
         maxsize = int(os.getenv("DD_TRACE_MAX_TPS", self.QUEUE_MAX_TRACES_DEFAULT))
-        self._trace_queue = Q(maxsize=maxsize)
-        self._filters = filters
+        self._trace_queue = _queue.TraceQueue(maxsize=maxsize)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
@@ -116,7 +83,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._started_lock = threading.Lock()
 
     def recreate(self):
-        """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
+        """Create a new instance of :class:`AgentWriter` using the same settings from this instance
 
         :rtype: :class:`AgentWriter`
         :returns: A new :class:`AgentWriter` instance
@@ -127,7 +94,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             uds_path=self.api.uds_path,
             https=self.api.https,
             shutdown_timeout=self.exit_timeout,
-            filters=self._filters,
             priority_sampler=self._priority_sampler,
             dogstatsd=self.dogstatsd,
         )
@@ -151,40 +117,32 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._trace_queue.put(spans)
 
     def flush_queue(self):
-        try:
-            traces = self._trace_queue.get(block=False)
-        except Empty:
+        traces = self._trace_queue.get()
+
+        if not traces:
             return
 
         if self._send_stats:
             traces_queue_length = len(traces)
             traces_queue_spans = sum(map(len, traces))
 
-        # Before sending the traces, make them go through the
-        # filters
-        try:
-            traces = _apply_filters(self._filters, traces)
-        except Exception:
-            log.error("error while filtering traces", exc_info=True)
-            return
-
-        if self._send_stats:
-            traces_filtered = len(traces) - traces_queue_length
-
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
         for response in traces_responses:
-            if isinstance(response, Exception) or response.status >= 400:
-                self._log_error_status(response)
-            elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-                result_traces_json = response.get_json()
-                if result_traces_json and "rate_by_service" in result_traces_json:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                    if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
+            if not isinstance(response, PayloadFull):
+                if isinstance(response, Exception) or response.status >= 400:
+                    self._log_error_status(response)
+                elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
+                    result_traces_json = response.get_json()
+                    if result_traces_json and "rate_by_service" in result_traces_json:
+                        if self._priority_sampler:
+                            self._priority_sampler.update_rate_by_service_sample_rates(
+                                result_traces_json["rate_by_service"],
+                            )
+                        if isinstance(self._sampler, BasePrioritySampler):
+                            self._sampler.update_rate_by_service_sample_rates(
+                                result_traces_json["rate_by_service"],
+                            )
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
@@ -195,15 +153,19 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._histogram_with_total("datadog.tracer.flush.traces", traces_queue_length)
             self._histogram_with_total("datadog.tracer.flush.spans", traces_queue_spans)
 
-            # Statistics about the filtering
-            self._histogram_with_total("datadog.tracer.flush.traces_filtered", traces_filtered)
-
             # Statistics about API
             self._histogram_with_total("datadog.tracer.api.requests", len(traces_responses))
 
             self._histogram_with_total(
-                "datadog.tracer.api.errors", len(list(t for t in traces_responses if isinstance(t, Exception)))
+                "datadog.tracer.api.errors",
+                len(list(t for t in traces_responses if isinstance(t, Exception) and not isinstance(t, PayloadFull))),
             )
+
+            self._histogram_with_total(
+                "datadog.tracer.api.traces_payloadfull",
+                len(list(t for t in traces_responses if isinstance(t, PayloadFull))),
+            )
+
             for status, grouped_responses in itertools.groupby(
                 sorted((t for t in traces_responses if not isinstance(t, Exception)), key=lambda r: r.status),
                 key=lambda r: r.status,
@@ -235,7 +197,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 return
 
             # Statistics about the rate at which spans are inserted in the queue
-            dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()
+            dropped, enqueued, enqueued_lengths = self._trace_queue.pop_stats()
             self.dogstatsd.gauge("datadog.tracer.queue.max_length", self._trace_queue.maxsize)
             self.dogstatsd.increment("datadog.tracer.queue.dropped.traces", dropped)
             self.dogstatsd.increment("datadog.tracer.queue.enqueued.traces", enqueued)
@@ -267,71 +229,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             )
         else:
             log_level(
-                prefix + "%s", self.api, response,
+                prefix + "%s",
+                self.api,
+                response,
             )
-
-
-class Q(Queue):
-    """
-    Q is a threadsafe queue that let's you pop everything at once and
-    will randomly overwrite elements when it's over the max size.
-
-    This queue also exposes some statistics about its length, the number of items dropped, etc.
-    """
-
-    def __init__(self, maxsize=0):
-        # Cannot use super() here because Queue in Python2 is old style class
-        Queue.__init__(self, maxsize)
-        # Number of item dropped (queue full)
-        self.dropped = 0
-        # Number of items accepted
-        self.accepted = 0
-        # Cumulative length of accepted items
-        self.accepted_lengths = 0
-
-    def put(self, item):
-        try:
-            # Cannot use super() here because Queue in Python2 is old style class
-            Queue.put(self, item, block=False)
-        except Full:
-            # If the queue is full, replace a random item. We need to make sure
-            # the queue is not emptied was emptied in the meantime, so we lock
-            # check qsize value.
-            with self.mutex:
-                qsize = self._qsize()
-                if qsize >= self.maxsize:
-                    idx = random.randrange(0, qsize)
-                    self.queue[idx] = item
-                    log.warning("Writer queue is full has more than %d traces, some traces will be lost", self.maxsize)
-                    self.dropped += 1
-                    self._update_stats(item)
-                    return
-            # The queue has been emptied, simply retry putting item
-            return self.put(item)
-        else:
-            with self.mutex:
-                self._update_stats(item)
-
-    def _update_stats(self, item):
-        # self.mutex needs to be locked to make sure we don't lose data when resetting
-        self.accepted += 1
-        if hasattr(item, "__len__"):
-            item_length = len(item)
-        else:
-            item_length = 1
-        self.accepted_lengths += item_length
-
-    def reset_stats(self):
-        """Reset the stats to 0.
-
-        :return: The current value of dropped, accepted and accepted_lengths.
-        """
-        with self.mutex:
-            dropped, accepted, accepted_lengths = (self.dropped, self.accepted, self.accepted_lengths)
-            self.dropped, self.accepted, self.accepted_lengths = 0, 0, 0
-        return dropped, accepted, accepted_lengths
-
-    def _get(self):
-        things = self.queue
-        self._init(self.maxsize)
-        return things

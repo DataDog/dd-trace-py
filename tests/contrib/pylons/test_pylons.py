@@ -11,11 +11,10 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
-class PylonsTestCase(BaseTracerTestCase):
+class PylonsTestCase(TracerTestCase):
     """Pylons Test Controller that is used to test specific
     cases defined in the Pylons controller. To test a new behavior,
     add a new action in the `app.controllers.root` module.

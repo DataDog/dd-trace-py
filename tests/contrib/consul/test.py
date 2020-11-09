@@ -6,11 +6,10 @@ from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.contrib.consul.patch import patch, unpatch
 
 from ..config import CONSUL_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured
 
 
-class TestConsulPatch(BaseTracerTestCase):
+class TestConsulPatch(TracerTestCase):
 
     TEST_SERVICE = 'test-consul'
 

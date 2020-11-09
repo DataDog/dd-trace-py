@@ -1,5 +1,7 @@
+import sys
+
 # Third party
-from ddtrace.vendor import wrapt
+from ddtrace.vendor import wrapt, six
 
 # Project
 from ...compat import PY2, httplib, parse
@@ -8,7 +10,9 @@ from ...ext import SpanTypes, http as ext_http
 from ...http import store_request_headers, store_response_headers
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...propagation.http import HTTPPropagator
 from ...settings import config
+from ...utils.formats import asbool, get_env
 from ...utils.wrappers import unwrap as _u
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'
@@ -16,8 +20,13 @@ span_name = 'httplib.request' if PY2 else 'http.client.request'
 log = get_logger(__name__)
 
 
+config._add('httplib', {
+    'distributed_tracing': asbool(get_env('httplib', 'distributed_tracing', default=False)),
+})
+
+
 def _wrap_init(func, instance, args, kwargs):
-    Pin(app='httplib', service=None).onto(instance)
+    Pin(app='httplib', service=None, _config=config.httplib).onto(instance)
     return func(*args, **kwargs)
 
 
@@ -47,6 +56,44 @@ def _wrap_getresponse(func, instance, args, kwargs):
             log.debug('error applying request tags', exc_info=True)
 
 
+def _wrap_request(func, instance, args, kwargs):
+    # Use any attached tracer if available, otherwise use the global tracer
+    pin = Pin.get_from(instance)
+    if should_skip_request(pin, instance):
+        return func(*args, **kwargs)
+
+    cfg = config.get_from(instance)
+
+    try:
+        # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
+        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+        setattr(instance, '_datadog_span', span)
+
+        # propagate distributed tracing headers
+        if cfg.get("distributed_tracing"):
+            if len(args) > 3:
+                headers = args[3]
+            else:
+                headers = kwargs.setdefault('headers', {})
+            propagator = HTTPPropagator()
+            propagator.inject(span.context, headers)
+    except Exception:
+        log.debug('error configuring request', exc_info=True)
+        span = getattr(instance, "_datadog_span", None)
+        if span:
+            span.finish()
+
+    try:
+        return func(*args, **kwargs)
+    except Exception:
+        span = getattr(instance, "_datadog_span", None)
+        exc_info = sys.exc_info()
+        if span:
+            span.set_exc_info(*exc_info)
+            span.finish()
+        six.reraise(*exc_info)
+
+
 def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
@@ -54,9 +101,13 @@ def _wrap_putrequest(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     try:
-        # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
-        setattr(instance, '_datadog_span', span)
+        if hasattr(instance, '_datadog_span'):
+            # Reuse an existing span set in _wrap_request
+            span = instance._datadog_span
+        else:
+            # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
+            span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+            setattr(instance, '_datadog_span', span)
 
         method, path = args[:2]
         scheme = 'https' if isinstance(instance, httplib.HTTPSConnection) else 'http'
@@ -89,7 +140,21 @@ def _wrap_putrequest(func, instance, args, kwargs):
         )
     except Exception:
         log.debug('error applying request tags', exc_info=True)
-    return func(*args, **kwargs)
+
+        # Close the span to prevent memory leaks.
+        span = getattr(instance, "_datadog_span", None)
+        if span:
+            span.finish()
+
+    try:
+        return func(*args, **kwargs)
+    except Exception:
+        span = getattr(instance, "_datadog_span", None)
+        exc_info = sys.exc_info()
+        if span:
+            span.set_exc_info(*exc_info)
+            span.finish()
+        six.reraise(*exc_info)
 
 
 def _wrap_putheader(func, instance, args, kwargs):
@@ -120,6 +185,8 @@ def patch():
             wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init))
     setattr(httplib.HTTPConnection, 'getresponse',
             wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse))
+    setattr(httplib.HTTPConnection, 'request',
+            wrapt.FunctionWrapper(httplib.HTTPConnection.request, _wrap_request))
     setattr(httplib.HTTPConnection, 'putrequest',
             wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest))
     setattr(httplib.HTTPConnection, 'putheader',
@@ -134,5 +201,6 @@ def unpatch():
 
     _u(httplib.HTTPConnection, '__init__')
     _u(httplib.HTTPConnection, 'getresponse')
+    _u(httplib.HTTPConnection, 'request')
     _u(httplib.HTTPConnection, 'putrequest')
     _u(httplib.HTTPConnection, 'putheader')

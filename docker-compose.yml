@@ -7,7 +7,7 @@ services:
         ports:
             - "127.0.0.1:9200:9200"
     cassandra:
-        image: spotify/cassandra:latest
+        image: cassandra:3.11.7
         environment:
             - MAX_HEAP_SIZE=512M
             - HEAP_NEWSIZE=256M
@@ -83,7 +83,15 @@ services:
             - "127.0.0.1:8126:8126"
         volumes:
           - ddagent:/tmp/ddagent
-
+    testagent:
+        image: kyleverhoog/dd-trace-test-agent
+        ports:
+            - "127.0.0.1:8126:8126"
+        volumes:
+            - ./tests/snapshots:/snapshots
+        environment:
+            - SNAPSHOT_DIR=/snapshots
+            - SNAPSHOT_CI
     vertica:
         image: sumitchawla/vertica
         environment:
@@ -119,6 +127,26 @@ services:
             #      to get the same behavior as during releases
             - ./.git:/src/.git:ro
         command: bash
+
+    localstack:
+        image: localstack/localstack:0.12.1
+        network_mode: bridge
+        ports:
+          - "127.0.0.1:4566:4566"
+          - "127.0.0.1:4571:4571"
+        environment:
+          - SERVICES=${SERVICES- }
+          - DEBUG=${DEBUG- }
+          - DATA_DIR=${DATA_DIR- }
+          - PORT_WEB_UI=${PORT_WEB_UI- }
+          - LAMBDA_EXECUTOR=local
+          - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+          - DOCKER_HOST=unix:///var/run/docker.sock
+          - HOST_TMP_FOLDER=${TMPDIR}
+          - INIT_SCRIPTS_PATH=/setup
+        volumes:
+          - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+          - "/var/run/docker.sock:/var/run/docker.sock"
 
 volumes:
     ddagent:

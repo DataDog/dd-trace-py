@@ -1,13 +1,14 @@
 import logging
 
 import ddtrace
-from ddtrace.constants import ENV_KEY, VERSION_KEY
 from ddtrace.compat import StringIO
+from ddtrace.constants import ENV_KEY, VERSION_KEY
 from ddtrace.contrib.logging import patch, unpatch
+from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID, RECORD_ATTR_SPAN_ID
+from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
-from ...base import BaseTracerTestCase
-
+from ... import TracerTestCase
 
 logger = logging.getLogger()
 logger.level = logging.INFO
@@ -24,6 +25,17 @@ def current_span(tracer=None):
     return tracer.current_span()
 
 
+class AssertFilter(logging.Filter):
+    def filter(self, record):
+        trace_id = getattr(record, RECORD_ATTR_TRACE_ID)
+        assert isinstance(trace_id, six.string_types)
+
+        span_id = getattr(record, RECORD_ATTR_SPAN_ID)
+        assert isinstance(span_id, six.string_types)
+
+        return True
+
+
 def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
     if logger_override is not None:
         logger_to_capture = logger_override
@@ -38,14 +50,17 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
         formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
         logger_to_capture.addHandler(sh)
+        assert_filter = AssertFilter()
+        logger_to_capture.addFilter(assert_filter)
         result = func()
     finally:
         logger_to_capture.removeHandler(sh)
+        logger_to_capture.removeFilter(assert_filter)
 
     return out.getvalue().strip(), result
 
 
-class LoggingTestCase(BaseTracerTestCase):
+class LoggingTestCase(TracerTestCase):
     def setUp(self):
         patch()
         super(LoggingTestCase, self).setUp()
@@ -65,7 +80,7 @@ class LoggingTestCase(BaseTracerTestCase):
         log = logging.getLogger()
         self.assertFalse(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
 
-    def _test_logging(self, create_span, version="", env=""):
+    def _test_logging(self, create_span, service="", version="", env=""):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -78,7 +93,6 @@ class LoggingTestCase(BaseTracerTestCase):
             output, span = capture_function_log(func)
             trace_id = 0
             span_id = 0
-            service = ddtrace.config.service or ""
             if span:
                 trace_id = span.trace_id
                 span_id = span.span_id
@@ -105,10 +119,6 @@ class LoggingTestCase(BaseTracerTestCase):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
     def test_log_trace_service(self):
-        """
-        Check logging patched and formatter including trace info
-        """
-
         def create_span():
             return self.tracer.trace("test.logging", service="logging")
 
@@ -117,11 +127,14 @@ class LoggingTestCase(BaseTracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    def test_log_trace_version(self):
-        """
-        Check logging patched and formatter including trace info
-        """
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
+    def test_log_DD_TAGS(self):
+        def create_span():
+            return self.tracer.trace("test.logging")
 
+        self._test_logging(create_span=create_span, service="ddtagservice", version="ddversion", env="ddenv")
+
+    def test_log_trace_version(self):
         def create_span():
             span = self.tracer.trace("test.logging")
             span.set_tag(VERSION_KEY, "manual.version")

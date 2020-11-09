@@ -24,7 +24,7 @@ You can also use a Unix Domain Socket to connect to the agent::
 Distributed Tracing
 -------------------
 
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
+To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`.
 
 - On the server side, it means to read propagated attributes and set them to the active tracing context.
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
@@ -89,14 +89,12 @@ propagate a `rpc_metadata` dictionary over the wire::
             rpc_metadata.update({
                 'trace_id': span_context.trace_id,
                 'span_id': span_context.span_id,
-                'sampling_priority': span_context.sampling_priority,
             })
 
         def extract(self, rpc_metadata):
             return Context(
                 trace_id=rpc_metadata['trace_id'],
                 span_id=rpc_metadata['span_id'],
-                sampling_priority=rpc_metadata['sampling_priority'],
             )
 
     # On the parent side
@@ -121,52 +119,6 @@ propagate a `rpc_metadata` dictionary over the wire::
 Sampling
 --------
 
-.. _`Priority Sampling`:
-
-Priority Sampling
-^^^^^^^^^^^^^^^^^
-
-To learn about what sampling is check out our documentation `here
-<https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing>`_.
-
-By default priorities are set on a trace by a sampler. The sampler can set the
-priority to the following values:
-
-- ``AUTO_REJECT``: the sampler automatically rejects the trace
-- ``AUTO_KEEP``: the sampler automatically keeps the trace
-
-Priority sampling is enabled by default.
-When enabled, the sampler will automatically assign a priority to your traces,
-depending on their service and volume.
-This ensures that your sampled distributed traces will be complete.
-
-You can also set this priority manually to either drop an uninteresting trace or
-to keep an important one.
-To do this, set the ``context.sampling_priority`` to one of the following:
-
-- ``USER_REJECT``: the user asked to reject the trace
-- ``USER_KEEP``: the user asked to keep the trace
-
-When not using distributed tracing, you may change the priority at any time, as
-long as the trace is not finished yet.
-But it has to be done before any context propagation (fork, RPC calls) to be
-effective in a distributed context.
-Changing the priority after context has been propagated causes different parts
-of a distributed trace to use different priorities. Some parts might be kept,
-some parts might be rejected, and this can cause the trace to be partially
-stored and remain incomplete.
-
-If you change the priority, we recommend you do it as soon as possible, when the
-root span has just been created::
-
-    from ddtrace.ext.priority import USER_REJECT, USER_KEEP
-
-    context = tracer.context_provider.active()
-
-    # indicate to not keep the trace
-    context.sampling_priority = USER_REJECT
-
-
 Client Sampling
 ^^^^^^^^^^^^^^^
 
@@ -183,103 +135,6 @@ The ``RateSampler`` randomly samples a percentage of traces::
     sample_rate = 0.2
     tracer.sampler = RateSampler(sample_rate)
 
-
-App Analytics
-------------------------
-
-Use `App Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and analyzed spans by user-defined tags. An APM event is generated every time a trace is generated.
-
-Enabling analyzed spans for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
-
-* :ref:`aiohttp`
-* :ref:`bottle`
-* :ref:`django`
-* :ref:`falcon`
-* :ref:`flask`
-* :ref:`molten`
-* :ref:`pylons`
-* :ref:`pyramid`
-* :ref:`requests`
-* :ref:`tornado`
-
-
-For most libraries, analyzed spans can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
-
-+----------------------+----------------------------------------+
-|       Library        |          Environment Variable          |
-+======================+========================================+
-| :ref:`aiobotocore`   | ``DD_AIOBOTOCORE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |
-+----------------------+----------------------------------------+
-| :ref:`bottle`        | ``DD_BOTTLE_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
-+----------------------+----------------------------------------+
-| :ref:`celery`        | ``DD_CELERY_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
-+----------------------+----------------------------------------+
-| :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`flask`         | ``DD_FLASK_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`flask_cache`   | ``DD_FLASK_CACHE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`grpc`          | ``DD_GRPC_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`httplib`       | ``DD_HTTPLIB_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`kombu`         | ``DD_KOMBU_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`molten`        | ``DD_MOLTEN_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pylibmc`       | ``DD_PYLIBMC_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`pylons`        | ``DD_PYLONS_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pymemcache`    | ``DD_PYMEMCACHE_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`pymongo`       | ``DD_PYMONGO_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`redis`         | ``DD_REDIS_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`rediscluster`  | ``DD_REDISCLUSTER_ANALYTICS_ENABLED``  |
-+----------------------+----------------------------------------+
-| :ref:`sqlalchemy`    | ``DD_SQLALCHEMY_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`vertica`       | ``DD_VERTICA_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-
-For datastore libraries that extend another, use the setting for the underlying library:
-
-+------------------------+----------------------------------+
-|        Library         |       Environment Variable       |
-+========================+==================================+
-| :ref:`mongoengine`     | ``DD_PYMONGO_ANALYTICS_ENABLED`` |
-+------------------------+----------------------------------+
-| :ref:`mysql-connector` | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`mysqldb`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`psycopg2`        | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`pymysql`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-
-Where environment variables are not used for configuring the tracer, the instructions for configuring app analytics is provided in the library documentation:
-
-* :ref:`aiohttp`
-* :ref:`django`
-* :ref:`pyramid`
-* :ref:`requests`
-* :ref:`tornado`
 
 Resolving deprecation warnings
 ------------------------------
@@ -451,8 +306,6 @@ for usage.
 +---------------------+----------------------------------------+---------------+
 | `sampler`           | see `Sampling`_                        | `AllSampler`  |
 +---------------------+----------------------------------------+---------------+
-| `priority_sampling` | see `Priority Sampling`_               | `True`        |
-+---------------------+----------------------------------------+---------------+
 | `uds_path`          | unix socket of agent to connect to     | `None`        |
 +---------------------+----------------------------------------+---------------+
 | `settings`          | see `Advanced Usage`_                  | `{}`          |
@@ -539,11 +392,11 @@ Examples
 
 Distributed Tracing across celery tasks with OpenTracing.
 
-1. Install Celery OpenTracing:
+1. Install Celery OpenTracing::
 
     pip install Celery-OpenTracing
 
-2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+2. Replace your Celery app with the version that comes with Celery-OpenTracing::
 
     from celery_opentracing import CeleryTracing
     from ddtrace.opentracer import set_global_tracer, Tracer
@@ -639,6 +492,9 @@ API
 
 ``Pin``
 ^^^^^^^
+
+.. _Pin:
+
 .. autoclass:: ddtrace.Pin
     :members:
     :special-members: __init__
@@ -649,6 +505,8 @@ API
 ^^^^^^^^^^^^^
 
 .. autofunction:: ddtrace.monkey.patch_all
+
+.. _patch:
 
 ``patch``
 ^^^^^^^^^

@@ -15,21 +15,21 @@ class RuntimeTagCollector(ValueCollector):
 
 
 class TracerTagCollector(RuntimeTagCollector):
-    """ Tag collector for the ddtrace Tracer
-    """
+    """Tag collector for the ddtrace Tracer"""
 
     required_modules = ["ddtrace"]
 
     def collect_fn(self, keys):
         ddtrace = self.modules.get("ddtrace")
-        tags = [(SERVICE, service) for service in ddtrace.tracer._services]
+        # make sure to copy _services to avoid RuntimeError: Set changed size during iteration
+        tags = [(SERVICE, service) for service in list(ddtrace.tracer._services)]
         if ENV_KEY in ddtrace.tracer.tags:
             tags.append((ENV_KEY, ddtrace.tracer.tags[ENV_KEY]))
         return tags
 
 
 class PlatformTagCollector(RuntimeTagCollector):
-    """ Tag collector for the Python interpreter implementation.
+    """Tag collector for the Python interpreter implementation.
 
     Tags collected:
     - ``lang_interpreter``:

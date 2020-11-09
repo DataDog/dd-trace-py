@@ -2,6 +2,7 @@ from django.conf.urls import url
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.http import HttpResponse
+from django.views.generic import TemplateView
 from django.views.decorators.cache import cache_page
 from django.urls import include, path, re_path
 
@@ -34,6 +35,7 @@ urlpatterns = [
     url(r"^simple/$", views.BasicView.as_view()),
     url(r"^users/$", views.UserList.as_view(), name="users-list"),
     url(r"^cached-template/$", views.TemplateCachedUserList.as_view(), name="cached-template-list"),
+    url(r"^safe-template/$", views.SafeTemplateUserList.as_view(), name="safe-template-list"),
     url(r"^cached-users/$", cache_page(60)(views.UserList.as_view()), name="cached-users-list"),
     url(r"^fail-view/$", views.ForbiddenView.as_view(), name="forbidden-view"),
     url(r"^authenticated/$", authenticated_view, name="authenticated-view"),
@@ -49,4 +51,9 @@ urlpatterns = [
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),
+    # This must precede composed-view.
+    url(r"^some-static-view/$", TemplateView.as_view(template_name="my-template.html")),
+    url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
+    url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
+    url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
 ]

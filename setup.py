@@ -2,7 +2,7 @@ import os
 import platform
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 
 # ORDER MATTERS
@@ -79,13 +79,13 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
@@ -101,11 +101,35 @@ def get_exts_for(name):
         return []
 
 
-if platform.uname()[0] != "Windows":
-    extra_compile_args = ["-DPy_BUILD_CORE"]
+if sys.byteorder == "big":
+    encoding_macros = [("__BIG_ENDIAN__", "1")]
 else:
-    extra_compile_args = []
+    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
+
+if platform.system() == "Windows":
+    encoding_libraries = ["ws2_32"]
+    extra_compile_args = []
+    debug_compile_args = []
+else:
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+    if "DD_COMPILE_DEBUG" in os.environ and platform.system() == "Linux":
+        debug_compile_args = ["-g", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+    else:
+        debug_compile_args = []
+
+
+if sys.version_info[:2] >= (3, 4):
+    ext_modules = [
+        Extension(
+            "ddtrace.profiling.collector._memalloc",
+            sources=["ddtrace/profiling/collector/_memalloc.c"],
+            extra_compile_args=debug_compile_args,
+        ),
+    ]
+else:
+    ext_modules = []
 
 # Base `setup()` kwargs without any C-extension registering
 setup(
@@ -122,11 +146,9 @@ setup(
         python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
         # enum34 is an enum backport for earlier versions of python
         # funcsigs backport required for vendored debtcollector
-        # encoding using msgpack
         install_requires=[
             "enum34; python_version<'3.4'",
             "funcsigs>=1.0.0; python_version=='2.7'",
-            "msgpack>=0.5.0",
             "protobuf>=3",
             "intervaltree",
             "tenacity>=5",
@@ -152,13 +174,29 @@ setup(
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
         ],
         use_scm_version=True,
-        setup_requires=["setuptools_scm", "cython"],
-        ext_modules=cythonize(
+        setup_requires=["setuptools_scm[toml]>=4", "cython"],
+        ext_modules=ext_modules
+        + cythonize(
             [
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
+                ),
+                Extension(
+                    "ddtrace.internal._encoding",
+                    ["ddtrace/internal/_encoding.pyx"],
+                    include_dirs=["."],
+                    libraries=encoding_libraries,
+                    define_macros=encoding_macros,
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._queue",
+                    sources=["ddtrace/internal/_queue.pyx"],
+                    language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
@@ -172,7 +210,19 @@ setup(
                     language="c",
                 ),
                 Cython.Distutils.Extension(
-                    "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
+                    "ddtrace.profiling.collector._threading",
+                    sources=["ddtrace/profiling/collector/_threading.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._build",
+                    sources=["ddtrace/profiling/_build.pyx"],
+                    language="c",
                 ),
             ],
             compile_time_env={

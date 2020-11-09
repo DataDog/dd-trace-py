@@ -13,20 +13,12 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, mongo as mongox, net as netx
 from ...internal.logger import get_logger
 from ...settings import config
-from ...utils.deprecation import deprecated
 from .parse import parse_spec, parse_query, parse_msg
 
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
 log = get_logger(__name__)
-
-
-@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
-def trace_mongo_client(client, tracer, service=mongox.SERVICE):
-    traced_client = TracedMongoClient(client)
-    ddtrace.Pin(service=service, tracer=tracer).onto(traced_client)
-    return traced_client
 
 
 class TracedMongoClient(ObjectProxy):
@@ -137,7 +129,7 @@ class TracedServer(ObjectProxy):
             )
 
             if result and result.address:
-                _set_address_tags(span, result.address)
+                set_address_tags(span, result.address)
             return result
         finally:
             span.finish()
@@ -160,7 +152,7 @@ class TracedServer(ObjectProxy):
             )
 
             if result and result.address:
-                _set_address_tags(span, result.address)
+                set_address_tags(span, result.address)
             return result
         finally:
             span.finish()
@@ -243,7 +235,7 @@ class TracedSocket(ObjectProxy):
         )
 
         if self.address:
-            _set_address_tags(s, self.address)
+            set_address_tags(s, self.address)
         return s
 
 
@@ -275,7 +267,7 @@ def normalize_filter(f=None):
         return {}
 
 
-def _set_address_tags(span, address):
+def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
         span.set_tag(netx.TARGET_HOST, address[0])

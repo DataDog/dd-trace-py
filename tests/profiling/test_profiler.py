@@ -11,7 +11,7 @@ def test_status():
     assert repr(p.status) == "STOPPED"
     p.start()
     assert repr(p.status) == "RUNNING"
-    p.stop()
+    p.stop(flush=False)
     assert repr(p.status) == "STOPPED"
 
 
@@ -31,18 +31,19 @@ def test_multiple_stop():
     """
     p = profiler.Profiler()
     p.start()
-    p.stop()
-    p.stop()
+    p.stop(flush=False)
+    p.stop(flush=False)
 
 
 @pytest.mark.parametrize(
-    "service_name_var", ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"),
+    "service_name_var",
+    ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"),
 )
 def test_default_from_env(service_name_var, monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")
     monkeypatch.setenv(service_name_var, "foobar")
     prof = profiler.Profiler()
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.service == "foobar"
             break
@@ -54,7 +55,7 @@ def test_service_api(monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler(service="foobar")
     assert prof.service == "foobar"
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.service == "foobar"
             break
@@ -66,7 +67,7 @@ def test_tracer_api(monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler(tracer=ddtrace.tracer)
     assert prof.tracer == ddtrace.tracer
-    for collector in prof.collectors:
+    for collector in prof._profiler._collectors:
         if isinstance(collector, stack.StackCollector):
             assert collector.tracer == ddtrace.tracer
             break
@@ -81,7 +82,7 @@ def test_env_default(monkeypatch):
     prof = profiler.Profiler()
     assert prof.env == "staging"
     assert prof.version == "123"
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.env == "staging"
             assert exporter.version == "123"
@@ -94,7 +95,7 @@ def test_env_api():
     prof = profiler.Profiler(env="staging", version="123")
     assert prof.env == "staging"
     assert prof.version == "123"
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.env == "staging"
             assert exporter.version == "123"
@@ -104,12 +105,13 @@ def test_env_api():
 
 
 @pytest.mark.parametrize(
-    "name_var", ("DD_API_KEY", "DD_PROFILING_API_KEY"),
+    "name_var",
+    ("DD_API_KEY", "DD_PROFILING_API_KEY"),
 )
 def test_env_api_key(name_var, monkeypatch):
     monkeypatch.setenv(name_var, "foobar")
     prof = profiler.Profiler()
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key == "foobar"
             assert exporter.endpoint == "https://intake.profile.datadoghq.com/v1/input"
@@ -120,7 +122,7 @@ def test_env_api_key(name_var, monkeypatch):
 
 def test_env_no_api_key():
     prof = profiler.Profiler()
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key is None
             assert exporter.endpoint == "http://localhost:8126/profiling/v1/input"
@@ -133,7 +135,7 @@ def test_env_endpoint_url(monkeypatch):
     monkeypatch.setenv("DD_AGENT_HOST", "foobar")
     monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
     prof = profiler.Profiler()
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key is None
             assert exporter.endpoint == "http://foobar:123/profiling/v1/input"
@@ -146,10 +148,19 @@ def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    for exporter in prof.exporters:
+    for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key == "123"
             assert exporter.endpoint == "https://intake.profile.datadoghq.eu/v1/input"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
+
+
+def test_copy():
+    p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
+    c = p.copy()
+    assert p.env == c.env
+    assert p.version == c.version
+    assert p.service == c.service
+    assert p.tracer == c.tracer

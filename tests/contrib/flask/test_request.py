@@ -7,8 +7,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
 
 from . import BaseFlaskTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
-
+from ... import assert_is_measured, assert_span_http_status_code
 
 base_exception_name = 'builtins.Exception'
 if PY2:
@@ -688,7 +687,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         spans = self.get_spans()
 
-        if flask_version >= (0, 12, 0):
+        if flask_version >= (0, 12):
             self.assertEqual(len(spans), 11)
 
             # Assert the order of the spans created
@@ -710,7 +709,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             )
         else:
             self.assertEqual(len(spans), 10)
-
             # Assert the order of the spans created
             self.assertListEqual(
                 [

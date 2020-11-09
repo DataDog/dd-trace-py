@@ -1,4 +1,4 @@
-"""Patch librairies to be automatically instrumented.
+"""Patch libraries to be automatically instrumented.
 
 It can monkey patch supported standard libraries and third party modules.
 A patched module will automatically report spans with its default configuration.
@@ -7,6 +7,7 @@ A library instrumentation can be configured (for instance, to report as another 
 using Pin. For that, check its documentation.
 """
 import importlib
+import os
 import sys
 import threading
 
@@ -14,13 +15,14 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
 from .settings import config
+from .utils import formats
 
 
 log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
-    "asyncio": False,
+    "asyncio": True,
     "boto": True,
     "botocore": True,
     "bottle": False,
@@ -43,6 +45,7 @@ PATCH_MODULES = {
     "redis": True,
     "rediscluster": True,
     "requests": True,
+    "sanic": True,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
@@ -55,12 +58,15 @@ PATCH_MODULES = {
     "mako": True,
     "flask": True,
     "kombu": False,
+    "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": False,
     "pylons": False,
     "pyramid": False,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     "logging": config.logs_injection,
+    "pynamodb": True,
+    "pyodbc": True,
 }
 
 _LOCK = threading.Lock()
@@ -72,16 +78,25 @@ _PATCHED_MODULES = set()
 # DEV: This ensures we do not patch a module until it is needed
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
+    "aiohttp": ("aiohttp",),
+    "aiobotocore": ("aiobotocore",),
     "celery": ("celery",),
     "flask": ("flask, "),
     "gevent": ("gevent",),
     "requests": ("requests",),
+    "botocore": ("botocore",),
+    "elasticsearch": ("elasticsearch",),
+    "pynamodb": ("pynamodb",),
 }
 
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
 
+    pass
+
+
+class ModuleNotFoundException(PatchException):
     pass
 
 
@@ -100,11 +115,27 @@ def _on_import_factory(module, raise_errors=True):
 def patch_all(**patch_modules):
     """Automatically patches all available modules.
 
+    In addition to ``patch_modules``, an override can be specified via an
+    environment variable, ``DD_TRACE_<module>_ENABLED`` for each module.
+
+    ``patch_modules`` have the highest precedence for overriding.
+
     :param dict patch_modules: Override whether particular modules are patched or not.
 
         >>> patch_all(redis=False, cassandra=False)
     """
     modules = PATCH_MODULES.copy()
+
+    # The enabled setting can be overridden by environment variables
+    for module, enabled in modules.items():
+        env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+        if env_var not in os.environ:
+            continue
+
+        override_enabled = formats.asbool(os.environ[env_var])
+        modules[module] = override_enabled
+
+    # Arguments take precedence over the environment and the defaults.
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
@@ -138,7 +169,10 @@ def patch(raise_errors=True, **patch_modules):
 
     patched_modules = get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)", len(patched_modules), len(modules), ",".join(patched_modules),
+        "patched %s/%s modules (%s)",
+        len(patched_modules),
+        len(modules),
+        ",".join(patched_modules),
     )
 
 
@@ -149,6 +183,10 @@ def patch_module(module, raise_errors=True):
     """
     try:
         return _patch_module(module)
+    except ModuleNotFoundException:
+        if raise_errors:
+            raise
+        return False
     except Exception:
         if raise_errors:
             raise
@@ -176,14 +214,15 @@ def _patch_module(module):
 
         try:
             imported_module = importlib.import_module(path)
-            imported_module.patch()
         except ImportError:
             # if the import fails, the integration is not available
             raise PatchException("integration '%s' not available" % path)
-        except AttributeError:
+        else:
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
-            raise PatchException("module '%s' not installed" % module)
+            if not hasattr(imported_module, "patch"):
+                raise ModuleNotFoundException("module '%s' not installed" % module)
 
-        _PATCHED_MODULES.add(module)
-        return True
+            imported_module.patch()
+            _PATCHED_MODULES.add(module)
+            return True

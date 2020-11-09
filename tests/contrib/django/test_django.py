@@ -1,18 +1,22 @@
+import itertools
 import django
+from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
 import os
 import pytest
 
 from ddtrace import config
+from ddtrace.compat import string_type, binary_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
 
-from tests.base import BaseTestCase
+from tests import override_config, override_global_config, override_http_config, assert_dict_issuperset
 from tests.opentracer.utils import init_tracer
-from ...util import assert_dict_issuperset
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
@@ -146,7 +150,7 @@ def test_http_header_tracing_disabled(client, test_spans):
 
 
 def test_http_header_tracing_enabled(client, test_spans):
-    with BaseTestCase.override_config("django", {}):
+    with override_config("django", {}):
         config.django.http.trace_headers(["my-header", "my-response-header"])
 
         headers = {
@@ -188,7 +192,10 @@ def test_v2XX_middleware(client, test_spans):
     # Assert common span structure
     for span in middleware_spans:
         span.assert_matches(
-            name="django.middleware", service="django", error=0, span_type=None,
+            name="django.middleware",
+            service="django",
+            error=0,
+            span_type=None,
         )
 
     span_resources = {
@@ -285,7 +292,9 @@ def test_django_request_not_found(client, test_spans):
     render_span.assert_matches(
         name="django.template.render",
         resource="django.template.base.Template.render",
-        meta={"django.template.engine.class": "django.template.engine.Engine",},
+        meta={
+            "django.template.engine.class": "django.template.engine.Engine",
+        },
     )
 
 
@@ -394,7 +403,10 @@ def test_request_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.index", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.index",
+        error=0,
     )
 
 
@@ -422,7 +434,10 @@ def test_template_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -440,7 +455,10 @@ def test_template_simple_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_simple_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_simple_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -458,7 +476,10 @@ def test_template_list_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_list_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_list_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -477,19 +498,6 @@ def test_middleware_trace_function_based_view(client, test_spans):
         assert span.resource == "GET ^fn-view/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.function_view"
-
-
-def test_middleware_trace_callable_view(client, test_spans):
-    # ensures that the internals are properly traced when using callable views
-    assert client.get("/feed-view/").status_code == 200
-
-    span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/feed-view/"
-    if django.VERSION >= (2, 2, 0):
-        assert span.resource == "GET ^feed-view/$"
-    else:
-        assert span.resource == "GET tests.contrib.django.views.FeedView"
 
 
 def test_middleware_trace_errors(client, test_spans):
@@ -518,19 +526,6 @@ def test_middleware_trace_staticmethod(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.StaticMethodView"
 
 
-def test_middleware_trace_partial_based_view(client, test_spans):
-    # ensures that the internals are properly traced when using a function views
-    assert client.get("/partial-view/").status_code == 200
-
-    span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/partial-view/"
-    if django.VERSION >= (2, 2, 0):
-        assert span.resource == "GET ^partial-view/$"
-    else:
-        assert span.resource == "GET partial"
-
-
 def test_simple_view_get(client, test_spans):
     # The `get` method of a view should be traced
     assert client.get("/simple/").status_code == 200
@@ -540,7 +535,8 @@ def test_simple_view_get(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.get", error=0,
+        resource="tests.contrib.django.views.BasicView.get",
+        error=0,
     )
 
 
@@ -554,7 +550,8 @@ def test_simple_view_post(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.post", error=0,
+        resource="tests.contrib.django.views.BasicView.post",
+        error=0,
     )
 
 
@@ -567,7 +564,8 @@ def test_simple_view_delete(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.delete", error=0,
+        resource="tests.contrib.django.views.BasicView.delete",
+        error=0,
     )
 
 
@@ -581,7 +579,8 @@ def test_simple_view_options(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.options", error=0,
+        resource="django.views.generic.base.View.options",
+        error=0,
     )
 
 
@@ -594,7 +593,8 @@ def test_simple_view_head(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.head", error=0,
+        resource="tests.contrib.django.views.BasicView.head",
+        error=0,
     )
 
 
@@ -1049,7 +1049,7 @@ Configuration tests
 
 
 def test_service_can_be_overridden(client, test_spans):
-    with BaseTestCase.override_config("django", dict(service_name="test-service")):
+    with override_config("django", dict(service_name="test-service")):
         response = client.get("/")
         assert response.status_code == 200
 
@@ -1062,7 +1062,7 @@ def test_service_can_be_overridden(client, test_spans):
 
 @pytest.mark.django_db
 def test_database_service_prefix_can_be_overridden(test_spans):
-    with BaseTestCase.override_config("django", dict(database_service_name_prefix="my-")):
+    with override_config("django", dict(database_service_name_prefix="my-")):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1074,10 +1074,38 @@ def test_database_service_prefix_can_be_overridden(test_spans):
     assert span.service == "my-defaultdb"
 
 
+@pytest.mark.django_db
+def test_database_service_can_be_overridden(test_spans):
+    with override_config("django", dict(database_service_name="django-db")):
+        from django.contrib.auth.models import User
+
+        User.objects.count()
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "django-db"
+
+
+@pytest.mark.django_db
+def test_database_service_prefix_precedence(test_spans):
+    with override_config("django", dict(database_service_name="django-db", database_service_name_prefix="my-")):
+        from django.contrib.auth.models import User
+
+        User.objects.count()
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == "django-db"
+
+
 def test_cache_service_can_be_overridden(test_spans):
     cache = django.core.cache.caches["default"]
 
-    with BaseTestCase.override_config("django", dict(cache_service_name="test-cache-service")):
+    with override_config("django", dict(cache_service_name="test-cache-service")):
         cache.get("missing_key")
 
     spans = test_spans.get_spans()
@@ -1106,7 +1134,12 @@ def test_django_request_distributed(client, test_spans):
     # DEV: Do not use `test_spans.get_root_span()` since that expects `parent_id is None`
     root = test_spans.find_span(name="django.request")
     root.assert_matches(
-        name="django.request", trace_id=12345, parent_id=78910, metrics={SAMPLING_PRIORITY_KEY: USER_KEEP,},
+        name="django.request",
+        trace_id=12345,
+        parent_id=78910,
+        metrics={
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
     )
 
 
@@ -1122,7 +1155,7 @@ def test_django_request_distributed_disabled(client, test_spans):
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
         get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
     }
-    with BaseTestCase.override_config("django", dict(distributed_tracing_enabled=False)):
+    with override_config("django", dict(distributed_tracing_enabled=False)):
         resp = client.get("/", **headers)
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
@@ -1140,7 +1173,7 @@ def test_analytics_global_off_integration_default(client, test_spans):
         When an integration trace search is not set and sample rate is set and globally trace search is disabled
             We expect the root span to not include tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
+    with override_global_config(dict(analytics_enabled=False)):
         assert client.get("/users/").status_code == 200
 
     req_span = test_spans.get_root_span()
@@ -1155,7 +1188,7 @@ def test_analytics_global_on_integration_default(client, test_spans):
         When an integration trace search is not event sample rate is not set and globally trace search is enabled
             We expect the root span to have the appropriate tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=True)):
+    with override_global_config(dict(analytics_enabled=True)):
         assert client.get("/users/").status_code == 200
 
     req_span = test_spans.get_root_span()
@@ -1170,8 +1203,8 @@ def test_analytics_global_off_integration_on(client, test_spans):
         When an integration trace search is enabled and sample rate is set and globally trace search is disabled
             We expect the root span to have the appropriate tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
-        with BaseTestCase.override_config("django", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+    with override_global_config(dict(analytics_enabled=False)):
+        with override_config("django", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             assert client.get("/users/").status_code == 200
 
     sp_request = test_spans.get_root_span()
@@ -1188,8 +1221,8 @@ def test_analytics_global_off_integration_on_and_none(client, test_spans):
         Globally trace search is disabled
             We expect the root span to have the appropriate tag
     """
-    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
-        with BaseTestCase.override_config("django", dict(analytics_enabled=False, analytics_sample_rate=1.0)):
+    with override_global_config(dict(analytics_enabled=False)):
+        with override_config("django", dict(analytics_enabled=False, analytics_sample_rate=1.0)):
             assert client.get("/users/").status_code == 200
 
     sp_request = test_spans.get_root_span()
@@ -1198,7 +1231,7 @@ def test_analytics_global_off_integration_on_and_none(client, test_spans):
 
 
 def test_trace_query_string_integration_enabled(client, test_spans):
-    with BaseTestCase.override_http_config("django", dict(trace_query_string=True)):
+    with override_http_config("django", dict(trace_query_string=True)):
         assert client.get("/?key1=value1&key2=value2").status_code == 200
 
     sp_request = test_spans.get_root_span()
@@ -1207,7 +1240,7 @@ def test_trace_query_string_integration_enabled(client, test_spans):
 
 
 def test_disabled_caches(client, test_spans):
-    with BaseTestCase.override_config("django", dict(instrument_caches=False)):
+    with override_config("django", dict(instrument_caches=False)):
         cache = django.core.cache.caches["default"]
         cache.get("missing_key")
 
@@ -1293,18 +1326,6 @@ def test_urlpatterns_path(client, test_spans):
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="include only exists in >=2.0.0")
-def test_urlpatterns_include(client, test_spans):
-    """
-    When a view is specified using `django.urls.include`
-        The view is traced
-    """
-    assert client.get("/include/test/").status_code == 200
-
-    # Ensure the view was traced
-    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
-
-
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="repath only exists in >=2.0.0")
 def test_urlpatterns_repath(client, test_spans):
     """
@@ -1340,7 +1361,7 @@ def test_user_name_excluded(client, test_spans):
     When making a request to a Django app with user name excluded
         We correctly omit the `django.user.name` tag to the root span
     """
-    with BaseTestCase.override_config("django", dict(include_user_name=False)):
+    with override_config("django", dict(include_user_name=False)):
         resp = client.get("/authenticated/")
     assert resp.status_code == 200
 
@@ -1348,3 +1369,113 @@ def test_user_name_excluded(client, test_spans):
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.meta
     assert root.meta.get("django.user.is_authenticated") == "True"
+
+
+def test_django_use_handler_resource_format(client, test_spans):
+    """
+    Test that the specified format is used over the default.
+    """
+    with override_config("django", dict(use_handler_resource_format=True)):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+        resource = "GET tests.contrib.django.views.index"
+
+        root.assert_matches(resource=resource, parent_id=None, span_type="http")
+
+
+def test_custom_dispatch_template_view(client, test_spans):
+    """
+    Test that a template view with a custom dispatch method inherited from a
+    mixin is called.
+    """
+    resp = client.get("/composed-template-view/")
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom dispatch 2"
+
+    spans = test_spans.get_spans()
+    assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
+        "tests.contrib.django.views.CustomDispatchMixin.dispatch",
+        "tests.contrib.django.views.AnotherCustomDispatchMixin.dispatch",
+        "django.views.generic.base.View.dispatch",
+    ]
+
+
+def test_custom_dispatch_get_view(client, test_spans):
+    """
+    Test that a get method on a view with a custom dispatch method inherited
+    from a mixin is called.
+    """
+    resp = client.get("/composed-get-view/")
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom get"
+
+    spans = test_spans.get_spans()
+    assert [s.resource for s in spans if s.resource.endswith("dispatch")] == [
+        "tests.contrib.django.views.CustomDispatchMixin.dispatch",
+        "django.views.generic.base.View.dispatch",
+    ]
+    assert [s.resource for s in spans if s.resource.endswith("get")] == [
+        "tests.contrib.django.views.ComposedGetView.get",
+        "tests.contrib.django.views.CustomGetView.get",
+    ]
+
+
+def test_view_mixin(client, test_spans):
+    from tests.contrib.django import views
+
+    assert views.DISPATCH_CALLED is False
+    resp = client.get("/composed-view/")
+    assert views.DISPATCH_CALLED is True
+
+    assert resp.status_code == 200
+    assert resp.content.strip() == b"custom dispatch"
+
+
+def test_template_view_patching():
+    """
+    Test to ensure that patching a view does not give it properties it did not have before
+    """
+    # DEV: `vars(cls)` will give you only the properties defined on that class,
+    #      it will not traverse through __mro__ to find the property from a parent class
+
+    # We are not starting with a "dispatch" property
+    assert "dispatch" not in vars(TemplateView)
+
+    # Manually call internal method for patching
+    instrument_view(django, TemplateView)
+    assert "dispatch" not in vars(TemplateView)
+
+    # Patch via `as_view()`
+    TemplateView.as_view()
+    assert "dispatch" not in vars(TemplateView)
+
+
+class _HttpRequest(django.http.HttpRequest):
+    @property
+    def scheme(self):
+        return b"http"
+
+
+@pytest.mark.parametrize(
+    "request_cls,request_path,http_host",
+    itertools.product(
+        [django.http.HttpRequest, _HttpRequest],
+        [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        [u"testserver", b"testserver"],
+    ),
+)
+def test_helper_get_request_uri(request_cls, request_path, http_host):
+    request = request_cls()
+    request.path = request_path
+    request.META = {"HTTP_HOST": http_host}
+    request_uri = get_request_uri(request)
+    assert (
+        request_cls == _HttpRequest
+        and isinstance(request_path, binary_type)
+        and isinstance(http_host, binary_type)
+        and isinstance(request_uri, binary_type)
+    ) or isinstance(request_uri, string_type)

@@ -10,16 +10,13 @@ from ddtrace.contrib.pymysql.patch import patch, unpatch
 
 # testing
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...util import assert_dict_issuperset
-from ...utils import assert_is_measured
+from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 from ...contrib.config import MYSQL_CONFIG
 
 
 class PyMySQLCore(object):
     """PyMySQL test case reuses the connection across tests"""
     conn = None
-    TEST_SERVICE = 'test-pymysql'
 
     DB_INFO = {
         'out.host': MYSQL_CONFIG.get('host'),
@@ -65,7 +62,7 @@ class PyMySQLCore(object):
 
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "pymysql"
         assert span.name == 'pymysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
@@ -87,7 +84,7 @@ class PyMySQLCore(object):
 
             span = spans[0]
             assert_is_measured(span)
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pymysql"
             assert span.name == 'pymysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
@@ -231,7 +228,7 @@ class PyMySQLCore(object):
         # can expect the last closed span to be our proc.
         span = spans[len(spans) - 2]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "pymysql"
         assert span.name == 'pymysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
@@ -263,7 +260,7 @@ class PyMySQLCore(object):
         assert ot_span.name == 'mysql_op'
 
         assert_is_measured(dd_span)
-        assert dd_span.service == self.TEST_SERVICE
+        assert dd_span.service == "pymysql"
         assert dd_span.name == 'pymysql.query'
         assert dd_span.span_type == 'sql'
         assert dd_span.error == 0
@@ -296,7 +293,7 @@ class PyMySQLCore(object):
             assert ot_span.name == 'mysql_op'
 
             assert_is_measured(dd_span)
-            assert dd_span.service == self.TEST_SERVICE
+            assert dd_span.service == "pymysql"
             assert dd_span.name == 'pymysql.query'
             assert dd_span.span_type == 'sql'
             assert dd_span.error == 0
@@ -314,7 +311,7 @@ class PyMySQLCore(object):
         spans = writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "pymysql"
         assert span.name == 'pymysql.connection.commit'
 
     def test_rollback(self):
@@ -324,7 +321,7 @@ class PyMySQLCore(object):
         spans = writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "pymysql"
         assert span.name == 'pymysql.connection.rollback'
 
     def test_analytics_default(self):
@@ -375,7 +372,7 @@ class PyMySQLCore(object):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
-class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
+class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     def _get_conn_tracer(self):
         if not self.conn:
             self.conn = pymysql.connect(**MYSQL_CONFIG)
@@ -383,10 +380,9 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
-            assert pin.service == 'pymysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
+            pin.clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -403,7 +399,7 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             conn = pymysql.connect(**MYSQL_CONFIG)
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(conn)
+            pin.clone(tracer=self.tracer).onto(conn)
             assert not conn._closed
 
             cursor = conn.cursor()
@@ -414,7 +410,7 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             assert len(spans) == 1
 
             span = spans[0]
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pymysql"
             assert span.name == 'pymysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
@@ -432,3 +428,37 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             conn.close()
 
         patch()
+
+    def test_user_pin_override(self):
+        conn, tracer = self._get_conn_tracer()
+        pin = Pin.get_from(conn)
+        pin.clone(service="pin-svc", tracer=self.tracer).onto(conn)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+
+        span = spans[0]
+        assert span.service == "pin-svc"
+
+    def test_context_manager(self):
+        conn, tracer = self._get_conn_tracer()
+        # connection doesn't support context manager usage
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            assert len(rows) == 1
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYMYSQL_SERVICE="mysvc"))
+    def test_user_specified_service_integration(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.rollback()
+        spans = writer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"

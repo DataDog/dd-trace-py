@@ -5,7 +5,7 @@ s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
-cimg_base_image: &cimg_base_image cimg/base:2020.01
+cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
@@ -17,9 +17,10 @@ datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
-cassandra_image: &cassandra_image spotify/cassandra:latest
+cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
+localstack_image: &localstack_image localstack/localstack:0.12.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
 mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
@@ -43,6 +44,10 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.6.5
 
+contrib_job: &contrib_job
+  executor: ddtrace_dev
+  parallelism: 4
+
 commands:
   deploy_docs:
     description: "Deploy docs"
@@ -53,9 +58,8 @@ commands:
         type: string
         default: *s3_bucket
     steps:
-      - setup_tox
+      - build_docs
       - run: pip install awscli
-      - run: tox -e docs
       - run:
           name: Release docs
           command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
@@ -81,7 +85,7 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
-      - run: pip install tox
+      - run: pip install -U tox
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -103,13 +107,30 @@ commands:
           paths:
             - ".tox"
 
-  save_results:
-    description: "Persist tox *.results files to /tmp directory"
+  run_test:
+    description: "Run tests matching a pattern"
+    parameters:
+      pattern:
+        type: string
+        default: ""
+      wait:
+        type: string
+        default: ""
     steps:
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - "*.results"
+      - attach_workspace:
+          at: .
+      - checkout
+      - run: pip3 install riot
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: pip install tox && tox -e 'wait' << parameters.wait >>
+      - run:
+          name: "Running tests matching '<< parameters.pattern >>'"
+          command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -133,7 +154,6 @@ commands:
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
-      - save_results
       - save_tox_cache
 
   test_build:
@@ -143,6 +163,14 @@ commands:
       - run:
           name: Run test build
           command: .circleci/scripts/test_build.sh
+
+  build_docs:
+    steps:
+      - setup_tox
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libenchant-dev
+      - run: tox -e docs
 
 executors:
   cimg_base:
@@ -217,18 +245,37 @@ jobs:
   black:
     executor: python38
     steps:
+      - run_test:
+          pattern: "black"
+
+  ccheck:
+    executor: cimg_base
+    steps:
       - checkout
-      - setup_tox
-      - run: tox -e 'black' --result-json /tmp/black.results
-      - save_results
+      - run: sudo apt-get update
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
+      - run: scripts/cformat.sh
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   flake8:
     executor: python38
     steps:
+      - run_test:
+          pattern: "flake8"
+
+  build_base_venvs:
+    executor: ddtrace_dev
+    parallelism: 6
+    steps:
       - checkout
-      - setup_tox
-      - run: tox -e 'flake8' --result-json /tmp/flake8.results
-      - save_results
+      - run: pip install riot
+      - run:
+          name: "Generate base virtual environments."
+          command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "."
 
   build-docker-ci-image:
     executor: cimg_base
@@ -289,31 +336,26 @@ jobs:
       PYTHON_VERSION: 3.5.4
 
   tracer:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-tracer'
-
-  internal:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-internal'
+      - run_test:
+          pattern: "tracer"
 
   opentracer:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
   profile:
-    executor: ddtrace_dev
+    <<: *contrib_job
+    parallelism: 6
     steps:
       - run_tox_scenario:
           pattern: '^py..-profile'
 
   integration:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
         environment:
@@ -323,20 +365,34 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-integration'
 
+  vendor:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-vendor'
+
   futures:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^futures_contrib-'
 
   boto:
-    executor: ddtrace_dev
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^boto\(core\)\?_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d localstack testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
 
   ddtracerun:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -344,50 +400,50 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-ddtracerun$'
 
-  test_utils:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_utils$'
-
   test_logging:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^py..-test_logging$'
 
   asyncio:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^asyncio_contrib-'
 
   pylons:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^pylons_contrib-'
 
   aiohttp:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^aiohttp_contrib-'
 
+  asgi:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^asgi_contrib-'
+
   tornado:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^tornado_contrib-'
 
   bottle:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^bottle_contrib\(_autopatch\)\?-'
 
   cassandra:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
         environment:
@@ -402,7 +458,7 @@ jobs:
           pattern: '^cassandra_contrib-'
 
   celery:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -411,7 +467,7 @@ jobs:
           pattern: '^celery_contrib-'
 
   consul:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *consul_image
@@ -420,13 +476,13 @@ jobs:
           pattern: '^consul_contrib-'
 
   dogpile_cache:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^dogpile_contrib-'
 
   elasticsearch:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
@@ -435,24 +491,25 @@ jobs:
           pattern: '^elasticsearch_contrib-'
 
   falcon:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^falcon_contrib'
 
   django:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
-      - *datadog_agent
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^django_contrib'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^django_contrib-'
 
   djangorestframework:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -463,7 +520,7 @@ jobs:
           pattern: '^django_drf_contrib'
 
   flask:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *redis_image
@@ -473,31 +530,31 @@ jobs:
           pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
 
   gevent:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
   httplib:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^httplib_contrib'
 
   grpc:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^grpc_contrib-'
 
   molten:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^molten_contrib-'
 
   mysqlconnector:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -507,7 +564,7 @@ jobs:
           pattern: '^mysql_contrib-.*-mysqlconnector'
 
   mysqlpython:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -527,7 +584,7 @@ jobs:
           pattern: '^mysqldb_contrib-.*-mysqldb'
 
   pymysql:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
@@ -537,7 +594,7 @@ jobs:
           pattern: '^pymysql_contrib-'
 
   pylibmc:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -546,7 +603,7 @@ jobs:
           pattern: '^pylibmc_contrib-'
 
   pymemcache:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *memcached_image
@@ -555,7 +612,7 @@ jobs:
           pattern: '^pymemcache_contrib\(_autopatch\)\?-'
 
   mongoengine:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
@@ -564,22 +621,36 @@ jobs:
           pattern: '^mongoengine_contrib-'
 
   pymongo:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *mongo_image
     steps:
+      - run_test:
+          pattern: "pymongo"
+
+  pynamodb:
+    <<: *contrib_job
+    steps:
       - run_tox_scenario:
-          pattern: '^pymongo_contrib-'
+          pattern: '^pynamodb_contrib-'
+
+  pyodbc:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^pyodbc_contrib-'
 
   pyramid:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^pyramid_contrib\(_autopatch\)\?-'
 
   requests:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *httpbin_local
@@ -588,13 +659,25 @@ jobs:
           pattern: '^requests_contrib\(_autopatch\)\?-'
 
   requestsgevent:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^requests_gevent_contrib-'
 
+  sanic:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^sanic_contrib-'
+  
+  starlette:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^starlette_contrib-'
+
   sqlalchemy:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -605,13 +688,13 @@ jobs:
           pattern: '^sqlalchemy_contrib-'
 
   dbapi:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^dbapi_contrib-'
 
   psycopg:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -621,7 +704,7 @@ jobs:
           pattern: '^psycopg_contrib-'
 
   aiobotocore:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
@@ -630,7 +713,7 @@ jobs:
           pattern: '^aiobotocore_contrib'
 
   aiopg:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -640,16 +723,19 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   redis:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^redis_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
 
   rediscluster:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *rediscluster_image
@@ -661,7 +747,7 @@ jobs:
           pattern: '^rediscluster_contrib-'
 
   vertica:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *vertica_image
@@ -675,7 +761,7 @@ jobs:
           pattern: '^vertica_contrib-'
 
   kombu:
-    executor: ddtrace_dev
+    <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -685,16 +771,10 @@ jobs:
           pattern: '^kombu_contrib-'
 
   sqlite3:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^sqlite3_contrib-'
-
-  unit_tests:
-    executor: ddtrace_dev
-    steps:
-      - run_tox_scenario:
-          pattern: '^unit_tests-'
 
   benchmarks:
     executor: ddtrace_dev
@@ -705,21 +785,8 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
-      - store_test_results:
-          path: /tmp/test-reports
-      - store_artifacts:
-          path: /tmp/test-reports
-      - save_results
+            tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
       - save_tox_cache
-
-  build_wheels:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - run: pip install cython
-      - run: scripts/build-dist
 
   deploy_master:
     # build the master branch releasing development docs and wheels
@@ -739,30 +806,30 @@ jobs:
       - deploy_wheels
 
   jinja2:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^jinja2_contrib-'
 
   mako:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^mako_contrib-'
 
   algoliasearch:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_tox_scenario:
           pattern: '^algoliasearch_contrib-'
 
   build_docs:
     # deploy official documentation
-    executor: python38
+    <<: *machine_executor
     steps:
       - checkout
-      - setup_tox
-      - run: tox -e docs
+      - *pyenv-set-global
+      - build_docs
       - run:
           command: |
              mkdir -p /tmp/docs
@@ -778,28 +845,78 @@ jobs:
       - deploy_docs:
           s3_dir: *s3_dir_prod
 
-  verify_all_tests_ran:
-    executor: python38
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - setup_tox
-      - run: ls /tmp/workspace/*
-        # debug: shows how many time each test was executed
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq -c | sort -rn
-        # list all executed test
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | grep -v .package | sed 's/"//g' | sort | uniq | tee all_executed_tests
-        # list all tests in tox.ini
-      - run: tox -l | grep -v -E "^(wait$|\.)" | sort > all_tests
-        # checks that all tests were executed
-      - run: diff -u all_tests all_executed_tests
-
-
 requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
+    - ccheck
+    - build_base_venvs
+
+requires_tests: &requires_tests
+  - build_docs
+  - aiobotocore
+  - aiohttp
+  - aiopg
+  - asyncio
+  - algoliasearch
+  - asgi
+  - benchmarks
+  - boto
+  - bottle
+  - cassandra
+  - celery
+  - consul
+  - dbapi
+  - ddtracerun
+  - dogpile_cache
+  - django
+  - djangorestframework
+  - elasticsearch
+  - falcon
+  - flask
+  - futures
+  - gevent
+  - grpc
+  - httplib
+  - integration
+  - vendor
+  - profile
+  - jinja2
+  - kombu
+  - mako
+  - molten
+  - mongoengine
+  - mysqlconnector
+  - mysqldb
+  - mysqlpython
+  - opentracer
+  - psycopg
+  - pylibmc
+  - pylons
+  - pymemcache
+  - pymongo
+  - pymysql
+  - pynamodb
+  - pyodbc
+  - pyramid
+  - redis
+  - rediscluster
+  - requests
+  - requestsgevent
+  - sqlalchemy
+  - sqlite3
+  - starlette
+  - test_build_alpine
+  - test_build_py38
+  - test_build_py37
+  - test_build_py36
+  - test_build_py35
+  - test_build_py27
+  - test_logging
+  - tracer
+  - tornado
+  - vertica
+  - build-docker-ci-image
 
 workflows:
   version: 2
@@ -823,6 +940,8 @@ workflows:
       - build_docs
       - black
       - flake8
+      - ccheck
+      - build_base_venvs
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
@@ -835,7 +954,6 @@ workflows:
       - test_build_win_py37: *requires_pre_test
       - test_build_win_py36: *requires_pre_test
       - test_build_win_py35: *requires_pre_test
-      - build_wheels: *requires_pre_test
 
       # Integration test suites
       - aiobotocore: *requires_pre_test
@@ -843,6 +961,7 @@ workflows:
       - aiopg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
+      - asgi: *requires_pre_test
       - benchmarks: *requires_pre_test
       - boto: *requires_pre_test
       - bottle: *requires_pre_test
@@ -862,7 +981,7 @@ workflows:
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
-      - internal: *requires_pre_test
+      - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
@@ -879,97 +998,27 @@ workflows:
       - pymemcache: *requires_pre_test
       - pymongo: *requires_pre_test
       - pymysql: *requires_pre_test
+      - pynamodb: *requires_pre_test
+      - pyodbc: *requires_pre_test
       - pyramid: *requires_pre_test
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
       - requestsgevent: *requires_pre_test
+      - sanic: *requires_pre_test
+      - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
-      - test_utils: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
-      # tracer
       - tracer: *requires_pre_test
-      - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
-      - verify_all_tests_ran:
-          requires:
-            # Individual tests do not need this to start running
-            - build_docs
-
-            # flake8 dependent jobs
-            - aiobotocore
-            - aiohttp
-            - aiopg
-            - asyncio
-            - algoliasearch
-            - benchmarks
-            - boto
-            - bottle
-            - cassandra
-            - celery
-            - consul
-            - dbapi
-            - ddtracerun
-            - dogpile_cache
-            - django
-            - djangorestframework
-            - elasticsearch
-            - falcon
-            - flask
-            - futures
-            - gevent
-            - grpc
-            - httplib
-            - integration
-            - internal
-            - profile
-            - jinja2
-            - kombu
-            - mako
-            - molten
-            - mongoengine
-            - mysqlconnector
-            - mysqldb
-            - mysqlpython
-            - opentracer
-            - psycopg
-            - pylibmc
-            - pylons
-            - pymemcache
-            - pymongo
-            - pymysql
-            - pyramid
-            - redis
-            - rediscluster
-            - requests
-            - requestsgevent
-            - sqlalchemy
-            - sqlite3
-            - test_build_alpine
-            - test_build_py38
-            - test_build_py37
-            - test_build_py36
-            - test_build_py35
-            - test_build_py27
-            - test_utils
-            - test_logging
-            - tracer
-            - tornado
-            - unit_tests
-            - vertica
-            - build-docker-ci-image
       - deploy_master:
-          requires:
-            - verify_all_tests_ran
           filters:
             branches:
               only: master
       - deploy_staging:
-          requires:
-            - verify_all_tests_ran
           filters:
             branches:
               only: staging

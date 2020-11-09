@@ -1,13 +1,24 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools-scm", "cython"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >= 4", "cython"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_scheme = "release-branch-semver"
 
 [tool.black]
 line-length = 120
 target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
+include = '''\.py[ix]?$'''
 exclude = '''
 (
-  \.eggs
+  .venv*
+  | .riot
+  | ddtrace/internal/_encoding.pyx$
+  | ddtrace/internal/_rand.pyx$
+  | ddtrace/profiling/collector/_traceback.pyx$
+  | ddtrace/profiling/collector/_threading.pyx$
+  | ddtrace/profiling/collector/stack.pyx$
+  | \.eggs
   | \.git
   | \.hg
   | \.mypy_cache
@@ -27,7 +38,6 @@ exclude = '''
       | aiohttp
       | aiopg
       | algoliasearch
-      | asyncio
       | boto
       | botocore
       | bottle
@@ -77,7 +87,6 @@ exclude = '''
       | sqlite3
       | tornado
       | util.py
-      | vertica
     )
     | ext/
     (
@@ -103,15 +112,12 @@ exclude = '''
   )
   | tests/
   (
-    base
-    | commands
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp
       | aiopg
       | algoliasearch
-      | asyncio
       | boto
       | botocore
       | bottle
@@ -150,61 +156,15 @@ exclude = '''
       )
       | rediscluster
       | requests
-      | requests_gevent
       | sqlalchemy
       | sqlite3
       | test_utils.py
       | tornado
-      | vertica
     )
     | ddtrace_run.py
-    | internal/
-    (
-      runtime/
-      | test_context_manager.py
-      | test_hostname.py
-      | test_logger.py
-      | test_rate_limiter.py
-    )
-    | memory.py
-    | opentracer/
-    (
-      conftest.py
-      | test_dd_compatibility.py
-      | test_span.py
-      | test_span_context.py
-      | test_tracer_asyncio.py
-      | test_tracer_gevent.py
-      | test_tracer_tornado.py
-      | test_utils.py
-    )
     | profiling/_ast_test_file.py
-    | propagation/test_utils.py
     | subprocesstest.py
-    | test_api.py
-    | test_compat.py
-    | test_context.py
-    | test_encoders.py
-    | test_filters.py
-    | test_global_config.py
-    | test_helpers.py
-    | test_hook.py
-    | test_instance_config.py
-    | test_payload.py
-    | test_pin.py
-    | test_sampler.py
-    | test_span.py
-    | test_tracer.py
-    | test_worker.py
-    | unit/
-    (
-      test_settings.py
-      | test_ext.py
-      | utils/
-      | http/
-    )
-    | util.py
-    | utils
+    | tracer/
     | vendor
     | wait-for-services.py
   )
