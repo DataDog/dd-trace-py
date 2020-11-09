@@ -1481,11 +1481,12 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
     request.META = {"HTTP_HOST": http_host}
     request_uri = get_request_uri(request)
     assert (
-        request_cls == _HttpRequest
-        and isinstance(request_path, binary_type)
-        and isinstance(http_host, binary_type)
-        and isinstance(request_uri, binary_type)
-    ) or (
-        request_cls == _MissingSchemeRequest
-        and request_uri is None
-    ) or isinstance(request_uri, string_type)
+        (
+            request_cls == _HttpRequest
+            and isinstance(request_path, binary_type)
+            and isinstance(http_host, binary_type)
+            and isinstance(request_uri, binary_type)
+        )
+        or (request_cls == _MissingSchemeRequest and request_uri is None)
+        or isinstance(request_uri, string_type)
+    )
