@@ -82,6 +82,7 @@ def test_env_default(monkeypatch):
     prof = profiler.Profiler()
     assert prof.env == "staging"
     assert prof.version == "123"
+    assert prof.url is None
     for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.env == "staging"
@@ -95,6 +96,7 @@ def test_env_api():
     prof = profiler.Profiler(env="staging", version="123")
     assert prof.env == "staging"
     assert prof.version == "123"
+    assert prof.url is None
     for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.env == "staging"
@@ -115,6 +117,17 @@ def test_env_api_key(name_var, monkeypatch):
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key == "foobar"
             assert exporter.endpoint == "https://intake.profile.datadoghq.com/v1/input"
+            break
+    else:
+        pytest.fail("Unable to find HTTP exporter")
+
+
+def test_url():
+    prof = profiler.Profiler(url="https://foobar:123")
+    for exporter in prof._profiler._scheduler.exporters:
+        if isinstance(exporter, http.PprofHTTPExporter):
+            assert exporter.api_key is None
+            assert exporter.endpoint == "https://foobar:123/profiling/v1/input"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
