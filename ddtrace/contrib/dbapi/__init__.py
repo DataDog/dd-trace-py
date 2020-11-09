@@ -9,7 +9,7 @@ from ...pin import Pin
 from ...settings import config
 from ...utils.formats import asbool, get_env
 from ...vendor import wrapt
-from ..trace_utils import ext_service
+from ..trace_utils import ext_service, iswrapped
 
 
 log = get_logger(__name__)
@@ -177,6 +177,49 @@ class TracedConnection(wrapt.ObjectProxy):
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
         self._self_config = cfg or config.dbapi2
+
+    def __enter__(self):
+        """Context management is not defined by the dbapi spec.
+
+        This means unfortunately that the database clients each define their own
+        implementations.
+
+        The ones we know about are:
+
+        - mysqlclient<2.0 which returns a cursor instance. >=2.0 returns a
+          connection instance.
+        - psycopg returns a connection.
+        - pyodbc returns a connection.
+        - pymysql doesn't implement it.
+        - sqlite3 returns the connection.
+        """
+        r = self.__wrapped__.__enter__()
+
+        if hasattr(r, "cursor"):
+            # r is Connection-like.
+            if r is self.__wrapped__:
+                # Return the reference to this proxy object. Returning r would
+                # return the untraced reference.
+                return self
+            else:
+                # r is a different connection object.
+                # This should not happen in practice but play it safe so that
+                # the original functionality is maintained.
+                return r
+        elif hasattr(r, "execute"):
+            # r is Cursor-like.
+            if iswrapped(r):
+                return r
+            else:
+                pin = Pin.get_from(self)
+                cfg = _get_config(self._self_config)
+                if not pin:
+                    return r
+                return self._self_cursor_cls(r, pin, cfg)
+        else:
+            # Otherwise r is some other object, so maintain the functionality
+            # of the original.
+            return r
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
