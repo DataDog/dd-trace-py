@@ -111,7 +111,6 @@ def get_app(engine):
         Route("/users/{userid:int}", endpoint=success, name="path_params", methods=["GET"]),
         Route("/users/{userid:int}/info", endpoint=success, name="multi_path_params", methods=["GET"]),
         Route("/users/{userid:int}/{attribute:str}", endpoint=success, name="multi_path_params", methods=["GET"]),
-        Route("/tables", endpoint=get_tables, name="tables", methods=["GET"]),
         Route("/notes", endpoint=list_notes, methods=["GET"]),
         Route("/notes", endpoint=add_note, methods=["POST"]),
     ]
