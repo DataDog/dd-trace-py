@@ -7,10 +7,6 @@ import databases
 import sqlalchemy
 
 
-engine = None
-notes_table = None
-
-
 def create_test_database(engine):
     engine.execute("DROP TABLE IF EXISTS notes;")
     metadata = sqlalchemy.MetaData()
@@ -80,14 +76,6 @@ def get_app(engine):
     metadata.reflect()
 
     notes_table = metadata.tables["notes"]
-    row = {"id": 1, "text": "test", "completed": 1}
-    with engine.connect() as connection:
-        with connection.begin():
-            connection.execute(notes_table.insert(), row)
-
-    async def get_tables(request):
-        response = engine.table_names()
-        return PlainTextResponse(str(response))
 
     async def list_notes(request):
         if not engine:

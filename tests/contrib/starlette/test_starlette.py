@@ -29,7 +29,7 @@ def engine():
 
 
 @pytest.fixture
-def tracer():
+def tracer(engine):
     original_tracer = ddtrace.tracer
     tracer = get_dummy_tracer()
     if sys.version_info < (3, 7):
@@ -389,8 +389,8 @@ def test_path_param_no_aggregate(client, tracer):
     config.starlette["aggregate_resources"] = True
 
 
-def test_table_add(client, tracer):
-    r = client.post("/notes", json={"id": 2, "text": "test", "completed": 1})
+def test_table_query(client, tracer):
+    r = client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
     assert r.status_code == 200
     assert r.text == "Success"
 
@@ -414,8 +414,6 @@ def test_table_add(client, tracer):
     assert sql_span.error == 0
     assert sql_span.get_tag("sql.db") == "test.db"
 
-
-def test_table_query(client, tracer):
     r = client.get("/notes")
 
     assert r.status_code == 200
@@ -443,7 +441,11 @@ def test_table_query(client, tracer):
 
 @snapshot()
 def test_table_query_snapshot(snapshot_client):
-    r = snapshot_client.get("/notes")
+    r_post = snapshot_client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
 
-    assert r.status_code == 200
-    assert r.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
+    assert r_post.status_code == 200
+    assert r_post.text == "Success"
+
+    r_get = snapshot_client.get("/notes")
+    assert r_get.status_code == 200
+    assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
