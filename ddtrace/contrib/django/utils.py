@@ -88,20 +88,21 @@ def get_request_uri(request):
             host = "unknown"
 
     # If request scheme is missing, possible in case where wsgi.url_scheme
-    # environ has not been set, then default to http
-    scheme = request.scheme or "http"
+    # environ has not been set, return None and skip providing a uri
+    if request.scheme is None:
+        return
 
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    urlparts = dict(scheme=scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
 
     # If any url part is a SimpleLazyObject, use it's __class__ property to cast
     # str/bytes and allow for _setup() to execute
     for (k, v) in urlparts.items():
         if isinstance(v, SimpleLazyObject):
-            if v.__class__ == str:
+            if issubclass(v.__class__, str):
                 v = str(v)
-            elif v.__class__ == bytes:
+            elif issubclass(v.__class__, bytes):
                 v = bytes(v)
         urlparts[k] = v
 
