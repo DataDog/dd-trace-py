@@ -1,7 +1,11 @@
+import os
+
 import django
 import pytest
 
 from tests import snapshot
+
+pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
