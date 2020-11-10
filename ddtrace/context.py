@@ -185,6 +185,7 @@ class Context(object):
                 self._parent_trace_id = None
                 self._parent_span_id = None
                 self._sampling_priority = None
+                self._current_span = None
                 return trace, sampled
 
             elif self._partial_flush_enabled:
