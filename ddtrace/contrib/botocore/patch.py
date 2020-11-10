@@ -5,20 +5,64 @@ Trace queries to aws api done via botocore client
 from ddtrace.vendor import wrapt
 from ddtrace import config
 import botocore.client
+import base64
+import json
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...pin import Pin
 from ...ext import SpanTypes, http, aws
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...propagation.http import HTTPPropagator
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
-
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
+
+propagator = HTTPPropagator()
+log = get_logger(__name__)
+
+
+def modify_client_context(client_context_base64, trace_headers):
+    try:
+        client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
+        client_context_object = json.loads(client_context_json)
+
+        if 'custom' in client_context_object:
+            client_context_object['custom']['_datadog'] = trace_headers
+        else:
+            client_context_object['custom'] = {
+                '_datadog': trace_headers
+            }
+
+        new_context = base64.b64encode(json.dumps(client_context_object).encode('utf-8')).decode('utf-8')
+        return new_context
+    except Exception:
+        log.warning('malformed client_context=%s', client_context_base64, exc_info=True)
+        return client_context_base64
+
+
+def inject_trace_to_client_context(args, span):
+    trace_headers = {}
+    propagator.inject(span.context, trace_headers)
+
+    params = args[1]
+    if 'ClientContext' in params:
+        params['ClientContext'] = modify_client_context(params['ClientContext'], trace_headers)
+    else:
+        trace_headers = {}
+        propagator.inject(span.context, trace_headers)
+        client_context_object = {
+            'custom': {
+                '_datadog': trace_headers
+            }
+        }
+        json_context = json.dumps(client_context_object).encode('utf-8')
+        params['ClientContext'] = base64.b64encode(json_context).decode('utf-8')
 
 
 def patch():
@@ -52,6 +96,9 @@ def patched_api_call(original_func, instance, args, kwargs):
         if args:
             operation = args[0]
             span.resource = '%s.%s' % (endpoint_name, operation.lower())
+
+            if endpoint_name == 'lambda' and operation == 'Invoke':
+                inject_trace_to_client_context(args, span)
 
         else:
             span.resource = endpoint_name
