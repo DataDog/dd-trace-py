@@ -239,4 +239,17 @@ suites = [
             ),
         ],
     ),
+    Suite(
+        name="pynamodb",
+        command="pytest tests/contrib/pynamodb",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8, 3.9],
+                pkgs=[
+                    ("pynamodb", [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", ""]),
+                    ("moto", [">=1.0,<2.0"]),
+                ],
+            ),
+        ],
+    ),
 ]
