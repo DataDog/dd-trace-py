@@ -116,6 +116,9 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         response_headers = response_meta['HTTPHeaders']
 
         span.set_tag(http.STATUS_CODE, response_meta['HTTPStatusCode'])
+        if 500 <= response_meta['HTTPStatusCode'] < 600:
+            span.error = 1
+
         span.set_tag('retry_attempts', response_meta['RetryAttempts'])
 
         request_id = response_meta.get('RequestId')

@@ -75,6 +75,7 @@ class TraceBottleTest(TestCase):
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
         assert_span_http_status_code(s, 500)
+        assert s.error == 1
         assert s.get_tag('http.method') == 'GET'
 
     def test_bottle_global_tracer(self):

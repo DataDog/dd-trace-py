@@ -3,6 +3,21 @@ from starlette.responses import Response, PlainTextResponse, StreamingResponse, 
 from starlette.routing import Route
 from tempfile import NamedTemporaryFile
 import time
+import databases
+import sqlalchemy
+
+
+def create_test_database(engine):
+    engine.execute("DROP TABLE IF EXISTS notes;")
+    metadata = sqlalchemy.MetaData()
+    sqlalchemy.Table(
+        "notes",
+        metadata,
+        sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+        sqlalchemy.Column("text", sqlalchemy.String),
+        sqlalchemy.Column("completed", sqlalchemy.Boolean),
+    )
+    metadata.create_all(engine)
 
 
 async def homepage(request):
@@ -52,7 +67,40 @@ async def file(request):
         return FileResponse(fp.name)
 
 
-def get_app():
+def get_app(engine):
+    create_test_database(engine)
+
+    DATABASE_URL = "sqlite:///test.db"
+    database = databases.Database(DATABASE_URL)
+    metadata = sqlalchemy.MetaData(bind=engine)
+    metadata.reflect()
+
+    notes_table = metadata.tables["notes"]
+
+    async def list_notes(request):
+        if not engine:
+            raise RuntimeError("Server error")
+        query = "SELECT * FROM NOTES"
+        with engine.connect() as connection:
+            result = connection.execute(query)
+            d, a = {}, []
+            for rowproxy in result:
+                for column, value in rowproxy.items():
+                    d = {**d, **{column: value}}
+                a.append(d)
+        response = str(a)
+        return PlainTextResponse(response)
+
+    async def add_note(request):
+        if not engine:
+            raise RuntimeError("Server error")
+        request_json = await request.json()
+        with engine.connect() as connection:
+            with connection.begin():
+                connection.execute(notes_table.insert(), request_json)
+        response = "Success"
+        return PlainTextResponse(response)
+
     routes = [
         Route("/", endpoint=homepage, name="homepage", methods=["GET"]),
         Route("/200", endpoint=success, name="200", methods=["GET"]),
@@ -63,6 +111,8 @@ def get_app():
         Route("/users/{userid:int}", endpoint=success, name="path_params", methods=["GET"]),
         Route("/users/{userid:int}/info", endpoint=success, name="multi_path_params", methods=["GET"]),
         Route("/users/{userid:int}/{attribute:str}", endpoint=success, name="multi_path_params", methods=["GET"]),
+        Route("/notes", endpoint=list_notes, methods=["GET"]),
+        Route("/notes", endpoint=add_note, methods=["POST"]),
     ]
-    app = Starlette(routes=routes)
+    app = Starlette(routes=routes, on_startup=[database.connect], on_shutdown=[database.disconnect])
     return app

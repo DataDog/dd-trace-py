@@ -671,10 +671,15 @@ jobs:
           pattern: '^sanic_contrib-'
   
   starlette:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^starlette_contrib-'
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^starlette_contrib-'
 
   sqlalchemy:
     <<: *contrib_job
