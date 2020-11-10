@@ -96,7 +96,7 @@ def get_request_uri(request):
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
     urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
 
-    # If any url part is a SimpleLazyObject, use it's __class__ property to cast
+    # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
     for (k, v) in urlparts.items():
         if isinstance(v, SimpleLazyObject):
