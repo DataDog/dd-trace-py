@@ -115,21 +115,40 @@ commands:
       wait:
         type: string
         default: ""
+      snapshot:
+        type: boolean
+        default: false
+      docker_services:
+        type: string
+        default: ""
     steps:
       - attach_workspace:
           at: .
       - checkout
-      - run: pip3 install riot
       - when:
           condition:
-            << parameters.wait >>
+              << parameters.snapshot >>
           steps:
+            - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
             - run:
-                name: "Waiting for << parameters.wait >>"
-                command: pip install tox && tox -e 'wait' << parameters.wait >>
-      - run:
-          name: "Running tests matching '<< parameters.pattern >>'"
-          command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
+                command: docker-compose logs -f
+                background: true
+            - run:
+                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
+      - unless:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - run: pip3 install riot
+            - when:
+                condition:
+                  << parameters.wait >>
+                steps:
+                  - run:
+                      name: "Waiting for << parameters.wait >>"
+                      command: pip install tox && tox -e 'wait' << parameters.wait >>
+                  - run:
+                      command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -490,31 +509,21 @@ jobs:
 
   django:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 6
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: "./scripts/ddtest riot -v run -s 'django$'"
+      - run_test:
+          pattern: 'django$'
+          snapshot: true
+          docker_services: "memcached redis"
 
   djangorestframework:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 6
     steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: "./scripts/ddtest riot -v run -s 'djangorestframework'"
+      - run_test:
+          pattern: 'djangorestframework'
+          snapshot: true
+          docker_services: "memcached redis"
 
   flask:
     <<: *contrib_job
