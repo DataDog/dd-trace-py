@@ -646,8 +646,8 @@ jobs:
   pynamodb:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^pynamodb_contrib-'
+      - run_test:
+          pattern: "pynamodb"
 
   pyodbc:
     <<: *contrib_job
