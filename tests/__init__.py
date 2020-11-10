@@ -802,7 +802,7 @@ class SnapshotFailed(Exception):
     pass
 
 
-def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
+def snapshot(ignores=None, include_tracer=False, variants=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -814,6 +814,11 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
     :param tracer: A tracer providing the agent connection information to use.
     """
     ignores = ignores or []
+
+    if include_tracer:
+        tracer = Tracer()
+    else:
+        tracer = ddtrace.tracer
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
@@ -850,6 +855,8 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
 
             # Run the test.
             try:
+                if include_tracer:
+                    kwargs["tracer"] = tracer
                 ret = wrapped(*args, **kwargs)
                 # Force a flush so all traces are submitted.
                 tracer.writer.flush_queue()
