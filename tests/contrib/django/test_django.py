@@ -1472,7 +1472,7 @@ class _HttpRequest(django.http.HttpRequest):
     itertools.product(
         [django.http.HttpRequest, _HttpRequest, _MissingSchemeRequest],
         [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
-        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver")],
+        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
@@ -1480,13 +1480,14 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
     request.path = request_path
     request.META = {"HTTP_HOST": http_host}
     request_uri = get_request_uri(request)
-    assert (
-        (
+    if (
+        isinstance(http_host, SimpleLazyObject) and not (issubclass(http_host.__class__, str))
+    ) or request_cls is _MissingSchemeRequest:
+        assert request_uri is None
+    else:
+        assert (
             request_cls == _HttpRequest
             and isinstance(request_path, binary_type)
             and isinstance(http_host, binary_type)
             and isinstance(request_uri, binary_type)
-        )
-        or (request_cls == _MissingSchemeRequest and request_uri is None)
-        or isinstance(request_uri, string_type)
-    )
+        ) or isinstance(request_uri, string_type)

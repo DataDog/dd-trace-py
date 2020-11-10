@@ -107,6 +107,9 @@ def get_request_uri(request):
             else:
                 # lazy object that is not str or bytes should not happen here
                 # but if it does skip providing a uri
+                log.debug(
+                    "Skipped building Django request uri, %s is SimpleLazyObject wrapping a %s class", k, v.__class__.__name__
+                )
                 return None
         urlparts[k] = v
 
