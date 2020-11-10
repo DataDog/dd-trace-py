@@ -100,10 +100,11 @@ def get_request_uri(request):
     # str/bytes and allow for _setup() to execute
     for (k, v) in urlparts.items():
         if isinstance(v, SimpleLazyObject):
-            if issubclass(v.__class__, str):
-                v = str(v)
-            elif issubclass(v.__class__, bytes):
+            if issubclass(v.__class__, bytes):
                 v = bytes(v)
+            else:
+                # default to casting to str
+                v = str(v)
         urlparts[k] = v
 
     # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
