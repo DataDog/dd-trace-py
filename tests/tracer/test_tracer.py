@@ -1138,3 +1138,17 @@ def test_filters():
     for s in spans:
         assert s.get_tag("boop") == "beep"
         assert s.get_tag("mats") == "sundin"
+
+
+def test_early_exit():
+    t = ddtrace.Tracer()
+    s1 = t.trace("1")
+    s2 = t.trace("2")
+    s1.finish()
+    s2.finish()
+    assert s1.parent_id is None
+    assert s2.parent_id is s1.span_id
+
+    s1 = t.trace("1-1")
+    s1.finish()
+    assert s1.parent_id is None
