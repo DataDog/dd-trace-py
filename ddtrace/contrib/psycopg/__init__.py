@@ -5,7 +5,7 @@ The psycopg integration instruments the psycopg2 library to trace Postgres queri
 Enabling
 ~~~~~~~~
 
-The mysql integration is enabled automatically when using
+The psycopg integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
 
 Or use :ref:`patch()<patch>` to manually enable the integration::
