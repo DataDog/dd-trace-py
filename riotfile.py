@@ -253,6 +253,25 @@ suites = [
         ],
     ),
     Suite(
+        name="starlette",
+        command="pytest tests/contrib/starlette",
+        cases=[
+            Case(
+                pys=[3.6, 3.7, 3.8, 3.9],
+                pkgs=[
+                    ("starlette", [">=0.13,<0.14", ">=0.14,<0.15", "",]),
+                    ("httpx", [""]),
+                    ("pytest-asyncio", [""]),
+                    ("requests", [""]),
+                    ("aiofiles", [""]),
+                    ("sqlalchemy", [""]),
+                    ("aiosqlite", [""]),
+                    ("databases", [""]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
         name="requests",
         command="pytest tests/contrib/requests",
         cases=[
