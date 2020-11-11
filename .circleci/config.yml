@@ -478,6 +478,7 @@ jobs:
 
   celery:
     <<: *contrib_job
+    parallelism: 6
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -683,17 +684,13 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
-  
+
   starlette:
     <<: *machine_executor
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^starlette_contrib-'
+      - run_test:
+          pattern: "starlette"
+          snapshot: true
 
   sqlalchemy:
     <<: *contrib_job
