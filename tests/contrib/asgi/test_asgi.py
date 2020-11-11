@@ -139,6 +139,7 @@ async def test_basic_asgi(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
     _check_span_tags(scope, request_span)
@@ -166,6 +167,7 @@ async def test_double_callable_asgi(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
     _check_span_tags(scope, request_span)
@@ -195,6 +197,7 @@ async def test_query_string(scope, tracer):
         assert len(spans[0]) == 1
         request_span = spans[0][0]
         assert request_span.name == "asgi.request"
+        assert request_span.span_type == "web"
         assert request_span.error == 0
         assert request_span.get_tag("http.status_code") == "200"
         _check_span_tags(scope, request_span)
@@ -213,6 +216,7 @@ async def test_asgi_error(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "500"
     assert request_span.get_tag("error.msg") == "Test"
@@ -234,6 +238,7 @@ async def test_asgi_500(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "500"
 
@@ -254,6 +259,7 @@ async def test_asgi_error_custom(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "501"
     assert request_span.get_tag("error.msg") == "Test"
@@ -289,6 +295,7 @@ async def test_distributed_tracing(scope, tracer):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
     assert request_span.parent_id == 1234
     assert request_span.trace_id == 5678
     assert request_span.error == 0
@@ -317,12 +324,14 @@ async def test_multiple_requests(tracer):
 
     r1_span = spans[0][0]
     assert r1_span.name == "asgi.request"
+    assert r1_span.span_type == "web"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
 
     r2_span = spans[0][0]
     assert r2_span.name == "asgi.request"
+    assert r2_span.span_type == "web"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"

@@ -125,7 +125,7 @@ suites = [
     # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
     Suite(
         name="django",
-        command='pytest tests/contrib/django',
+        command="pytest tests/contrib/django",
         cases=[
             Case(
                 pys=[2.7, 3.5, 3.6],
@@ -235,6 +235,70 @@ suites = [
                     ("django", [""]),
                     ("djangorestframework", [">=3.11,<3.12"]),
                     ("pytest-django", ["==3.10.0"]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="pynamodb",
+        command="pytest tests/contrib/pynamodb",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8, 3.9],
+                pkgs=[
+                    ("pynamodb", [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", ""]),
+                    ("moto", [">=1.0,<2.0"]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="starlette",
+        command="pytest tests/contrib/starlette",
+        cases=[
+            Case(
+                pys=[3.6, 3.7, 3.8, 3.9],
+                pkgs=[
+                    ("starlette", [">=0.13,<0.14", ">=0.14,<0.15", "",]),
+                    ("httpx", [""]),
+                    ("pytest-asyncio", [""]),
+                    ("requests", [""]),
+                    ("aiofiles", [""]),
+                    ("sqlalchemy", [""]),
+                    ("aiosqlite", [""]),
+                    ("databases", [""]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="requests",
+        command="pytest tests/contrib/requests",
+        cases=[
+            Case(
+                pys=[
+                    2.7,
+                    3.5,
+                    3.6,
+                    3.7,
+                    3.8,
+                    3.9,
+                ],
+                pkgs=[
+                    ("requests-mock", [">=1.4"]),
+                    (
+                        "requests",
+                        [
+                            ">=2.8,<2.9",
+                            ">=2.10,<2.11",
+                            ">=2.12,<2.13",
+                            ">=2.14,<2.15",
+                            ">=2.16,<2.17",
+                            ">=2.18,<2.19",
+                            ">=2.20,<2.21",
+                            "",
+                        ],
+                    ),
                 ],
             ),
         ],

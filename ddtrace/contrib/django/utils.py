@@ -1,3 +1,5 @@
+from django.utils.functional import SimpleLazyObject
+
 from ...compat import PY3, binary_type, parse, to_unicode
 from ...internal.logger import get_logger
 
@@ -85,9 +87,33 @@ def get_request_uri(request):
             log.debug("Failed to build Django request host", exc_info=True)
             host = "unknown"
 
+    # If request scheme is missing, possible in case where wsgi.url_scheme
+    # environ has not been set, return None and skip providing a uri
+    if request.scheme is None:
+        return
+
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
     urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+
+    # If any url part is a SimpleLazyObject, use its __class__ property to cast
+    # str/bytes and allow for _setup() to execute
+    for (k, v) in urlparts.items():
+        if isinstance(v, SimpleLazyObject):
+            if issubclass(v.__class__, str):
+                v = str(v)
+            elif issubclass(v.__class__, bytes):
+                v = bytes(v)
+            else:
+                # lazy object that is not str or bytes should not happen here
+                # but if it does skip providing a uri
+                log.debug(
+                    "Skipped building Django request uri, %s is SimpleLazyObject wrapping a %s class",
+                    k,
+                    v.__class__.__name__,
+                )
+                return None
+        urlparts[k] = v
 
     # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
     # type of the scheme to check the type to expect from all url parts, raising
