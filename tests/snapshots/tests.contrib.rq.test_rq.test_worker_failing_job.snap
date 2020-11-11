@@ -1,0 +1,61 @@
+[[{"name" "rq.queue.enqueue_job"
+   "service" "rq"
+   "resource" "tests.contrib.rq.test_rq.job_fail"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1605080013192620000
+   "duration" 7103000
+   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
+           "queue.name" "q"
+           "job.id" "b08e9a8f-c548-4607-8ccb-69d65182bd00"
+           "job.func_name" "tests.contrib.rq.test_rq.job_fail"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 88062}}]
+ [{"name" "rq.job.fetch"
+   "service" "rq-worker"
+   "resource" "rq.job.fetch"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1605080013215114000
+   "duration" 1223000
+   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
+           "job.id" "b08e9a8f-c548-4607-8ccb-69d65182bd00"
+           "job.status" "queued"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 88062}}]
+ [{"name" "rq.worker.perform_job"
+   "service" "rq-worker"
+   "resource" "tests.contrib.rq.test_rq.job_fail"
+   "error" 1
+   "span_id" 0
+   "trace_id" 2
+   "parent_id" nil
+   "start" 1605080013220618000
+   "duration" 5058000
+   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
+           "job.id" "b08e9a8f-c548-4607-8ccb-69d65182bd00"
+           "exc_info" "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/worker.py\", line 975, in perform_job\n    rv = job.perform()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/trace_utils.py\", line 47, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 160, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/job.py\", line 692, in perform\n    self._result = self._execute()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/job.py\", line 698, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/rq/test_rq.py\", line 16, in job_fail\n    raise Exception(\"error\")\nException: error\n"
+           "status" "failed"
+           "origin" "q"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 88062}}
+      {"name" "rq.job.perform"
+       "service" "rq-worker"
+       "resource" "tests.contrib.rq.test_rq.job_fail"
+       "error" 1
+       "span_id" 1
+       "trace_id" 2
+       "parent_id" 0
+       "start" 1605080013222165000
+       "duration" 1130000
+       "meta" {"job.id" "b08e9a8f-c548-4607-8ccb-69d65182bd00"
+               "error.msg" "error"
+               "error.type" "builtins.Exception"
+               "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 160, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/job.py\", line 692, in perform\n    self._result = self._execute()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/job.py\", line 698, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/rq/test_rq.py\", line 16, in job_fail\n    raise Exception(\"error\")\nException: error\n"}}]]

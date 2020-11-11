@@ -152,9 +152,10 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.perform(...)"""
     job = instance
 
-    with pin.tracer.trace(
-        "rq.job.perform", service=trace_utils.ext_service(pin, config.rq_worker), resource=job.func_name
-    ) as span:
+    # Inherit the service name from whatever parent exists.
+    # eg. in a worker, a perform_job parent span will exist with the worker
+    #     service.
+    with pin.tracer.trace("rq.job.perform", resource=job.func_name) as span:
         span.set_tag("job.id", job.get_id())
         return func(*args, **kwargs)
 
@@ -199,12 +200,12 @@ def patch():
 
     # Patch rq.queue.Queue
     Pin().onto(rq.queue.Queue)
-    trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq.queue.Queue))
-    trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq.queue.Queue))
+    trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
+    trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq))
 
     # Patch rq.worker.Worker
     Pin().onto(rq.worker.Worker)
-    trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq.worker.Worker))
+    trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
     setattr(rq, "_datadog_patch", True)
 
