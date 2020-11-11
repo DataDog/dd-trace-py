@@ -24,15 +24,6 @@ LOG = logging.getLogger(__name__)
 ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
 
 
-def _get_endpoint():
-    legacy = os.environ.get("DD_PROFILING_API_URL")
-    if legacy:
-        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
-        return legacy
-    site = os.environ.get("DD_SITE", "datadoghq.com")
-    return ENDPOINT_TEMPLATE.format(site)
-
-
 def _get_api_key():
     legacy = os.environ.get("DD_PROFILING_API_KEY")
     if legacy:
@@ -129,6 +120,33 @@ class Profiler(object):
     def tracer(self):
         return self._profiler.tracer
 
+    @property
+    def url(self):
+        return self._profiler.url
+
+
+def _get_default_url(api_key):
+    """Get default profiler exporter URL.
+
+    If an API key is not specified, the URL will default to the agent location configured via the environment variables.
+
+    If an API key is specified, the profiler goes into agentless mode and uses `DD_SITE` to upload directly to Datadog
+    backend.
+    """
+    # Default URL changes if an API_KEY is provided in the env
+    if api_key is None:
+        hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
+        port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
+        return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
+
+    # Agentless mode
+    legacy = os.environ.get("DD_PROFILING_API_URL")
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
+        return legacy
+    site = os.environ.get("DD_SITE", "datadoghq.com")
+    return ENDPOINT_TEMPLATE.format(site)
+
 
 @attr.s
 class _ProfilerInstance(object):
@@ -139,6 +157,7 @@ class _ProfilerInstance(object):
     """
 
     # User-supplied values
+    url = attr.ib(default=None)
     service = attr.ib(factory=_get_service_name)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
@@ -150,7 +169,7 @@ class _ProfilerInstance(object):
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
-    def _build_default_exporters(service, env, version):
+    def _build_default_exporters(url, service, env, version):
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
@@ -158,13 +177,7 @@ class _ProfilerInstance(object):
             ]
 
         api_key = _get_api_key()
-        if api_key:
-            # Agentless mode
-            endpoint = _get_endpoint()
-        else:
-            hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-            port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
-            endpoint = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
+        endpoint = _get_default_url(api_key) if url is None else url + "/profiling/v1/input"
 
         return [
             http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
@@ -197,7 +210,7 @@ class _ProfilerInstance(object):
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
-        exporters = self._build_default_exporters(self.service, self.env, self.version)
+        exporters = self._build_default_exporters(self.url, self.service, self.env, self.version)
 
         if exporters:
             self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)
