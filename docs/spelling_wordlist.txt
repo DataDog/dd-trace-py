@@ -80,6 +80,7 @@ renderers
 repo
 runnable
 runtime
+rq
 sanic
 sqlalchemy
 sqlite
