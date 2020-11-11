@@ -1,44 +1,66 @@
 """
 The RQ integration will trace your jobs.
 
+Usage
+~~~~~
+
+The rq integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
+    patch(rq=True)
+
+
 Worker Usage
 ~~~~~~~~~~~~
 
 ``ddtrace-run`` can be used to easily trace your workers::
 
-    DD_WORKER_SERVICE_NAME=myworker ddtrace-run rq worker
+    DD_RQ_WORKER_SERVICE=myworker ddtrace-run rq worker
 
 
-See https://github.com/DataDog/trace-examples/tree/kyle-verhoog/rq/python/rq for a working example.
+See https://github.com/DataDog/trace-examples/tree/kyle-verhoog/rq/python/rq
+for a working example.
 
 
-Configuration
-~~~~~~~~~~~~~
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.rq['distributed_tracing_enabled']
 
-   If ``True`` the integration will connect the traces sent between the queuer and the RQ worker.
+   If ``True`` the integration will connect the traces sent between the queuer
+   and the RQ worker.
 
    Default: ``False``
 
-.. py:data:: ddtrace.config.rq['service_name'] # Or via DD_RQ_SERVICE_NAME environment variable
+.. py:data:: ddtrace.config.rq['service']
 
-   The service name to be used for your RQ app.
+   The service name reported by default for RQ spans from the app.
+
+   This option can also be set with the ``DD_RQ_SERVICE`` or ``DD_SERVICE``
+   environment variables.
 
    Default: ``rq``
 
-.. py:data:: ddtrace.config.rq['worker_service_name'] # Or via DD_RQ_WORKER_SERVICE_NAME environment variable
+.. py:data:: ddtrace.config.rq_worker['service']
 
-   The service name to be used for your RQ worker.
+   The service name reported by default for RQ spans from workers.
+
+   This option can also be set with the ``DD_RQ_WORKER_SERVICE`` environment
+   variable.
 
    Default: ``rq-worker``
 """
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace.utils.wrappers import unwrap as _uw
 from ddtrace import config, Pin
-from ...ext import AppTypes
 from ...propagation.http import HTTPPropagator
-from ...utils.formats import get_env
+from .. import trace_utils
 
 
 __all__ = [
@@ -50,48 +72,35 @@ __all__ = [
 config._add(
     "rq",
     dict(
-        service_name=get_env("rq", "service_name", default="rq"),
-        worker_service_name=get_env("rq", "worker_service_name", default="rq-worker"),
-        app="rq",
-        app_type=AppTypes.worker,
+        _default_service="rq",
         distributed_tracing_enabled=False,
     ),
 )
 
-
-def with_instance_pin(func):
-    """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
-
-    def with_cls(cls):
-        def wrapper(wrapped, instance, args, kwargs):
-            # DEV: this will be replaced with the module given when patching on import
-            import rq
-
-            # DEV: precedence when finding Pin is instance, class, rq module in that order
-            pin = Pin._find(instance, cls, rq)
-            if not pin or not pin.enabled():
-                return wrapped(*args, **kwargs)
-            return func(rq, pin, wrapped, instance, args, kwargs)
-
-        return wrapper
-
-    return with_cls
+config._add(
+    "rq_worker",
+    dict(
+        _default_service="rq-worker",
+    ),
+)
 
 
 propagator = HTTPPropagator()
 
 
-@with_instance_pin
+@trace_utils.with_traced_module
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = args[0]
 
-    with pin.tracer.trace("rq.queue.enqueue_job", service=pin.service, resource=job.func_name) as span:
+    with pin.tracer.trace(
+        "rq.queue.enqueue_job", service=trace_utils.int_service(pin, config.rq), resource=job.func_name
+    ) as span:
         span.set_tag("queue.name", instance.name)
         span.set_tag("job.id", job.get_id())
         span.set_tag("job.func_name", job.func_name)
 
         # If the queue is_async then add distributed tracing headers to the job
-        if instance.is_async and config.rq["distributed_tracing_enabled"]:
+        if instance.is_async and config.rq.distributed_tracing_enabled:
             propagator.inject(span.context, job.meta)
 
         try:
@@ -103,14 +112,14 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
                 span.set_tag("job.status", job.get_status())
 
 
-@with_instance_pin
+@trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
-    with pin.tracer.trace("rq.queue.fetch_job", service=pin.service) as span:
+    with pin.tracer.trace("rq.queue.fetch_job", service=trace_utils.int_service(pin, config.rq)) as span:
         span.set_tag("job.id", args[0])
         return func(*args, **kwargs)
 
 
-@with_instance_pin
+@trace_utils.with_traced_module
 def traced_perform_job(rq, pin, func, instance, args, kwargs):
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
@@ -121,7 +130,9 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
         pin.tracer.context_provider.activate(ctx)
 
     try:
-        with pin.tracer.trace("rq.worker.perform_job", service=pin.service, resource=job.func_name) as span:
+        with pin.tracer.trace(
+            "rq.worker.perform_job", service=trace_utils.ext_service(pin, config.rq_worker), resource=job.func_name
+        ) as span:
             span.set_tag("job.id", job.get_id())
             return func(*args, **kwargs)
     finally:
@@ -131,29 +142,30 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
         span.set_tag("status", job.get_status())
         span.set_tag("origin", job.origin)
 
-        # DEV: force flush to agent since the process `os.exit()`s
-        #      immediately after this method returns
-        pin.tracer.writer.stop()
+        # Force flush to agent since the process `os.exit()`s
+        # immediately after this method returns
         pin.tracer.writer.flush_queue()
 
 
-@with_instance_pin
+@trace_utils.with_traced_module
 def traced_job_perform(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.perform(...)"""
     job = instance
 
-    with pin.tracer.trace("rq.job.perform", service=pin.service, resource=job.func_name) as span:
+    with pin.tracer.trace(
+        "rq.job.perform", service=trace_utils.ext_service(pin, config.rq_worker), resource=job.func_name
+    ) as span:
         span.set_tag("job.id", job.get_id())
         return func(*args, **kwargs)
 
 
-@with_instance_pin
+@trace_utils.with_traced_module
 def traced_job_fetch(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch(...)"""
 
     job = None
     try:
-        with pin.tracer.trace("rq.job.fetch", service=pin.service) as span:
+        with pin.tracer.trace("rq.job.fetch", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
             span.set_tag("job.id", args[0])
             job = func(*args, **kwargs)
             return job
@@ -163,10 +175,10 @@ def traced_job_fetch(rq, pin, func, instance, args, kwargs):
             span.set_tag("job.status", job_status)
 
 
-@with_instance_pin
+@trace_utils.with_traced_module
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
-    with pin.tracer.trace("rq.job.fetch_many", service=pin.service) as span:
+    with pin.tracer.trace("rq.job.fetch_many", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
         span.set_tag("job_ids", args[0])
         return func(*args, **kwargs)
 
@@ -178,37 +190,21 @@ def patch():
     if getattr(rq, "_datadog_patch", False):
         return
 
-    Pin(
-        service=config.rq["service_name"],
-        app=config.rq["app"],
-        app_type=config.rq["app_type"],
-    ).onto(rq)
+    Pin().onto(rq)
 
     # Patch rq.job.Job
-    Pin(
-        service=config.rq["worker_service_name"],
-        app=config.rq["app"],
-        app_type=config.rq["app_type"],
-    ).onto(rq.job.Job)
-    _w(rq.job, "Job.perform", traced_job_perform(rq.job.Job))
-    _w(rq.job, "Job.fetch", traced_job_fetch(rq.job.Job))
+    Pin().onto(rq.job.Job)
+    trace_utils.wrap(rq.job, "Job.perform", traced_job_perform(rq.job.Job))
+    trace_utils.wrap(rq.job, "Job.fetch", traced_job_fetch(rq.job.Job))
 
     # Patch rq.queue.Queue
-    Pin(
-        service=config.rq["service_name"],
-        app=config.rq["app"],
-        app_type=config.rq["app_type"],
-    ).onto(rq.queue.Queue)
-    _w("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq.queue.Queue))
-    _w("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq.queue.Queue))
+    Pin().onto(rq.queue.Queue)
+    trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq.queue.Queue))
+    trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq.queue.Queue))
 
     # Patch rq.worker.Worker
-    Pin(
-        service=config.rq["worker_service_name"],
-        app=config.rq["app"],
-        app_type=config.rq["app_type"],
-    ).onto(rq.worker.Worker)
-    _w(rq.worker, "Worker.perform_job", traced_perform_job(rq.worker.Worker))
+    Pin().onto(rq.worker.Worker)
+    trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq.worker.Worker))
 
     setattr(rq, "_datadog_patch", True)
 
@@ -223,16 +219,16 @@ def unpatch():
 
     # Unpatch rq.job.Job
     Pin.remove_from(rq.job.Job)
-    _uw(rq.job.Job, "perform")
-    _uw(rq.job.Job, "fetch")
+    trace_utils.unwrap(rq.job.Job, "perform")
+    trace_utils.unwrap(rq.job.Job, "fetch")
 
     # Unpatch rq.queue.Queue
     Pin.remove_from(rq.queue.Queue)
-    _uw(rq.queue.Queue, "enqueue_job")
-    _uw(rq.queue.Queue, "fetch_job")
+    trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
+    trace_utils.unwrap(rq.queue.Queue, "fetch_job")
 
     # Unpatch rq.worker.Worker
     Pin.remove_from(rq.worker.Worker)
-    _uw(rq.worker.Worker, "perform_job")
+    trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
     setattr(rq, "_datadog_patch", False)
