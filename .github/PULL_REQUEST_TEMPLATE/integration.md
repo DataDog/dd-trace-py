@@ -26,7 +26,7 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
   - [ ] 500-level responses are tagged as errors.
 - [ ] Web (if applicable) 
   - [ ] Request headers specified in the config are stored.
-  - [ ] Use SpanTypes.web request span of trace.
+  - [ ] Use SpanTypes.WEB for request span of trace.
 - [ ] Tests
   - [ ] Tests are provided for all of the above.
   - [ ] Tests are added to CI (`.circleci/config.yml`).
