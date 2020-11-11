@@ -15,7 +15,7 @@ from ddtrace.ext import memcached
 # testing
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 
 
 class PylibmcCore(object):
@@ -178,13 +178,14 @@ class PylibmcCore(object):
         assert expected_resources == resources
 
     def _verify_cache_span(self, s, start, end):
+        assert_is_measured(s)
         assert s.start > start
         assert s.start + s.duration < end
         assert s.service == self.TEST_SERVICE
         assert s.span_type == 'cache'
         assert s.name == 'memcached.cmd'
         assert s.get_tag('out.host') == cfg['host']
-        assert s.get_tag('out.port') == str(cfg['port'])
+        assert s.get_metric('out.port') == cfg['port']
 
     def test_analytics_default(self):
         client, tracer = self.get_client()
@@ -233,8 +234,24 @@ class PylibmcCore(object):
         finally:
             tracer.enabled = True
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The pylibmc integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
 
-class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
+        client, tracer = self.get_client()
+        client.set('a', 'crow')
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
+
+class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
 
     TEST_SERVICE = 'mc-legacy'
@@ -248,7 +265,7 @@ class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
         return client, self.tracer
 
 
-class TestPylibmcPatchDefault(BaseTracerTestCase, PylibmcCore):
+class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the default lib patching"""
 
     def setUp(self):

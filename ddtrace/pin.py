@@ -1,5 +1,7 @@
 import ddtrace
 
+from ddtrace.vendor import debtcollector
+
 from .internal.logger import get_logger
 from .vendor import wrapt
 
@@ -24,12 +26,12 @@ class Pin(object):
         >>> pin = Pin.override(conn, service='user-db')
         >>> conn = sqlite.connect('/tmp/image.db')
     """
-    __slots__ = ['app', 'app_type', 'tags', 'tracer', '_target', '_config', '_initialized']
+    __slots__ = ['app', 'tags', 'tracer', '_target', '_config', '_initialized']
 
-    def __init__(self, service, app=None, app_type=None, tags=None, tracer=None, _config=None):
+    @debtcollector.removals.removed_kwarg("app_type")
+    def __init__(self, service=None, app=None, app_type=None, tags=None, tracer=None, _config=None):
         tracer = tracer or ddtrace.tracer
         self.app = app
-        self.app_type = app_type
         self.tags = tags
         self.tracer = tracer
         self._target = None
@@ -53,8 +55,8 @@ class Pin(object):
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return 'Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)' % (
-            self.service, self.app, self.app_type, self.tags, self.tracer)
+        return 'Pin(service=%s, app=%s, tags=%s, tracer=%s)' % (
+            self.service, self.app, self.tags, self.tracer)
 
     @staticmethod
     def _find(*objs):
@@ -64,7 +66,7 @@ class Pin(object):
 
             >>> pin = Pin._find(wrapper, instance, conn, app)
 
-        :param *objs: The objects to search for a :class:`ddtrace.pin.Pin` on
+        :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
         :rtype: :class:`ddtrace.pin.Pin`, None
         :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found
@@ -101,6 +103,7 @@ class Pin(object):
         return pin
 
     @classmethod
+    @debtcollector.removals.removed_kwarg("app_type")
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Override an object with the given attributes.
 
@@ -121,7 +124,6 @@ class Pin(object):
         pin.clone(
             service=service,
             app=app,
-            app_type=app_type,
             tags=tags,
             tracer=tracer,
         ).onto(obj)
@@ -159,6 +161,7 @@ class Pin(object):
         except AttributeError:
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
+    @debtcollector.removals.removed_kwarg("app_type")
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts
@@ -176,7 +179,6 @@ class Pin(object):
         return Pin(
             service=service or self.service,
             app=app or self.app,
-            app_type=app_type or self.app_type,
             tags=tags,
             tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,

@@ -1,16 +1,16 @@
 # stdlib
-import time
 import ddtrace
 from json import loads
-import socket
 
 # project
-from .encoding import get_encoder, JSONEncoder
+from .encoding import Encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+from .internal import uds
 from .internal.logger import get_logger
 from .internal.runtime import container
 from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
+from .utils import time
 
 
 log = get_logger(__name__)
@@ -84,8 +84,8 @@ class Response(object):
                 return
 
             return loads(body)
-        except (ValueError, TypeError) as err:
-            log.debug('Unable to parse Datadog Agent JSON response: %s %r', err, body)
+        except (ValueError, TypeError):
+            log.debug('Unable to parse Datadog Agent JSON response: %r', body, exc_info=True)
 
     def __repr__(self):
         return '{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})'.format(
@@ -95,24 +95,6 @@ class Response(object):
             self.reason,
             self.msg,
         )
-
-
-class UDSHTTPConnection(httplib.HTTPConnection):
-    """An HTTP connection established over a Unix Domain Socket."""
-
-    # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
-    # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(self, path, https, *args, **kwargs):
-        if https:
-            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
-        else:
-            httplib.HTTPConnection.__init__(self, *args, **kwargs)
-        self.path = path
-
-    def connect(self):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(self.path)
-        self.sock = sock
 
 
 class API(object):
@@ -185,7 +167,7 @@ class API(object):
         if self._compatibility_mode:
             self._encoder = JSONEncoder()
         else:
-            self._encoder = encoder or get_encoder()
+            self._encoder = encoder or Encoder()
         # overwrite the Content-type with the one chosen in the Encoder
         self._headers.update({'Content-Type': self._encoder.content_type})
 
@@ -207,33 +189,38 @@ class API(object):
         if not traces:
             return []
 
-        start = time.time()
-        responses = []
-        payload = Payload(encoder=self._encoder)
-        for trace in traces:
-            try:
-                payload.add_trace(trace)
-            except PayloadFull:
-                # Is payload full or is the trace too big?
-                # If payload is not empty, then using a new Payload might allow us to fit the trace.
-                # Let's flush the Payload and try to put the trace in a new empty Payload.
-                if not payload.empty:
-                    responses.append(self._flush(payload))
-                    # Create a new payload
-                    payload = Payload(encoder=self._encoder)
-                    try:
-                        # Add the trace that we were unable to add in that iteration
-                        payload.add_trace(trace)
-                    except PayloadFull:
-                        # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
+        with time.StopWatch() as sw:
+            responses = []
+            payload = Payload(encoder=self._encoder)
+            for trace in traces:
+                try:
+                    payload.add_trace(trace)
+                except PayloadFull as e:
+                    # Is payload full or is the trace too big?
+                    # If payload is not empty, then using a new Payload might allow us to fit the trace.
+                    # Let's flush the Payload and try to put the trace in a new empty Payload.
+                    # If payload is empty, then the trace was larger than the max payload size
+                    if not payload.empty:
+                        responses.append(self._flush(payload))
+                        # Create a new payload
+                        payload = Payload(encoder=self._encoder)
+                        try:
+                            # Add the trace that we were unable to add in that iteration
+                            payload.add_trace(trace)
+                        except PayloadFull as e:
+                            # If the trace does not fit in a payload on its own, that's bad. Drop it.
+                            log.warning('Trace is too big to fit in a payload, dropping it')
+                            responses.append(e)
+                    else:
+                        log.warning('Trace is larger than the max payload size, dropping it')
+                        responses.append(e)
 
-        # Check that the Payload is not empty:
-        # it could be empty if the last trace was too big to fit.
-        if not payload.empty:
-            responses.append(self._flush(payload))
+            # Check that the Payload is not empty:
+            # it could be empty if the last trace was too big to fit.
+            if not payload.empty:
+                responses.append(self._flush(payload))
 
-        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
+        log.debug('reported %d traces in %.5fs', len(traces), sw.elapsed())
 
         return responses
 
@@ -265,7 +252,7 @@ class API(object):
             else:
                 conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
         else:
-            conn = UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
+            conn = uds.UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
 
         try:
             conn.request('PUT', endpoint, data, headers)

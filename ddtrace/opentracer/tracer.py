@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
     keys.PRIORITY_SAMPLING: None,
+    keys.UDS_PATH: None,
     keys.SETTINGS: {
         FILTERS_KEY: [],
     },
@@ -68,7 +69,7 @@ class Tracer(opentracing.Tracer):
             invalid_keys = config_invalid_keys(self._config)
             if invalid_keys:
                 str_invalid_keys = ','.join(invalid_keys)
-                raise ConfigException('invalid key(s) given (%s)'.format(str_invalid_keys))
+                raise ConfigException('invalid key(s) given ({})'.format(str_invalid_keys))
 
         if not self._service_name:
             raise ConfigException(""" Cannot detect the \'service_name\'.
@@ -77,7 +78,6 @@ class Tracer(opentracing.Tracer):
                                   """)
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
-
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
@@ -89,6 +89,7 @@ class Tracer(opentracing.Tracer):
                                   sampler=self._config.get(keys.SAMPLER),
                                   settings=self._config.get(keys.SETTINGS),
                                   priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+                                  uds_path=self._config.get(keys.UDS_PATH),
                                   context_provider=dd_context_provider,
                                   )
         self._propagators = {
@@ -153,7 +154,6 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
-
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
@@ -176,13 +176,11 @@ class Tracer(opentracing.Tracer):
                 '...',
                 references=[opentracing.child_of(parent_span)])
 
-        Note: the precedence when defining a relationship is the following:
-        (highest)
-            1. *child_of*
-            2. *references*
-            3. `scope_manager.active` (unless *ignore_active_span* is True)
-            4. None
-        (lowest)
+        Note: the precedence when defining a relationship is the following, from highest to lowest:
+        1. *child_of*
+        2. *references*
+        3. `scope_manager.active` (unless *ignore_active_span* is True)
+        4. None
 
         Currently Datadog only supports `child_of` references.
 
@@ -257,16 +255,39 @@ class Tracer(opentracing.Tracer):
 
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
-        if tags is not None:
-            ddspan.set_tags(tags)
 
         otspan = Span(self, ot_parent_context, operation_name)
         # sync up the OT span with the DD span
         otspan._associate_dd_span(ddspan)
 
+        if tags is not None:
+            for k in tags:
+                # Make sure we set the tags on the otspan to ensure that the special compatibility tags
+                # are handled correctly (resource name, span type, sampling priority, etc).
+                otspan.set_tag(k, tags[k])
+
         return otspan
 
-    def inject(self, span_context, format, carrier):
+    @property
+    def active_span(self):
+        """Retrieves the active span from the opentracing scope manager
+
+        Falls back to using the datadog active span if one is not found. This
+        allows opentracing users to use datadog instrumentation.
+        """
+        scope = self._scope_manager.active
+        if scope:
+            return scope.span
+        else:
+            dd_span = self._dd_tracer.current_span()
+            if dd_span:
+                ot_span = Span(self, None, dd_span.name)
+                ot_span._associate_dd_span(dd_span)
+            else:
+                ot_span = None
+            return ot_span
+
+    def inject(self, span_context, format, carrier):  # noqa: A002
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
@@ -280,7 +301,7 @@ class Tracer(opentracing.Tracer):
 
         propagator.inject(span_context, carrier)
 
-    def extract(self, format, carrier):
+    def extract(self, format, carrier):  # noqa: A002
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.

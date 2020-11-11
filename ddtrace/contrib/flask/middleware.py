@@ -1,8 +1,10 @@
 from ... import compat
-from ...ext import http, errors
+from ...ext import SpanTypes, http, errors
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
+from ddtrace.http import store_request_headers
+from ddtrace import config
 
 import flask.templating
 from flask import g, request, signals
@@ -112,7 +114,7 @@ class TraceMiddleware(object):
             g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,
                 service=self.app._service,
-                span_type=http.TYPE,
+                span_type=SpanTypes.WEB,
             )
         except Exception:
             log.debug('flask: error tracing request', exc_info=True)
@@ -155,6 +157,7 @@ class TraceMiddleware(object):
         endpoint = ''
         url = ''
         if request:
+            store_request_headers(request.headers, span, config.flask)
             method = request.method
             endpoint = request.endpoint or code
             url = request.base_url or ''
@@ -188,12 +191,17 @@ def _patch_render(tracer):
     # fall back to patching  global method
     _render = flask.templating._render
 
+    # If the method has already been patched and we're patching again then
+    # we have to patch again with the new tracer reference.
+    if hasattr(_render, "__dd_orig"):
+        _render = getattr(_render, "__dd_orig")
+
     def _traced_render(template, context, app):
-        with tracer.trace('flask.template') as span:
-            span.span_type = http.TEMPLATE
+        with tracer.trace('flask.template', span_type=SpanTypes.TEMPLATE) as span:
             span.set_tag('flask.template', template.name or 'string')
             return _render(template, context, app)
 
+    setattr(_traced_render, "__dd_orig", _render)
     flask.templating._render = _traced_render
 
 

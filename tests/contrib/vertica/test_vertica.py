@@ -5,27 +5,27 @@ from ddtrace.vendor import wrapt
 # project
 import ddtrace
 from ddtrace import Pin, config
+from ddtrace.settings.config import _deepmerge
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
-from ddtrace.utils.merge import deepmerge
 
 # testing
-from tests.base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
-TEST_TABLE = 'test_table'
+TEST_TABLE = "test_table"
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def test_tracer(request):
     request.cls.test_tracer = get_dummy_tracer()
     return request.cls.test_tracer
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def test_conn(request, test_tracer):
     ddtrace.tracer = test_tracer
     patch()
@@ -35,7 +35,7 @@ def test_conn(request, test_tracer):
     conn = vertica_python.connect(**VERTICA_CONFIG)
 
     cur = conn.cursor()
-    cur.execute('DROP TABLE IF EXISTS {}'.format(TEST_TABLE))
+    cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
     cur.execute(
         """CREATE TABLE {} (
         a INT,
@@ -51,7 +51,7 @@ def test_conn(request, test_tracer):
     return conn, cur
 
 
-class TestVerticaPatching(BaseTracerTestCase):
+class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
@@ -61,9 +61,7 @@ class TestVerticaPatching(BaseTracerTestCase):
         import vertica_python
 
         assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(
-            vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
-        )
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
     def test_patch_after_import(self):
         """Patching _after_ the import will not work because we hook into
@@ -75,9 +73,7 @@ class TestVerticaPatching(BaseTracerTestCase):
         import vertica_python
 
         assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(
-            vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
-        )
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
         patch()
 
@@ -91,25 +87,17 @@ class TestVerticaPatching(BaseTracerTestCase):
 
         # use a patched method from each class as indicators
         assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert isinstance(
-            vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
-        )
+        assert isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
     def test_idempotent_patch(self):
         patch()
         patch()
         import vertica_python
 
-        assert not isinstance(
-            vertica_python.Connection.cursor.__wrapped__, wrapt.ObjectProxy
-        )
-        assert not isinstance(
-            vertica_python.vertica.cursor.Cursor.execute.__wrapped__, wrapt.ObjectProxy
-        )
+        assert not isinstance(vertica_python.Connection.cursor.__wrapped__, wrapt.ObjectProxy)
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute.__wrapped__, wrapt.ObjectProxy)
         assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert isinstance(
-            vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
-        )
+        assert isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
     def test_unpatch_before_import(self):
         patch()
@@ -117,9 +105,7 @@ class TestVerticaPatching(BaseTracerTestCase):
         import vertica_python
 
         assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(
-            vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
-        )
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
     def test_unpatch_after_import(self):
         patch()
@@ -127,13 +113,11 @@ class TestVerticaPatching(BaseTracerTestCase):
 
         unpatch()
         assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(
-            vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
-        )
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
 
-@pytest.mark.usefixtures('test_tracer', 'test_conn')
-class TestVertica(BaseTracerTestCase):
+@pytest.mark.usefixtures("test_tracer", "test_conn")
+class TestVertica(TracerTestCase):
     def tearDown(self):
         super(TestVertica, self).tearDown()
 
@@ -141,7 +125,7 @@ class TestVertica(BaseTracerTestCase):
 
     def test_configuration_service_name(self):
         """Ensure that the integration can be configured."""
-        with self.override_config('vertica', dict(service_name='test_svc_name')):
+        with self.override_config("vertica", dict(service_name="test_svc_name")):
             patch()
             import vertica_python
 
@@ -151,19 +135,19 @@ class TestVertica(BaseTracerTestCase):
             cur = conn.cursor()
             Pin.override(cur, tracer=test_tracer)
             with conn:
-                cur.execute('DROP TABLE IF EXISTS {}'.format(TEST_TABLE))
+                cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
         spans = test_tracer.writer.pop()
         assert len(spans) == 1
-        assert spans[0].service == 'test_svc_name'
+        assert spans[0].service == "test_svc_name"
 
     def test_configuration_routine(self):
         """Ensure that the integration routines can be configured."""
         routine_config = dict(
             patch={
-                'vertica_python.vertica.connection.Connection': dict(
+                "vertica_python.vertica.connection.Connection": dict(
                     routines=dict(
                         cursor=dict(
-                            operation_name='get_cursor',
+                            operation_name="get_cursor",
                             trace_enabled=True,
                         ),
                     ),
@@ -173,22 +157,22 @@ class TestVertica(BaseTracerTestCase):
 
         # Make a copy of the vertica config first before we merge our settings over
         # DEV: First argument gets merged into the second
-        copy = deepmerge(config.vertica, dict())
-        overrides = deepmerge(routine_config, copy)
-        with self.override_config('vertica', overrides):
+        copy = _deepmerge(config.vertica, dict())
+        overrides = _deepmerge(routine_config, copy)
+        with self.override_config("vertica", overrides):
             patch()
             import vertica_python
 
             test_tracer = get_dummy_tracer()
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
-            Pin.override(conn, service='mycustomservice', tracer=test_tracer)
+            Pin.override(conn, service="mycustomservice", tracer=test_tracer)
             conn.cursor()  # should be traced now
             conn.close()
         spans = test_tracer.writer.pop()
         assert len(spans) == 1
-        assert spans[0].name == 'get_cursor'
-        assert spans[0].service == 'mycustomservice'
+        assert spans[0].name == "get_cursor"
+        assert spans[0].service == "mycustomservice"
 
     def test_execute_metadata(self):
         """Metadata related to an `execute` call should be captured."""
@@ -198,24 +182,25 @@ class TestVertica(BaseTracerTestCase):
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
         assert len(spans) == 2
 
         # check all the metadata
-        assert spans[0].service == 'vertica'
-        assert spans[0].span_type == 'sql'
-        assert spans[0].name == 'vertica.query'
-        assert spans[0].get_metric('db.rowcount') == -1
+        assert_is_measured(spans[0])
+        assert spans[0].service == "vertica"
+        assert spans[0].span_type == "sql"
+        assert spans[0].name == "vertica.query"
+        assert spans[0].get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
-        assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
-        assert spans[0].get_tag('db.name') == 'docker'
-        assert spans[0].get_tag('db.user') == 'dbadmin'
+        assert spans[0].get_tag("out.host") == "127.0.0.1"
+        assert spans[0].get_metric("out.port") == 5433
+        assert spans[0].get_tag("db.name") == "docker"
+        assert spans[0].get_tag("db.user") == "dbadmin"
 
-        assert spans[1].resource == 'SELECT * FROM test_table;'
+        assert spans[1].resource == "SELECT * FROM test_table;"
 
     def test_cursor_override(self):
         """Test overriding the tracer with our own."""
@@ -225,22 +210,23 @@ class TestVertica(BaseTracerTestCase):
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
         assert len(spans) == 2
 
         # check all the metadata
-        assert spans[0].service == 'vertica'
-        assert spans[0].span_type == 'sql'
-        assert spans[0].name == 'vertica.query'
-        assert spans[0].get_metric('db.rowcount') == -1
+        assert_is_measured(spans[0])
+        assert spans[0].service == "vertica"
+        assert spans[0].span_type == "sql"
+        assert spans[0].name == "vertica.query"
+        assert spans[0].get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
-        assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_tag("out.host") == "127.0.0.1"
+        assert spans[0].get_metric("out.port") == 5433
 
-        assert spans[1].resource == 'SELECT * FROM test_table;'
+        assert spans[1].resource == "SELECT * FROM test_table;"
 
     def test_execute_exception(self):
         """Exceptions should result in appropriate span tagging."""
@@ -249,20 +235,20 @@ class TestVertica(BaseTracerTestCase):
         conn, cur = self.test_conn
 
         with conn, pytest.raises(VerticaSyntaxError):
-            cur.execute('INVALID QUERY')
+            cur.execute("INVALID QUERY")
 
         spans = self.test_tracer.writer.pop()
         assert len(spans) == 2
 
         # check all the metadata
-        assert spans[0].service == 'vertica'
+        assert spans[0].service == "vertica"
         assert spans[0].error == 1
-        assert 'INVALID QUERY' in spans[0].get_tag(errors.ERROR_MSG)
-        error_type = 'vertica_python.errors.VerticaSyntaxError'
+        assert "INVALID QUERY" in spans[0].get_tag(errors.ERROR_MSG)
+        error_type = "vertica_python.errors.VerticaSyntaxError"
         assert spans[0].get_tag(errors.ERROR_TYPE) == error_type
         assert spans[0].get_tag(errors.ERROR_STACK)
 
-        assert spans[1].resource == 'COMMIT;'
+        assert spans[1].resource == "COMMIT;"
 
     def test_rowcount_oddity(self):
         """Vertica treats rowcount specially. Ensure we handle it.
@@ -290,7 +276,7 @@ class TestVertica(BaseTracerTestCase):
             )
             assert cur.rowcount == -1
 
-            cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
             cur.fetchone()
             cur.rowcount == 1
             cur.fetchone()
@@ -303,37 +289,37 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 9
 
         # check all the rowcounts
-        assert spans[0].name == 'vertica.query'
-        assert spans[1].get_metric('db.rowcount') == -1
-        assert spans[1].name == 'vertica.query'
-        assert spans[1].get_metric('db.rowcount') == -1
-        assert spans[2].name == 'vertica.fetchone'
-        assert spans[2].get_tag('out.host') == '127.0.0.1'
-        assert spans[2].get_tag('out.port') == '5433'
-        assert spans[2].get_metric('db.rowcount') == 1
-        assert spans[3].name == 'vertica.fetchone'
-        assert spans[3].get_metric('db.rowcount') == 2
-        assert spans[4].name == 'vertica.fetchall'
-        assert spans[4].get_metric('db.rowcount') == 5
+        assert spans[0].name == "vertica.query"
+        assert spans[1].get_metric("db.rowcount") == -1
+        assert spans[1].name == "vertica.query"
+        assert spans[1].get_metric("db.rowcount") == -1
+        assert spans[2].name == "vertica.fetchone"
+        assert spans[2].get_tag("out.host") == "127.0.0.1"
+        assert spans[2].get_metric("out.port") == 5433
+        assert spans[2].get_metric("db.rowcount") == 1
+        assert spans[3].name == "vertica.fetchone"
+        assert spans[3].get_metric("db.rowcount") == 2
+        assert spans[4].name == "vertica.fetchall"
+        assert spans[4].get_metric("db.rowcount") == 5
 
     def test_nextset(self):
         """cursor.nextset() should be traced."""
         conn, cur = self.test_conn
 
         with conn:
-            cur.execute('SELECT * FROM {0}; SELECT * FROM {0}'.format(TEST_TABLE))
+            cur.execute("SELECT * FROM {0}; SELECT * FROM {0}".format(TEST_TABLE))
             cur.nextset()
 
         spans = self.test_tracer.writer.pop()
         assert len(spans) == 3
 
         # check all the rowcounts
-        assert spans[0].name == 'vertica.query'
-        assert spans[1].get_metric('db.rowcount') == -1
-        assert spans[1].name == 'vertica.nextset'
-        assert spans[1].get_metric('db.rowcount') == -1
-        assert spans[2].name == 'vertica.query'
-        assert spans[2].resource == 'COMMIT;'
+        assert spans[0].name == "vertica.query"
+        assert spans[1].get_metric("db.rowcount") == -1
+        assert spans[1].name == "vertica.nextset"
+        assert spans[1].get_metric("db.rowcount") == -1
+        assert spans[2].name == "vertica.query"
+        assert spans[2].resource == "COMMIT;"
 
     def test_copy(self):
         """cursor.copy() should be traced."""
@@ -342,26 +328,26 @@ class TestVertica(BaseTracerTestCase):
         with conn:
             cur.copy(
                 "COPY {0} (a, b) FROM STDIN DELIMITER ','".format(TEST_TABLE),
-                '1,foo\n2,bar',
+                "1,foo\n2,bar",
             )
 
         spans = self.test_tracer.writer.pop()
         assert len(spans) == 2
 
         # check all the rowcounts
-        assert spans[0].name == 'vertica.copy'
+        assert spans[0].name == "vertica.copy"
         query = "COPY test_table (a, b) FROM STDIN DELIMITER ','"
         assert spans[0].resource == query
-        assert spans[1].name == 'vertica.query'
-        assert spans[1].resource == 'COMMIT;'
+        assert spans[1].name == "vertica.query"
+        assert spans[1].resource == "COMMIT;"
 
     def test_opentracing(self):
         """Ensure OpenTracing works with vertica."""
         conn, cur = self.test_conn
 
-        ot_tracer = init_tracer('vertica_svc', self.test_tracer)
+        ot_tracer = init_tracer("vertica_svc", self.test_tracer)
 
-        with ot_tracer.start_active_span('vertica_execute'):
+        with ot_tracer.start_active_span("vertica_execute"):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             conn.close()
 
@@ -373,14 +359,15 @@ class TestVertica(BaseTracerTestCase):
         assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
 
-        assert dd_span.service == 'vertica'
-        assert dd_span.span_type == 'sql'
-        assert dd_span.name == 'vertica.query'
-        assert dd_span.get_metric('db.rowcount') == -1
+        assert_is_measured(dd_span)
+        assert dd_span.service == "vertica"
+        assert dd_span.span_type == "sql"
+        assert dd_span.name == "vertica.query"
+        assert dd_span.get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert dd_span.resource == query
-        assert dd_span.get_tag('out.host') == '127.0.0.1'
-        assert dd_span.get_tag('out.port') == '5433'
+        assert dd_span.get_tag("out.host") == "127.0.0.1"
+        assert dd_span.get_metric("out.port") == 5433
 
     def test_analytics_default(self):
         conn, cur = self.test_conn
@@ -389,42 +376,57 @@ class TestVertica(BaseTracerTestCase):
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-            cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
         self.assertEqual(len(spans), 2)
         self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config(
-            'vertica',
-            dict(analytics_enabled=True, analytics_sample_rate=0.5)
-        ):
+        with self.override_config("vertica", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             conn, cur = self.test_conn
 
             Pin.override(cur, tracer=self.test_tracer)
 
             with conn:
                 cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-                cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
+                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config(
-            'vertica',
-            dict(analytics_enabled=True)
-        ):
+        with self.override_config("vertica", dict(analytics_enabled=True)):
             conn, cur = self.test_conn
 
             Pin.override(cur, tracer=self.test_tracer)
 
             with conn:
                 cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-                cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
+                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The vertica integration should not use it.
+        """
+        # Ensure that the service name was configured
+        with self.override_global_config(dict(service="mysvc")):
+            from ddtrace import config
+
+            assert config.service == "mysvc"
+            conn, cur = self.test_conn
+            Pin.override(cur, tracer=self.test_tracer)
+            with conn:
+                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.writer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service != "mysvc"

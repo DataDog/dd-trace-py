@@ -3,12 +3,13 @@ import rediscluster
 
 from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import patch, unpatch
+from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
-from ...test_tracer import get_dummy_tracer
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
-class TestRedisPatch(BaseTracerTestCase):
+class TestRedisPatch(TracerTestCase):
 
     TEST_SERVICE = 'rediscluster-patch'
     TEST_HOST = REDISCLUSTER_CONFIG['host']
@@ -19,7 +20,10 @@ class TestRedisPatch(BaseTracerTestCase):
             {'host': self.TEST_HOST, 'port': int(port)}
             for port in self.TEST_PORTS.split(',')
         ]
-        return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
+        if REDISCLUSTER_VERSION >= (2, 0, 0):
+            return rediscluster.RedisCluster(startup_nodes=startup_nodes)
+        else:
+            return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
         super(TestRedisPatch, self).setUp()
@@ -39,6 +43,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
@@ -57,6 +62,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
@@ -100,3 +106,22 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The rediscluster integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        r = self._get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service != "mysvc"

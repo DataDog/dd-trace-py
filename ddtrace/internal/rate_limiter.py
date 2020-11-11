@@ -1,23 +1,24 @@
 from __future__ import division
 import threading
 
-from ..vendor import monotonic
+from .. import compat
 
 
 class RateLimiter(object):
     """
     A token bucket rate limiter implementation
     """
+
     __slots__ = (
-        '_lock',
-        'current_window',
-        'last_update',
-        'max_tokens',
-        'prev_window_rate',
-        'rate_limit',
-        'tokens',
-        'tokens_allowed',
-        'tokens_total',
+        "_lock",
+        "current_window",
+        "last_update",
+        "max_tokens",
+        "prev_window_rate",
+        "rate_limit",
+        "tokens",
+        "tokens_allowed",
+        "tokens_total",
     )
 
     def __init__(self, rate_limit):
@@ -34,7 +35,7 @@ class RateLimiter(object):
         self.tokens = rate_limit
         self.max_tokens = rate_limit
 
-        self.last_update = monotonic.monotonic()
+        self.last_update = compat.monotonic()
 
         self.current_window = 0
         self.tokens_allowed = 0
@@ -59,7 +60,7 @@ class RateLimiter(object):
         return allowed
 
     def _update_rate_counts(self, allowed):
-        now = monotonic.monotonic()
+        now = compat.monotonic()
 
         # No tokens have been seen yet, start a new window
         if not self.current_window:
@@ -103,7 +104,7 @@ class RateLimiter(object):
             return
 
         # Add more available tokens based on how much time has passed
-        now = monotonic.monotonic()
+        now = compat.monotonic()
         elapsed = now - self.last_update
         self.last_update = now
 
@@ -137,7 +138,7 @@ class RateLimiter(object):
         return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return '{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})'.format(
+        return "{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})".format(
             self.__class__.__name__,
             self.rate_limit,
             self.tokens,

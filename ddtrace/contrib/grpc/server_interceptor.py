@@ -5,7 +5,9 @@ from ddtrace import config
 from ddtrace.ext import errors
 from ddtrace.compat import to_unicode
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from . import constants
 from .utils import parse_method_path
@@ -17,7 +19,15 @@ def create_server_interceptor(pin):
             return continuation(handler_call_details)
 
         rpc_method_handler = continuation(handler_call_details)
-        return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+
+        # continuation returns an RpcMethodHandler instance if the RPC is
+        # considered serviced, or None otherwise
+        # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
+
+        if rpc_method_handler:
+            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+
+        return rpc_method_handler
 
     return _ServerInterceptor(interceptor_function)
 
@@ -64,10 +74,11 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         span = tracer.trace(
             'grpc',
-            span_type='grpc',
-            service=self._pin.service,
+            span_type=SpanTypes.GRPC,
+            service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         method_path = self._handler_call_details.method
         method_package, method_service, method_name = parse_method_path(method_path)
@@ -77,7 +88,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
         span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc_server.get_analytics_sample_rate())
+
+        sample_rate = config.grpc_server.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information

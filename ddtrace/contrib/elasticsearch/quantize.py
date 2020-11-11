@@ -3,13 +3,13 @@ import re
 from ...ext import elasticsearch as metadata
 
 # Replace any ID
-ID_REGEXP = re.compile(r'/([0-9]+)([/\?]|$)')
-ID_PLACEHOLDER = r'/?\2'
+ID_REGEXP = re.compile(r"/([0-9]+)([/\?]|$)")
+ID_PLACEHOLDER = r"/?\2"
 
 # Remove digits from potential timestamped indexes (should be an option).
 # For now, let's say 2+ digits
-INDEX_REGEXP = re.compile(r'[0-9]{2,}')
-INDEX_PLACEHOLDER = r'?'
+INDEX_REGEXP = re.compile(r"[0-9]{2,}")
+INDEX_PLACEHOLDER = r"?"
 
 
 def quantize(span):
@@ -29,9 +29,6 @@ def quantize(span):
     quantized_url = ID_REGEXP.sub(ID_PLACEHOLDER, url)
     quantized_url = INDEX_REGEXP.sub(INDEX_PLACEHOLDER, quantized_url)
 
-    span.resource = '{method} {url}'.format(
-        method=method,
-        url=quantized_url
-    )
+    span.resource = "{method} {url}".format(method=method, url=quantized_url)
 
     return span

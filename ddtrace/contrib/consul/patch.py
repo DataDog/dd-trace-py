@@ -3,7 +3,7 @@ import consul
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import consul as consulx
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
@@ -17,7 +17,7 @@ def patch():
         return
     setattr(consul, '__datadog_patch', True)
 
-    pin = Pin(service=consulx.SERVICE, app=consulx.APP, app_type=consulx.APP_TYPE)
+    pin = Pin(service=consulx.SERVICE, app=consulx.APP)
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
@@ -39,7 +39,7 @@ def wrap_function(name):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        # Only patch the syncronous implementation
+        # Only patch the synchronous implementation
         if not isinstance(instance.agent.http, consul.std.HTTPClient):
             return wrapped(*args, **kwargs)
 
@@ -47,6 +47,7 @@ def wrap_function(name):
         resource = name.upper()
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
             rate = config.consul.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)

@@ -1,61 +1,33 @@
 import django
-from django.apps import apps
-from unittest import skipIf
+import pytest
 
-from tests.contrib.django.utils import DjangoTraceTestCase
+from ... import assert_span_http_status_code
 
 
-@skipIf(django.VERSION < (1, 10), 'requires django version >= 1.10')
-class RestFrameworkTest(DjangoTraceTestCase):
-    def setUp(self):
-        super(RestFrameworkTest, self).setUp()
+@pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
+@pytest.mark.django_db
+def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about shadowing test_spans
+    response = client.get("/users/")
 
-        # would raise an exception
-        from rest_framework.views import APIView
-        from ddtrace.contrib.django.restframework import unpatch_restframework
+    # Our custom exception handler is setting the status code to 500
+    assert response.status_code == 500
 
-        self.APIView = APIView
-        self.unpatch_restframework = unpatch_restframework
+    sp = test_spans.get_root_span()
+    assert sp.name == "django.request"
+    if django.VERSION >= (2, 2, 0):
+        assert sp.resource == "GET ^users/$"
+    else:
+        assert sp.resource == "GET tests.contrib.djangorestframework.app.views.UserViewSet"
+    assert sp.error == 1
+    assert sp.span_type == "http"
+    assert_span_http_status_code(sp, 500)
+    assert sp.get_tag("http.method") == "GET"
 
-    def test_setup(self):
-        assert apps.is_installed('rest_framework')
-        assert hasattr(self.APIView, '_datadog_patch')
-
-    def test_unpatch(self):
-        self.unpatch_restframework()
-        assert not getattr(self.APIView, '_datadog_patch')
-
-        response = self.client.get('/users/')
-
-        # Our custom exception handler is setting the status code to 500
-        assert response.status_code == 500
-
-        # check for spans
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 1
-        sp = spans[0]
-        assert sp.name == 'django.request'
-        assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
-        assert sp.error == 0
-        assert sp.span_type == 'http'
-        assert sp.get_tag('http.status_code') == '500'
-        assert sp.get_tag('error.msg') is None
-
-    def test_trace_exceptions(self):
-        response = self.client.get('/users/')
-
-        # Our custom exception handler is setting the status code to 500
-        assert response.status_code == 500
-
-        # check for spans
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 1
-        sp = spans[0]
-        assert sp.name == 'django.request'
-        assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
-        assert sp.error == 1
-        assert sp.span_type == 'http'
-        assert sp.get_tag('http.method') == 'GET'
-        assert sp.get_tag('http.status_code') == '500'
-        assert sp.get_tag('error.msg') == 'Authentication credentials were not provided.'
-        assert 'NotAuthenticated' in sp.get_tag('error.stack')
+    # the DRF integration should set the traceback on the django.view.dispatch span
+    # (as it's the current span when the exception info is set)
+    view_dispatch_spans = list(test_spans.filter_spans(name="django.view.dispatch"))
+    assert len(view_dispatch_spans) == 1
+    err_span = view_dispatch_spans[0]
+    assert err_span.error == 1
+    assert err_span.get_tag("error.msg") == "Authentication credentials were not provided."
+    assert "NotAuthenticated" in err_span.get_tag("error.stack")

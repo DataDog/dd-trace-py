@@ -2,7 +2,7 @@
 The Flask__ integration will add tracing to all requests to your Flask application.
 
 This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
-signals, and templating rendering.
+signals, and template rendering.
 
 To configure tracing manually::
 
@@ -37,19 +37,11 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.flask['analytics_enabled']
-
-   Whether to generate APM events for Flask in Trace Search & Analytics.
-
-   Can also be enabled with the ``DD_FLASK_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.flask['service_name']
 
    The service name reported for your Flask app.
 
-   Can also be configured via the ``DATADOG_SERVICE_NAME`` environment variable.
+   Can also be configured via the ``DD_SERVICE`` environment variable.
 
    Default: ``'flask'``
 

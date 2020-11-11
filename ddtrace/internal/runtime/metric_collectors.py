@@ -21,14 +21,15 @@ class RuntimeMetricCollector(ValueCollector):
 
 
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
-    """ Collector for garbage collection generational counts
+    """Collector for garbage collection generational counts
 
     More information at https://docs.python.org/3/library/gc.html
     """
-    required_modules = ['gc']
+
+    required_modules = ["gc"]
 
     def collect_fn(self, keys):
-        gc = self.modules.get('gc')
+        gc = self.modules.get("gc")
 
         counts = gc.get_count()
         metrics = [
@@ -47,7 +48,8 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     See https://psutil.readthedocs.io/en/latest/#psutil.Process.oneshot
     for more information.
     """
-    required_modules = ['psutil']
+
+    required_modules = ["ddtrace.vendor.psutil"]
     stored_value = dict(
         CPU_TIME_SYS_TOTAL=0,
         CPU_TIME_USER_TOTAL=0,
@@ -56,7 +58,7 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     )
 
     def _on_modules_load(self):
-        self.proc = self.modules['psutil'].Process(os.getpid())
+        self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
 
     def collect_fn(self, keys):
         with self.proc.oneshot():
@@ -64,13 +66,13 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
             # TODO[tahir]: better abstraction for metrics based on last value
             cpu_time_sys_total = self.proc.cpu_times().system
             cpu_time_user_total = self.proc.cpu_times().user
-            cpu_time_sys = cpu_time_sys_total - self.stored_value['CPU_TIME_SYS_TOTAL']
-            cpu_time_user = cpu_time_user_total - self.stored_value['CPU_TIME_USER_TOTAL']
+            cpu_time_sys = cpu_time_sys_total - self.stored_value["CPU_TIME_SYS_TOTAL"]
+            cpu_time_user = cpu_time_user_total - self.stored_value["CPU_TIME_USER_TOTAL"]
 
             ctx_switch_voluntary_total = self.proc.num_ctx_switches().voluntary
             ctx_switch_involuntary_total = self.proc.num_ctx_switches().involuntary
-            ctx_switch_voluntary = ctx_switch_voluntary_total - self.stored_value['CTX_SWITCH_VOLUNTARY_TOTAL']
-            ctx_switch_involuntary = ctx_switch_involuntary_total - self.stored_value['CTX_SWITCH_INVOLUNTARY_TOTAL']
+            ctx_switch_voluntary = ctx_switch_voluntary_total - self.stored_value["CTX_SWITCH_VOLUNTARY_TOTAL"]
+            ctx_switch_involuntary = ctx_switch_involuntary_total - self.stored_value["CTX_SWITCH_INVOLUNTARY_TOTAL"]
 
             self.stored_value = dict(
                 CPU_TIME_SYS_TOTAL=cpu_time_sys_total,

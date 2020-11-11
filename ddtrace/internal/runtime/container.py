@@ -1,3 +1,4 @@
+import os
 import re
 
 from ..logger import get_logger
@@ -9,14 +10,15 @@ class CGroupInfo(object):
     """
     CGroup class for container information parsed from a group cgroup file
     """
-    __slots__ = ('id', 'groups', 'path', 'container_id', 'controllers', 'pod_id')
 
-    UUID_SOURCE_PATTERN = r'[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}'
-    CONTAINER_SOURCE_PATTERN = r'[0-9a-f]{64}'
+    __slots__ = ("id", "groups", "path", "container_id", "controllers", "pod_id")
 
-    LINE_RE = re.compile(r'^(\d+):([^:]*):(.+)$')
-    POD_RE = re.compile(r'pod({0})(?:\.slice)?$'.format(UUID_SOURCE_PATTERN))
-    CONTAINER_RE = re.compile(r'({0}|{1})(?:\.scope)?$'.format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN))
+    UUID_SOURCE_PATTERN = r"[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}"
+    CONTAINER_SOURCE_PATTERN = r"[0-9a-f]{64}"
+
+    LINE_RE = re.compile(r"^(\d+):([^:]*):(.+)$")
+    POD_RE = re.compile(r"pod({0})(?:\.slice)?$".format(UUID_SOURCE_PATTERN))
+    CONTAINER_RE = re.compile(r"({0}|{1})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN))
 
     def __init__(self, **kwargs):
         # Initialize all attributes in __slots__ to `None`
@@ -48,12 +50,12 @@ class CGroupInfo(object):
         info.id, info.groups, info.path = match.groups()
 
         # Parse the controllers from the groups
-        info.controllers = [c.strip() for c in info.groups.split(',') if c.strip()]
+        info.controllers = [c.strip() for c in info.groups.split(",") if c.strip()]
 
         # Break up the path to grab container_id and pod_id if available
         # e.g. /docker/<container_id>
         # e.g. /kubepods/test/pod<pod_id>/<container_id>
-        parts = [p for p in info.path.split('/')]
+        parts = [p for p in info.path.split("/")]
 
         # Grab the container id from the path if a valid id is present
         if len(parts):
@@ -73,7 +75,7 @@ class CGroupInfo(object):
         return self.__repr__()
 
     def __repr__(self):
-        return '{}(id={!r}, groups={!r}, path={!r}, container_id={!r}, controllers={!r}, pod_id={!r})'.format(
+        return "{}(id={!r}, groups={!r}, path={!r}, container_id={!r}, controllers={!r}, pod_id={!r})".format(
             self.__class__.__name__,
             self.id,
             self.groups,
@@ -84,7 +86,7 @@ class CGroupInfo(object):
         )
 
 
-def get_container_info(pid='self'):
+def get_container_info(pid="self"):
     """
     Helper to fetch the current container id, if we are running in a container
 
@@ -97,14 +99,19 @@ def get_container_info(pid='self'):
     :returns: The cgroup file info if found, or else None
     :rtype: :class:`CGroupInfo` | None
     """
+
+    cgroup_file = "/proc/{0}/cgroup".format(pid)
+
+    if not os.path.exists(cgroup_file):
+        # If the cgroup file does not exist then this is likely not a container
+        # which is a valid use-case so pass.
+        return
+
     try:
-        cgroup_file = '/proc/{0}/cgroup'.format(pid)
-        with open(cgroup_file, mode='r') as fp:
+        with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and info.container_id:
                     return info
-    except Exception as err:
-        log.debug('Failed to parse cgroup file for pid %r: %s', pid, err)
-
-    return None
+    except Exception:
+        log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)

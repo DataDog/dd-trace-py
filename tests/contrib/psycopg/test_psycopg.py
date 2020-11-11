@@ -17,17 +17,15 @@ from ddtrace import Pin
 # testing
 from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils.tracer import DummyTracer
-
+from ... import TracerTestCase, DummyTracer, assert_is_measured
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import SQL
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
-class PsycopgCore(BaseTracerTestCase):
+class PsycopgCore(TracerTestCase):
 
     # default service
     TEST_SERVICE = 'postgres'
@@ -126,11 +124,14 @@ class PsycopgCore(BaseTracerTestCase):
                 span_type='sql',
                 meta={
                     'out.host': '127.0.0.1',
+                },
+                metrics={
                     'out.port': TEST_PORT,
                 },
             ),
         )
         root = self.get_root_span()
+        assert_is_measured(root)
         self.assertIsNone(root.get_tag('sql.query'))
         self.reset()
 
@@ -154,6 +155,7 @@ class PsycopgCore(BaseTracerTestCase):
                 dict(name='postgres.query', resource=query, service='postgres', error=0, span_type='sql'),
             ),
         )
+        assert_is_measured(self.get_spans()[1])
         self.reset()
 
         with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
@@ -174,6 +176,7 @@ class PsycopgCore(BaseTracerTestCase):
                     dict(name='postgres.query.fetchall', resource=query, service='postgres', error=0, span_type='sql'),
                 ),
             )
+            assert_is_measured(self.get_spans()[1])
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
@@ -188,6 +191,7 @@ class PsycopgCore(BaseTracerTestCase):
             assert len(rows) == 1, rows
             assert rows[0][0] == 'blah'
 
+        assert_is_measured(self.get_root_span())
         self.assert_structure(
             dict(name='postgres.query'),
         )
@@ -282,6 +286,7 @@ class PsycopgCore(BaseTracerTestCase):
             assert rows[0][0] == 'one'
             assert rows[1][0] == 'two'
 
+        assert_is_measured(self.get_root_span())
         self.assert_structure(
             dict(name='postgres.query', resource=query.as_string(db)),
         )
@@ -320,6 +325,39 @@ class PsycopgCore(BaseTracerTestCase):
             self.assertEqual(len(spans), 1)
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_app_service(self):
+        """
+        When a user specifies a service for the app
+            The psycopg integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
+
+    @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
+    def test_contextmanager_connection(self):
+        service = "fo"
+        with self._get_conn(service=service) as conn:
+            conn.cursor().execute("""select 'blah'""")
+            self.assert_structure(dict(name='postgres.query', service=service))
 
 
 def test_backwards_compatibilty_v3():

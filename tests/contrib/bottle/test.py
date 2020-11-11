@@ -3,7 +3,7 @@ import ddtrace
 import webtest
 
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -13,7 +13,7 @@ from ddtrace.ext import http
 SERVICE = 'bottle-app'
 
 
-class TraceBottleTest(BaseTracerTestCase):
+class TraceBottleTest(TracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
@@ -54,11 +54,13 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.span_type == 'web'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
         if ddtrace.config.bottle.trace_query_string:
@@ -83,6 +85,75 @@ class TraceBottleTest(BaseTracerTestCase):
         with self.override_http_config('bottle', dict(trace_query_string=True)):
             return self.test_200('foo=bar&foo=baz&x=y')
 
+    def test_2xx(self):
+        @self.app.route('/2xx')
+        def handled():
+            return bottle.HTTPResponse("", status=202)
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            self.app.get('/2xx')
+        except webtest.AppError:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.resource == 'GET /2xx'
+        assert_span_http_status_code(s, 202)
+        assert s.error == 0
+
+    def test_400_return(self):
+        @self.app.route('/400_return')
+        def handled400():
+            return bottle.HTTPResponse(status=400)
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            self.app.get('/400_return')
+        except webtest.AppError:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert_is_measured(s)
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /400_return'
+        assert_span_http_status_code(s, 400)
+        assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/400_return'
+        assert s.error == 0
+
+    def test_400_raise(self):
+        @self.app.route('/400_raise')
+        def handled400():
+            raise bottle.HTTPResponse(status=400)
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            self.app.get('/400_raise')
+        except webtest.AppError:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert_is_measured(s)
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /400_raise'
+        assert_span_http_status_code(s, 400)
+        assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/400_raise'
+        assert s.error == 1
+
     def test_500(self):
         @self.app.route('/hi')
         def hi():
@@ -98,10 +169,12 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
-        assert s.get_tag('http.status_code') == '500'
+        assert_span_http_status_code(s, 500)
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
         assert s.error == 1
@@ -165,10 +238,12 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
-        assert s.get_tag('http.status_code') == '420'
+        assert_span_http_status_code(s, 420)
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
 
@@ -189,7 +264,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /home/'
-        assert s.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/home/'
 
@@ -336,12 +411,32 @@ class TraceBottleTest(BaseTracerTestCase):
 
         assert ot_span.resource == 'ot_span'
 
+        assert_is_measured(dd_span)
         assert dd_span.name == 'bottle.request'
         assert dd_span.service == 'bottle-app'
         assert dd_span.resource == 'GET /hi/<name>'
-        assert dd_span.get_tag('http.status_code') == '200'
+        assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_tag('http.method') == 'GET'
         assert dd_span.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
 
         services = self.tracer.writer.pop_services()
         assert services == {}
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The bottle integration should use it as the service name
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(
+            name="bottle.request", service="mysvc",
+        )

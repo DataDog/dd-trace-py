@@ -8,20 +8,16 @@ import pytest
 
 from ddtrace.opentracer import Tracer, set_global_tracer
 
-from tests.test_tracer import get_dummy_tracer
+from tests.tracer.test_tracer import get_dummy_tracer
 
 
 @pytest.fixture()
 def ot_tracer_factory():
     """Fixture which returns an opentracer ready to use for testing."""
 
-    def make_ot_tracer(
-        service_name='my_svc', config=None, scope_manager=None, context_provider=None
-    ):
+    def make_ot_tracer(service_name="my_svc", config=None, scope_manager=None, context_provider=None):
         config = config or {}
-        tracer = Tracer(
-            service_name=service_name, config=config, scope_manager=scope_manager
-        )
+        tracer = Tracer(service_name=service_name, config=config, scope_manager=scope_manager)
 
         # similar to how we test the ddtracer, use a dummy tracer
         dd_tracer = get_dummy_tracer()

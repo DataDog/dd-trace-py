@@ -5,9 +5,8 @@ Tracing utilities for the psycopg potgres client library.
 # stdlib
 import functools
 
-from ...ext import db
-from ...ext import net
-from ...ext import sql
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes, db, net, sql
 from ...utils.deprecation import deprecated
 
 # 3p
@@ -39,24 +38,26 @@ class TracedCursor(cursor):
         self._datadog_tags = kwargs.pop('datadog_tags', None)
         super(TracedCursor, self).__init__(*args, **kwargs)
 
-    def execute(self, query, vars=None):
+    def execute(self, query, vars=None):  # noqa: A002
         """ just wrap the cursor execution in a span """
         if not self._datadog_tracer:
             return cursor.execute(self, query, vars)
 
-        with self._datadog_tracer.trace('postgres.query', service=self._datadog_service) as s:
+        with self._datadog_tracer.trace(
+            'postgres.query', service=self._datadog_service, span_type=SpanTypes.SQL
+        ) as s:
+            s.set_tag(SPAN_MEASURED_KEY)
             if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)
 
             s.resource = query
-            s.span_type = sql.TYPE
             s.set_tags(self._datadog_tags)
             try:
                 return super(TracedCursor, self).execute(query, vars)
             finally:
                 s.set_metric('db.rowcount', self.rowcount)
 
-    def callproc(self, procname, vars=None):
+    def callproc(self, procname, vars=None):  # noqa: A002
         """ just wrap the execution in a span """
         return cursor.callproc(self, procname, vars)
 

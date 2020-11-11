@@ -9,14 +9,12 @@ from ddtrace.contrib.mysql.patch import patch, unpatch
 # tests
 from tests.contrib.config import MYSQL_CONFIG
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...util import assert_dict_issuperset
+from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 
 
 class MySQLCore(object):
     """Base test case for MySQL drivers"""
     conn = None
-    TEST_SERVICE = 'test-mysql'
 
     def tearDown(self):
         super(MySQLCore, self).tearDown()
@@ -46,13 +44,14 @@ class MySQLCore(object):
         assert len(spans) == 1
 
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert_is_measured(span)
+        assert span.service == "mysql"
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == 3306
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -69,13 +68,14 @@ class MySQLCore(object):
             assert len(spans) == 2
 
             span = spans[0]
-            assert span.service == self.TEST_SERVICE
+            assert_is_measured(span)
+            assert span.service == "mysql"
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == 3306
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
@@ -209,13 +209,14 @@ class MySQLCore(object):
         # typically, internal calls to execute, but at least we
         # can expect the last closed span to be our proc.
         span = spans[len(spans) - 1]
-        assert span.service == self.TEST_SERVICE
+        assert_is_measured(span)
+        assert span.service == "mysql"
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == 3306
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -246,13 +247,14 @@ class MySQLCore(object):
         assert ot_span.service == 'mysql_svc'
         assert ot_span.name == 'mysql_op'
 
-        assert dd_span.service == self.TEST_SERVICE
+        assert_is_measured(dd_span)
+        assert dd_span.service == "mysql"
         assert dd_span.name == 'mysql.query'
         assert dd_span.span_type == 'sql'
         assert dd_span.error == 0
+        assert dd_span.get_metric('out.port') == 3306
         assert_dict_issuperset(dd_span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -283,13 +285,14 @@ class MySQLCore(object):
             assert ot_span.service == 'mysql_svc'
             assert ot_span.name == 'mysql_op'
 
-            assert dd_span.service == self.TEST_SERVICE
+            assert_is_measured(dd_span)
+            assert dd_span.service == "mysql"
             assert dd_span.name == 'mysql.query'
             assert dd_span.span_type == 'sql'
             assert dd_span.error == 0
+            assert dd_span.get_metric('out.port') == 3306
             assert_dict_issuperset(dd_span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
@@ -303,7 +306,7 @@ class MySQLCore(object):
         spans = writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'mysql.connection.commit'
 
     def test_rollback(self):
@@ -313,7 +316,7 @@ class MySQLCore(object):
         spans = writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "mysql"
         assert span.name == 'mysql.connection.rollback'
 
     def test_analytics_default(self):
@@ -363,8 +366,28 @@ class MySQLCore(object):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The mysql integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
 
-class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = writer.pop()
+
+        assert spans[0].service != "mysvc"
+
+
+class TestMysqlPatch(MySQLCore, TracerTestCase):
 
     def setUp(self):
         super(TestMysqlPatch, self).setUp()
@@ -381,11 +404,10 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
-            assert pin.service == 'mysql'
+            # assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=self.tracer).onto(self.conn)
+            pin.clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -402,8 +424,7 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             conn = mysql.connector.connect(**MYSQL_CONFIG)
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=self.tracer).onto(conn)
+            pin.clone(service="pin-svc", tracer=self.tracer).onto(conn)
             assert conn.is_connected()
 
             cursor = conn.cursor()
@@ -414,13 +435,13 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             assert len(spans) == 1
 
             span = spans[0]
-            assert span.service == self.TEST_SERVICE
+            assert span.service == "pin-svc"
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == 3306
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
@@ -435,3 +456,15 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             conn.close()
 
         patch()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_MYSQL_SERVICE="mysvc"))
+    def test_user_specified_service_integration(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = writer.pop()
+
+        assert spans[0].service == "mysvc"

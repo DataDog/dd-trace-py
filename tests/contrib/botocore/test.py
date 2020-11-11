@@ -1,4 +1,8 @@
 # 3p
+import zipfile
+import io
+import json
+import base64
 import botocore.session
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
 
@@ -6,15 +10,28 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_km
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch, unpatch
-from ddtrace.ext import http
 from ddtrace.compat import stringify
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 
 # testing
 from tests.opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
 
 
-class BotocoreTest(BaseTracerTestCase):
+def get_zip_lambda():
+    code = '''
+def lambda_handler(event, context):
+    return event
+'''
+    zip_output = io.BytesIO()
+    zip_file = zipfile.ZipFile(zip_output, 'w', zipfile.ZIP_DEFLATED)
+    zip_file.writestr('lambda_function.py', code)
+    zip_file.close()
+    zip_output.seek(0)
+    return zip_output.read()
+
+
+class BotocoreTest(TracerTestCase):
     """Botocore integration testsuite"""
 
     TEST_SERVICE = 'test-botocore-tracing'
@@ -43,11 +60,13 @@ class BotocoreTest(BaseTracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 1)
+        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
-        self.assertEqual(span.get_tag('retry_attempts'), '0')
+        self.assertEqual(span.get_tag('aws.requestid'), 'fdcdcab1-ae5c-489e-9c33-4637c5dda355')
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.get_metric('retry_attempts'), 0)
         self.assertEqual(span.service, 'test-botocore-tracing.ec2')
         self.assertEqual(span.resource, 'ec2.describeinstances')
         self.assertEqual(span.name, 'ec2.command')
@@ -81,8 +100,9 @@ class BotocoreTest(BaseTracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 2)
+        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.operation'), 'ListBuckets')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.s3')
         self.assertEqual(span.resource, 's3.listbuckets')
 
@@ -99,10 +119,16 @@ class BotocoreTest(BaseTracerTestCase):
 
     @mock_s3
     def test_s3_put(self):
-        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
         s3 = self.session.create_client('s3', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
-        s3.create_bucket(Bucket='mybucket')
+        params = {
+            "Bucket": "mybucket",
+            "CreateBucketConfiguration": {
+                "LocationConstraint": "us-west-2",
+            }
+        }
+        s3.create_bucket(**params)
+        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
         s3.put_object(**params)
 
         spans = self.get_spans()
@@ -110,7 +136,8 @@ class BotocoreTest(BaseTracerTestCase):
         span = spans[0]
         self.assertEqual(len(spans), 2)
         self.assertEqual(span.get_tag('aws.operation'), 'CreateBucket')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.s3')
         self.assertEqual(span.resource, 's3.createbucket')
         self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
@@ -133,7 +160,8 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListQueues')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.sqs')
         self.assertEqual(span.resource, 'sqs.listqueues')
 
@@ -150,7 +178,8 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListStreams')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.kinesis')
         self.assertEqual(span.resource, 'kinesis.liststreams')
 
@@ -181,7 +210,7 @@ class BotocoreTest(BaseTracerTestCase):
 
     @mock_lambda
     def test_lambda_client(self):
-        lamb = self.session.create_client('lambda', region_name='us-east-1')
+        lamb = self.session.create_client('lambda', region_name='us-west-2')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
@@ -190,11 +219,134 @@ class BotocoreTest(BaseTracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListFunctions')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
+
+    @mock_lambda
+    def test_lambda_invoke_no_context_client(self):
+        lamb = self.session.create_client('lambda', region_name='us-west-2', endpoint_url='http://localhost:4566')
+        lamb.create_function(
+            FunctionName='ironmaiden',
+            Runtime='python3.7',
+            Role='test-iam-role',
+            Handler='lambda_function.lambda_handler',
+            Code={
+                'ZipFile': get_zip_lambda(),
+            },
+            Publish=True,
+            Timeout=30,
+            MemorySize=128
+        )
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+        lamb.invoke(
+            FunctionName='ironmaiden',
+            Payload=json.dumps({}),
+        )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.lambda')
+        self.assertEqual(span.resource, 'lambda.invoke')
+        context_b64 = span.get_tag('params.ClientContext')
+        context_json = base64.b64decode(context_b64.encode()).decode()
+        context_obj = json.loads(context_json)
+
+        self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        lamb.delete_function(FunctionName='ironmaiden')
+
+    @mock_lambda
+    def test_lambda_invoke_with_context_client(self):
+        lamb = self.session.create_client('lambda', region_name='us-west-2', endpoint_url='http://localhost:4566')
+        lamb.create_function(
+            FunctionName='megadeth',
+            Runtime='python3.7',
+            Role='test-iam-role',
+            Handler='lambda_function.lambda_handler',
+            Code={
+                'ZipFile': get_zip_lambda(),
+            },
+            Publish=True,
+            Timeout=30,
+            MemorySize=128
+        )
+        client_context = base64.b64encode(json.dumps({'custom': {'foo': 'bar'}}).encode()).decode()
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+        lamb.invoke(
+            FunctionName='megadeth',
+            ClientContext=client_context,
+            Payload=json.dumps({}),
+        )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.lambda')
+        self.assertEqual(span.resource, 'lambda.invoke')
+        context_b64 = span.get_tag('params.ClientContext')
+        context_json = base64.b64decode(context_b64.encode()).decode()
+        context_obj = json.loads(context_json)
+
+        self.assertEqual(context_obj['custom']['foo'], 'bar')
+        self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        lamb.delete_function(FunctionName='megadeth')
+
+    @mock_lambda
+    def test_lambda_invoke_bad_context_client(self):
+        lamb = self.session.create_client('lambda', region_name='us-west-2', endpoint_url='http://localhost:4566')
+        lamb.create_function(
+            FunctionName='black-sabbath',
+            Runtime='python3.7',
+            Role='test-iam-role',
+            Handler='lambda_function.lambda_handler',
+            Code={
+                'ZipFile': get_zip_lambda(),
+            },
+            Publish=True,
+            Timeout=30,
+            MemorySize=128
+        )
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+        lamb.invoke(
+            FunctionName='black-sabbath',
+            ClientContext='bad_client_context',
+            Payload=json.dumps({}),
+        )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+        self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+        assert_is_measured(span)
+        lamb.delete_function(FunctionName='black-sabbath')
 
     @mock_kms
     def test_kms_client(self):
@@ -209,7 +361,8 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListKeys')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.kms')
         self.assertEqual(span.resource, 'kms.listkeys')
 
@@ -242,8 +395,8 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(dd_span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(dd_span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(dd_span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(dd_span.get_tag(http.STATUS_CODE), '200')
-        self.assertEqual(dd_span.get_tag('retry_attempts'), '0')
+        assert_span_http_status_code(dd_span, 200)
+        self.assertEqual(dd_span.get_metric('retry_attempts'), 0)
         self.assertEqual(dd_span.service, 'test-botocore-tracing.ec2')
         self.assertEqual(dd_span.resource, 'ec2.describeinstances')
         self.assertEqual(dd_span.name, 'ec2.command')

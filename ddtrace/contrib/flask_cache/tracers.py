@@ -7,7 +7,8 @@ import logging
 
 # project
 from .utils import _extract_conn_tags, _resource_from_cache_prefix
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes
 from ...settings import config
 
 # 3rd party
@@ -16,8 +17,7 @@ from flask.ext.cache import Cache
 
 log = logging.Logger(__name__)
 
-TYPE = 'cache'
-DEFAULT_SERVICE = 'flask-cache'
+DEFAULT_SERVICE = config.service or "flask-cache"
 
 # standard tags
 COMMAND_KEY = 'flask_cache.key'
@@ -33,8 +33,8 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
     class TracedCache(Cache):
         """
         Traced cache backend that monitors any operations done by flask_cache. Observed actions are:
-            * get, set, add, delete, clear
-            * all many_ operations
+        * get, set, add, delete, clear
+        * all ``many_`` operations
         """
         _datadog_tracer = ddtracer
         _datadog_service = service
@@ -45,11 +45,8 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             Start a tracing with default attributes and tags
             """
             # create a new span
-            s = self._datadog_tracer.trace(
-                cmd,
-                span_type=TYPE,
-                service=self._datadog_service
-            )
+            s = self._datadog_tracer.trace(cmd, span_type=SpanTypes.CACHE, service=self._datadog_service)
+            s.set_tag(SPAN_MEASURED_KEY)
             # set span tags
             s.set_tag(CACHE_BACKEND, self.config.get('CACHE_TYPE'))
             s.set_tags(self._datadog_meta)

@@ -6,10 +6,10 @@ import pytest
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase, assert_is_measured
 
 
-class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for Postgres Engine"""
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
@@ -25,7 +25,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
     def check_meta(self, span):
         # check database connection tags
         self.assertEqual(span.get_tag('out.host'), POSTGRES_CONFIG['host'])
-        self.assertEqual(span.get_tag('out.port'), str(POSTGRES_CONFIG['port']))
+        self.assertEqual(span.get_metric('out.port'), POSTGRES_CONFIG['port'])
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
@@ -39,11 +39,12 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
+        assert_is_measured(span)
         self.assertEqual(span.name, '{}.query'.format(self.VENDOR))
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'SELECT * FROM a_wrong_table')
         self.assertEqual(span.get_tag('sql.db'), self.SQL_DB)
-        self.assertIsNone(span.get_tag('sql.rows'))
+        self.assertIsNone(span.get_tag('sql.rows') or span.get_metric('sql.rows'))
         self.check_meta(span)
         self.assertEqual(span.span_type, 'sql')
         self.assertTrue(span.duration > 0)

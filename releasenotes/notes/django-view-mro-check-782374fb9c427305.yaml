@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Check Django view before instrumenting MRO

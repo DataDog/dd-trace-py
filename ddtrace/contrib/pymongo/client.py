@@ -9,26 +9,16 @@ from ddtrace.vendor.wrapt import ObjectProxy
 # project
 import ddtrace
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
-from ...ext import mongo as mongox
-from ...ext import net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, mongo as mongox, net as netx
 from ...internal.logger import get_logger
 from ...settings import config
-from ...utils.deprecation import deprecated
 from .parse import parse_spec, parse_query, parse_msg
 
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
 log = get_logger(__name__)
-
-
-@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
-def trace_mongo_client(client, tracer, service=mongox.TYPE):
-    traced_client = TracedMongoClient(client)
-    ddtrace.Pin(service=service, tracer=tracer).onto(traced_client)
-    return traced_client
 
 
 class TracedMongoClient(ObjectProxy):
@@ -62,7 +52,7 @@ class TracedMongoClient(ObjectProxy):
         client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE, app_type=AppTypes.db).onto(self)
+        ddtrace.Pin(service=mongox.SERVICE, app=mongox.SERVICE).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
@@ -104,7 +94,8 @@ class TracedServer(ObjectProxy):
         if not cmd or not pin or not pin.enabled():
             return None
 
-        span = pin.tracer.trace('pymongo.cmd', span_type=mongox.TYPE, service=pin.service)
+        span = pin.tracer.trace('pymongo.cmd', span_type=SpanTypes.MONGODB, service=pin.service)
+        span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(mongox.DB, cmd.db)
         span.set_tag(mongox.COLLECTION, cmd.coll)
         span.set_tags(cmd.tags)
@@ -138,7 +129,7 @@ class TracedServer(ObjectProxy):
             )
 
             if result and result.address:
-                _set_address_tags(span, result.address)
+                set_address_tags(span, result.address)
             return result
         finally:
             span.finish()
@@ -161,7 +152,7 @@ class TracedServer(ObjectProxy):
             )
 
             if result and result.address:
-                _set_address_tags(span, result.address)
+                set_address_tags(span, result.address)
             return result
         finally:
             span.finish()
@@ -223,9 +214,10 @@ class TracedSocket(ObjectProxy):
         pin = ddtrace.Pin.get_from(self)
         s = pin.tracer.trace(
             'pymongo.cmd',
-            span_type=mongox.TYPE,
+            span_type=SpanTypes.MONGODB,
             service=pin.service)
 
+        s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
             s.set_tag(mongox.DB, cmd.db)
         if cmd:
@@ -243,7 +235,7 @@ class TracedSocket(ObjectProxy):
         )
 
         if self.address:
-            _set_address_tags(s, self.address)
+            set_address_tags(s, self.address)
         return s
 
 
@@ -275,7 +267,7 @@ def normalize_filter(f=None):
         return {}
 
 
-def _set_address_tags(span, address):
+def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
         span.set_tag(netx.TARGET_HOST, address[0])

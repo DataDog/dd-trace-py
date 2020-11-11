@@ -1,16 +1,49 @@
-import copy
 import os
+import platform
 import sys
 
-from distutils.command.build_ext import build_ext
-from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
+
+# ORDER MATTERS
+# Import this after setuptools or it will fail
+from Cython.Build import cythonize  # noqa: I100
+import Cython.Distutils
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_module_from_project_file(mod_name, fname):
+    """
+    Helper used to load a module from a file in this project
+
+    DEV: Loading this way will by-pass loading all parent modules
+         e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
+         which has side effects like loading the tracer
+    """
+    fpath = os.path.join(HERE, fname)
+
+    if sys.version_info >= (3, 5):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(mod_name, fpath)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    elif sys.version_info >= (3, 3):
+        from importlib.machinery import SourceFileLoader
+
+        return SourceFileLoader(mod_name, fpath).load_module()
+    else:
+        import imp
+
+        return imp.load_source(mod_name, fpath)
 
 
 class Tox(TestCommand):
 
-    user_options = [('tox-args=', 'a', 'Arguments to pass to tox')]
+    user_options = [("tox-args=", "a", "Arguments to pass to tox")]
 
     def initialize_options(self):
         TestCommand.initialize_options(self)
@@ -25,6 +58,7 @@ class Tox(TestCommand):
         # import here, cause outside the eggs aren't loaded
         import tox
         import shlex
+
         args = self.tox_args
         if args:
             args = shlex.split(self.tox_args)
@@ -45,119 +79,160 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
-# Base `setup()` kwargs without any C-extension registering
-setup_kwargs = dict(
-    name='ddtrace',
-    description='Datadog tracing code',
-    url='https://github.com/DataDog/dd-trace-py',
-    author='Datadog, Inc.',
-    author_email='dev@datadoghq.com',
-    long_description=long_description,
-    long_description_content_type='text/markdown',
-    license='BSD',
-    packages=find_packages(exclude=['tests*']),
-    install_requires=[
-        'psutil>=5.0.0',
-    ],
-    extras_require={
-        # users can include opentracing by having:
-        # install_requires=['ddtrace[opentracing]', ...]
-        'opentracing': ['opentracing>=2.0.0'],
-    },
-    # plugin tox
-    tests_require=['tox', 'flake8'],
-    cmdclass={'test': Tox},
-    entry_points={
-        'console_scripts': [
-            'ddtrace-run = ddtrace.commands.ddtrace_run:main'
-        ]
-    },
-    classifiers=[
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-    ],
-    use_scm_version=True,
-    setup_requires=['setuptools_scm'],
-)
+
+def get_exts_for(name):
+    try:
+        mod = load_module_from_project_file(
+            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
+        )
+        return mod.get_extensions()
+    except Exception as e:
+        print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
+        return []
 
 
-# The following from here to the end of the file is borrowed from wrapt's and msgpack's `setup.py`:
-#   https://github.com/GrahamDumpleton/wrapt/blob/4ee35415a4b0d570ee6a9b3a14a6931441aeab4b/setup.py
-#   https://github.com/msgpack/msgpack-python/blob/381c2eff5f8ee0b8669fd6daf1fd1ecaffe7c931/setup.py
-# These helpers are useful for attempting build a C-extension and then retrying without it if it fails
-
-libraries = []
-if sys.platform == 'win32':
-    libraries.append('ws2_32')
-    build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, OSError)
+if sys.byteorder == "big":
+    encoding_macros = [("__BIG_ENDIAN__", "1")]
 else:
-    build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
+    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-class BuildExtFailed(Exception):
-    pass
-
-
-# Attempt to build a C-extension, catch and throw a common/custom error if there are any issues
-class optional_build_ext(build_ext):
-    def run(self):
-        try:
-            build_ext.run(self)
-        except DistutilsPlatformError:
-            raise BuildExtFailed()
-
-    def build_extension(self, ext):
-        try:
-            build_ext.build_extension(self, ext)
-        except build_ext_errors:
-            raise BuildExtFailed()
-
-
-macros = []
-if sys.byteorder == 'big':
-    macros = [('__BIG_ENDIAN__', '1')]
+if platform.system() == "Windows":
+    encoding_libraries = ["ws2_32"]
+    extra_compile_args = []
+    debug_compile_args = []
 else:
-    macros = [('__LITTLE_ENDIAN__', '1')]
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+    if "DD_COMPILE_DEBUG" in os.environ and platform.system() == "Linux":
+        debug_compile_args = ["-g", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+    else:
+        debug_compile_args = []
 
 
-# Try to build with C extensions first, fallback to only pure-Python if building fails
-try:
-    kwargs = copy.deepcopy(setup_kwargs)
-    kwargs['ext_modules'] = [
+if sys.version_info[:2] >= (3, 4):
+    ext_modules = [
         Extension(
-            'ddtrace.vendor.wrapt._wrappers',
-            sources=['ddtrace/vendor/wrapt/_wrappers.c'],
-        ),
-        Extension(
-            'ddtrace.vendor.msgpack._cmsgpack',
-            sources=['ddtrace/vendor/msgpack/_cmsgpack.cpp'],
-            libraries=libraries,
-            include_dirs=['ddtrace/vendor/'],
-            define_macros=macros,
+            "ddtrace.profiling.collector._memalloc",
+            sources=["ddtrace/profiling/collector/_memalloc.c"],
+            extra_compile_args=debug_compile_args,
         ),
     ]
-    # DEV: Make sure `cmdclass` exists
-    kwargs.setdefault('cmdclass', dict())
-    kwargs['cmdclass']['build_ext'] = optional_build_ext
-    setup(**kwargs)
-except BuildExtFailed:
-    # Set `DDTRACE_BUILD_TRACE=TRUE` in CI to raise any build errors
-    if os.environ.get('DDTRACE_BUILD_RAISE') == 'TRUE':
-        raise
+else:
+    ext_modules = []
 
-    print('WARNING: Failed to install wrapt/msgpack C-extensions, using pure-Python wrapt/msgpack instead')
-    setup(**setup_kwargs)
+# Base `setup()` kwargs without any C-extension registering
+setup(
+    **dict(
+        name="ddtrace",
+        description="Datadog tracing code",
+        url="https://github.com/DataDog/dd-trace-py",
+        author="Datadog, Inc.",
+        author_email="dev@datadoghq.com",
+        long_description=long_description,
+        long_description_content_type="text/markdown",
+        license="BSD",
+        packages=find_packages(exclude=["tests*"]),
+        python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
+        # enum34 is an enum backport for earlier versions of python
+        # funcsigs backport required for vendored debtcollector
+        install_requires=[
+            "enum34; python_version<'3.4'",
+            "funcsigs>=1.0.0; python_version=='2.7'",
+            "protobuf>=3",
+            "intervaltree",
+            "tenacity>=5",
+        ],
+        extras_require={
+            # users can include opentracing by having:
+            # install_requires=['ddtrace[opentracing]', ...]
+            "opentracing": ["opentracing>=2.0.0"],
+        },
+        # plugin tox
+        tests_require=["tox", "flake8"],
+        cmdclass={"test": Tox, "build_ext": Cython.Distutils.build_ext},
+        entry_points={
+            "console_scripts": [
+                "ddtrace-run = ddtrace.commands.ddtrace_run:main",
+                "pyddprofile = ddtrace.profiling.__main__:main",
+            ]
+        },
+        classifiers=[
+            "Programming Language :: Python",
+            "Programming Language :: Python :: 2.7",
+            "Programming Language :: Python :: 3.5",
+            "Programming Language :: Python :: 3.6",
+            "Programming Language :: Python :: 3.7",
+            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+        ],
+        use_scm_version=True,
+        setup_requires=["setuptools_scm[toml]>=4", "cython"],
+        ext_modules=ext_modules
+        + cythonize(
+            [
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
+                ),
+                Extension(
+                    "ddtrace.internal._encoding",
+                    ["ddtrace/internal/_encoding.pyx"],
+                    include_dirs=["."],
+                    libraries=encoding_libraries,
+                    define_macros=encoding_macros,
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._queue",
+                    sources=["ddtrace/internal/_queue.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector.stack",
+                    sources=["ddtrace/profiling/collector/stack.pyx"],
+                    language="c",
+                    extra_compile_args=extra_compile_args,
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._traceback",
+                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._threading",
+                    sources=["ddtrace/profiling/collector/_threading.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._build",
+                    sources=["ddtrace/profiling/_build.pyx"],
+                    language="c",
+                ),
+            ],
+            compile_time_env={
+                "PY_MAJOR_VERSION": sys.version_info.major,
+                "PY_MINOR_VERSION": sys.version_info.minor,
+                "PY_MICRO_VERSION": sys.version_info.micro,
+            },
+            force=True,
+        )
+        + get_exts_for("wrapt")
+        + get_exts_for("psutil"),
+    )
+)

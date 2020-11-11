@@ -5,8 +5,8 @@ from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -49,8 +49,7 @@ def trace_render(func, instance, args, kwargs):
         log.debug('No span found in request, will not be traced')
         return func(*args, **kwargs)
 
-    with span.tracer.trace('pyramid.render') as span:
-        span.span_type = http.TEMPLATE
+    with span.tracer.trace('pyramid.render', span_type=SpanTypes.TEMPLATE) as span:
         return func(*args, **kwargs)
 
 
@@ -71,7 +70,8 @@ def trace_tween_factory(handler, registry):
                 # only need to active the new context if something was propagated
                 if context.trace_id:
                     tracer.context_provider.activate(context)
-            with tracer.trace('pyramid.request', service=service, resource='404') as span:
+            with tracer.trace('pyramid.request', service=service, resource='404', span_type=SpanTypes.WEB) as span:
+                span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
@@ -100,7 +100,6 @@ def trace_tween_factory(handler, registry):
                     span.set_tag(http.STATUS_CODE, 500)
                     raise
                 finally:
-                    span.span_type = http.TYPE
                     # set request tags
                     span.set_tag(http.URL, request.path_url)
                     span.set_tag(http.METHOD, request.method)

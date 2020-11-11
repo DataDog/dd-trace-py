@@ -1,21 +1,47 @@
-"""Instrument psycopg2 to report Postgres queries.
+"""
+The psycopg integration instruments the psycopg2 library to trace Postgres queries.
 
-``patch_all`` will automatically patch your psycopg2 connection to make it work.
-::
 
-    from ddtrace import Pin, patch
-    import psycopg2
+Enabling
+~~~~~~~~
 
-    # If not patched yet, you can patch psycopg2 specifically
+The mysql integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
     patch(psycopg=True)
 
-    # This will report a span with the default settings
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.psycopg["service"]
+
+   The service name reported by default for psycopg spans.
+
+   This option can also be set with the ``DD_PSYCOPG_SERVICE`` environment
+   variable.
+
+   Default: ``"postgres"``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+To configure the psycopg integration on an per-connection basis use the
+``Pin`` API::
+
+    from ddtrace import Pin
+    import psycopg2
+
     db = psycopg2.connect(connection_factory=factory)
+    # Use a pin to override the service name.
+    Pin.override(db, service="postgres-users")
+
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
-
-    # Use a pin to specify metadata related to this connection
-    Pin.override(db, service='postgres-users')
 """
 from ...utils.importlib import require_modules
 

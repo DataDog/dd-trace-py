@@ -4,8 +4,8 @@ from ddtrace.vendor import wrapt
 from aiopg.utils import _ContextManager
 
 from .. import dbapi
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import sql, AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, sql
 from ...pin import Pin
 from ...settings import config
 
@@ -28,8 +28,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service,
-                              resource=resource) as s:
-            s.span_type = sql.TYPE
+                              resource=resource, span_type=SpanTypes.SQL) as s:
+            s.set_tag(SPAN_MEASURED_KEY)
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
@@ -77,7 +77,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
-        db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
+        db_pin = pin or Pin(service=name, app=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)

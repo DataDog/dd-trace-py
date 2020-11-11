@@ -1,5 +1,3 @@
-import os
-
 import flask
 import werkzeug
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -7,12 +5,12 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import compat
 from ddtrace import config, Pin
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
-from ...ext import http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
+from .. import trace_utils
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
@@ -26,10 +24,8 @@ FLASK_VERSION = 'flask.version'
 # Configure default configuration
 config._add('flask', dict(
     # Flask service configuration
-    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
-    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
+    _default_service="flask",
     app='flask',
-    app_type=AppTypes.web,
 
     collect_view_args=True,
     distributed_tracing_enabled=True,
@@ -67,12 +63,7 @@ def patch():
         return
     setattr(flask, '_datadog_patch', True)
 
-    # Attach service pin to `flask.app.Flask`
-    Pin(
-        service=config.flask['service_name'],
-        app=config.flask['app'],
-        app_type=config.flask['app_type'],
-    ).onto(flask.Flask)
+    Pin().onto(flask.Flask)
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Flask.wsgi_app', traced_wsgi_app)
@@ -285,12 +276,17 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
-    with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
+    with pin.tracer.trace(
+        "flask.request",
+        service=trace_utils.int_service(pin, config.flask),
+        resource=resource,
+        span_type=SpanTypes.WEB,
+    ) as s:
+        s.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
-        s.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.flask.get_analytics_sample_rate(use_global_config=True)
-        )
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         s.set_tag(FLASK_VERSION, flask_version_str)
 
@@ -400,7 +396,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace('flask.render_template', span_type=http.TEMPLATE):
+    with pin.tracer.trace('flask.render_template', span_type=SpanTypes.TEMPLATE):
         return wrapped(*args, **kwargs)
 
 
@@ -410,7 +406,7 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace('flask.render_template_string', span_type=http.TEMPLATE):
+    with pin.tracer.trace('flask.render_template_string', span_type=SpanTypes.TEMPLATE):
         return wrapped(*args, **kwargs)
 
 
@@ -471,10 +467,10 @@ def request_tracer(name):
             if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get('collect_view_args'):
                 for k, v in request.view_args.items():
                     span.set_tag(u'{}.{}'.format(FLASK_VIEW_ARGS, k), v)
-        except Exception as e:
-            log.debug('failed to set tags for "flask.request" span: {}'.format(e))
+        except Exception:
+            log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
-        with pin.tracer.trace('flask.{}'.format(name), service=pin.service):
+        with pin.tracer.trace('flask.{}'.format(name), service=trace_utils.int_service(pin, config.flask, pin)):
             return wrapped(*args, **kwargs)
     return _traced_request
 

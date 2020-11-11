@@ -4,7 +4,9 @@ from ddtrace.vendor import wrapt
 
 from ddtrace import config
 from ddtrace.compat import to_unicode
-from ddtrace.ext import errors
+from ddtrace.ext import SpanTypes, errors
+
+from .. import trace_utils
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -28,9 +30,9 @@ def create_client_interceptor(pin, host, port):
 def intercept_channel(wrapped, instance, args, kwargs):
     channel = args[0]
     interceptors = args[1:]
-    if isinstance(getattr(channel, '_interceptor', None), _ClientInterceptor):
+    if isinstance(getattr(channel, "_interceptor", None), _ClientInterceptor):
         dd_interceptor = channel._interceptor
-        base_channel = getattr(channel, '_channel', None)
+        base_channel = getattr(channel, "_channel", None)
         if base_channel:
             new_channel = wrapped(channel._channel, *interceptors)
             return grpc.intercept_channel(new_channel, dd_interceptor)
@@ -39,44 +41,70 @@ def intercept_channel(wrapped, instance, args, kwargs):
 
 
 class _ClientCallDetails(
-        collections.namedtuple(
-            '_ClientCallDetails',
-            ('method', 'timeout', 'metadata', 'credentials')),
-        grpc.ClientCallDetails):
+    collections.namedtuple("_ClientCallDetails", ("method", "timeout", "metadata", "credentials")),
+    grpc.ClientCallDetails,
+):
     pass
 
 
-def _handle_response_or_error(span, response_or_error):
-    # response_of_error should be a grpc.Future and so we expect to have
-    # exception() and traceback() methods if a computation has resulted in
-    # an exception being raised
+def _future_done_callback(span):
+    def func(response):
+        try:
+            # pull out response code from gRPC response to use both for `grpc.status.code`
+            # tag and the error type tag if the response is an exception
+            response_code = response.code()
+            # cast code to unicode for tags
+            status_code = to_unicode(response_code)
+            span.set_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
+
+            if response_code != grpc.StatusCode.OK:
+                _handle_error(span, response, status_code)
+        finally:
+            span.finish()
+
+    return func
+
+
+def _handle_response(span, response):
+    if isinstance(response, grpc.Future):
+        response.add_done_callback(_future_done_callback(span))
+
+
+def _handle_error(span, response_error, status_code):
+    # response_error should be a grpc.Future and so we expect to have cancelled(),
+    # exception() and traceback() methods if a computation has resulted in an
+    # exception being raised
     if (
-        not callable(getattr(response_or_error, 'exception', None)) and
-        not callable(getattr(response_or_error, 'traceback', None))
+        not callable(getattr(response_error, "cancelled", None))
+        and not callable(getattr(response_error, "exception", None))
+        and not callable(getattr(response_error, "traceback", None))
     ):
         return
 
-    exception = response_or_error.exception()
-    traceback = response_or_error.traceback()
+    if response_error.cancelled():
+        # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
+        span.error = 1
+        exc_val = to_unicode(response_error.details())
+        span.set_tag(errors.ERROR_MSG, exc_val)
+        span.set_tag(errors.ERROR_TYPE, status_code)
+        return
 
-    # pull out status code from gRPC response to use both for `grpc.status.code`
-    # tag and the error type tag if the response is an exception
-    status_code = to_unicode(response_or_error.code())
+    exception = response_error.exception()
+    traceback = response_error.traceback()
 
     if exception is not None and traceback is not None:
+        span.error = 1
         if isinstance(exception, grpc.RpcError):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
-            exc_val = to_unicode(response_or_error.details())
+            exc_val = to_unicode(response_error.details())
             span.set_tag(errors.ERROR_MSG, exc_val)
             span.set_tag(errors.ERROR_TYPE, status_code)
             span.set_tag(errors.ERROR_STACK, traceback)
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
-            status_code = to_unicode(response_or_error.code())
-
-    span.set_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
+            status_code = to_unicode(response_error.code())
 
 
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
@@ -92,16 +120,17 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             return next(self.__wrapped__)
         except StopIteration:
             # at end of iteration handle response status from wrapped future
-            _handle_response_or_error(self._span, self.__wrapped__)
-            self._span.finish()
+            _handle_response(self._span, self.__wrapped__)
             raise
         except grpc.RpcError as rpc_error:
-            _handle_response_or_error(self._span, rpc_error)
-            self._span.finish()
+            # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
+            # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
+            # handle as a response
+            _handle_response(self._span, rpc_error)
             raise
         except Exception:
             # DEV: added for safety though should not be reached since wrapped response
-            log.debug('unexpected non-grpc exception raised, closing open span', exc_info=True)
+            log.debug("unexpected non-grpc exception raised, closing open span", exc_info=True)
             self._span.set_traceback()
             self._span.finish()
             raise
@@ -111,9 +140,11 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
 
 
 class _ClientInterceptor(
-        grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
-        grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
-
+    grpc.UnaryUnaryClientInterceptor,
+    grpc.UnaryStreamClientInterceptor,
+    grpc.StreamUnaryClientInterceptor,
+    grpc.StreamStreamClientInterceptor,
+):
     def __init__(self, pin, host, port):
         self._pin = pin
         self._host = host
@@ -123,9 +154,9 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            'grpc',
-            span_type='grpc',
-            service=self._pin.service,
+            "grpc",
+            span_type=SpanTypes.GRPC,
+            service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
 
@@ -140,7 +171,10 @@ class _ClientInterceptor(
         span.set_tag(constants.GRPC_HOST_KEY, self._host)
         span.set_tag(constants.GRPC_PORT_KEY, self._port)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
+
+        sample_rate = config.grpc.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # inject tags from pin
         if self._pin.tags:
@@ -173,14 +207,13 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request)
-            _handle_response_or_error(span, response)
+            _handle_response(span, response)
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            _handle_response_or_error(span, rpc_error)
+            # handle as a response
+            _handle_response(span, rpc_error)
             raise
-        finally:
-            span.finish()
 
         return response
 
@@ -200,14 +233,13 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request_iterator)
-            _handle_response_or_error(span, response)
+            _handle_response(span, response)
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            _handle_response_or_error(span, rpc_error)
+            # handle as a response
+            _handle_response(span, rpc_error)
             raise
-        finally:
-            span.finish()
 
         return response
 
