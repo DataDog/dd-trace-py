@@ -1152,3 +1152,7 @@ def test_early_exit():
     s1 = t.trace("1-1")
     s1.finish()
     assert s1.parent_id is None
+
+    s1 = t.trace("1-2")
+    s1.finish()
+    assert s1.parent_id is None
