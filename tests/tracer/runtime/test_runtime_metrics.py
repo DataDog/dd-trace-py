@@ -102,12 +102,7 @@ class TestRuntimeWorker(TracerTestCase):
 
         # expect all metrics in default set are received
         # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
-        self.assertSetEqual(
-            set([gauge.split(':')[0]
-                 for packet in received
-                 for gauge in packet.split('\n')]),
-            DEFAULT_RUNTIME_METRICS
-        )
+        assert DEFAULT_RUNTIME_METRICS in set([gauge.split(':')[0] for packet in received for gauge in packet.split('\n')])
 
         # check to last set of metrics returned to confirm tags were set
         for gauge in received[-1:]:
