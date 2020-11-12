@@ -46,6 +46,7 @@ Notes:
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
   `datadog/util/format.py` was copied to `dogstatsd/format.py`
   version fixed to 8e11af2
+  removed type imports
 
 
 monotonic

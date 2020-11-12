@@ -23,7 +23,6 @@ from .context import (
 from .route import get_default_route
 from .compat import text
 from .format import normalize_tags
-from typing import Optional, List, Text
 
 # Logging
 log = logging.getLogger('datadog.dogstatsd')
