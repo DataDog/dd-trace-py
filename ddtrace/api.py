@@ -8,7 +8,7 @@ from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_
 from .internal import uds
 from .internal.logger import get_logger
 from .internal.runtime import container
-from .payload import Payload, PayloadFull
+from .payload import Payload, PayloadFull, PayloadFullExtended
 from .utils.deprecation import deprecated
 from .utils import time
 
@@ -21,6 +21,34 @@ _VERSIONS = {
     "v0.3": {"traces": "/v0.3/traces", "services": "/v0.3/services", "compatibility_mode": False, "fallback": "v0.2"},
     "v0.2": {"traces": "/v0.2/traces", "services": "/v0.2/services", "compatibility_mode": True, "fallback": None},
 }
+
+
+class APIException(Exception):
+    """API base exception."""
+    pass
+
+
+class APIExtendedException(APIException):
+    """API exception.
+
+    Report payload size, number of spans, traces.
+    """
+    def __init__(self, payload=None, exc=None, msg=None):
+        """Constructor for APIExtendedException.
+
+        :param payload: The payload.
+        :type payload: ``ddtrace.payload.Payload``
+        :param exc: The original exception.
+        :param msg: The exception message.
+        """
+        super(APIExtendedException, self).__init__(msg)
+
+        self.cause = exc
+
+        if payload is not None:
+            self.size = payload.size
+            self.spans = sum(map(len, payload.traces))
+            self.traces = payload.length
 
 
 class Response(object):
@@ -193,7 +221,7 @@ class API(object):
             for trace in traces:
                 try:
                     payload.add_trace(trace)
-                except PayloadFull as e:
+                except PayloadFull:
                     # Is payload full or is the trace too big?
                     # If payload is not empty, then using a new Payload might allow us to fit the trace.
                     # Let's flush the Payload and try to put the trace in a new empty Payload.
@@ -205,13 +233,13 @@ class API(object):
                         try:
                             # Add the trace that we were unable to add in that iteration
                             payload.add_trace(trace)
-                        except PayloadFull as e:
+                        except PayloadFull:
                             # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                            log.warning("Trace is too big to fit in a payload, dropping it")
-                            responses.append(e)
+                            log.warning('Trace is too big to fit in a payload, dropping it')
+                            responses.append(PayloadFullExtended(payload))
                     else:
-                        log.warning("Trace is larger than the max payload size, dropping it")
-                        responses.append(e)
+                        log.warning('Trace is larger than the max payload size, dropping it')
+                        responses.append(PayloadFullExtended(payload=payload))
 
             # Check that the Payload is not empty:
             # it could be empty if the last trace was too big to fit.
@@ -226,7 +254,7 @@ class API(object):
         try:
             response = self._put(self._traces, payload.get_payload(), payload.length)
         except (httplib.HTTPException, OSError, IOError) as e:
-            return e
+            return APIExtendedException(payload=payload, exc=e)
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:

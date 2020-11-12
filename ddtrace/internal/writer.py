@@ -12,8 +12,9 @@ from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..encoding import JSONEncoderV2
-from ..payload import PayloadFull
+from ..payload import PayloadFull, PayloadFullExtended
 from . import _queue
+from . import sma
 
 log = get_logger(__name__)
 
@@ -53,6 +54,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
     QUEUE_PROCESSING_INTERVAL = 1
     QUEUE_MAX_TRACES_DEFAULT = 1000
 
+    DROP_SPANS_RATE_SMA_WINDOW = 10
+
     def __init__(
         self,
         hostname="localhost",
@@ -73,6 +76,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
+        self._drop_sma = sma.SimpleMovingAverage(self.DROP_SPANS_RATE_SMA_WINDOW)
         self.dogstatsd = dogstatsd
         self.api = api.API(
             hostname, port, uds_path=uds_path, https=https, priority_sampling=priority_sampler is not None
@@ -104,6 +108,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         """Determine if we're sending stats or not."""
         return bool(config.health_metrics_enabled and self.dogstatsd)
 
+    @property
+    def keep_rate(self):
+        """Return the keep root spans rate."""
+        return 1.0 - self._drop_sma.get()
+
     def write(self, spans=None, services=None):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
@@ -120,17 +129,20 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         traces = self._trace_queue.get()
 
         if not traces:
-            return
+            return 0
 
         if self._send_stats:
             traces_queue_length = len(traces)
             traces_queue_spans = sum(map(len, traces))
+
+        dropped_root_spans = 0
 
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
         for response in traces_responses:
             if not isinstance(response, PayloadFull):
                 if isinstance(response, Exception) or response.status >= 400:
+                    dropped_root_spans += getattr(response, 'traces', 0)
                     self._log_error_status(response)
                 elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
                     result_traces_json = response.get_json()
@@ -143,6 +155,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                             self._sampler.update_rate_by_service_sample_rates(
                                 result_traces_json["rate_by_service"],
                             )
+            else:
+                dropped_root_spans += getattr(response, 'traces', 0)
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
@@ -181,6 +195,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self._last_thread_time = new_thread_time
                 self.dogstatsd.histogram("datadog.tracer.writer.cpu_time", diff)
 
+        return dropped_root_spans
+
+
     def _histogram_with_total(self, name, value, tags=None):
         """Helper to add metric as a histogram and with a `.total` counter"""
         self.dogstatsd.histogram(name, value, tags=tags)
@@ -191,13 +208,18 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self.dogstatsd.gauge("datadog.tracer.heartbeat", 1)
 
         try:
-            self.flush_queue()
+            dropped_root_spans = self.flush_queue()
+        except Exception:
+            dropped_root_spans = 0
         finally:
+            dropped, enqueued, enqueued_lengths = self._trace_queue.pop_stats()
+
+            self._drop_sma.set(float(dropped_root_spans + dropped) / float(enqueued))
+
             if not self._send_stats:
                 return
 
             # Statistics about the rate at which spans are inserted in the queue
-            dropped, enqueued, enqueued_lengths = self._trace_queue.pop_stats()
             self.dogstatsd.gauge("datadog.tracer.queue.max_length", self._trace_queue.maxsize)
             self.dogstatsd.increment("datadog.tracer.queue.dropped.traces", dropped)
             self.dogstatsd.increment("datadog.tracer.queue.enqueued.traces", enqueued)

@@ -93,7 +93,7 @@ services:
     testagent:
         image: kyleverhoog/dd-trace-test-agent
         ports:
-            - "127.0.0.1:8126:8126"
+            - "127.0.0.1:8127:8126"
         volumes:
             - ./tests/snapshots:/snapshots
         environment:

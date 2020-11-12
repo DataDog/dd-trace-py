@@ -7,6 +7,26 @@ class PayloadFull(Exception):
     pass
 
 
+class PayloadFullExtended(PayloadFull):
+    """The payload is full.
+
+    Report payload size, number of spans, traces.
+    """
+    def __init__(self, payload=None, msg=None):
+        """Constructor for PayloadFullExtended.
+
+        :param payload: The payload.
+        :type payload: ``ddtrace.payload.Payload``
+        :param msg: The exception message.
+        """
+        super(PayloadFullExtended, self).__init__(msg)
+
+        if payload is not None:
+            self.size = payload.size
+            self.spans = sum(map(len, payload.traces))
+            self.traces = payload.length
+
+
 class Payload(object):
     """
     Trace agent API payload buffer class
