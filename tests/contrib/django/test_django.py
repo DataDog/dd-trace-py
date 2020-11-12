@@ -62,7 +62,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         service="django",
         resource=resource,
         parent_id=None,
-        span_type="http",
+        span_type="web",
         error=0,
         meta=meta,
     )
@@ -274,7 +274,7 @@ def test_django_request_not_found(client, test_spans):
         service="django",
         resource="GET 404",
         parent_id=None,
-        span_type="http",
+        span_type="web",
         error=0,
         meta={
             "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
@@ -1385,7 +1385,7 @@ def test_django_use_handler_resource_format(client, test_spans):
         root = test_spans.get_root_span()
         resource = "GET tests.contrib.django.views.index"
 
-        root.assert_matches(resource=resource, parent_id=None, span_type="http")
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
 
 def test_custom_dispatch_template_view(client, test_spans):

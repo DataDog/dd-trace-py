@@ -106,7 +106,7 @@ class TraceMiddleware:
             name=self.integration_config.get("request_span_name", "asgi.request"),
             service=trace_utils.int_service(None, self.integration_config),
             resource=resource,
-            span_type=SpanTypes.HTTP,
+            span_type=SpanTypes.WEB,
         )
 
         if self.span_modifier:
