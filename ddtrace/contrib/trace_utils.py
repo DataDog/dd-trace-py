@@ -2,6 +2,7 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 from ddtrace import Pin
+from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
@@ -103,3 +104,14 @@ def ext_service(pin, config, default=None):
 
     # A default is required since it's an external service.
     return default
+
+
+def set_http_meta(config, span, method=None, url=None, status_code=None):
+    if method:
+        span.set_tag(http.METHOD, method)
+    if url:
+        span.set_tag(http.URL, url)
+    if status_code:
+        span.set_tag(http.STATUS_CODE, status_code)
+        if 500 <= int(status_code) < 600:
+            span.error = 1
