@@ -14,6 +14,7 @@ class SpanTypes(Enum):
     REDIS = "redis"
     SQL = "sql"
     TEMPLATE = "template"
+    TEST = "test"
     WEB = "web"
     WORKER = "worker"
 
