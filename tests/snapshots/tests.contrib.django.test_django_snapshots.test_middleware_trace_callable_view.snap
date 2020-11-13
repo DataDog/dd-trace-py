@@ -1,7 +1,7 @@
 [[{"name" "django.request"
    "service" "django"
    "resource" "GET ^feed-view/$"
-   "type" "http"
+   "type" "web"
    "error" 0
    "span_id" 0
    "trace_id" 0

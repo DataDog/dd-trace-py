@@ -371,7 +371,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             "django.request",
             resource=resource,
             service=trace_utils.int_service(pin, config.django),
-            span_type=SpanTypes.HTTP,
+            span_type=SpanTypes.WEB,
         ) as span:
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
