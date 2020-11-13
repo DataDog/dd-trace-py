@@ -83,20 +83,9 @@ commands:
             S3_BUCKET: << parameters.s3_bucket >>
 
   save_codecov:
-    description: "Persist code coverage results"
+    description: "Push code coverage results to codecov.io"
     steps:
-      # Make a coverage file if one wasn't generated
-      # persist_to_workspace will fail if no files are matched.
-      # Use a random number to come up with a unique name for the
-      # file to avoid collisions when workspaces are merged.
-      - run: touch .coverage
-      - run: mv .coverage ".coverage.report.$(python -c 'import random; print(random.randrange(0,1000000))')"
-      - persist_to_workspace:
-          root: .
-          paths:
-            # This wonky glob is to make sure we don't persist the
-            # .coveragerc file.
-            - ".coverage???*"
+      - run: bash <(curl -s https://codecov.io/bash)
 
   setup_tox:
     description: "Install tox"
@@ -823,24 +812,6 @@ jobs:
       - *pyenv-set-global
       - deploy_wheels
 
-  coverage:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - attach_workspace:
-          at: .
-      - run: pip install coverage
-      - run: coverage combine
-      - run: coverage report --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py"
-      - run: coverage html --include="ddtrace/*.py" --omit="ddtrace/vendor/*.py" -d codecov
-      - run: coverage html --include="tests/*.py" -d testcov
-      - run: bash <(curl -s https://codecov.io/bash)
-      - store_artifacts:
-          path: ./codecov
-      - store_artifacts:
-          path: ./testcov
-
   jinja2:
     <<: *contrib_job
     steps:
@@ -1050,8 +1021,6 @@ workflows:
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
       # - build-docker-ci-image: *requires_pre_test
-      - coverage:
-          requires: *requires_tests
       - deploy_master:
           filters:
             branches:
