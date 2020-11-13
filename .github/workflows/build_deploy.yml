@@ -27,13 +27,13 @@ jobs:
 
       - name: Install cibuildwheel
         run: |
-          python -m pip install cibuildwheel==1.5.5
+          python -m pip install cibuildwheel==1.6.4
 
       - name: Build wheels
         run: |
           python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_SKIP: pp* cp27-win*
+          CIBW_SKIP: pp* cp27-win* cp39-win*
 
       - uses: actions/upload-artifact@v2
         with:
