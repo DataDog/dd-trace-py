@@ -175,6 +175,7 @@ class TestGlobalConfig(SubprocessTestCase):
     @run_in_subprocess(
         env_overrides=dict(
             DD_TRACE_AGENT_URL="http://localhost:8126",
+            DD_TRACE_STARTUP_LOGS="1",
         )
     )
     def test_tracer_loglevel_info_connection(self):
@@ -186,6 +187,7 @@ class TestGlobalConfig(SubprocessTestCase):
     @run_in_subprocess(
         env_overrides=dict(
             DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+            DD_TRACE_STARTUP_LOGS="1",
         )
     )
     def test_tracer_loglevel_info_no_connection(self):
@@ -249,7 +251,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
+        assert tracer.log.log.mock_calls == []
 
 
 def test_to_json():
