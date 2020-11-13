@@ -85,6 +85,7 @@ commands:
   save_codecov:
     description: "Push code coverage results to codecov.io"
     steps:
+      - run: pip install coverage
       - run: bash <(curl -s https://codecov.io/bash)
 
   setup_tox:
@@ -872,7 +873,7 @@ requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
-      # - ccheck
+    - ccheck
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -901,7 +902,7 @@ requires_tests: &requires_tests
   - gevent
   - grpc
   - httplib
-   integration
+  - integration
   - vendor
   - profile
   - jinja2
