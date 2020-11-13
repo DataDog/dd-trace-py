@@ -2,15 +2,15 @@ import logging
 import mock
 import threading
 
-from .. import BaseTestCase
-from .test_tracer import get_dummy_tracer
-
 import pytest
 
 from ddtrace.span import Span
 from ddtrace.context import Context
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
+
+from .test_tracer import get_dummy_tracer
+from tests import BaseTestCase
 
 
 @pytest.fixture
@@ -71,8 +71,9 @@ class TestTracingContext(BaseTestCase):
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        span.finish()
-        trace, sampled = ctx.get()
+        span.finished = True
+        trace, sampled = ctx.close_span(span)
+
         assert sampled is True
         assert ctx.sampling_priority is None
 
@@ -83,13 +84,13 @@ class TestTracingContext(BaseTestCase):
             ctx.sampling_priority = priority
             span = Span(tracer=None, name=('fake_span_%s' % repr(priority)))
             ctx.add_span(span)
-            span.finish()
+            span.finished = True
             # It's "normal" to have sampled be true even when priority sampling is
             # set to 0 or -1. It would stay false even even with priority set to 2.
             # The only criteria to send (or not) the spans to the agent should be
             # this "sampled" attribute, as it's tightly related to the trace weight.
             assert priority == ctx.sampling_priority
-            trace, sampled = ctx.get()
+            trace, sampled = ctx.close_span(span)
             assert sampled is True, 'priority has no impact on sampled status'
 
     def test_current_span(self):
@@ -113,7 +114,7 @@ class TestTracingContext(BaseTestCase):
 
     def test_close_span(self):
         # it should keep track of closed spans, moving
-        # the current active to it's parent
+        # the current active to its parent
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
@@ -126,22 +127,13 @@ class TestTracingContext(BaseTestCase):
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        span.finish()
-        trace, sampled = ctx.get()
+        span.finished = True
+        trace, sampled = ctx.close_span(span)
         assert [span] == trace
         assert sampled is True
         # the context should be empty
         assert 0 == len(ctx._trace)
         assert ctx._current_span is None
-
-    def test_get_trace_empty(self):
-        # it should return None if the Context is not finished
-        ctx = Context()
-        span = Span(tracer=None, name='fake_span')
-        ctx.add_span(span)
-        trace, sampled = ctx.get()
-        assert trace is None
-        assert sampled is None
 
     @mock.patch('ddtrace.internal.hostname.get_hostname')
     def test_get_report_hostname_enabled(self, get_hostname):
@@ -153,13 +145,6 @@ class TestTracingContext(BaseTestCase):
             span = Span(tracer=None, name='fake_span')
             ctx.add_span(span)
             span.finish()
-
-            # Assert that we have not added the tag to the span yet
-            assert span.get_tag(HOSTNAME_KEY) is None
-
-            # Assert that retrieving the trace sets the tag
-            trace, _ = ctx.get()
-            assert trace[0].get_tag(HOSTNAME_KEY) == 'test-hostname'
             assert span.get_tag(HOSTNAME_KEY) == 'test-hostname'
 
     @mock.patch('ddtrace.internal.hostname.get_hostname')
@@ -171,13 +156,13 @@ class TestTracingContext(BaseTestCase):
             ctx = Context()
             span = Span(tracer=None, name='fake_span')
             ctx.add_span(span)
-            span.finish()
+            span.finished = True
 
             # Assert that we have not added the tag to the span yet
             assert span.get_tag(HOSTNAME_KEY) is None
 
             # Assert that retrieving the trace does not set the tag
-            trace, _ = ctx.get()
+            trace, _ = ctx.close_span(span)
             assert trace[0].get_tag(HOSTNAME_KEY) is None
             assert span.get_tag(HOSTNAME_KEY) is None
 
@@ -189,13 +174,13 @@ class TestTracingContext(BaseTestCase):
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        span.finish()
+        span.finished = True
 
         # Assert that we have not added the tag to the span yet
         assert span.get_tag(HOSTNAME_KEY) is None
 
         # Assert that retrieving the trace does not set the tag
-        trace, _ = ctx.get()
+        trace, _ = ctx.close_span(span)
         assert trace[0].get_tag(HOSTNAME_KEY) is None
         assert span.get_tag(HOSTNAME_KEY) is None
 

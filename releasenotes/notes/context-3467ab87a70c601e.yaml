@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Context.get() functionality has been rolled into Context.close_span().
