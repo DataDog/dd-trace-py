@@ -268,6 +268,16 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success")
 
+    def test_gevent_patch_all(self):
+        with self.override_env(dict(DD_GEVENT_PATCH_ALL="true")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_GEVENT_PATCH_ALL="1")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
+            assert out.startswith(b"Test success")
+
+
 
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""

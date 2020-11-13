@@ -2,15 +2,27 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+import imp
 import logging
 import os
-import imp
 import sys
 
-from ddtrace.utils.formats import asbool, get_env, parse_tags_str
-from ddtrace.internal.logger import get_logger
-from ddtrace import config, constants
-from ddtrace.tracer import debug_mode, DD_LOG_FORMAT
+# Perform gevent patching as early as possible in the application before
+# importing more of the library internals.
+if str(os.environ.get("DD_GEVENT_PATCH_ALL")).lower() in ("true", "1"):
+    try:
+        import gevent.monkey
+    except ImportError:
+        print("failed to import gevent.monkey", file=sys.stderr)
+    else:
+        gevent.monkey.patch_all()
+        pass
+
+
+from ddtrace.utils.formats import asbool, get_env, parse_tags_str  # noqa
+from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace import config, constants  # noqa
+from ddtrace.tracer import debug_mode, DD_LOG_FORMAT  # noqa
 
 
 if config.logs_injection:
