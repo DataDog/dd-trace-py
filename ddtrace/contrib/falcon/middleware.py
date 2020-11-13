@@ -7,6 +7,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...settings import config
+from .. import trace_utils
 
 
 class TraceMiddleware(object):
@@ -40,8 +41,7 @@ class TraceMiddleware(object):
             config.falcon.get_analytics_sample_rate(use_global_config=True)
         )
 
-        span.set_tag(httpx.METHOD, req.method)
-        span.set_tag(httpx.URL, req.url)
+        trace_utils.set_http_meta(config.falcon, span, method=req.method, url=req.url)
         if config.falcon.trace_query_string:
             span.set_tag(httpx.QUERY_STRING, req.query_string)
 
@@ -88,9 +88,7 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        span.set_tag(httpx.STATUS_CODE, status)
-        if 500 <= int(status) < 600:
-            span.error = 1
+        trace_utils.set_http_meta(config.falcon, span, status_code=status)
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
