@@ -1,7 +1,7 @@
 [[{"name" "starlette.request"
    "service" "starlette"
    "resource" "POST /notes"
-   "type" "http"
+   "type" "web"
    "error" 0
    "span_id" 0
    "trace_id" 0
@@ -32,7 +32,7 @@
  [{"name" "starlette.request"
    "service" "starlette"
    "resource" "GET /notes"
-   "type" "http"
+   "type" "web"
    "error" 0
    "span_id" 0
    "trace_id" 1

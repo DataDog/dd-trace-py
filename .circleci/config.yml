@@ -478,6 +478,7 @@ jobs:
 
   celery:
     <<: *contrib_job
+    parallelism: 6
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -675,8 +676,8 @@ jobs:
       - image: *ddtrace_dev_image
       - *httpbin_local
     steps:
-      - run_tox_scenario:
-          pattern: '^requests_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: "requests"
 
   requestsgevent:
     <<: *contrib_job
@@ -693,13 +694,9 @@ jobs:
   starlette:
     <<: *machine_executor
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^starlette_contrib-'
+      - run_test:
+          pattern: "starlette"
+          snapshot: true
 
   sqlalchemy:
     <<: *contrib_job
@@ -928,7 +925,6 @@ requires_tests: &requires_tests
   - redis
   - rediscluster
   - requests
-  - requestsgevent
   - sqlalchemy
   - sqlite3
   - starlette
@@ -1031,7 +1027,6 @@ workflows:
       - redis: *requires_pre_test
       - rediscluster: *requires_pre_test
       - requests: *requires_pre_test
-      - requestsgevent: *requires_pre_test
       - sanic: *requires_pre_test
       - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
