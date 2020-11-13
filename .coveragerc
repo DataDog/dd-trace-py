@@ -1,6 +1,5 @@
 [run]
 omit = ddtrace/vendor/*
-parallel = true
 
 [paths]
 source =
