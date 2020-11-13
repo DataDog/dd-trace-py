@@ -320,6 +320,8 @@ class Tracer(object):
                 https=https,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
+                dogstatsd=self._dogstatsd_client,
+                report_metrics=config.health_metrics_enabled,
             )
 
         if context_provider is not None:

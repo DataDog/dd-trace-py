@@ -1,32 +1,8 @@
 import mock
 
 from ddtrace.span import Span
-from ddtrace.api import API
 from ddtrace.internal.writer import AgentWriter, LogWriter
-from ddtrace.payload import PayloadFull
-from tests import BaseTestCase
-
-MAX_NUM_SPANS = 7
-
-
-class DummyAPI(API):
-    def __init__(self):
-        # Call API.__init__ to setup required properties
-        super(DummyAPI, self).__init__(hostname="localhost", port=8126)
-
-        self.traces = []
-
-    def send_traces(self, traces):
-        responses = []
-        for trace in traces:
-            self.traces.append(trace)
-            if len(trace) > MAX_NUM_SPANS:
-                response = PayloadFull()
-            else:
-                response = mock.Mock()
-                response.status = 200
-            responses.append(response)
-        return responses
+from tests import BaseTestCase, AnyInt
 
 
 class DummyOutput:
@@ -49,23 +25,124 @@ class FailingAPI(object):
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
-    def create_worker(self, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS):
-        with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
-            self.dogstatsd = mock.Mock()
-            worker = AgentWriter()
-            worker._STATS_EVERY_INTERVAL = 1
-            self.api = api_class()
-            worker.api = self.api
-            for i in range(num_traces):
-                worker.write(
-                    [
-                        Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
-                        for j in range(num_spans)
-                    ]
-                )
-            worker.stop()
-            worker.join()
-            return worker
+    def test_metrics_disabled(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.stop()
+        writer.join()
+
+        statsd.increment.assert_not_called()
+        statsd.distribution.assert_not_called()
+
+    def test_metrics_bad_endpoint(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.stop()
+        writer.join()
+
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
+
+    def test_metrics_trace_too_big(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.write(
+            [Span(tracer=None, name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
+        )
+        writer.stop()
+        writer.join()
+
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.buffer.dropped.traces", 1, tags=["reason:t_too_big"]),
+                mock.call("datadog.tracer.buffer.dropped.bytes", AnyInt(), tags=["reason:t_too_big"]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
+
+    def test_metrics_multi(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.flush_queue()
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
+
+        statsd.reset_mock()
+
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.stop()
+        writer.join()
+
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
 
 
 class LogWriterTests(BaseTestCase):

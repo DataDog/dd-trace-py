@@ -10,7 +10,7 @@ from ddtrace import Tracer, tracer
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.runtime import container
 
-from tests import TracerTestCase, snapshot, override_global_tracer
+from tests import TracerTestCase, snapshot, AnyInt, override_global_config
 
 agent_version = os.environ.get("AGENT_VERSION")
 if agent_version == "5":
@@ -19,16 +19,6 @@ elif agent_version == "testagent":
     AGENT_VERSION = "testagent"
 else:
     AGENT_VERSION = "latest"
-
-
-class AnyStr(object):
-    def __eq__(self, other):
-        return isinstance(other, str)
-
-
-class AnyInt(object):
-    def __eq__(self, other):
-        return isinstance(other, int)
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -146,6 +136,40 @@ def test_child_spans():
         t.shutdown()
         log.warning.assert_not_called()
         log.error.assert_not_called()
+
+
+def test_metrics():
+    with override_global_config(dict(health_metrics_enabled=True)):
+        t = Tracer()
+        statsd_mock = mock.Mock()
+        t.writer.dogstatsd = statsd_mock
+        assert t.writer._report_metrics
+        with mock.patch("ddtrace.internal.writer.log") as log:
+            for _ in range(5):
+                spans = []
+                for i in range(3000):
+                    spans.append(t.trace("op"))
+                for s in spans:
+                    s.finish()
+
+            t.shutdown()
+            log.warning.assert_not_called()
+            log.error.assert_not_called()
+
+        statsd_mock.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd_mock.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 5, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 15000, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.sent.bytes", AnyInt()),
+            ],
+            any_order=True,
+        )
 
 
 def test_single_trace_too_large():
