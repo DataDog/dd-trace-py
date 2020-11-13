@@ -3,6 +3,7 @@ from ...ext import SpanTypes, http, errors
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
+from .. import trace_utils
 from ddtrace.http import store_request_headers
 from ddtrace import config
 
@@ -168,9 +169,7 @@ class TraceMiddleware(object):
             resource = endpoint or code
             span.resource = compat.to_unicode(resource).lower()
 
-        span.set_tag(http.URL, compat.to_unicode(url))
-        span.set_tag(http.STATUS_CODE, code)
-        span.set_tag(http.METHOD, method)
+        trace_utils.set_http_meta(config.flask, span, method=method, url=compat.to_unicode(url), status_code=code)
         span.finish()
 
 
