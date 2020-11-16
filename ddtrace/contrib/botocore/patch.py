@@ -5,8 +5,6 @@ Trace queries to aws api done via botocore client
 from ddtrace.vendor import wrapt
 from ddtrace import config
 import botocore.client
-import base64
-import json
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY

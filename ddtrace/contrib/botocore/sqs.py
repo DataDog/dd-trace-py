@@ -3,7 +3,6 @@ import json
 
 
 # project
-from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 
 
@@ -22,4 +21,3 @@ def inject_trace_to_message_metadata(args, span):
             'DataType': 'String',
             'StringValue': json.dumps(trace_headers)
         }
-

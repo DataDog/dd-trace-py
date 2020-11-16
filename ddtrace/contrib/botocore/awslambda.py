@@ -9,6 +9,7 @@ from ...propagation.http import HTTPPropagator
 log = get_logger(__name__)
 propagator = HTTPPropagator()
 
+
 def modify_client_context(client_context_base64, trace_headers):
     try:
         client_context_json = base64.b64decode(client_context_base64).decode('utf-8')
@@ -45,4 +46,3 @@ def inject_trace_to_client_context(args, span):
         }
         json_context = json.dumps(client_context_object).encode('utf-8')
         params['ClientContext'] = base64.b64encode(json_context).decode('utf-8')
-

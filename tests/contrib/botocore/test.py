@@ -172,7 +172,7 @@ class BotocoreTest(TracerTestCase):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
         response = queue.send_message(MessageBody='world')
-
+        print(response)
         spans = self.get_spans()
         assert spans
         span = spans[0]
@@ -188,7 +188,6 @@ class BotocoreTest(TracerTestCase):
 
         self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
         self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
-
 
     @mock_kinesis
     def test_kinesis_client(self):
