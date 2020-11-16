@@ -83,6 +83,7 @@ def trace_tween_factory(handler, registry):
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
+                status = None
                 try:
                     response = handler(request)
                 except HTTPException as e:
