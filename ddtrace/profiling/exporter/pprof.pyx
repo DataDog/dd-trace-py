@@ -437,9 +437,9 @@ class PprofExporter(exporter.Exporter):
                     convert_fn(
                         lock_name,
                         thread_id,
+                        thread_name,
                         trace_id,
                         span_id,
-                        thread_name,
                         frames,
                         nframes,
                         list(l_events),
