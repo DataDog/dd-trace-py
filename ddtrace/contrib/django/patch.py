@@ -399,7 +399,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # the middleware chain
             _set_request_tags(django, span, request)
 
-            status = None
             if response:
                 status = response.status_code
                 span.set_tag("django.response.class", func_name(response))
