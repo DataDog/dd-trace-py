@@ -135,7 +135,7 @@ class TraceMiddleware:
 
         async def wrapped_send(message):
             status_code = None
-            if span and message.get("type") == "http.response.start":
+            if span and message.get("type") == "http.response.start" and "status" in message:
                 if "status" in message:
                     status_code = message["status"]
             trace_utils.set_http_meta(self.integration_config, span, status_code=status_code)
