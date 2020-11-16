@@ -36,7 +36,6 @@ def _wrap_response_callback(span, callback):
     # based on response and finish span before returning response
 
     def update_span(response):
-        status_code = None
         if isinstance(response, sanic.response.BaseHTTPResponse):
             status_code = response.status
             store_response_headers(response.headers, span, config.sanic)
