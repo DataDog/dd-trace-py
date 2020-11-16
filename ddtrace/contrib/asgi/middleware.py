@@ -124,6 +124,8 @@ class TraceMiddleware:
             server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
             full_path = scope.get("root_path", "") + scope.get("path", "")
             url = scope.get("scheme", "http") + "://" + server_host + full_path
+        else:
+            url = None
 
         trace_utils.set_http_meta(self.integration_config, span, method=method, url=url)
 
