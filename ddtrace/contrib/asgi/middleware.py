@@ -137,7 +137,9 @@ class TraceMiddleware:
             status_code = None
             if span and message.get("type") == "http.response.start" and "status" in message:
                 if "status" in message:
-                    status_code = message["status"]
+                status_code = message["status"]
+            else:
+                status_code = None
             trace_utils.set_http_meta(self.integration_config, span, status_code=status_code)
 
             if "headers" in message:
