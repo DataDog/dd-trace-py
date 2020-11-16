@@ -134,7 +134,6 @@ class TraceMiddleware:
         store_request_headers(headers, span, self.integration_config)
 
         async def wrapped_send(message):
-            status_code = None
             if span and message.get("type") == "http.response.start" and "status" in message:
                 if "status" in message:
                 status_code = message["status"]
