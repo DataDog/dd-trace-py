@@ -92,7 +92,6 @@ def instrument_dbs(django):
 
 def _set_request_tags(django, span, request):
     span.set_tag("django.request.class", func_name(request))
-    span.set_tag(http.METHOD, request.method)
 
     if django.VERSION >= (2, 2, 0):
         headers = request.headers
@@ -393,8 +392,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 span.set_tag("http.route", route)
 
             # Set HTTP Request tags
-            span.set_tag(http.URL, utils.get_request_uri(request))
-
             response = func(*args, **kwargs)
 
             # Note: this call must be done after the function call because
@@ -402,10 +399,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # the middleware chain
             _set_request_tags(django, span, request)
 
+            status = None
             if response:
-                span.set_tag(http.STATUS_CODE, response.status_code)
-                if 500 <= response.status_code < 600:
-                    span.error = 1
+                status = response.status_code
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
                     # template_name is a bit of a misnomer, as it could be any of:
@@ -434,6 +430,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
                     utils.set_tag_array(span, "django.response.template", template_names)
 
+                url = utils.get_request_uri(request)
+                trace_utils.set_http_meta(config.django, span, method=request.method, url=url, status_code=status)
                 headers = dict(response.items())
                 store_response_headers(headers, span, config.django)
 
