@@ -48,7 +48,6 @@ def _wrap_getresponse(func, instance, args, kwargs):
             if span:
                 if resp:
                     trace_utils.set_http_meta(config.httplib, span, status_code=resp.status)
-                    span.error = int(500 <= resp.status)
                     store_response_headers(dict(resp.getheaders()), span, config.httplib)
 
                 span.finish()
