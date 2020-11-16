@@ -108,7 +108,7 @@ def ext_service(pin, config, default=None):
 
 def set_http_meta(config, span, method=None, url=None, status_code=None):
     if method:
-        span.set_tag(http.METHOD, method)
+        span.meta[http.METHOD] = method
     if url:
         span.set_tag(http.URL, url)
     if status_code:
