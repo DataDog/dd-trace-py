@@ -135,7 +135,6 @@ class TraceMiddleware:
 
         async def wrapped_send(message):
             if span and message.get("type") == "http.response.start" and "status" in message:
-                if "status" in message:
                 status_code = message["status"]
             else:
                 status_code = None
