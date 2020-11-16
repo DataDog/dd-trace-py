@@ -65,7 +65,6 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
-            status = None
             if distributed_tracing:
                 propagator = HTTPPropagator()
                 context = propagator.extract(request.headers)
