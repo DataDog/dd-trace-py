@@ -8,6 +8,7 @@ from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
+from .. import trace_utils
 
 log = get_logger(__name__)
 
@@ -100,18 +101,18 @@ def _wrap_send(func, instance, args, kwargs):
             return response
         finally:
             try:
-                span.set_tag(http.METHOD, request.method.upper())
-                span.set_tag(http.URL, sanitized_url)
+                status = None
                 if config.requests.trace_query_string:
                     span.set_tag(http.QUERY_STRING, parsed_uri.query)
                 if response is not None:
-                    span.set_tag(http.STATUS_CODE, response.status_code)
-                    # `span.error` must be an integer
-                    span.error = int(500 <= response.status_code)
+                    status = response.status_code
                     # Storing response headers in the span.
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
                     store_response_headers(response_headers, span, config.requests)
+                trace_utils.set_http_meta(
+                    config.requests, span, method=request.method.upper(), url=sanitized_url, status_code=status
+                )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)
