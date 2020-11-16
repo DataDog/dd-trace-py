@@ -118,7 +118,6 @@ class TraceMiddleware:
 
         method = scope.get("method")
         server = scope.get("server")
-        url = None
         if server and len(server) == 2:
             port = server[1]
             server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
