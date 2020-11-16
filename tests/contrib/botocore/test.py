@@ -171,7 +171,7 @@ class BotocoreTest(TracerTestCase):
         queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
-        response = queue.send_message(MessageBody='world')
+        response = sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
         print(response)
         spans = self.get_spans()
         assert spans
