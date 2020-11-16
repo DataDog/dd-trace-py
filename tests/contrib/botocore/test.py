@@ -182,7 +182,7 @@ class BotocoreTest(TracerTestCase):
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.sqs')
-        self.assertEqual(span.resource, 'sqs.listqueues')
+        self.assertEqual(span.resource, 'sqs.sendmessage')
         message_attributes = span.get_tag('params.MessageAttributes')
         trace_data_injected = json.loads(message_attributes['_datadog']['StringValue'])
 
