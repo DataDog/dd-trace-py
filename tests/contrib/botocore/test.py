@@ -184,6 +184,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.service, 'test-botocore-tracing.sqs')
         self.assertEqual(span.resource, 'sqs.sendmessage')
         message_attributes = span.get_tag('params.MessageAttributes')
+        print(message_attributes)
         trace_data_injected = json.loads(message_attributes['_datadog']['StringValue'])
 
         self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
