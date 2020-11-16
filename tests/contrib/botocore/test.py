@@ -165,6 +165,31 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.service, 'test-botocore-tracing.sqs')
         self.assertEqual(span.resource, 'sqs.listqueues')
 
+    @mock_sqs
+    def test_sqs_send_message_trace_injection(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+
+        response = queue.send_message(MessageBody='world')
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'SendMessage')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+        self.assertEqual(span.resource, 'sqs.listqueues')
+        message_attributes = span.get_tag('params.MessageAttributes')
+        trace_data_injected = json.loads(message_attributes['_datadog']['StringValue'])
+
+        self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+
     @mock_kinesis
     def test_kinesis_client(self):
         kinesis = self.session.create_client('kinesis', region_name='us-east-1')
