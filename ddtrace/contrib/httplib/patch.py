@@ -14,6 +14,7 @@ from ...propagation.http import HTTPPropagator
 from ...settings import config
 from ...utils.formats import asbool, get_env
 from ...utils.wrappers import unwrap as _u
+from .. import trace_utils
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'
 
@@ -46,7 +47,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
             span = getattr(instance, '_datadog_span', None)
             if span:
                 if resp:
-                    span.set_tag(ext_http.STATUS_CODE, resp.status)
+                    trace_utils.set_http_meta(config.httplib, span, status_code=resp.status)
                     span.error = int(500 <= resp.status)
                     store_response_headers(dict(resp.getheaders()), span, config.httplib)
 
@@ -128,8 +129,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
             parsed.fragment
         ))
 
-        span.set_tag(ext_http.URL, sanitized_url)
-        span.set_tag(ext_http.METHOD, method)
+        trace_utils.set_http_meta(config.httplib, span, method=method, url=sanitized_url)
+
         if config.httplib.trace_query_string:
             span.set_tag(ext_http.QUERY_STRING, parsed.query)
 
