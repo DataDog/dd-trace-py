@@ -29,8 +29,7 @@ config._add(
 
 
 def patch():
-    """Patch the instrumented methods
-    """
+    """Patch the instrumented methods"""
     if getattr(molten, "_datadog_patch", False):
         return
     setattr(molten, "_datadog_patch", True)
@@ -45,8 +44,7 @@ def patch():
 
 
 def unpatch():
-    """Remove instrumentation
-    """
+    """Remove instrumentation"""
     if getattr(molten, "_datadog_patch", False):
         setattr(molten, "_datadog_patch", False)
 
@@ -61,8 +59,7 @@ def unpatch():
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
-    """Patch wsgi interface for app
-    """
+    """Patch wsgi interface for app"""
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():
@@ -114,19 +111,20 @@ def patch_app_call(wrapped, instance, args, kwargs):
                 # if route never resolve, update root resource
                 span.resource = u"{} {}".format(request.method, code)
 
-            span.set_tag(http.STATUS_CODE, code)
-
-            # mark 5xx spans as error
-            if 500 <= code < 600:
-                span.error = 1
+            trace_utils.set_http_meta(config.molten, span, status_code=code)
 
             return wrapped(*args, **kwargs)
 
         # patching for extracting response code
         start_response = _w_start_response(start_response)
 
-        span.set_tag(http.METHOD, request.method)
-        span.set_tag(http.URL, "%s://%s:%s%s" % (request.scheme, request.host, request.port, request.path,))
+        url = "%s://%s:%s%s" % (
+            request.scheme,
+            request.host,
+            request.port,
+            request.path,
+        )
+        trace_utils.set_http_meta(config.molten, span, method=request.method, url=url)
         if config.molten.trace_query_string:
             span.set_tag(http.QUERY_STRING, urlencode(dict(request.params)))
         span.set_tag("molten.version", molten.__version__)
@@ -134,8 +132,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
-    """Patch app initialization of middleware, components and renderers
-    """
+    """Patch app initialization of middleware, components and renderers"""
     # allow instance to be initialized before wrapping them
     wrapped(*args, **kwargs)
 
