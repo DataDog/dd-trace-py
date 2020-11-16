@@ -111,7 +111,6 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     if sample_rate is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-
     tags = _extract_tags_from_request(request=request)
     span.set_tags(tags)
 
