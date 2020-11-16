@@ -12,8 +12,8 @@ from ...ext import SpanTypes, http, aws
 from ...pin import Pin
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
-from awslambda import inject_trace_to_client_context
-from sqs import inject_trace_to_message_metadata
+from .awslambda import inject_trace_to_client_context
+from .sqs import inject_trace_to_message_metadata
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
