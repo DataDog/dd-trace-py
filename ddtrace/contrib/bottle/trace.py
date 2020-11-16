@@ -9,6 +9,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
+from .. import trace_utils
 
 
 class TracePlugin(object):
@@ -72,12 +73,8 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    if 500 <= response_code < 600:
-                        s.error = 1
+                    trace_utils.set_http_meta(config.bottle, s, method=request.method, url = url, status_code=response_code)
 
-                    s.set_tag(http.STATUS_CODE, response_code)
-                    s.set_tag(http.URL, request.urlparts._replace(query='').geturl())
-                    s.set_tag(http.METHOD, request.method)
                     if config.bottle.trace_query_string:
                         s.set_tag(http.QUERY_STRING, request.query_string)
 
