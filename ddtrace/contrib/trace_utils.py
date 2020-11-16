@@ -112,6 +112,6 @@ def set_http_meta(config, span, method=None, url=None, status_code=None):
     if url:
         span.set_tag(http.URL, url)
     if status_code:
-        span.set_tag(http.STATUS_CODE, status_code)
+        span.meta[http.STATUS_CODE] = str(status_code)
         if 500 <= int(status_code) < 600:
             span.error = 1
