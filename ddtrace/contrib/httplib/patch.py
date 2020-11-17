@@ -47,7 +47,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
             span = getattr(instance, '_datadog_span', None)
             if span:
                 if resp:
-                    trace_utils.set_http_meta(config.httplib, span, status_code=resp.status)
+                    trace_utils.set_http_meta(span, config.httplib, status_code=resp.status)
                     store_response_headers(dict(resp.getheaders()), span, config.httplib)
 
                 span.finish()
@@ -128,7 +128,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
             parsed.fragment
         ))
 
-        trace_utils.set_http_meta(config.httplib, span, method=method, url=sanitized_url)
+        trace_utils.set_http_meta(span, config.httplib, method=method, url=sanitized_url)
 
         if config.httplib.trace_query_string:
             span.set_tag(ext_http.QUERY_STRING, parsed.query)

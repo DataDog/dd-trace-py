@@ -111,7 +111,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
                 # if route never resolve, update root resource
                 span.resource = u"{} {}".format(request.method, code)
 
-            trace_utils.set_http_meta(config.molten, span, status_code=code)
+            trace_utils.set_http_meta(span, config.molten, status_code=code)
 
             return wrapped(*args, **kwargs)
 
@@ -124,7 +124,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
             request.port,
             request.path,
         )
-        trace_utils.set_http_meta(config.molten, span, method=request.method, url=url)
+        trace_utils.set_http_meta(span, config.molten, method=request.method, url=url)
         if config.molten.trace_query_string:
             span.set_tag(http.QUERY_STRING, urlencode(dict(request.params)))
         span.set_tag("molten.version", molten.__version__)

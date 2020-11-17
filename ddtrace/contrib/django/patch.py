@@ -430,7 +430,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     utils.set_tag_array(span, "django.response.template", template_names)
 
                 url = utils.get_request_uri(request)
-                trace_utils.set_http_meta(config.django, span, method=request.method, url=url, status_code=status)
+                trace_utils.set_http_meta(span, config.django, method=request.method, url=url, status_code=status)
                 headers = dict(response.items())
                 store_response_headers(headers, span, config.django)
 

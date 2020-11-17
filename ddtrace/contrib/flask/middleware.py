@@ -169,7 +169,7 @@ class TraceMiddleware(object):
             resource = endpoint or code
             span.resource = compat.to_unicode(resource).lower()
 
-        trace_utils.set_http_meta(config.flask, span, method=method, url=compat.to_unicode(url), status_code=code)
+        trace_utils.set_http_meta(span, config.flask, method=method, url=compat.to_unicode(url), status_code=code)
         span.finish()
 
 

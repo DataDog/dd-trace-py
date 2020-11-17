@@ -106,11 +106,11 @@ def ext_service(pin, config, default=None):
     return default
 
 
-def set_http_meta(config, span, method=None, url=None, status_code=None):
+def set_http_meta(span, config, method=None, url=None, status_code=None):
     if method:
         span.meta[http.METHOD] = method
     if url:
-        if not isinstance(url, str) and not isinstance(url, unicode):
+        if not isinstance(url, str):
             url = str(url)
         span.meta[http.URL] = url
     if status_code:

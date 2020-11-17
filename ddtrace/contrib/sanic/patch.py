@@ -42,7 +42,7 @@ def _wrap_response_callback(span, callback):
         else:
             # invalid response causes ServerError exception which must be handled
             status_code = 500
-        trace_utils.set_http_meta(config.sanic, span, status_code=status_code)
+        trace_utils.set_http_meta(span, config.sanic, status_code=status_code)
         span.finish()
 
     @wrapt.function_wrapper
@@ -115,7 +115,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
     method = request.method
     url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
-    trace_utils.set_http_meta(config.sanic, span, method=method, url=url)
+    trace_utils.set_http_meta(span, config.sanic, method=method, url=url)
 
     store_request_headers(headers, span, config.sanic)
 

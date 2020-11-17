@@ -75,7 +75,7 @@ class TracePlugin(object):
 
                     method = request.method
                     url = request.urlparts._replace(query='').geturl()
-                    trace_utils.set_http_meta(config.bottle, s, method=method, url=url, status_code=response_code)
+                    trace_utils.set_http_meta(s, config.bottle, method=method, url=url, status_code=response_code)
 
                     if config.bottle.trace_query_string:
                         s.set_tag(http.QUERY_STRING, request.query_string)

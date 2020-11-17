@@ -107,7 +107,7 @@ def trace_tween_factory(handler, registry):
                     if response:
                         status = response.status_code
                     trace_utils.set_http_meta(
-                        config.pyramid, span, method=request.method, url=request.path_url, status_code=status
+                        span, config.pyramid, method=request.method, url=request.path_url, status_code=status
                     )
                 return response
 

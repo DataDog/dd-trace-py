@@ -112,7 +112,7 @@ def _wrap_send(func, instance, args, kwargs):
                     response_headers = dict(getattr(response, "headers", {}))
                     store_response_headers(response_headers, span, config.requests)
                 trace_utils.set_http_meta(
-                    config.requests, span, method=request.method.upper(), url=sanitized_url, status_code=status
+                    span, config.requests, method=request.method.upper(), url=sanitized_url, status_code=status
                 )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

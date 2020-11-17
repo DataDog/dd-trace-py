@@ -102,7 +102,7 @@ def on_prepare(request, response):
     request_span.resource = resource
 
     url = request.url.with_query(None)
-    trace_utils.set_http_meta(config.aiohttp, request_span, method=request.method, url=url, status_code=response.status)
+    trace_utils.set_http_meta(request_span, config.aiohttp, method=request.method, url=url, status_code=response.status)
 
     # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')

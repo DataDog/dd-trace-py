@@ -126,7 +126,7 @@ class TraceMiddleware:
         else:
             url = None
 
-        trace_utils.set_http_meta(self.integration_config, span, method=method, url=url)
+        trace_utils.set_http_meta(span, self.integration_config, method=method, url=url)
 
         tags = _extract_tags_from_scope(scope, self.integration_config)
         span.set_tags(tags)
@@ -138,7 +138,7 @@ class TraceMiddleware:
                 status_code = message["status"]
             else:
                 status_code = None
-            trace_utils.set_http_meta(self.integration_config, span, status_code=status_code)
+            trace_utils.set_http_meta(span, self.integration_config, status_code=status_code)
 
             if "headers" in message:
                 store_response_headers(message["headers"], span, self.integration_config)
