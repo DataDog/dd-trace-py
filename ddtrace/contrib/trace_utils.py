@@ -110,7 +110,9 @@ def set_http_meta(config, span, method=None, url=None, status_code=None):
     if method:
         span.meta[http.METHOD] = method
     if url:
-        span.meta[http.URL] = str(url)
+        if not isinstance(url, str) and not isinstance(url, unicode):
+            url = str(url)
+        span.meta[http.URL] = url
     if status_code:
         span.meta[http.STATUS_CODE] = str(status_code)
         if 500 <= int(status_code) < 600:
