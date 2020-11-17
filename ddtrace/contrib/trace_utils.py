@@ -7,7 +7,7 @@ import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
-import sys
+from ..compat import stringify
 
 log = get_logger(__name__)
 
@@ -111,9 +111,7 @@ def set_http_meta(span, config, method=None, url=None, status_code=None):
     if method:
         span.meta[http.METHOD] = method
     if url:
-        if not isinstance(url, str) and (sys.version_info[0] < 3 and not isinstance(url, unicode)):
-            url = str(url)
-        span.meta[http.URL] = url
+        span.meta[http.URL] = stringify(url)
     if status_code:
         span.meta[http.STATUS_CODE] = str(status_code)
         if 500 <= int(status_code) < 600:
