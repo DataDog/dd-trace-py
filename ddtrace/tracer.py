@@ -6,7 +6,7 @@ import sys
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, KEEP_SPANS_RATE_KEY, VERSION_KEY, ENV_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal import debug
@@ -447,8 +447,6 @@ class Tracer(object):
                 span_type=span_type,
                 _check_pid=False,
             )
-
-            span.set_metric(KEEP_SPANS_RATE_KEY, self.writer.keep_rate)
 
             span.sampled = self.sampler.sample(span)
             # Old behavior

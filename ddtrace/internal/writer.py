@@ -13,6 +13,7 @@ from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..encoding import JSONEncoderV2
 from ..payload import PayloadFull, PayloadFullExtended
+from ..constants import KEEP_SPANS_RATE_KEY
 from . import _queue
 from . import sma
 
@@ -108,11 +109,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         """Determine if we're sending stats or not."""
         return bool(config.health_metrics_enabled and self.dogstatsd)
 
-    @property
-    def keep_rate(self):
-        """Return the keep root spans rate."""
-        return 1.0 - self._drop_sma.get()
-
     def write(self, spans=None, services=None):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
@@ -134,6 +130,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if self._send_stats:
             traces_queue_length = len(traces)
             traces_queue_spans = sum(map(len, traces))
+
+        self._set_keep_rate(traces)
 
         dropped_root_spans = 0
 
@@ -214,7 +212,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         finally:
             dropped, enqueued, enqueued_lengths = self._trace_queue.pop_stats()
 
-            self._drop_sma.set(float(dropped_root_spans + dropped) / float(enqueued))
+            self._drop_sma.set(float(dropped_root_spans + dropped) / enqueued)
 
             if not self._send_stats:
                 return
@@ -233,6 +231,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 return
 
             self.dogstatsd.increment("datadog.tracer.shutdown")
+
+    def _set_keep_rate(self, traces):
+        keep_rate = 1.0 - self._drop_sma.get()
+
+        for trace in (t for t in traces if t):
+            trace[0].set_metric(KEEP_SPANS_RATE_KEY, keep_rate)
 
     def _log_error_status(self, response):
         log_level = log.debug

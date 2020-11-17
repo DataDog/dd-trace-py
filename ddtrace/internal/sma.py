@@ -1,14 +1,12 @@
 from __future__ import division
-import threading
 
 
 class SimpleMovingAverage(object):
     """
-    Simple Moving Average thread safe implementation.
+    Simple Moving Average implementation.
     """
 
     __slots__ = (
-        "_lock",
         "sum",
         "index",
         "size",
@@ -27,8 +25,6 @@ class SimpleMovingAverage(object):
         self.size = max(1, size)
         self.buckets = [0.0] * self.size
 
-        self._lock = threading.Lock()
-
     def get(self):
         """
         Get the current SMA value.
@@ -42,12 +38,11 @@ class SimpleMovingAverage(object):
         :param value: The value of the next bucket.
         :type size: :obj:`float`
         """
-        with self._lock:
-            new_sum = self.sum
-            new_sum -= self.buckets[self.index]
-            new_sum += value
+        new_sum = self.sum
+        new_sum -= self.buckets[self.index]
+        new_sum += value
 
-            self.buckets[self.index] = value
-            self.index = (self.index + 1) % self.size
+        self.buckets[self.index] = value
+        self.index = (self.index + 1) % self.size
 
-            self.sum = new_sum
+        self.sum = new_sum

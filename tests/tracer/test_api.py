@@ -10,7 +10,7 @@ from unittest import TestCase
 
 import pytest
 
-from ddtrace.api import API, Response
+from ddtrace.api import API, Response, APIExtendedException
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.compat import iteritems, httplib, PY3, get_connection_response
 from ddtrace.internal.runtime.container import CGroupInfo
@@ -244,34 +244,42 @@ def test_flush_connection_timeout_connect():
     payload = mock.Mock()
     payload.get_payload.return_value = 'foobar'
     payload.length = 12
+    payload.traces = [[]] * 12
     api = API(_HOST, 2019)
     response = api._flush(payload)
     if PY3:
-        assert isinstance(response, (OSError, ConnectionRefusedError))  # noqa: F821
+        assert isinstance(response, APIExtendedException)
+        assert isinstance(response.cause, (OSError, ConnectionRefusedError))  # noqa: F821
     else:
-        assert isinstance(response, socket.error)
-    assert response.errno in (errno.EADDRNOTAVAIL, errno.ECONNREFUSED)
+        assert isinstance(response, APIExtendedException)
+        assert isinstance(response.cause, socket.error)
+    assert response.cause.errno in (errno.EADDRNOTAVAIL, errno.ECONNREFUSED)
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
     payload = mock.Mock()
     payload.get_payload.return_value = 'foobar'
     payload.length = 12
+    payload.traces = [[]] * 12
     api = API(_HOST, _TIMEOUT_PORT)
     response = api._flush(payload)
-    assert isinstance(response, socket.timeout)
+    assert isinstance(response, APIExtendedException)
+    assert isinstance(response.cause, socket.timeout)
 
 
 def test_flush_connection_reset(endpoint_test_reset_server):
     payload = mock.Mock()
     payload.get_payload.return_value = 'foobar'
     payload.length = 12
+    payload.traces = [[]] * 12
     api = API(_HOST, _RESET_PORT)
     response = api._flush(payload)
     if PY3:
-        assert isinstance(response, (httplib.BadStatusLine, ConnectionResetError))  # noqa: F821
+        assert isinstance(response, APIExtendedException)
+        assert isinstance(response.cause, (httplib.BadStatusLine, ConnectionResetError))  # noqa: F821
     else:
-        assert isinstance(response, httplib.BadStatusLine)
+        assert isinstance(response, APIExtendedException)
+        assert isinstance(response.cause, httplib.BadStatusLine)
 
 
 def test_flush_connection_uds(endpoint_uds_server):
