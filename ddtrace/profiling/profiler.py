@@ -137,7 +137,7 @@ def _get_default_url(api_key):
     if api_key is None:
         hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
         port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
-        return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
+        return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port))
 
     # Agentless mode
     legacy = os.environ.get("DD_PROFILING_API_URL")
@@ -177,7 +177,7 @@ class _ProfilerInstance(object):
             ]
 
         api_key = _get_api_key()
-        endpoint = _get_default_url(api_key) if url is None else url + "/profiling/v1/input"
+        endpoint = _get_default_url(api_key) if url is None else url
 
         return [
             http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
