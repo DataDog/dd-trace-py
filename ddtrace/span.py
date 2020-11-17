@@ -258,6 +258,10 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
+    def set_str_tag(self, key, value):
+        # (str, str) -> None
+        self.meta[key] = stringify(value)
+
     def _remove_tag(self, key):
         if key in self.meta:
             del self.meta[key]

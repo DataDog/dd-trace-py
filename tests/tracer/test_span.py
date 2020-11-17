@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import mock
 import time
 
@@ -525,3 +526,11 @@ def test_span_finished():
     span.finished = True
     assert span.finished is True
     assert span.duration_ns != duration
+
+
+def test_span_unicode_set_tag():
+    span = Span(None, None)
+    span.set_tag("key", u"😌")
+    span.set_tag("😐", u"😌")
+    span.set_str_tag("key", u"😌")
+    span.set_str_tag(u"😐", u"😌")
