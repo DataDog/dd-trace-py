@@ -1,19 +1,20 @@
 [[{"name" "rq.queue.enqueue_job"
    "service" "rq"
    "resource" "tests.contrib.rq.test_rq.job_add1"
+   "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605648088139638000
-   "duration" 6267000
-   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
+   "start" 1605651104293219000
+   "duration" 5302000
+   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
            "queue.name" "q"
-           "job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"
+           "job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"
            "job.func_name" "tests.contrib.rq.test_rq.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 21411}}]
+              "system.pid" 30302}}]
  [{"name" "rq.job.fetch"
    "service" "my-worker-svc"
    "resource" "rq.job.fetch"
@@ -21,30 +22,31 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1605648088158196000
-   "duration" 1176000
-   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
-           "job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"
+   "start" 1605651104313111000
+   "duration" 1225000
+   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
+           "job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"
            "job.status" "queued"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 21411}}]
+              "system.pid" 30302}}]
  [{"name" "rq.worker.perform_job"
    "service" "my-worker-svc"
    "resource" "tests.contrib.rq.test_rq.job_add1"
+   "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1605648088162660000
-   "duration" 6137000
-   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
-           "job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"
+   "start" 1605651104316923000
+   "duration" 5376000
+   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
+           "job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"
            "status" "finished"
            "origin" "q"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 21411}}
+              "system.pid" 30302}}
       {"name" "rq.job.perform"
        "service" "my-worker-svc"
        "resource" "tests.contrib.rq.test_rq.job_add1"
@@ -52,6 +54,6 @@
        "span_id" 1
        "trace_id" 2
        "parent_id" 0
-       "start" 1605648088164378000
-       "duration" 966000
-       "meta" {"job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"}}]]
+       "start" 1605651104318405000
+       "duration" 771000
+       "meta" {"job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"}}]]

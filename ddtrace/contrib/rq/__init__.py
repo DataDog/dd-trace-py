@@ -59,6 +59,7 @@ Global Configuration
    Default: ``rq-worker``
 """
 from ddtrace import config, Pin
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from .. import trace_utils
 
@@ -93,7 +94,10 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = args[0]
 
     with pin.tracer.trace(
-        "rq.queue.enqueue_job", service=trace_utils.int_service(pin, config.rq), resource=job.func_name
+        "rq.queue.enqueue_job",
+        service=trace_utils.int_service(pin, config.rq),
+        span_type=SpanTypes.WORKER,
+        resource=job.func_name,
     ) as span:
         span.set_tag("queue.name", instance.name)
         span.set_tag("job.id", job.get_id())
@@ -131,7 +135,10 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
 
     try:
         with pin.tracer.trace(
-            "rq.worker.perform_job", service=trace_utils.ext_service(pin, config.rq_worker), resource=job.func_name
+            "rq.worker.perform_job",
+            service=trace_utils.ext_service(pin, config.rq_worker),
+            span_type=SpanTypes.WORKER,
+            resource=job.func_name,
         ) as span:
             span.set_tag("job.id", job.get_id())
             return func(*args, **kwargs)

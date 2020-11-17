@@ -1,20 +1,21 @@
 [[{"name" "rq.queue.enqueue_job"
    "service" "rq"
    "resource" "tests.contrib.rq.test_rq.job_add1"
+   "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605648087786961000
-   "duration" 11720000
-   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
+   "start" 1605651103954860000
+   "duration" 12236000
+   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
            "queue.name" "sync-q"
-           "job.id" "0b8d2641-7478-441e-99f6-5fb86a789bbd"
+           "job.id" "d2ace236-95f1-403f-b7dd-3075eaf8c010"
            "job.func_name" "tests.contrib.rq.test_rq.job_add1"
            "job.status" "finished"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 21411}}
+              "system.pid" 30302}}
       {"name" "rq.job.perform"
        "service" "rq"
        "resource" "tests.contrib.rq.test_rq.job_add1"
@@ -22,6 +23,6 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1605648087791333000
-       "duration" 1134000
-       "meta" {"job.id" "0b8d2641-7478-441e-99f6-5fb86a789bbd"}}]]
+       "start" 1605651103959683000
+       "duration" 902000
+       "meta" {"job.id" "d2ace236-95f1-403f-b7dd-3075eaf8c010"}}]]
