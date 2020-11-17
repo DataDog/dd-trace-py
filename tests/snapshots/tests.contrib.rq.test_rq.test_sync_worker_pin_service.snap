@@ -5,15 +5,15 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605080012946262000
-   "duration" 6889000
-   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
+   "start" 1605648088648093000
+   "duration" 7127000
+   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
            "queue.name" "q"
-           "job.id" "0c24a161-3e6a-44fb-9e42-0b86e0766581"
+           "job.id" "478b1806-59f4-4430-a283-cf12f89c5917"
            "job.func_name" "tests.contrib.rq.test_rq.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 88062}}]
+              "system.pid" 21411}}]
  [{"name" "rq.job.fetch"
    "service" "rq-worker"
    "resource" "rq.job.fetch"
@@ -21,14 +21,14 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1605080012965520000
-   "duration" 1012000
-   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
-           "job.id" "0c24a161-3e6a-44fb-9e42-0b86e0766581"
+   "start" 1605648088669024000
+   "duration" 1230000
+   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
+           "job.id" "478b1806-59f4-4430-a283-cf12f89c5917"
            "job.status" "queued"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 88062}}]
+              "system.pid" 21411}}]
  [{"name" "rq.worker.perform_job"
    "service" "my-pin-svc"
    "resource" "tests.contrib.rq.test_rq.job_add1"
@@ -36,15 +36,15 @@
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1605080012969872000
-   "duration" 7309000
-   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
-           "job.id" "0c24a161-3e6a-44fb-9e42-0b86e0766581"
+   "start" 1605648088672744000
+   "duration" 5524000
+   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
+           "job.id" "478b1806-59f4-4430-a283-cf12f89c5917"
            "status" "finished"
            "origin" "q"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 88062}}
+              "system.pid" 21411}}
       {"name" "rq.job.perform"
        "service" "my-pin-svc"
        "resource" "tests.contrib.rq.test_rq.job_add1"
@@ -52,6 +52,6 @@
        "span_id" 1
        "trace_id" 2
        "parent_id" 0
-       "start" 1605080012972113000
-       "duration" 906000
-       "meta" {"job.id" "0c24a161-3e6a-44fb-9e42-0b86e0766581"}}]]
+       "start" 1605648088674213000
+       "duration" 844000
+       "meta" {"job.id" "478b1806-59f4-4430-a283-cf12f89c5917"}}]]

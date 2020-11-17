@@ -138,7 +138,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     finally:
         if job.get_status() == rq.job.JobStatus.FAILED:
             span.error = 1
-            span.set_tag("exc_info", job.exc_info)
+            span.set_tag("error.stack", job.exc_info)
         span.set_tag("status", job.get_status())
         span.set_tag("origin", job.origin)
 

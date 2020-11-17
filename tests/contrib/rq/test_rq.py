@@ -16,7 +16,7 @@ def job_fail():
     raise Exception("error")
 
 
-snapshot_ignores = ["meta.job.id"]
+snapshot_ignores = ["meta.job.id", "meta.error.stack"]
 
 
 class TestRqTracingSync(TracerTestCase):

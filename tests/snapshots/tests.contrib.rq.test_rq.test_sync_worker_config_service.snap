@@ -5,15 +5,15 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605080012455005000
-   "duration" 3652000
-   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
+   "start" 1605648088139638000
+   "duration" 6267000
+   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
            "queue.name" "q"
-           "job.id" "0b6e75c8-712e-416b-95ec-8339d530e0e6"
+           "job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"
            "job.func_name" "tests.contrib.rq.test_rq.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 88062}}]
+              "system.pid" 21411}}]
  [{"name" "rq.job.fetch"
    "service" "my-worker-svc"
    "resource" "rq.job.fetch"
@@ -21,14 +21,14 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1605080012471250000
-   "duration" 1875000
-   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
-           "job.id" "0b6e75c8-712e-416b-95ec-8339d530e0e6"
+   "start" 1605648088158196000
+   "duration" 1176000
+   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
+           "job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"
            "job.status" "queued"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 88062}}]
+              "system.pid" 21411}}]
  [{"name" "rq.worker.perform_job"
    "service" "my-worker-svc"
    "resource" "tests.contrib.rq.test_rq.job_add1"
@@ -36,15 +36,15 @@
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1605080012476037000
-   "duration" 5835000
-   "meta" {"runtime-id" "a27bb10250db407a9f3fd068bc2753ea"
-           "job.id" "0b6e75c8-712e-416b-95ec-8339d530e0e6"
+   "start" 1605648088162660000
+   "duration" 6137000
+   "meta" {"runtime-id" "fdb657ce7ff8458a9d9898d9b7dc5f63"
+           "job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"
            "status" "finished"
            "origin" "q"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 88062}}
+              "system.pid" 21411}}
       {"name" "rq.job.perform"
        "service" "my-worker-svc"
        "resource" "tests.contrib.rq.test_rq.job_add1"
@@ -52,6 +52,6 @@
        "span_id" 1
        "trace_id" 2
        "parent_id" 0
-       "start" 1605080012477582000
-       "duration" 962000
-       "meta" {"job.id" "0b6e75c8-712e-416b-95ec-8339d530e0e6"}}]]
+       "start" 1605648088164378000
+       "duration" 966000
+       "meta" {"job.id" "77ce1c55-8449-4d5b-860a-2f513b18f60f"}}]]
