@@ -61,7 +61,9 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
     SHUTDOWN_TIMEOUT = 2
 
     def __init__(self, statsd_client, flush_interval=FLUSH_INTERVAL, shutdown_timeout=SHUTDOWN_TIMEOUT):
-        super(RuntimeWorker, self).__init__(interval=flush_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__)
+        super(RuntimeWorker, self).__init__(
+            interval=flush_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
+        )
         self._statsd_client = statsd_client
         self._runtime_metrics = RuntimeMetrics()
 
