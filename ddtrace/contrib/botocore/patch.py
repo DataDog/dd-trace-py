@@ -16,7 +16,6 @@ from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from .sqs import inject_trace_to_message_metadata
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
