@@ -6,12 +6,14 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605653550755074000
-   "duration" 141000
-   "meta" {"runtime-id" "6c49b58a1f3c44538c6cb46e15f656eb"}
+   "start" 1605726019278220881
+   "duration" 170415
+   "meta" {"runtime-id" "02c419d011d748ba96dcd96cfcc7283d"
+           "http.status_code" "200"
+           "http.status_msg" "OK"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 228767}}
+              "system.pid" 707775}}
       {"name" "wsgi.application"
        "service" "wsgi"
        "resource" "wsgi.application"
@@ -19,8 +21,8 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1605653550755133000
-       "duration" 59000}
+       "start" 1605726019278318702
+       "duration" 56322}
           {"name" "wsgi.start_response"
            "service" "wsgi"
            "resource" "wsgi.start_response"
@@ -29,8 +31,8 @@
            "span_id" 3
            "trace_id" 0
            "parent_id" 1
-           "start" 1605653550755155000
-           "duration" 29000}
+           "start" 1605726019278346018
+           "duration" 21091}
       {"name" "wsgi.response"
        "service" "wsgi"
        "resource" "wsgi.response"
@@ -38,6 +40,6 @@
        "span_id" 2
        "trace_id" 0
        "parent_id" 0
-       "start" 1605653550755203000
-       "duration" 7000
+       "start" 1605726019278382009
+       "duration" 6421
        "meta" {"result_class" "list"}}]]

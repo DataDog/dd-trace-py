@@ -42,6 +42,20 @@ def test_middleware(tracer):
     assert spans[0].error == 1
 
 
+def test_distributed_tracing(tracer):
+    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+    resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+
+    spans = tracer.writer.pop()
+    assert len(spans) == 4
+    root = spans[0]
+    assert root.name == "wsgi.request"
+    assert root.trace_id == 4321
+    assert root.parent_id == 1234
+
+
 @snapshot()
 def test_200():
     app = TestApp(wsgi.DDWSGIMiddleware(application))

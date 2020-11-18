@@ -6,11 +6,14 @@ import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTPPropagator
 
 from .. import trace_utils
 
 
 log = get_logger(__name__)
+
+propagator = HTTPPropagator()
 
 config._add("wsgi", dict(_default_service="wsgi"))
 
@@ -37,6 +40,11 @@ class DDWSGIMiddleware(object):
 
     def __call__(self, environ, start_response):
         def intercept_start_response(status, response_headers, exc_info=None):
+            span = self.tracer.current_root_span()
+
+            status_code, status_msg = status.split(" ")
+            span.set_tag("http.status_code", status_code)
+            span.set_tag("http.status_msg", status_msg)
             with self.tracer.trace(
                 "wsgi.start_response",
                 service=trace_utils.int_service(None, config.wsgi),
@@ -44,6 +52,10 @@ class DDWSGIMiddleware(object):
             ):
                 write = start_response(status, response_headers, exc_info)
             return DDTraceWrite(write, self.tracer)
+
+        ctx = propagator.extract(environ)
+        if ctx.trace_id:
+            self.tracer.context_provider.activate(ctx)
 
         with self.tracer.trace(
             "wsgi.request",
