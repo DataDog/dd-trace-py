@@ -1,32 +1,29 @@
-import redis
-import rq
+import os
+import subprocess
+import time
 
 import pytest
+import redis
+
+import rq
 
 from ddtrace import Pin
 from ddtrace.contrib.rq import patch, unpatch
 from tests import TracerTestCase, snapshot, override_config
 
-
-def job_add1(x):
-    return x + 1
-
-
-def job_fail():
-    raise Exception("error")
-
+from .jobs import job_add1, job_fail
 
 snapshot_ignores = ["meta.job.id", "meta.error.stack"]
 
 
-class TestRqTracingSync(TracerTestCase):
+class TestRQTracingSync(TracerTestCase):
     """
     Test the rq integration with a non-async queue. This will execute jobs
     without a worker.
     """
 
     def setUp(self):
-        super(TestRqTracingSync, self).setUp()
+        super(TestRQTracingSync, self).setUp()
         patch()
         self.r = redis.Redis()
         self.sync_q = rq.Queue("sync-q", is_async=False, connection=self.r)
@@ -81,3 +78,31 @@ class TestRqTracingSync(TracerTestCase):
         self.q.enqueue(job_fail)
         worker = rq.SimpleWorker([self.q], connection=self.q.connection)
         worker.work(burst=True)
+
+
+class TestRQWorker(TracerTestCase):
+    """
+    Run test cases with a real rq worker.
+    """
+
+    def setUp(self):
+        super(TestRQWorker, self).setUp()
+        patch()
+        self.r = redis.Redis()
+        self.q = rq.Queue(connection=self.r)
+
+    def tearDown(self):
+        unpatch()
+
+    @snapshot(ignores=snapshot_ignores, async_mode=False)
+    def test_enqueue(self):
+        p = subprocess.Popen(["ddtrace-run", "rq", "worker"], env=dict(**os.environ, DD_TRACE_REDIS_ENABLED="false"))
+        try:
+            job = self.q.enqueue(job_add1, 1)
+            # Wait for traces to be flushed from the worker.
+            while job.result is None:
+                time.sleep(0.01)
+            assert job.result == 2
+        finally:
+            p.terminate()
+        time.sleep(0.3)
