@@ -172,6 +172,7 @@ class BotocoreTest(TracerTestCase):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
         response = sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
+        print(response)
         spans = self.get_spans()
         assert spans
         span = spans[0]
