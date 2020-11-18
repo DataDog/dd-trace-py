@@ -166,12 +166,12 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.resource, 'sqs.listqueues')
 
     @mock_sqs
-    def test_sqs_send_message_trace_injection(self):
+    def test_sqs_send_message_trace_injection_with_no_message_attributes(self):
         sqs = self.session.create_client('sqs', region_name='us-east-1')
         queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
-        response = sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
+        sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
         spans = self.get_spans()
         assert spans
         span = spans[0]
@@ -188,11 +188,11 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
     @mock_sqs
-    def test_sqs_send_message_trace_injection_with_message_attributes_max(self):
+    def test_sqs_send_message_trace_injection_with_message_attributes(self):
         sqs = self.session.create_client('sqs', region_name='us-east-1')
         queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
-        message_attributes={
+        message_attributes = {
             'one': {
                 'DataType': 'String',
                 'StringValue': 'one'
@@ -247,11 +247,11 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
     @mock_sqs
-    def test_sqs_send_message_trace_injection_with_message_attributes_max(self):
+    def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
         sqs = self.session.create_client('sqs', region_name='us-east-1')
         queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
-        message_attributes={
+        message_attributes = {
             'one': {
                 'DataType': 'String',
                 'StringValue': 'one'
@@ -306,7 +306,6 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.resource, 'sqs.sendmessage')
         trace_json = span.get_tag('params.MessageAttributes._datadog.StringValue')
         self.assertEqual(trace_json, None)
-
 
     @mock_kinesis
     def test_kinesis_client(self):
