@@ -149,7 +149,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_sqs_client(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
         sqs.list_queues()
@@ -167,8 +167,8 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_no_message_attributes(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1')
-        queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+        queue = sqs.create_queue(QueueName='test')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
         sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
@@ -186,11 +186,18 @@ class BotocoreTest(TracerTestCase):
         trace_data_injected = json.loads(trace_json)
         self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
         self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+        self.assertEqual(len(response['Messages']), 1)
+        trace_json_message = response['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
+        sqs.delete_queue(QueueUrl=queue['QueueUrl'])
+        trace_data_in_message = json.loads(trace_json_message)
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_message_attributes(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1')
-        queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+        queue = sqs.create_queue(QueueName='test')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
         message_attributes = {
             'one': {
@@ -245,11 +252,18 @@ class BotocoreTest(TracerTestCase):
         trace_data_injected = json.loads(trace_json)
         self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
         self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+        self.assertEqual(len(response['Messages']), 1)
+        trace_json_message = response['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
+        trace_data_in_message = json.loads(trace_json_message)
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        sqs.delete_queue(QueueUrl=queue['QueueUrl'])
 
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_max_message_attributes(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1')
-        queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+        queue = sqs.create_queue(QueueName='test')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
         message_attributes = {
             'one': {
@@ -306,6 +320,181 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.resource, 'sqs.sendmessage')
         trace_json = span.get_tag('params.MessageAttributes._datadog.StringValue')
         self.assertEqual(trace_json, None)
+        response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+        self.assertEqual(len(response['Messages']), 1)
+        trace_in_message = 'MessageAttributes' in response['Messages'][0]
+        self.assertEqual(trace_in_message, False)
+        sqs.delete_queue(QueueUrl=queue['QueueUrl'])
+
+    @mock_sqs
+    def test_sqs_send_message_batch_trace_injection_with_no_message_attributes(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+        queue = sqs.create_queue(QueueName='test')
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+        entries = [
+            {
+                'Id': '1',
+                'MessageBody': 'ironmaiden',
+            }
+        ]
+        sqs.send_message_batch(QueueUrl=queue['QueueUrl'], Entries=entries)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'SendMessageBatch')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+        self.assertEqual(span.resource, 'sqs.sendmessagebatch')
+        response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+        self.assertEqual(len(response['Messages']), 1)
+        trace_json_message = response['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
+        trace_data_in_message = json.loads(trace_json_message)
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        sqs.delete_queue(QueueUrl=queue['QueueUrl'])
+
+    @mock_sqs
+    def test_sqs_send_message_batch_trace_injection_with_message_attributes(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+        queue = sqs.create_queue(QueueName='test')
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+        entries = [
+            {
+                'Id': '1',
+                'MessageBody': 'ironmaiden',
+                'MessageAttributes': {
+                    'one': {
+                        'DataType': 'String',
+                        'StringValue': 'one'
+                    },
+                    'two': {
+                        'DataType': 'String',
+                        'StringValue': 'two'
+                    },
+                    'three': {
+                        'DataType': 'String',
+                        'StringValue': 'three'
+                    },
+                    'four': {
+                        'DataType': 'String',
+                        'StringValue': 'four'
+                    },
+                    'five': {
+                        'DataType': 'String',
+                        'StringValue': 'five'
+                    },
+                    'six': {
+                        'DataType': 'String',
+                        'StringValue': 'six'
+                    },
+                    'seven': {
+                        'DataType': 'String',
+                        'StringValue': 'seven'
+                    },
+                    'eight': {
+                        'DataType': 'String',
+                        'StringValue': 'eight'
+                    },
+                    'nine': {
+                        'DataType': 'String',
+                        'StringValue': 'nine'
+                    },
+                }
+            }
+        ]
+
+        sqs.send_message_batch(QueueUrl=queue['QueueUrl'], Entries=entries)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'SendMessageBatch')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+        self.assertEqual(span.resource, 'sqs.sendmessagebatch')
+        response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+        self.assertEqual(len(response['Messages']), 1)
+        trace_json_message = response['Messages'][0]['MessageAttributes']['_datadog']['StringValue']
+        trace_data_in_message = json.loads(trace_json_message)
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        sqs.delete_queue(QueueUrl=queue['QueueUrl'])
+
+    @mock_sqs
+    def test_sqs_send_message_batch_trace_injection_with_max_message_attributes(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+        queue = sqs.create_queue(QueueName='test')
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+        entries = [
+            {
+                'Id': '1',
+                'MessageBody': 'ironmaiden',
+                'MessageAttributes': {
+                    'one': {
+                        'DataType': 'String',
+                        'StringValue': 'one'
+                    },
+                    'two': {
+                        'DataType': 'String',
+                        'StringValue': 'two'
+                    },
+                    'three': {
+                        'DataType': 'String',
+                        'StringValue': 'three'
+                    },
+                    'four': {
+                        'DataType': 'String',
+                        'StringValue': 'four'
+                    },
+                    'five': {
+                        'DataType': 'String',
+                        'StringValue': 'five'
+                    },
+                    'six': {
+                        'DataType': 'String',
+                        'StringValue': 'six'
+                    },
+                    'seven': {
+                        'DataType': 'String',
+                        'StringValue': 'seven'
+                    },
+                    'eight': {
+                        'DataType': 'String',
+                        'StringValue': 'eight'
+                    },
+                    'nine': {
+                        'DataType': 'String',
+                        'StringValue': 'nine'
+                    },
+                    'ten': {
+                        'DataType': 'String',
+                        'StringValue': 'ten'
+                    },
+                }
+            }
+        ]
+
+        sqs.send_message_batch(QueueUrl=queue['QueueUrl'], Entries=entries)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'SendMessageBatch')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+        self.assertEqual(span.resource, 'sqs.sendmessagebatch')
+        response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+        self.assertEqual(len(response['Messages']), 1)
+        trace_in_message = 'MessageAttributes' in response['Messages'][0]
+        self.assertEqual(trace_in_message, False)
+        sqs.delete_queue(QueueUrl=queue['QueueUrl'])
 
     @mock_kinesis
     def test_kinesis_client(self):
@@ -338,7 +527,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_double_patch(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
         patch()

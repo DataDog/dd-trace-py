@@ -27,18 +27,31 @@ log = get_logger(__name__)
 propagator = HTTPPropagator()
 
 
-def inject_trace_to_message_metadata(args, span):
-    trace_headers = {}
-    propagator.inject(span.context, trace_headers)
+def inject_trace_data_to_message_attributes(trace_data, entry):
+    if 'MessageAttributes' not in entry:
+        entry['MessageAttributes'] = {}
+    if len(entry['MessageAttributes']) < 10:
+        entry['MessageAttributes']['_datadog'] = {
+            'DataType': 'String',
+            'StringValue': json.dumps(trace_data)
+        }
+
+
+def inject_trace_to_sqs_batch_message(args, span):
+    trace_data = {}
+    propagator.inject(span.context, trace_data)
     params = args[1]
 
-    if 'MessageAttributes' not in params:
-        params['MessageAttributes'] = {}
-    if len(params['MessageAttributes']) < 10:
-        params['MessageAttributes']['_datadog'] = {
-            'DataType': 'String',
-            'StringValue': json.dumps(trace_headers)
-        }
+    for entry in params['Entries']:
+        inject_trace_data_to_message_attributes(trace_data, entry)
+
+
+def inject_trace_to_sqs_message(args, span):
+    trace_data = {}
+    propagator.inject(span.context, trace_data)
+    params = args[1]
+
+    inject_trace_data_to_message_attributes(trace_data, params)
 
 
 def modify_client_context(client_context_base64, trace_headers):
@@ -114,7 +127,9 @@ def patched_api_call(original_func, instance, args, kwargs):
             if endpoint_name == 'lambda' and operation == 'Invoke':
                 inject_trace_to_client_context(args, span)
             if endpoint_name == 'sqs' and operation == 'SendMessage':
-                inject_trace_to_message_metadata(args, span)
+                inject_trace_to_sqs_message(args, span)
+            if endpoint_name == 'sqs' and operation == 'SendMessageBatch':
+                inject_trace_to_sqs_batch_message(args, span)
 
         else:
             span.resource = endpoint_name
