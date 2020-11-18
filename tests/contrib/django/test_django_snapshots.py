@@ -57,6 +57,12 @@ def test_safe_string_encoding(client):
     assert client.get("/safe-template/").status_code == 200
 
 
+@pytest.mark.django_db
+def test_404_exceptions(client):
+    assert client.get("/404-view/").status_code == 404
+
+
+@pytest.mark.django_db
 @snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
@@ -65,5 +71,11 @@ def test_safe_string_encoding(client):
         "": django.VERSION >= (2, 2),
     }
 )
-def test_404_exceptions(client):
-    assert client.get("/404-view/").status_code == 404
+def test_wsgi_app():
+    from django.core.wsgi import get_wsgi_application
+    from webtest import TestApp
+
+    app = TestApp(get_wsgi_application())
+    resp = app.get("/")
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200

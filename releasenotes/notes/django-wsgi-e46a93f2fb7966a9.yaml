@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Auto-instrument Django get_wsgi_application.

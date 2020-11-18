@@ -102,6 +102,9 @@ venv = Venv(
         Venv(
             name="django",
             command="pytest tests/contrib/django",
+            pkgs={
+                "WebTest": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.6),
