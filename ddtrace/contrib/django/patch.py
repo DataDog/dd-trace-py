@@ -552,6 +552,13 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
 
 
+@trace_utils.with_traced_module
+def traced_get_wsgi_application(django, pin, func, instance, args, kwargs):
+    from ddtrace.contrib.wsgi import DDWSGIMiddleware
+
+    return DDWSGIMiddleware(func(*args, **kwargs))
+
+
 def _patch(django):
     Pin().onto(django)
     trace_utils.wrap(django, "apps.registry.Apps.populate", traced_populate(django))
@@ -583,6 +590,10 @@ def _patch(django):
         import django.views.generic.base
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
 
+    if "django.core.wsgi" not in sys.modules:
+        import django.core.wsgi
+    trace_utils.wrap(django, "core.wsgi.get_wsgi_application", traced_get_wsgi_application(django))
+
 
 def patch():
     # DEV: this import will eventually be replaced with the module given from an import hook
@@ -609,6 +620,7 @@ def _unpatch(django):
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
     trace_utils.unwrap(django.db.connections, "all")
+    trace_utils.unwrap(django.core.wsgi, "get_wsgi_application")
 
 
 def unpatch():

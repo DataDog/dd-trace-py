@@ -1,7 +1,7 @@
 import os
 
 ALLOWED_HOSTS = [
-    "testserver",
+    "*",
 ]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
