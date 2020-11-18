@@ -278,7 +278,7 @@
            "start" 1605666061509116000
            "duration" 32000}
       {"name" "wsgi.response"
-       "service" "wsgi"
+       "service" "django"
        "resource" "wsgi.response"
        "error" 0
        "span_id" 2
