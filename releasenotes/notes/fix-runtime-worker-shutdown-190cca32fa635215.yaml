@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes problem with shutdown of runtime workers when Python interpreter terminates.
+    Shutdown runtime metrics workers when Python interpreter terminates.
