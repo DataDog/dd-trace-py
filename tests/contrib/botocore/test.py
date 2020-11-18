@@ -172,7 +172,6 @@ class BotocoreTest(TracerTestCase):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
 
         response = sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
-        print(response)
         spans = self.get_spans()
         assert spans
         span = spans[0]
@@ -185,9 +184,129 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.resource, 'sqs.sendmessage')
         trace_json = span.get_tag('params.MessageAttributes._datadog.StringValue')
         trace_data_injected = json.loads(trace_json)
-
         self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
         self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+    @mock_sqs
+    def test_sqs_send_message_trace_injection_with_message_attributes_max(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+        message_attributes={
+            'one': {
+                'DataType': 'String',
+                'StringValue': 'one'
+            },
+            'two': {
+                'DataType': 'String',
+                'StringValue': 'two'
+            },
+            'three': {
+                'DataType': 'String',
+                'StringValue': 'three'
+            },
+            'four': {
+                'DataType': 'String',
+                'StringValue': 'four'
+            },
+            'five': {
+                'DataType': 'String',
+                'StringValue': 'five'
+            },
+            'six': {
+                'DataType': 'String',
+                'StringValue': 'six'
+            },
+            'seven': {
+                'DataType': 'String',
+                'StringValue': 'seven'
+            },
+            'eight': {
+                'DataType': 'String',
+                'StringValue': 'eight'
+            },
+            'nine': {
+                'DataType': 'String',
+                'StringValue': 'nine'
+            }
+        }
+        sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world', MessageAttributes=message_attributes)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'SendMessage')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+        self.assertEqual(span.resource, 'sqs.sendmessage')
+        trace_json = span.get_tag('params.MessageAttributes._datadog.StringValue')
+        trace_data_injected = json.loads(trace_json)
+        self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+    @mock_sqs
+    def test_sqs_send_message_trace_injection_with_message_attributes_max(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        queue = sqs.create_queue(QueueName='test', Attributes={'DelaySeconds': '5'})
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+        message_attributes={
+            'one': {
+                'DataType': 'String',
+                'StringValue': 'one'
+            },
+            'two': {
+                'DataType': 'String',
+                'StringValue': 'two'
+            },
+            'three': {
+                'DataType': 'String',
+                'StringValue': 'three'
+            },
+            'four': {
+                'DataType': 'String',
+                'StringValue': 'four'
+            },
+            'five': {
+                'DataType': 'String',
+                'StringValue': 'five'
+            },
+            'six': {
+                'DataType': 'String',
+                'StringValue': 'six'
+            },
+            'seven': {
+                'DataType': 'String',
+                'StringValue': 'seven'
+            },
+            'eight': {
+                'DataType': 'String',
+                'StringValue': 'eight'
+            },
+            'nine': {
+                'DataType': 'String',
+                'StringValue': 'nine'
+            },
+            'ten': {
+                'DataType': 'String',
+                'StringValue': 'ten'
+            },
+        }
+        sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world', MessageAttributes=message_attributes)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEqual(span.get_tag('aws.operation'), 'SendMessage')
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+        self.assertEqual(span.resource, 'sqs.sendmessage')
+        trace_json = span.get_tag('params.MessageAttributes._datadog.StringValue')
+        self.assertEqual(trace_json, None)
+
 
     @mock_kinesis
     def test_kinesis_client(self):
