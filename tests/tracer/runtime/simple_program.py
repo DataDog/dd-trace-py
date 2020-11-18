@@ -10,8 +10,6 @@ runtime_worker = tracer._runtime_worker
 print("hello world")
 assert runtime_worker.is_alive()
 
-t0 = time.time()
-while time.time() - t0 < (tracer._RUNTIME_METRICS_INTERVAL * 1.5):
-    pass
+time.sleep(tracer._RUNTIME_METRICS_INTERVAL * 1.5)
 
 sys.exit(42)
