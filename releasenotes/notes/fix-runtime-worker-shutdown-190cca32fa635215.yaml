@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes problem with shutdown of runtime workers when Python interpreter terminates.
