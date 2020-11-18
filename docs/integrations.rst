@@ -256,6 +256,13 @@ Pyramid
 .. automodule:: ddtrace.contrib.pyramid
 
 
+.. _pytest:
+
+pytest
+^^^^^^
+.. automodule:: ddtrace.contrib.pytest
+
+
 .. _psycopg2:
 
 psycopg

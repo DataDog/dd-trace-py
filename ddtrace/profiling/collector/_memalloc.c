@@ -14,6 +14,10 @@
 #define _PY38_AND_LATER
 #endif
 
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION == 8
+#define _PY38
+#endif
+
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
 #define _PY37_AND_LATER
 #endif
@@ -581,6 +585,8 @@ static PyTypeObject MemallocIterEvents_Type = {
     0,                                            /* tp_finalize */
 #ifdef _PY38_AND_LATER
     0, /* tp_vectorcall */
+#endif
+#ifdef _PY38
     0, /* tp_print */
 #endif
 };
