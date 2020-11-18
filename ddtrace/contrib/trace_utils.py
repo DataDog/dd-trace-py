@@ -108,11 +108,11 @@ def ext_service(pin, config, default=None):
 
 
 def set_http_meta(span, config, method=None, url=None, status_code=None):
-    if method:
+    if method is not None:
         span.meta[http.METHOD] = method
-    if url:
+    if url is not None:
         span.meta[http.URL] = stringify(url)
-    if status_code:
+    if status_code is not None:
         span.meta[http.STATUS_CODE] = str(status_code)
         if 500 <= int(status_code) < 600:
             span.error = 1
