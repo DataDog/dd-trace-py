@@ -9,7 +9,7 @@ import sys
 
 # Perform gevent patching as early as possible in the application before
 # importing more of the library internals.
-if str(os.environ.get("DD_GEVENT_PATCH_ALL")).lower() in ("true", "1"):
+if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
     try:
         import gevent.monkey
     except ImportError:
