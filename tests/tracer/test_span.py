@@ -532,5 +532,5 @@ def test_span_unicode_set_tag():
     span = Span(None, None)
     span.set_tag("key", u"😌")
     span.set_tag("😐", u"😌")
-    span.set_str_tag("key", u"😌")
-    span.set_str_tag(u"😐", u"😌")
+    span._set_str_tag("key", u"😌")
+    span._set_str_tag(u"😐", u"😌")

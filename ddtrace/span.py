@@ -258,7 +258,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_str_tag(self, key, value):
+    def _set_str_tag(self, key, value):
         # (str, str) -> None
         self.meta[key] = stringify(value)
 

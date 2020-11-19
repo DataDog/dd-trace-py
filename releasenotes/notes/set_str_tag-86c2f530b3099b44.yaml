@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    Add span.set_str_tag() for setting string values directly, bypassing many
+    Add span._set_str_tag() for setting string values directly, bypassing many
     of the additional checks that set_tag() does.
