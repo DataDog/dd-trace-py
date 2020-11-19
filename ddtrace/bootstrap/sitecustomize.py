@@ -16,7 +16,6 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
         print("failed to import gevent.monkey", file=sys.stderr)
     else:
         gevent.monkey.patch_all()
-        pass
 
 
 from ddtrace.utils.formats import asbool, get_env, parse_tags_str  # noqa
