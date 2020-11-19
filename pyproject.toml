@@ -73,7 +73,6 @@ exclude = '''
       | pymemcache
       | pymongo
       | pymysql
-      | pyramid
       | rediscluster
       | requests/
       (
