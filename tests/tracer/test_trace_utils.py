@@ -26,7 +26,8 @@ def tracer():
 @pytest.fixture
 def span(tracer):
     span = tracer.trace(name="myint")
-    return span
+    yield span
+    span.finish()
 
 
 @pytest.mark.parametrize(
@@ -94,10 +95,12 @@ def test_set_http_meta(span, config, method, url, status_code):
         assert span.meta[http.METHOD] == method
     else:
         assert http.METHOD not in span.meta
+
     if url is not None:
         assert span.meta[http.URL] == stringify(url)
     else:
         assert http.URL not in span.meta
+
     if status_code is not None:
         assert span.meta[http.STATUS_CODE] == str(status_code)
         if 500 <= int(status_code) < 600:
