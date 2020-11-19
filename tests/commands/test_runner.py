@@ -278,7 +278,6 @@ class DdtraceRunTest(BaseTestCase):
             assert out.startswith(b"Test success")
 
 
-
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default

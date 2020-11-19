@@ -11,6 +11,7 @@ import sys
 # importing more of the library internals.
 if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
     import gevent.monkey
+
     gevent.monkey.patch_all()
 
 
