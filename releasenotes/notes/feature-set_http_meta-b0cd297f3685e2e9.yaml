@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add set_http_meta() to set http data in spans (method, url, status_code, and more)
