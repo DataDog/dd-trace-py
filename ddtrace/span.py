@@ -365,7 +365,7 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace 'error.stack' tag with 'python.stack'
+            self.meta[errors.ERROR_STACK] = tb
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
@@ -382,9 +382,9 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self.set_tag(errors.ERROR_MSG, exc_val)
-        self.set_tag(errors.ERROR_TYPE, exc_type_str)
-        self.set_tag(errors.ERROR_STACK, tb)
+        self.meta[errors.ERROR_MSG] = str(exc_val)
+        self.meta[errors.ERROR_TYPE] = exc_type_str
+        self.meta[errors.ERROR_STACK] = tb
 
     def _remove_exc_info(self):
         """ Remove all exception related information from the span. """

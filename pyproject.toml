@@ -164,7 +164,7 @@ exclude = '''
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
-    | tracer/
+    | tracer/.*py
     | vendor
     | wait-for-services.py
   )
