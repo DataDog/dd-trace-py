@@ -196,7 +196,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_off(self):
-        with self.override_config("botocore", dict(distributed_tracing=True)):
+        with self.override_config("botocore", dict(distributed_tracing=False)):
             sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
             queue = sqs.create_queue(QueueName='test')
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
@@ -628,7 +628,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_lambda
     def test_lambda_invoke_distributed_tracing_off(self):
-        with self.override_config("botocore", dict(distributed_tracing=True)):
+        with self.override_config("botocore", dict(distributed_tracing=False)):
             lamb = self.session.create_client('lambda', region_name='us-west-2', endpoint_url='http://localhost:4566')
             lamb.create_function(
                 FunctionName='ironmaiden',
