@@ -95,7 +95,8 @@ class Profiler(object):
 
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        self.stop()
+        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        self.stop(flush=False)
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
