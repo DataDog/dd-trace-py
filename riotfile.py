@@ -2,8 +2,10 @@ from riot import Suite, Case
 
 global_deps = [
     "mock",
+    "pytest",
+    "coverage",
+    "pytest-cov",
     "opentracing",
-    "pytest<4",
 ]
 
 global_env = [("PYTEST_ADDOPTS", "--color=yes")]
