@@ -4,7 +4,6 @@ Add all monkey-patching that needs to run by default here
 """
 import logging
 import os
-import imp
 import sys
 
 from ddtrace.utils.formats import asbool, get_env, parse_tags_str
@@ -102,22 +101,37 @@ try:
 
     # Ensure sitecustomize.py is properly called if available in application directories:
     # * exclude `bootstrap_dir` from the search
-    # * find a user `sitecustomize.py` module
-    # * import that module via `imp`
+    # * find and import user `sitecustomize.py` module
     bootstrap_dir = os.path.dirname(__file__)
-    path = list(sys.path)
 
-    if bootstrap_dir in path:
-        path.remove(bootstrap_dir)
+    if sys.version_info < (3, 3, 0):
+        import imp
 
-    try:
-        (f, path, description) = imp.find_module("sitecustomize", path)
-    except ImportError:
-        pass
+        path = list(sys.path)
+
+        if bootstrap_dir in path:
+            path.remove(bootstrap_dir)
+
+        try:
+            (f, path, description) = imp.find_module("sitecustomize", path)
+        except ImportError:
+            pass
+        else:
+            # `sitecustomize.py` found, load it
+            log.debug("sitecustomize from user found in: %s", path)
+            imp.load_module("sitecustomize", f, path, description)
+
     else:
-        # `sitecustomize.py` found, load it
-        log.debug("sitecustomize from user found in: %s", path)
-        imp.load_module("sitecustomize", f, path, description)
+        if bootstrap_dir in sys.path:
+            sys.path.remove(bootstrap_dir)
+            del sys.modules["sitecustomize"]
+
+        try:
+            import sitecustomize  # noqa
+        except ImportError:
+            pass
+        else:
+            log.debug("sitecustomize from user found in: %s", sys.path)
 
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
