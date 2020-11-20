@@ -15,6 +15,11 @@ This integration is automatically patched when using ``patch_all()``::
     lambda_client = session.create_client('lambda', region_name='us-east-1')
     # Example of instrumented query
     lambda_client.list_functions()
+
+
+Distributed tracing is enabled by default. To disable it:
+    from ddtrace import config
+    config.botocore['distributed_tracing'] = False
 """
 
 

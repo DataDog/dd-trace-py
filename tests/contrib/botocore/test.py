@@ -195,6 +195,32 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
     @mock_sqs
+    def test_sqs_send_message_distributed_tracing_off(self):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
+            sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
+            queue = sqs.create_queue(QueueName='test')
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sqs)
+
+            sqs.send_message(QueueUrl=queue['QueueUrl'], MessageBody='world')
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
+            self.assertEqual(span.get_tag('aws.operation'), 'SendMessage')
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            self.assertEqual(span.service, 'test-botocore-tracing.sqs')
+            self.assertEqual(span.resource, 'sqs.sendmessage')
+            self.assertEqual(span.get_tag('params.MessageAttributes._datadog.StringValue'), None)
+
+            response = sqs.receive_message(QueueUrl=queue['QueueUrl'], MessageAttributeNames=['_datadog'])
+            self.assertEqual(len(response['Messages']), 1)
+            trace_in_message = 'MessageAttributes' in response['Messages'][0]
+            self.assertEqual(trace_in_message, False)
+            sqs.delete_queue(QueueUrl=queue['QueueUrl'])
+
+    @mock_sqs
     def test_sqs_send_message_trace_injection_with_message_attributes(self):
         sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url='http://localhost:4566')
         queue = sqs.create_queue(QueueName='test')
@@ -599,6 +625,44 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(context_obj['custom']['_datadog'][HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         lamb.delete_function(FunctionName='ironmaiden')
+
+    @mock_lambda
+    def test_lambda_invoke_distributed_tracing_off(self):
+        with self.override_config("botocore", dict(distributed_tracing=True)):
+            lamb = self.session.create_client('lambda', region_name='us-west-2', endpoint_url='http://localhost:4566')
+            lamb.create_function(
+                FunctionName='ironmaiden',
+                Runtime='python3.7',
+                Role='test-iam-role',
+                Handler='lambda_function.lambda_handler',
+                Code={
+                    'ZipFile': get_zip_lambda(),
+                },
+                Publish=True,
+                Timeout=30,
+                MemorySize=128
+            )
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+            lamb.invoke(
+                FunctionName='ironmaiden',
+                Payload=json.dumps({}),
+            )
+
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+            self.assertEqual(span.get_tag('aws.operation'), 'Invoke')
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            self.assertEqual(span.service, 'test-botocore-tracing.lambda')
+            self.assertEqual(span.resource, 'lambda.invoke')
+            self.assertEqual(span.get_tag('params.ClientContext'), None)
+            lamb.delete_function(FunctionName='ironmaiden')
 
     @mock_lambda
     def test_lambda_invoke_with_context_client(self):
