@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: `distributed_tracing` config: defaults to True
