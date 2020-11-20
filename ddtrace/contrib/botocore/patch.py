@@ -27,7 +27,7 @@ log = get_logger(__name__)
 propagator = HTTPPropagator()
 
 # Botocore default settings
-config._add('celery', {
+config._add('botocore', {
     'distributed_tracing': get_env('botocore', 'distributed_tracing', default=True),
 })
 
