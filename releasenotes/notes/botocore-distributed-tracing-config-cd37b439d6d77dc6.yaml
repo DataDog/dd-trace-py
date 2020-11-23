@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    botocore: `distributed_tracing` config: defaults to True
+    botocore: added `distributed_tracing` configuration setting which is enabled by default.
