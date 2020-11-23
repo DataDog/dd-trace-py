@@ -20,6 +20,8 @@ Configuration
 
    Whether to inject distributed tracing data to requests in SQS and Lambda.
 
+   Can also be enabled with the ``DD_TRACE_BOTOCORE_DISTRIBUTED_TRACING`` environment variable.
+
    Default: ``True``
 
 
