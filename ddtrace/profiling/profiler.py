@@ -9,7 +9,6 @@ from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
@@ -207,7 +206,6 @@ class _ProfilerInstance(object):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
             mem_collector,
-            exceptions.UncaughtExceptionCollector(r),
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
