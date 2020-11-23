@@ -79,7 +79,7 @@ def test_traces_get_or_create(tracer, single_cache):
 
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
-    assert span.span_type == 'cache'
+    assert span.span_type == "cache"
     assert span.resource == "get_or_create"
     assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
     assert span.meta["hit"] == "False"
@@ -97,7 +97,7 @@ def test_traces_get_or_create(tracer, single_cache):
 
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
-    assert span.span_type == 'cache'
+    assert span.span_type == "cache"
     assert span.resource == "get_or_create"
     assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
     assert span.meta["hit"] == "True"
@@ -116,7 +116,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
 
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
-    assert span.span_type == 'cache'
+    assert span.span_type == "cache"
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|3']"
     )
@@ -134,7 +134,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     span = spans[0]
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
-    assert span.span_type == 'cache'
+    assert span.span_type == "cache"
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
@@ -152,7 +152,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     span = spans[0]
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
-    assert span.span_type == 'cache'
+    assert span.span_type == "cache"
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
