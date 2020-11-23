@@ -39,6 +39,7 @@ class TestConsulPatch(TracerTestCase):
         span = spans[0]
 
         assert_is_measured(span)
+        assert span.span_type == 'http'
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'PUT'
@@ -60,6 +61,7 @@ class TestConsulPatch(TracerTestCase):
         span = spans[0]
 
         assert_is_measured(span)
+        assert span.span_type == 'http'
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'GET'
@@ -81,6 +83,7 @@ class TestConsulPatch(TracerTestCase):
         span = spans[0]
 
         assert_is_measured(span)
+        assert span.span_type == 'http'
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'DELETE'
@@ -103,6 +106,7 @@ class TestConsulPatch(TracerTestCase):
         span = spans[0]
 
         assert_is_measured(span)
+        assert span.span_type == 'http'
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'PUT'
