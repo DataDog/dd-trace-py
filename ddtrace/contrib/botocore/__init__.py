@@ -2,24 +2,26 @@
 The Botocore integration will trace all AWS calls made with the botocore
 library. Libraries like Boto3 that use Botocore will also be patched.
 
-This integration is automatically patched when using ``patch_all()``::
-
-    import botocore.session
+Enabling
+~~~~~~~~
+The botocore integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+Or use :ref:`patch()<patch>` to manually enable the integration::
     from ddtrace import patch
-
-    # If not patched yet, you can patch botocore specifically
     patch(botocore=True)
 
-    # This will report spans with the default instrumentation
-    botocore.session.get_session()
-    lambda_client = session.create_client('lambda', region_name='us-east-1')
-    # Example of instrumented query
-    lambda_client.list_functions()
+Configuration
+~~~~~~~~~~~~~
+.. py:data:: ddtrace.config.botocore['distributed_tracing']
+   Whether to inject distributed tracing data to requests in SQS and Lambda.
+   Can also be enabled with the ``DD_TRACE_STARLETTE_DISTRIBUTED_TRACING`` environment variable.
+   Default: ``True``
 
-
-Distributed tracing is enabled by default. To disable it:
+Example::
     from ddtrace import config
-    config.botocore['distributed_tracing'] = False
+    # Enable distributed tracing
+    config.botocore['distributed_tracing'] = True
+    # Override service name
 """
 
 
