@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    starlette: Fixes env var `DD_STARLETTE_DISTRIBUTED_TRACING` in documentation
+    starlette: Fixes environment variable name in documentation
