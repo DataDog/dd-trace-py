@@ -32,7 +32,7 @@ Configuration
 
    Whether to parse distributed tracing headers from requests received by your Starlette app.
 
-   Can also be enabled with the ``DD_STARLETTE_DISTRIBUTED_TRACING`` environment variable.
+   Can also be enabled with the ``DD_TRACE_STARLETTE_DISTRIBUTED_TRACING`` environment variable.
 
    Default: ``True``
 
