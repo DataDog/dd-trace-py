@@ -1,4 +1,0 @@
----
-other:
-  - |
-    starlette: Fixes environment variable name in documentation
