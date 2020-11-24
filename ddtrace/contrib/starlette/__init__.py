@@ -40,7 +40,7 @@ Configuration
 
    Whether to analyze spans for starlette in App Analytics.
 
-   Can also be enabled with the ``DD_TRACE_STARLETTE_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_STARLETTE_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 
