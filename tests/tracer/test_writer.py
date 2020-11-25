@@ -3,9 +3,10 @@ import time
 import mock
 
 from ddtrace.span import Span
-from ddtrace.api import API
+from ddtrace.api import API, APIExtendedException
+from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.writer import AgentWriter, LogWriter
-from ddtrace.payload import PayloadFull
+from ddtrace.payload import PayloadFull, PayloadFullExtended
 from tests import BaseTestCase
 
 MAX_NUM_SPANS = 7
@@ -23,7 +24,10 @@ class DummyAPI(API):
         for trace in traces:
             self.traces.append(trace)
             if len(trace) > MAX_NUM_SPANS:
-                response = PayloadFull()
+                response = PayloadFullExtended()
+
+                response.spans = len(trace)
+                response.traces = 1
             else:
                 response = mock.Mock()
                 response.status = 200
@@ -45,7 +49,10 @@ class DummyOutput:
 class FailingAPI(object):
     @staticmethod
     def send_traces(traces):
-        return [Exception("oops")]
+        response = APIExtendedException(exc=Exception("oops"))
+        response.spans = sum(map(len, traces))
+        response.traces = len(traces)
+        return [response]
 
 
 class AgentWriterTests(BaseTestCase):
@@ -58,16 +65,29 @@ class AgentWriterTests(BaseTestCase):
             worker._STATS_EVERY_INTERVAL = 1
             self.api = api_class()
             worker.api = self.api
-            for i in range(num_traces):
-                worker.write(
-                    [
-                        Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
-                        for j in range(num_spans)
-                    ]
-                )
+            AgentWriterTests.write_traces(worker, num_traces=num_traces, num_spans=num_spans)
             worker.stop()
             worker.join()
             return worker
+
+    def create_lazy_worker(self, api_class=DummyAPI, enable_stats=False):
+        with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
+            self.dogstatsd = mock.Mock()
+            worker = AgentWriter(dogstatsd=self.dogstatsd)
+            worker._STATS_EVERY_INTERVAL = 1
+            self.api = api_class()
+            worker.api = self.api
+            return worker
+
+    @staticmethod
+    def write_traces(worker, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS):
+        for i in range(num_traces):
+            worker.write(
+                [
+                    Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
+                    for j in range(num_spans)
+                ]
+            )
 
     def test_send_stats(self):
         dogstatsd = mock.Mock()
@@ -184,6 +204,56 @@ class AgentWriterTests(BaseTestCase):
             histogram_calls.append(mock.call("datadog.tracer.writer.cpu_time", mock.ANY))
 
         assert histogram_calls == self.dogstatsd.histogram.mock_calls
+
+    def test_drop_reason_payloadfull(self):
+        worker = self.create_lazy_worker()
+        worker.start = mock.MagicMock(name="start")
+
+        AgentWriterTests.write_traces(worker, num_traces=3, num_spans=MAX_NUM_SPANS + 1)
+
+        assert 3 == worker.flush_queue()
+
+    def test_drop_reason_failing_api(self):
+        worker = self.create_lazy_worker(api_class=FailingAPI)
+        worker.start = mock.MagicMock(name="start")
+
+        AgentWriterTests.write_traces(worker, num_traces=3)
+
+        assert 3 == worker.flush_queue()
+
+    def test_keep_rate(self):
+        worker = self.create_lazy_worker()
+        worker.start = mock.MagicMock(name="start")
+
+        AgentWriterTests.write_traces(worker, num_traces=4)
+        worker.run_periodic()
+
+        assert 0.0 == worker._drop_sma.get()
+        for trace in self.api.traces:
+            assert 1.0 == trace[0].metrics.get(KEEP_SPANS_RATE_KEY, -1)
+
+        AgentWriterTests.write_traces(worker, num_traces=4, num_spans=MAX_NUM_SPANS + 1)
+        worker.run_periodic()
+
+        assert 0.5 == worker._drop_sma.get()
+        for trace in self.api.traces[4:]:
+            assert 1.0 == trace[0].metrics.get(KEEP_SPANS_RATE_KEY, -1)
+
+        AgentWriterTests.write_traces(worker, num_traces=2)
+        worker.run_periodic()
+
+        assert 0.4 == worker._drop_sma.get()
+        for trace in self.api.traces[8:]:
+            assert 0.5 == trace[0].metrics.get(KEEP_SPANS_RATE_KEY, -1)
+
+        worker._trace_queue.pop_stats = mock.MagicMock(name="pop_stats", return_value=(2, 2, 1))
+
+        AgentWriterTests.write_traces(worker, num_traces=2)
+        worker.run_periodic()
+
+        assert 0.5 == worker._drop_sma.get()
+        for trace in self.api.traces[10:]:
+            assert 0.6 == trace[0].metrics.get(KEEP_SPANS_RATE_KEY, -1)
 
 
 class LogWriterTests(BaseTestCase):

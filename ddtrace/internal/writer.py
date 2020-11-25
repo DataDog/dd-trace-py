@@ -212,7 +212,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         finally:
             dropped, enqueued, enqueued_lengths = self._trace_queue.pop_stats()
 
-            self._drop_sma.set(float(dropped_root_spans + dropped) / enqueued)
+            self._drop_sma.set(dropped + dropped_root_spans, enqueued)
 
             if not self._send_stats:
                 return

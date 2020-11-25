@@ -12,19 +12,22 @@ class PayloadFullExtended(PayloadFull):
 
     Report payload size, number of spans, traces.
     """
-    def __init__(self, payload=None, msg=None):
+    def __init__(self, size=None, spans=None, traces=None, msg=None):
         """Constructor for PayloadFullExtended.
 
-        :param payload: The payload.
-        :type payload: ``ddtrace.payload.Payload``
+        :param size: The size of the payload in bytes.
+        :type size: int
+        :param spans: The number of spans in the payload.
+        :type spans: int
+        :param traces: The number of traces in the payload.
+        :type traces: int
         :param msg: The exception message.
         """
         super(PayloadFullExtended, self).__init__(msg)
 
-        if payload is not None:
-            self.size = payload.size
-            self.spans = sum(map(len, payload.traces))
-            self.traces = payload.length
+        self.size = size
+        self.spans = spans
+        self.traces = traces
 
 
 class Payload(object):

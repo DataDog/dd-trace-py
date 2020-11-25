@@ -236,10 +236,10 @@ class API(object):
                         except PayloadFull:
                             # If the trace does not fit in a payload on its own, that's bad. Drop it.
                             log.warning('Trace is too big to fit in a payload, dropping it')
-                            responses.append(PayloadFullExtended(payload))
+                            responses.append(PayloadFullExtended(traces=1))
                     else:
                         log.warning('Trace is larger than the max payload size, dropping it')
-                        responses.append(PayloadFullExtended(payload=payload))
+                        responses.append(PayloadFullExtended(traces=1))
 
             # Check that the Payload is not empty:
             # it could be empty if the last trace was too big to fit.
