@@ -37,13 +37,11 @@ exclude = '''
       aiobotocore
       | aiohttp
       | aiopg
-      | algoliasearch
       | boto
       | botocore
       | bottle
       | cassandra
       | celery
-      | consul
       | dbapi
       | dogpile_cache
       | falcon
@@ -90,7 +88,6 @@ exclude = '''
     | ext/
     (
        cassandra.py
-       | consul.py
        | db.py
        | elasticsearch.py
        | errors.py
@@ -116,13 +113,11 @@ exclude = '''
       aiobotocore
       | aiohttp
       | aiopg
-      | algoliasearch
       | boto
       | botocore
       | bottle
       | cassandra
       | config.py
-      | consul
       | dbapi
       | falcon
       | flask
