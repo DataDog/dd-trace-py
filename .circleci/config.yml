@@ -146,7 +146,7 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
-            - run: pip3 install riot
+            - run: pip3 install riot==0.2
             - when:
                 condition:
                   << parameters.wait >>
