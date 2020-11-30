@@ -198,7 +198,7 @@ class _ProfilerInstance(object):
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
 
-        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "false")):
+        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "true")):
             mem_collector = memalloc.MemoryCollector(r)
         else:
             mem_collector = memory.MemoryCollector(r)
