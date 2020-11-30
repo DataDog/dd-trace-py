@@ -4,7 +4,7 @@
  Configuration
 ===============
 
-`ddtrace` can be configured using environment variable. They are listed
+`ddtrace` can be configured using environment variables. They are listed
 below:
 
 .. list-table::
