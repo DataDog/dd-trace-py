@@ -479,14 +479,14 @@ class Tracer(object):
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
             if self._runtime_worker and self._is_span_internal(span):
-                span.set_tag('language', 'python')
+                span.meta["language"] = "python"
 
         # Apply default global tags.
         if self.tags:
             span.set_tags(self.tags)
 
         if config.env:
-            span.set_tag(ENV_KEY, config.env)
+            span.meta[ENV_KEY] = str(config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -497,11 +497,11 @@ class Tracer(object):
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or \
                (root_span and root_span.service == service and VERSION_KEY in root_span.meta):
-                span.set_tag(VERSION_KEY, config.version)
+                span.meta[VERSION_KEY] = str(config.version)
 
         if not span._parent:
-            span.set_tag(system.PID, getpid())
-            span.set_tag("runtime-id", get_runtime_id())
+            span.metrics[system.PID] = self._pid or getpid()
+            span.meta["runtime-id"] = get_runtime_id()
 
         # add it to the current context
         context.add_span(span)
