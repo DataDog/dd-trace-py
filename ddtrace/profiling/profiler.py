@@ -9,7 +9,6 @@ from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
@@ -96,7 +95,8 @@ class Profiler(object):
 
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        self.stop()
+        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        self.stop(flush=False)
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
@@ -137,7 +137,7 @@ def _get_default_url(api_key):
     if api_key is None:
         hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
         port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
-        return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
+        return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port))
 
     # Agentless mode
     legacy = os.environ.get("DD_PROFILING_API_URL")
@@ -177,7 +177,7 @@ class _ProfilerInstance(object):
             ]
 
         api_key = _get_api_key()
-        endpoint = _get_default_url(api_key) if url is None else url + "/profiling/v1/input"
+        endpoint = _get_default_url(api_key) if url is None else url
 
         return [
             http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
@@ -206,7 +206,6 @@ class _ProfilerInstance(object):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
             mem_collector,
-            exceptions.UncaughtExceptionCollector(r),
             threading.LockCollector(r, tracer=self.tracer),
         ]
 

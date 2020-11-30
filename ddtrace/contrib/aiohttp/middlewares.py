@@ -6,6 +6,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
+from .. import trace_utils
 
 
 CONFIG_KEY = 'datadog_trace'
@@ -98,13 +99,11 @@ def on_prepare(request, response):
         # prefix the resource name by the http method
         resource = '{} {}'.format(request.method, resource)
 
-    if 500 <= response.status < 600:
-        request_span.error = 1
-
     request_span.resource = resource
-    request_span.set_tag('http.method', request.method)
-    request_span.set_tag('http.status_code', response.status)
-    request_span.set_tag(http.URL, request.url.with_query(None))
+
+    url = request.url.with_query(None)
+    trace_utils.set_http_meta(request_span, config.aiohttp, method=request.method, url=url, status_code=response.status)
+
     # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
     if trace_query_string is None:

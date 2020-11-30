@@ -14,6 +14,10 @@
 #define _PY38_AND_LATER
 #endif
 
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION == 8
+#define _PY38
+#endif
+
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
 #define _PY37_AND_LATER
 #endif
@@ -398,7 +402,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 }
 
 static PyObject*
-traceback_to_tuple(traceback_t* tb, bool incref)
+traceback_to_tuple(traceback_t* tb)
 {
     /* Convert stack into a tuple of tuple */
     PyObject* stack = PyTuple_New(tb->nframe);
@@ -409,15 +413,10 @@ traceback_to_tuple(traceback_t* tb, bool incref)
         frame_t* frame = &tb->frames[nframe];
 
         PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
+        Py_INCREF(frame->filename);
         PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
         PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-
-        /* No need to Py_INCREF({filename,name}) if the tuple hijack the
-           reference and we then free the traceback_t */
-        if (incref) {
-            Py_INCREF(frame->filename);
-            Py_INCREF(frame->name);
-        }
+        Py_INCREF(frame->name);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }
@@ -519,7 +518,7 @@ iterevents_next(IterEventsState* iestate)
         iestate->seq_index++;
 
         PyObject* tb_and_size = PyTuple_New(2);
-        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb, true));
+        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
         PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
 
         return tb_and_size;
@@ -581,6 +580,8 @@ static PyTypeObject MemallocIterEvents_Type = {
     0,                                            /* tp_finalize */
 #ifdef _PY38_AND_LATER
     0, /* tp_vectorcall */
+#endif
+#ifdef _PY38
     0, /* tp_print */
 #endif
 };

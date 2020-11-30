@@ -127,7 +127,7 @@ def test_url():
     for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key is None
-            assert exporter.endpoint == "https://foobar:123/profiling/v1/input"
+            assert exporter.endpoint == "https://foobar:123"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -138,7 +138,7 @@ def test_env_no_api_key():
     for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key is None
-            assert exporter.endpoint == "http://localhost:8126/profiling/v1/input"
+            assert exporter.endpoint == "http://localhost:8126"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -151,7 +151,7 @@ def test_env_endpoint_url(monkeypatch):
     for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.api_key is None
-            assert exporter.endpoint == "http://foobar:123/profiling/v1/input"
+            assert exporter.endpoint == "http://foobar:123"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
