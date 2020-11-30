@@ -43,7 +43,6 @@ exclude = '''
       | cassandra
       | celery
       | dbapi
-      | dogpile_cache
       | falcon
       | flask
       | flask_cache
@@ -62,15 +61,11 @@ exclude = '''
       | kombu
       | mako
       | molten
-      | mongoengine
-      | mysql
-      | mysqldb
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pymysql
       | rediscluster
       | requests/
       (
@@ -81,7 +76,6 @@ exclude = '''
         | session.py
       )
       | sqlalchemy
-      | sqlite3
       | tornado
       | util.py
     )
@@ -131,16 +125,12 @@ exclude = '''
       | kombu
       | mako
       | molten
-      | mongoengine
-      | mysql
-      | mysqldb
       | patch.py
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pymysql
       | pyramid/
       (
         app/web.py
@@ -151,7 +141,6 @@ exclude = '''
       | rediscluster
       | requests
       | sqlalchemy
-      | sqlite3
       | test_utils.py
       | tornado
     )
