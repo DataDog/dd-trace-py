@@ -212,10 +212,7 @@ class TestGlobalConfig(SubprocessTestCase):
         logging.basicConfig()
         tracer.configure()
         if ddtrace.compat.PY2:
-            assert tracer.log.log.mock_calls == [
-                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
-                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
-            ]
+            assert tracer.log.log.mock_calls == []
 
     @run_in_subprocess(
         env_overrides=dict(
