@@ -667,6 +667,7 @@ class Tracer(object):
             return ctx.get_current_span()
         return None
 
+    @debtcollector.removals.remove("This functionality has been rolled into context.close_span()", version="0.45", removal_version="0.46")
     def record(self, context):
         """
         Record the given ``Context`` if it's finished.
