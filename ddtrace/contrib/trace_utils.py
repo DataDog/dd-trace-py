@@ -3,7 +3,6 @@ This module contains utility functions for writing ddtrace integrations.
 """
 from ddtrace import Pin, config
 from ddtrace.ext import http
-from ddtrace.http import store_request_headers
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
@@ -112,7 +111,7 @@ def get_error_codes():
     error_codes = []
     try:
         error_str = config.http_server.error_statuses
-    except:
+    except AttributeError:
         error_str = None
     if error_str is None:
         return [[500, 599]]
