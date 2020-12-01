@@ -48,4 +48,4 @@ To configure the integration on an per-connection basis use the
 from .connection import connection_factory
 from .patch import patch
 
-__all__ = ['connection_factory', 'patch']
+__all__ = ["connection_factory", "patch"]

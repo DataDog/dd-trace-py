@@ -1,10 +1,10 @@
 from . import SpanTypes
 
-APP = 'consul'
+APP = "consul"
 # [TODO] Deprecated, remove when we remove AppTypes
 APP_TYPE = SpanTypes.CACHE
-SERVICE = 'consul'
+SERVICE = "consul"
 
-CMD = 'consul.command'
+CMD = "consul.command"
 
-KEY = 'consul.key'
+KEY = "consul.key"

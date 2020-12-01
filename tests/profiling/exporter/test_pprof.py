@@ -10,7 +10,6 @@ import mock
 
 import pytest
 
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
@@ -120,92 +119,6 @@ TEST_EVENTS = {
             sampling_period=1000000,
             exc_type=IOError,
             nframes=3,
-        ),
-    ],
-    exceptions.UncaughtExceptionEvent: [
-        exceptions.UncaughtExceptionEvent(
-            timestamp=1,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=ValueError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=2,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 20, "func5"),
-            ],
-            nframes=3,
-            exc_type=ValueError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=3,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=4,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=4,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar2.py", 19, "func5"),
-            ],
-            nframes=6,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=5,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar2.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=6,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=7,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 49, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=IOError,
         ),
     ],
     memalloc.MemoryAllocSampleEvent: [
@@ -753,31 +666,26 @@ sample_type {
 }
 sample_type {
   type: 12
-  unit: 6
+  unit: 8
 }
 sample_type {
   type: 13
-  unit: 8
+  unit: 6
 }
 sample_type {
   type: 14
-  unit: 6
-}
-sample_type {
-  type: 15
   unit: 8
 }
 sample_type {
-  type: 16
+  type: 15
   unit: 6
 }
 sample_type {
-  type: 17
-  unit: 18
+  type: 16
+  unit: 17
 }
 sample {
   location_id: 1
-  value: 0
   value: 0
   value: 0
   value: 0
@@ -799,13 +707,12 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
   value: 40
   value: 1920
 }
 mapping {
   id: 1
-  filename: 20
+  filename: 19
 }
 location {
   id: 1
@@ -840,7 +747,6 @@ string_table: "count"
 string_table: "cpu-time"
 string_table: "nanoseconds"
 string_table: "wall-time"
-string_table: "uncaught-exceptions"
 string_table: "exception-samples"
 string_table: "lock-acquire"
 string_table: "lock-acquire-wait"
@@ -854,7 +760,7 @@ string_table: "bonjour"
 time_nanos: 1
 duration_nanos: 1
 period_type {
-  type: 19
+  type: 18
   unit: 8
 }
 """ == str(

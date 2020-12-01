@@ -47,8 +47,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
     _retry_upload = attr.ib(init=None, default=None)
-
-    ENDPOINT_PATH = "/profiling/v1/input"
+    endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
@@ -170,7 +169,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         else:
             raise ValueError("Unknown connection scheme %s" % parsed.scheme)
 
-        self._upload(client, self.ENDPOINT_PATH, body, headers)
+        self._upload(client, self.endpoint_path, body, headers)
 
     def _upload(self, client, path, body, headers):
         self._retry_upload(self._upload_once, client, path, body, headers)

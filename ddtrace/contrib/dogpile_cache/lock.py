@@ -33,6 +33,7 @@ def _wrap_lock_ctor(func, instance, args, kwargs):
             # should be). This means ANDing all hit values and ORing all expired values.
             span = pin.tracer.current_span()
             if span:
-                span.set_tag('hit', asbool(span.get_tag('hit') or 'True') and hit)
-                span.set_tag('expired', asbool(span.get_tag('expired') or 'False') or expired)
+                span.set_tag("hit", asbool(span.get_tag("hit") or "True") and hit)
+                span.set_tag("expired", asbool(span.get_tag("expired") or "False") or expired)
+
     instance.value_and_created_fn = wrapped_backend_fetcher
