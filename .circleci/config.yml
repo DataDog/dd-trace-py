@@ -82,6 +82,12 @@ commands:
             S3_DIR: << parameters.s3_dir >>
             S3_BUCKET: << parameters.s3_bucket >>
 
+  save_codecov:
+    description: "Push code coverage results to codecov.io"
+    steps:
+      - run: pip install coverage
+      - run: bash <(curl -s https://codecov.io/bash)
+
   setup_tox:
     description: "Install tox"
     steps:
@@ -140,7 +146,7 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
-            - run: pip3 install riot
+            - run: pip3 install riot==0.2
             - when:
                 condition:
                   << parameters.wait >>
@@ -150,6 +156,7 @@ commands:
                       command: pip install tox && tox -e 'wait' << parameters.wait >>
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
+            - save_codecov
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -174,6 +181,7 @@ commands:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
+      - save_codecov
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
@@ -287,7 +295,7 @@ jobs:
     parallelism: 6
     steps:
       - checkout
-      - run: pip install riot
+      - run: pip install riot==0.2
       - run:
           name: "Generate base virtual environments."
           command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
