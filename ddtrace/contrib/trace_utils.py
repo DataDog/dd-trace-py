@@ -119,16 +119,16 @@ def get_error_codes():
     error_ranges = error_str.split(",")
     for error_range in error_ranges:
         values = error_range.split("-")
-        min = int(values[0])
+        min_code = int(values[0])
         if len(values) == 2:
-            max = int(values[1])
+            max_code = int(values[1])
         else:
-            max = min
-        if min > max:
-            tmp = min
-            min = max
-            max = tmp
-        error_codes.append([min, max])
+            max_code = min_code
+        if min_code > max_code:
+            tmp = min_code
+            min_code = max_code
+            max_code = tmp
+        error_codes.append([min_code, max_code])
     return error_codes
 
 

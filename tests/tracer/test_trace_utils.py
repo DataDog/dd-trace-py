@@ -92,9 +92,11 @@ def set_config_error_codes(error_codes):
         ("GET", "http://localhost/", 0, None, None),
         ("GET", "http://localhost/", 200, None, None),
         (None, None, None, None, None),
+        ("GET", "http://localhost/", 200, None, {"my-header":"value1"}),
     ],
 )
 def test_set_http_meta(span, int_config, method, url, status_code, query_params, headers):
+    int_config.http.trace_headers(['my-header'])
     trace_utils.set_http_meta(
         span, int_config, method=method, url=url, status_code=status_code, query_params=query_params, headers=headers
     )
@@ -122,15 +124,19 @@ def test_set_http_meta(span, int_config, method, url, status_code, query_params,
 
     if headers is not None:
         for header, value in headers.items():
-            tag = "http.request.headers" + header
+            tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
 
 
 @pytest.mark.parametrize(
     "error_codes,status_code,error",
-    [("404-400", 400, 1), ("400-404", 400, 1), ("400-404", 500, 0), ("500-520", 530, 0), ("500-550         ", 530, 1)],
+    [("404-400", 400, 1), 
+    ("400-404", 400, 1), 
+    ("400-404", 500, 0), 
+    ("500-520", 530, 0), 
+    ("500-550         ", 530, 1)],
 )
-def test_set_http_meta_error_codes(span, int_config, error_codes, status_code, error):
+def test_set_http_meta_custom_errors(span, int_config, error_codes, status_code, error):
     config.http_server.error_statuses = error_codes
     trace_utils.set_http_meta(span, int_config, status_code=status_code)
     assert span.error == error
