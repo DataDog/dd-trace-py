@@ -1,8 +1,9 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.ext import http
+from ddtrace.http import store_request_headers
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
@@ -107,12 +108,46 @@ def ext_service(pin, config, default=None):
     return default
 
 
-def set_http_meta(span, config, method=None, url=None, status_code=None):
+def get_error_codes():
+    error_codes = []
+    try:
+        error_str = config.http_server.error_statuses
+    except:
+        error_str = None
+    if error_str is None:
+        return [[500, 599]]
+    error_ranges = error_str.split(",")
+    for error_range in error_ranges:
+        values = error_range.split("-")
+        min = int(values[0])
+        if len(values) == 2:
+            max = int(values[1])
+        else:
+            max = min
+        if min > max:
+            tmp = min
+            min = max
+            max = tmp
+        error_codes.append([min, max])
+    return error_codes
+
+
+def set_http_meta(span, integration_config, method=None, url=None, status_code=None, query_params=None, headers=None):
     if method is not None:
         span.meta[http.METHOD] = method
+
     if url is not None:
         span.meta[http.URL] = stringify(url)
+
     if status_code is not None:
         span.meta[http.STATUS_CODE] = str(status_code)
-        if 500 <= int(status_code) < 600:
-            span.error = 1
+        error_codes = get_error_codes()
+        for error_code in error_codes:
+            if error_code[0] <= int(status_code) <= error_code[1]:
+                span.error = 1
+
+    if query_params is not None and integration_config.trace_query_string:
+        span.meta[http.QUERY_STRING] = query_params
+
+    if headers is not None:
+        store_request_headers(headers, span, integration_config)
