@@ -802,7 +802,7 @@ class SnapshotFailed(Exception):
     pass
 
 
-def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
+def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None, async_mode=True):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -846,22 +846,29 @@ def snapshot(ignores=None, tracer=ddtrace.tracer, variants=None):
             except Exception as e:
                 pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
-            # Signal the start of this test case to the test agent.
-            try:
-                conn.request("GET", "/test/start?token=%s" % token)
-            except Exception as e:
-                pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
-
-            r = conn.getresponse()
-            if r.status != 200:
-                # The test agent returns nice error messages we can forward to the user.
-                raise SnapshotFailed(r.read())
+            if async_mode:
+                # Patch the tracer writer to include the test token header for all requests.
+                tracer.writer.api._headers["X-Datadog-Test-Token"] = token
+            else:
+                # Signal the start of this test case to the test agent.
+                try:
+                    conn.request("GET", "/test/start?token=%s" % token)
+                except Exception as e:
+                    pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
+                else:
+                    r = conn.getresponse()
+                    if r.status != 200:
+                        # The test agent returns nice error messages we can forward to the user.
+                        raise SnapshotFailed(r.read())
 
             # Run the test.
-            ret = wrapped(*args, **kwargs)
-
-            # Force a flush so all traces are submitted.
-            tracer.writer.flush_queue()
+            try:
+                ret = wrapped(*args, **kwargs)
+                # Force a flush so all traces are submitted.
+                tracer.writer.flush_queue()
+            finally:
+                if async_mode:
+                    del tracer.writer.api._headers["X-Datadog-Test-Token"]
 
             # Query for the results of the test.
             conn = httplib.HTTPConnection(tracer.writer.api.hostname, tracer.writer.api.port)

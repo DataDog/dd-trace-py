@@ -129,7 +129,17 @@ class Context(object):
         """
         with self._lock:
             self._finished_spans += 1
-            self._set_current_span(span._parent)
+
+            # Safe-guard: prevent the last current span from being set to the parent
+            # of any span but the top-level span.
+            # The situation this avoids is when a parent closes before a child
+            # and the child is the last to close in the trace. When this happens
+            # the current_span would otherwise be set to the child's parent which
+            # has already closed. The context will be reset but the current_span
+            # will still point to that child's parent which would cause subsequent
+            # spans to be parented incorrectly.
+            if self._finished_spans != len(self._trace) or span == self._trace[0]:
+                self._set_current_span(span._parent)
 
             # notify if the trace is not closed properly; this check is executed only
             # if the debug logging is enabled and when the root span is closed
@@ -172,12 +182,12 @@ class Context(object):
                 origin = self._dd_origin
                 # attach the origin to the root span tag
                 if sampled and origin is not None and trace:
-                    trace[0].set_tag(ORIGIN_KEY, origin)
+                    trace[0].meta[ORIGIN_KEY] = str(origin)
 
                 # Set hostname tag if they requested it
                 if config.report_hostname:
                     # DEV: `get_hostname()` value is cached
-                    trace[0].set_tag(HOSTNAME_KEY, hostname.get_hostname())
+                    trace[0].meta[HOSTNAME_KEY] = hostname.get_hostname()
 
                 # clean the current state
                 self._trace = []
@@ -200,12 +210,12 @@ class Context(object):
                     origin = self._dd_origin
                     # attach the origin to the root span tag
                     if sampled and origin is not None and trace:
-                        trace[0].set_tag(ORIGIN_KEY, origin)
+                        trace[0].meta[ORIGIN_KEY] = str(origin)
 
                     # Set hostname tag if they requested it
                     if config.report_hostname:
                         # DEV: `get_hostname()` value is cached
-                        trace[0].set_tag(HOSTNAME_KEY, hostname.get_hostname())
+                        trace[0].meta[HOSTNAME_KEY] = hostname.get_hostname()
 
                     self._finished_spans = 0
 

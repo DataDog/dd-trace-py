@@ -11,15 +11,14 @@ from ddtrace.internal.runtime import container
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import error
-from ddtrace.vendor.six.moves.urllib import request
 
 import ddtrace
 from ddtrace.internal import runtime
+from ddtrace.internal import uds
 from ddtrace.profiling import _attr
-from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
+from ddtrace.vendor.six.moves.urllib import parse as urlparse
 from ddtrace.profiling.exporter import pprof
 
 
@@ -28,14 +27,11 @@ PYTHON_IMPLEMENTATION = platform.python_implementation().encode()
 PYTHON_VERSION = platform.python_version().encode()
 
 
-class UploadFailed(exporter.ExportError):
+class UploadFailed(tenacity.RetryError, exporter.ExportError):
     """Upload failure."""
 
-    def __init__(self, exception, msg=None):
-        """Create a failed upload error based on raised exceptions."""
-        self.exception = exception
-        msg = _traceback.format_exception(exception) if msg is None else msg
-        super(UploadFailed, self).__init__("Unable to upload profile: " + msg)
+    def __str__(self):
+        return str(self.last_attempt.exception())
 
 
 @attr.s
@@ -50,10 +46,20 @@ class PprofHTTPExporter(pprof.PprofExporter):
     version = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
+    _retry_upload = attr.ib(init=None, default=None)
+
+    ENDPOINT_PATH = "/profiling/v1/input"
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
+        self._retry_upload = tenacity.Retrying(
+            # Retry after 1s, 2s, 4s, 8s with some randomness
+            wait=tenacity.wait_random_exponential(multiplier=0.5),
+            stop=tenacity.stop_after_delay(self.max_retry_delay),
+            retry_error_cls=UploadFailed,
+            retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
+        )
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -111,12 +117,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
-    @staticmethod
-    def _retry_on_http_5xx(exception):
-        if isinstance(exception, error.HTTPError):
-            return 500 <= exception.code < 600
-        return True
-
     def export(self, events, start_time_ns, end_time_ns):
         """Export events to an HTTP endpoint.
 
@@ -160,29 +160,41 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )
         headers["Content-Type"] = content_type
 
-        # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)
-        req = request.Request(self.endpoint, data=body, headers=headers)
+        parsed = urlparse.urlparse(self.endpoint)
+        if parsed.scheme == "https":
+            client = http_client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.timeout)
+        elif parsed.scheme == "http":
+            client = http_client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.timeout)
+        elif parsed.scheme == "unix":
+            client = uds.UDSHTTPConnection(parsed.path, False, parsed.hostname, parsed.port, timeout=self.timeout)
+        else:
+            raise ValueError("Unknown connection scheme %s" % parsed.scheme)
 
-        retry = tenacity.Retrying(
-            # Retry after 1s, 2s, 4s, 8s with some randomness
-            wait=tenacity.wait_random_exponential(multiplier=0.5),
-            stop=tenacity.stop_after_delay(self.max_retry_delay),
-            retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError))
-            & tenacity.retry_if_exception(self._retry_on_http_5xx),
-        )
+        self._upload(client, self.ENDPOINT_PATH, body, headers)
 
+    def _upload(self, client, path, body, headers):
+        self._retry_upload(self._upload_once, client, path, body, headers)
+
+    def _upload_once(self, client, path, body, headers):
         try:
-            retry(request.urlopen, req, timeout=self.timeout)
-        except tenacity.RetryError as e:
-            raise UploadFailed(e.last_attempt.exception())
-        except error.HTTPError as e:
-            if e.code == 400:
-                msg = "Server returned 400, check your API key"
-            elif e.code == 404 and not self.api_key:
-                msg = (
-                    "Datadog Agent is not accepting profiles. "
-                    "Agent-based profiling deployments require Datadog Agent >= 7.20"
-                )
-            else:
-                msg = None
-            raise UploadFailed(e, msg)
+            client.request("POST", path, body=body, headers=headers)
+            response = client.getresponse()
+            response.read()  # reading is mandatory
+        finally:
+            client.close()
+
+        if 200 <= response.status < 300:
+            return
+
+        if 500 <= response.status < 600:
+            raise tenacity.TryAgain
+
+        if response.status == 400:
+            raise exporter.ExportError("Server returned 400, check your API key")
+        elif response.status == 404 and not self.api_key:
+            raise exporter.ExportError(
+                "Datadog Agent is not accepting profiles. "
+                "Agent-based profiling deployments require Datadog Agent >= 7.20"
+            )
+
+        raise exporter.ExportError("HTTP Error %d" % response.status)

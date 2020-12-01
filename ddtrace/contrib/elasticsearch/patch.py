@@ -84,6 +84,7 @@ def _get_perform_request(elasticsearch):
                 result = func(*args, **kwargs)
             except elasticsearch.exceptions.TransportError as e:
                 span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
+                span.error = 1
                 raise
 
             try:

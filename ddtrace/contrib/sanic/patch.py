@@ -20,10 +20,6 @@ config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
 
 def _extract_tags_from_request(request):
     tags = {}
-    tags[http.METHOD] = request.method
-
-    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
-    tags[http.URL] = url
 
     query_string = None
     if config.sanic.trace_query_string:
@@ -40,18 +36,13 @@ def _wrap_response_callback(span, callback):
     # based on response and finish span before returning response
 
     def update_span(response):
-        error = 0
         if isinstance(response, sanic.response.BaseHTTPResponse):
             status_code = response.status
-            if 500 <= response.status < 600:
-                error = 1
             store_response_headers(response.headers, span, config.sanic)
         else:
             # invalid response causes ServerError exception which must be handled
             status_code = 500
-            error = 1
-        span.set_tag(http.STATUS_CODE, status_code)
-        span.error = error
+        trace_utils.set_http_meta(span, config.sanic, status_code=status_code)
         span.finish()
 
     @wrapt.function_wrapper
@@ -121,6 +112,10 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
     tags = _extract_tags_from_request(request=request)
     span.set_tags(tags)
+
+    method = request.method
+    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
+    trace_utils.set_http_meta(span, config.sanic, method=method, url=url)
 
     store_request_headers(headers, span, config.sanic)
 

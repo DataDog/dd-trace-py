@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import collections
-import errno
 import email.parser
 import platform
 import socket
@@ -13,9 +12,9 @@ from ddtrace import compat
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import error
 
 import ddtrace
+from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
 from . import test_pprof
@@ -158,13 +157,9 @@ def endpoint_test_unknown_server():
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
     exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key", max_retry_delay=2)
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.HTTPError)
-    assert e.code == 400
-    assert e.reason == "Wrong API Key"
-    assert str(t.value) == "Unable to upload profile: Server returned 400, check your API key"
+    assert str(t.value) == "Server returned 400, check your API key"
 
 
 def test_export(endpoint_test_server):
@@ -176,55 +171,46 @@ def test_export_server_down():
     exp = http.PprofHTTPExporter("http://localhost:2", _API_KEY, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.URLError)
-    assert isinstance(e.reason, (IOError, OSError))
-    assert e.reason.errno in (errno.ECONNREFUSED, errno.EADDRNOTAVAIL)
+    e = t.value.last_attempt.exception()
+    assert isinstance(e, (IOError, OSError))
+    assert str(t.value).startswith("[Errno ")
 
 
 def test_export_timeout(endpoint_test_timeout_server):
     exp = http.PprofHTTPExporter(_TIMEOUT_ENDPOINT, _API_KEY, timeout=1, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
+    e = t.value.last_attempt.exception()
     assert isinstance(e, socket.timeout)
+    assert str(t.value) == "timed out"
 
 
 def test_export_reset(endpoint_test_reset_server):
     exp = http.PprofHTTPExporter(_RESET_ENDPOINT, _API_KEY, timeout=1, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
+    e = t.value.last_attempt.exception()
     if six.PY3:
         assert isinstance(e, ConnectionResetError)
     else:
         assert isinstance(e, http_client.BadStatusLine)
+        assert str(e) == "No status line received - the server has closed the connection"
 
 
 def test_export_404_agent(endpoint_test_unknown_server):
     exp = http.PprofHTTPExporter(_UNKNOWN_ENDPOINT)
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.HTTPError)
-    assert e.code == 404
     assert str(t.value) == (
-        "Unable to upload profile: Datadog Agent is not accepting profiles. "
-        "Agent-based profiling deployments require Datadog Agent >= 7.20"
+        "Datadog Agent is not accepting profiles. " "Agent-based profiling deployments require Datadog Agent >= 7.20"
     )
 
 
 def test_export_404_agentless(endpoint_test_unknown_server):
     exp = http.PprofHTTPExporter(_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
-    with pytest.raises(http.UploadFailed) as t:
+    with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.HTTPError)
-    assert e.code == 404
-    if six.PY2:
-        assert str(t.value) == "Unable to upload profile: HTTPError: HTTP Error 404: Argh\n"
-    else:
-        assert str(t.value) == "Unable to upload profile: urllib.error.HTTPError: HTTP Error 404: Argh\n"
+    assert str(t.value) == "HTTP Error 404"
 
 
 def _check_tags_types(tags):

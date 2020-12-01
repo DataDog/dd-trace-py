@@ -2,6 +2,7 @@ import itertools
 import django
 from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
+from django.utils.functional import SimpleLazyObject
 import os
 import pytest
 
@@ -61,7 +62,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         service="django",
         resource=resource,
         parent_id=None,
-        span_type="http",
+        span_type="web",
         error=0,
         meta=meta,
     )
@@ -273,7 +274,7 @@ def test_django_request_not_found(client, test_spans):
         service="django",
         resource="GET 404",
         parent_id=None,
-        span_type="http",
+        span_type="web",
         error=0,
         meta={
             "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
@@ -1384,7 +1385,7 @@ def test_django_use_handler_resource_format(client, test_spans):
         root = test_spans.get_root_span()
         resource = "GET tests.contrib.django.views.index"
 
-        root.assert_matches(resource=resource, parent_id=None, span_type="http")
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
 
 def test_custom_dispatch_template_view(client, test_spans):
@@ -1454,6 +1455,12 @@ def test_template_view_patching():
     assert "dispatch" not in vars(TemplateView)
 
 
+class _MissingSchemeRequest(django.http.HttpRequest):
+    @property
+    def scheme(self):
+        pass
+
+
 class _HttpRequest(django.http.HttpRequest):
     @property
     def scheme(self):
@@ -1463,9 +1470,9 @@ class _HttpRequest(django.http.HttpRequest):
 @pytest.mark.parametrize(
     "request_cls,request_path,http_host",
     itertools.product(
-        [django.http.HttpRequest, _HttpRequest],
+        [django.http.HttpRequest, _HttpRequest, _MissingSchemeRequest],
         [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
-        [u"testserver", b"testserver"],
+        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
@@ -1473,9 +1480,14 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
     request.path = request_path
     request.META = {"HTTP_HOST": http_host}
     request_uri = get_request_uri(request)
-    assert (
-        request_cls == _HttpRequest
-        and isinstance(request_path, binary_type)
-        and isinstance(http_host, binary_type)
-        and isinstance(request_uri, binary_type)
-    ) or isinstance(request_uri, string_type)
+    if (
+        isinstance(http_host, SimpleLazyObject) and not (issubclass(http_host.__class__, str))
+    ) or request_cls is _MissingSchemeRequest:
+        assert request_uri is None
+    else:
+        assert (
+            request_cls == _HttpRequest
+            and isinstance(request_path, binary_type)
+            and isinstance(http_host, binary_type)
+            and isinstance(request_uri, binary_type)
+        ) or isinstance(request_uri, string_type)

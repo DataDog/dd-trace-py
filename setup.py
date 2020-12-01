@@ -165,7 +165,8 @@ setup(
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
                 "pyddprofile = ddtrace.profiling.__main__:main",
-            ]
+            ],
+            "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
         },
         classifiers=[
             "Programming Language :: Python",
@@ -174,6 +175,7 @@ setup(
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
         ],
         use_scm_version=True,
         setup_requires=["setuptools_scm[toml]>=4", "cython"],

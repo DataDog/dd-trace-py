@@ -30,24 +30,12 @@ def bytes_to_str(str_or_bytes):
 def _extract_tags_from_scope(scope, integration_config):
     tags = {}
 
-    http_method = scope.get("method")
-    if http_method:
-        tags[http.METHOD] = http_method
-
     if integration_config.trace_query_string:
         query_string = scope.get("query_string")
         if len(query_string) > 0:
             tags[http.QUERY_STRING] = bytes_to_str(query_string)
     else:
         query_string = None
-
-    server = scope.get("server")
-    if server and len(server) == 2:
-        port = server[1]
-        server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
-        full_path = scope.get("root_path", "") + scope.get("path", "")
-        http_url = scope.get("scheme", "http") + "://" + server_host + full_path
-        tags[http.URL] = http_url
 
     http_version = scope.get("http_version")
     if http_version:
@@ -118,7 +106,7 @@ class TraceMiddleware:
             name=self.integration_config.get("request_span_name", "asgi.request"),
             service=trace_utils.int_service(None, self.integration_config),
             resource=resource,
-            span_type=SpanTypes.HTTP,
+            span_type=SpanTypes.WEB,
         )
 
         if self.span_modifier:
@@ -128,21 +116,32 @@ class TraceMiddleware:
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
+        method = scope.get("method")
+        server = scope.get("server")
+        if server and len(server) == 2:
+            port = server[1]
+            server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
+            full_path = scope.get("root_path", "") + scope.get("path", "")
+            url = scope.get("scheme", "http") + "://" + server_host + full_path
+        else:
+            url = None
+
+        trace_utils.set_http_meta(span, self.integration_config, method=method, url=url)
+
         tags = _extract_tags_from_scope(scope, self.integration_config)
         span.set_tags(tags)
 
         store_request_headers(headers, span, self.integration_config)
 
         async def wrapped_send(message):
-            if span and message.get("type") == "http.response.start":
-                if "status" in message:
-                    status_code = message["status"]
-                    span.set_tag(http.STATUS_CODE, status_code)
-                    if 500 <= int(status_code) < 600:
-                        span.error = 1
+            if span and message.get("type") == "http.response.start" and "status" in message:
+                status_code = message["status"]
+            else:
+                status_code = None
+            trace_utils.set_http_meta(span, self.integration_config, status_code=status_code)
 
-                if "headers" in message:
-                    store_response_headers(message["headers"], span, self.integration_config)
+            if "headers" in message:
+                store_response_headers(message["headers"], span, self.integration_config)
 
             return await send(message)
 

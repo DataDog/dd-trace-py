@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add safe guards for building Django http.url span tag
