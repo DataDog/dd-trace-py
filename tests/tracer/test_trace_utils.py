@@ -130,11 +130,13 @@ def test_set_http_meta(span, int_config, method, url, status_code, query_params,
 
 @pytest.mark.parametrize(
     "error_codes,status_code,error",
-    [("404-400", 400, 1), 
-    ("400-404", 400, 1), 
-    ("400-404", 500, 0), 
-    ("500-520", 530, 0), 
-    ("500-550         ", 530, 1)],
+    [
+        ("404-400", 400, 1),
+        ("400-404", 400, 1),
+        ("400-404", 500, 0),
+        ("500-520", 530, 0),
+        ("500-550         ", 530, 1)
+    ],
 )
 def test_set_http_meta_custom_errors(span, int_config, error_codes, status_code, error):
     config.http_server.error_statuses = error_codes
