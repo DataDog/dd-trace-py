@@ -2,6 +2,7 @@ import platform
 import random
 import re
 import sys
+import threading
 import textwrap
 
 from ddtrace.vendor import six
@@ -99,6 +100,12 @@ if sys.version_info.major < 3:
     getrandbits = random.SystemRandom().getrandbits
 else:
     getrandbits = random.getrandbits
+
+
+if sys.version_info.major < 3:
+    main_thread = threading._MainThread()
+else:
+    main_thread = threading.main_thread()
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 4):
