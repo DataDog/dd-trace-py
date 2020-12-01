@@ -39,10 +39,10 @@ hashing with memcached - the key(s) will appear as a mangled hash.
 from ...utils.importlib import require_modules
 
 
-required_modules = ['dogpile.cache']
+required_modules = ["dogpile.cache"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch, unpatch
 
-        __all__ = ['patch', 'unpatch']
+        __all__ = ["patch", "unpatch"]
