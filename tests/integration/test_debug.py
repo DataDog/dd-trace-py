@@ -326,4 +326,4 @@ def test_error_output_ddtracerun():
     assert b"Test success" in p.stdout.read()
     stderr = p.stderr.read()
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
-    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
