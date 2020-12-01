@@ -2,20 +2,20 @@
 Trace queries to aws api done via botocore client
 """
 # 3p
+import base64
+import json
 from ddtrace.vendor import wrapt
 from ddtrace import config
 import botocore.client
-import base64
-import json
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http, aws
-from ...internal.logger import get_logger
 from ...pin import Pin
-from ...propagation.http import HTTPPropagator
-from ...utils.formats import deep_getattr
+from ...utils.formats import deep_getattr, get_env
 from ...utils.wrappers import unwrap
+from ...internal.logger import get_logger
+from ...propagation.http import HTTPPropagator
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -23,8 +23,43 @@ _Botocore_client = botocore.client.BaseClient
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
 
-propagator = HTTPPropagator()
 log = get_logger(__name__)
+propagator = HTTPPropagator()
+
+# Botocore default settings
+config._add('botocore', {
+    'distributed_tracing': get_env('botocore', 'distributed_tracing', default=True),
+})
+
+
+def inject_trace_data_to_message_attributes(trace_data, entry):
+    if 'MessageAttributes' not in entry:
+        entry['MessageAttributes'] = {}
+    # An Amazon SQS message can contain up to 10 metadata attributes.
+    if len(entry['MessageAttributes']) < 10:
+        entry['MessageAttributes']['_datadog'] = {
+            'DataType': 'String',
+            'StringValue': json.dumps(trace_data)
+        }
+    else:
+        log.debug('skipping trace injection, max number (10) of MessageAttributes exceeded')
+
+
+def inject_trace_to_sqs_batch_message(args, span):
+    trace_data = {}
+    propagator.inject(span.context, trace_data)
+    params = args[1]
+
+    for entry in params['Entries']:
+        inject_trace_data_to_message_attributes(trace_data, entry)
+
+
+def inject_trace_to_sqs_message(args, span):
+    trace_data = {}
+    propagator.inject(span.context, trace_data)
+    params = args[1]
+
+    inject_trace_data_to_message_attributes(trace_data, params)
 
 
 def modify_client_context(client_context_base64, trace_headers):
@@ -97,8 +132,13 @@ def patched_api_call(original_func, instance, args, kwargs):
             operation = args[0]
             span.resource = '%s.%s' % (endpoint_name, operation.lower())
 
-            if endpoint_name == 'lambda' and operation == 'Invoke':
-                inject_trace_to_client_context(args, span)
+            if config.botocore['distributed_tracing']:
+                if endpoint_name == 'lambda' and operation == 'Invoke':
+                    inject_trace_to_client_context(args, span)
+                if endpoint_name == 'sqs' and operation == 'SendMessage':
+                    inject_trace_to_sqs_message(args, span)
+                if endpoint_name == 'sqs' and operation == 'SendMessageBatch':
+                    inject_trace_to_sqs_batch_message(args, span)
 
         else:
             span.resource = endpoint_name

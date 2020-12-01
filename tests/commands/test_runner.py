@@ -21,12 +21,12 @@ def inject_sitecustomize(path):
     # required otherwise `ddtrace` scripts are not found when `env` kwarg is
     # passed
     env = os.environ.copy()
-    sitecustomize = os.path.join(root_folder, "..", path)
+    sitecustomize = os.path.abspath(os.path.join(root_folder, "..", path))
 
     # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
     # if `import sitecustomize` is run that it'll be the one we specify
     python_path = [sitecustomize] + list(sys.path)
-    env["PYTHONPATH"] = ":".join(python_path)
+    env["PYTHONPATH"] = os.pathsep.join(python_path)
     return env
 
 

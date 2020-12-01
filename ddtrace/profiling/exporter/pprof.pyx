@@ -13,7 +13,6 @@ from ddtrace.vendor import six
 from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
@@ -122,14 +121,6 @@ class _PprofConverter(object):
             )
 
         return tuple(locations)
-
-    def convert_uncaught_exception_event(self, thread_id, thread_name, frames, nframes, exc_type_name, events):
-        location_key = (
-            self._to_locations(frames, nframes),
-            (("thread id", str(thread_id)), ("thread name", thread_name), ("exception type", exc_type_name)),
-        )
-
-        self._location_values[location_key]["uncaught-exceptions"] = len(events)
 
     def convert_stack_event(
         self, thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, samples
@@ -437,23 +428,14 @@ class PprofExporter(exporter.Exporter):
                     convert_fn(
                         lock_name,
                         thread_id,
+                        thread_name,
                         trace_id,
                         span_id,
-                        thread_name,
                         frames,
                         nframes,
                         list(l_events),
                         sampling_ratio_avg,
                     )
-
-        # Handle UncaughtExceptionEvent
-        for (
-            (thread_id, thread_name, frames, nframes, exc_type_name),
-            ue_events,
-        ) in self._group_exception_events(events.get(exceptions.UncaughtExceptionEvent, [])):
-            converter.convert_uncaught_exception_event(
-                thread_id, thread_name, frames, nframes, exc_type_name, list(ue_events)
-            )
 
         for (
             (thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, exc_type_name),
@@ -517,7 +499,6 @@ class PprofExporter(exporter.Exporter):
             ("cpu-samples", "count"),
             ("cpu-time", "nanoseconds"),
             ("wall-time", "nanoseconds"),
-            ("uncaught-exceptions", "count"),
             ("exception-samples", "count"),
             ("lock-acquire", "count"),
             ("lock-acquire-wait", "nanoseconds"),
