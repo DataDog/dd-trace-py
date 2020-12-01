@@ -21,12 +21,12 @@ def inject_sitecustomize(path):
     # required otherwise `ddtrace` scripts are not found when `env` kwarg is
     # passed
     env = os.environ.copy()
-    sitecustomize = os.path.join(root_folder, "..", path)
+    sitecustomize = os.path.abspath(os.path.join(root_folder, "..", path))
 
     # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
     # if `import sitecustomize` is run that it'll be the one we specify
     python_path = [sitecustomize] + list(sys.path)
-    env["PYTHONPATH"] = ":".join(python_path)
+    env["PYTHONPATH"] = os.pathsep.join(python_path)
     return env
 
 
@@ -266,6 +266,15 @@ class DdtraceRunTest(BaseTestCase):
         """Ensure logs injection works"""
         with self.override_env(dict(DD_LOGS_INJECTION="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
+            assert out.startswith(b"Test success")
+
+    def test_gevent_patch_all(self):
+        with self.override_env(dict(DD_GEVENT_PATCH_ALL="true")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_GEVENT_PATCH_ALL="1")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
             assert out.startswith(b"Test success")
 
 
