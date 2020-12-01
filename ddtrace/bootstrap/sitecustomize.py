@@ -2,7 +2,6 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import imp
 import logging
 import os
 import sys
