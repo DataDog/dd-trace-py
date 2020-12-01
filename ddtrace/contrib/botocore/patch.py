@@ -12,7 +12,7 @@ import botocore.client
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http, aws
 from ...pin import Pin
-from ...utils.formats import deep_getattr
+from ...utils.formats import deep_getattr, get_env
 from ...utils.wrappers import unwrap
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -25,6 +25,11 @@ TRACED_ARGS = ['params', 'path', 'verb']
 
 log = get_logger(__name__)
 propagator = HTTPPropagator()
+
+# Botocore default settings
+config._add('botocore', {
+    'distributed_tracing': get_env('botocore', 'distributed_tracing', default=True),
+})
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry):
@@ -127,12 +132,13 @@ def patched_api_call(original_func, instance, args, kwargs):
             operation = args[0]
             span.resource = '%s.%s' % (endpoint_name, operation.lower())
 
-            if endpoint_name == 'lambda' and operation == 'Invoke':
-                inject_trace_to_client_context(args, span)
-            if endpoint_name == 'sqs' and operation == 'SendMessage':
-                inject_trace_to_sqs_message(args, span)
-            if endpoint_name == 'sqs' and operation == 'SendMessageBatch':
-                inject_trace_to_sqs_batch_message(args, span)
+            if config.botocore['distributed_tracing']:
+                if endpoint_name == 'lambda' and operation == 'Invoke':
+                    inject_trace_to_client_context(args, span)
+                if endpoint_name == 'sqs' and operation == 'SendMessage':
+                    inject_trace_to_sqs_message(args, span)
+                if endpoint_name == 'sqs' and operation == 'SendMessageBatch':
+                    inject_trace_to_sqs_batch_message(args, span)
 
         else:
             span.resource = endpoint_name
