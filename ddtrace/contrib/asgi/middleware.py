@@ -3,7 +3,7 @@ import sys
 import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
-from ddtrace.http import store_request_headers, store_response_headers
+from ddtrace.http import store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
 
