@@ -175,6 +175,7 @@ class TestGlobalConfig(SubprocessTestCase):
     @run_in_subprocess(
         env_overrides=dict(
             DD_TRACE_AGENT_URL="http://localhost:8126",
+            DD_TRACE_STARTUP_LOGS="1",
         )
     )
     def test_tracer_loglevel_info_connection(self):
@@ -186,6 +187,7 @@ class TestGlobalConfig(SubprocessTestCase):
     @run_in_subprocess(
         env_overrides=dict(
             DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+            DD_TRACE_STARTUP_LOGS="1",
         )
     )
     def test_tracer_loglevel_info_no_connection(self):
@@ -210,10 +212,7 @@ class TestGlobalConfig(SubprocessTestCase):
         logging.basicConfig()
         tracer.configure()
         if ddtrace.compat.PY2:
-            assert tracer.log.log.mock_calls == [
-                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
-                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
-            ]
+            assert tracer.log.log.mock_calls == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -249,7 +248,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
+        assert tracer.log.log.mock_calls == []
 
 
 def test_to_json():
@@ -285,7 +284,7 @@ def test_error_output_ddtracerun_debug_mode():
     assert b"DATADOG TRACER CONFIGURATION" in p.stderr.read()
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in p.stderr.read()
 
-    # No connection to agent, debug mode disabled
+    # No connection to agent, debug mode enabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="true", **os.environ),
@@ -300,7 +299,7 @@ def test_error_output_ddtracerun_debug_mode():
 
 
 def test_error_output_ddtracerun():
-    # Connection to agent, debug mode enabled
+    # Connection to agent, debug mode disabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DATADOG_TRACE_DEBUG="false", **os.environ),
@@ -313,7 +312,7 @@ def test_error_output_ddtracerun():
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
 
-    # No connection to agent, debug mode enabled
+    # No connection to agent, debug mode disabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="false", **os.environ),
@@ -324,4 +323,4 @@ def test_error_output_ddtracerun():
     assert b"Test success" in p.stdout.read()
     stderr = p.stderr.read()
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
-    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
