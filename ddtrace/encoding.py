@@ -11,6 +11,7 @@ class _EncoderBase(object):
     """
     Encoder interface that provides the logic to encode traces and service.
     """
+
     def encode_traces(self, traces):
         """
         Encodes a list of traces, expecting a list of items where each items
@@ -48,7 +49,7 @@ class _EncoderBase(object):
 
 
 class JSONEncoder(_EncoderBase):
-    content_type = 'application/json'
+    content_type = "application/json"
 
     @staticmethod
     def encode(obj):
@@ -57,7 +58,7 @@ class JSONEncoder(_EncoderBase):
     @staticmethod
     def join_encoded(objs):
         """Join a list of encoded objects together as a json array"""
-        return '[' + ','.join(objs) + ']'
+        return "[" + ",".join(objs) + "]"
 
 
 class JSONEncoderV2(JSONEncoder):

@@ -25,8 +25,9 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=False))
-    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=500))
+
+    _partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+    _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
     def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
         """
@@ -152,10 +153,14 @@ class Context(object):
                 extra = {LOG_SPAN_KEY: span}
                 unfinished_spans = [x for x in self._trace if not x.finished]
                 if unfinished_spans:
-                    log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                              span.name, len(unfinished_spans), extra=extra)
+                    log.debug(
+                        'Root span "%s" closed, but the trace has %d unfinished spans:',
+                        span.name,
+                        len(unfinished_spans),
+                        extra=extra,
+                    )
                     for wrong_span in unfinished_spans:
-                        log.debug('\n%s', wrong_span.pprint(), extra=extra)
+                        log.debug("\n%s", wrong_span.pprint(), extra=extra)
 
             if self._finished_spans == len(self._trace):
                 # get the trace
