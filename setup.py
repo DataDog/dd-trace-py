@@ -114,8 +114,19 @@ if platform.system() == "Windows":
 else:
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
-    if "DD_COMPILE_DEBUG" in os.environ and platform.system() == "Linux":
-        debug_compile_args = ["-g", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+    if "DD_COMPILE_DEBUG" in os.environ:
+        if platform.system() == "Linux":
+            debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+        else:
+            debug_compile_args = [
+                "-g",
+                "-O0",
+                "-Werror",
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                "-Wno-deprecated-declarations",
+            ]
     else:
         debug_compile_args = []
 
