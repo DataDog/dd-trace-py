@@ -162,20 +162,6 @@ class Context(object):
                     for wrong_span in unfinished_spans:
                         log.debug("\n%s", wrong_span.pprint(), extra=extra)
 
-    def _is_sampled(self):
-        return any(span.sampled for span in self._trace)
-
-    def get(self):
-        """
-        Returns a tuple containing the trace list generated in the current context and
-        if the context is sampled or not. It returns (None, None) if the ``Context`` is
-        not finished. If a trace is returned, the ``Context`` will be reset so that it
-        can be re-used immediately.
-
-        This operation is thread-safe.
-        """
-        with self._lock:
-            # All spans are finished?
             if self._finished_spans == len(self._trace):
                 # get the trace
                 trace = self._trace
@@ -201,7 +187,6 @@ class Context(object):
                 self._parent_span_id = None
                 self._sampling_priority = None
                 return trace, sampled
-
             elif self._partial_flush_enabled:
                 finished_spans = [t for t in self._trace if t.finished]
                 if len(finished_spans) >= self._partial_flush_min_spans:
@@ -227,6 +212,8 @@ class Context(object):
                     # Any open spans will remain as `self._trace`
                     # Any finished spans will get returned to be flushed
                     self._trace = [t for t in self._trace if not t.finished]
-
                     return finished_spans, sampled
             return None, None
+
+    def _is_sampled(self):
+        return any(span.sampled for span in self._trace)

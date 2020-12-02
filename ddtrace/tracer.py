@@ -665,15 +665,6 @@ class Tracer(object):
             return ctx.get_current_span()
         return None
 
-    def record(self, context):
-        """
-        Record the given ``Context`` if it's finished.
-        """
-        # extract and enqueue the trace if it's sampled
-        trace, sampled = context.get()
-        if trace and sampled:
-            self.write(trace)
-
     def write(self, spans):
         """
         Send the trace to the writer to enqueue the spans list in the agent
