@@ -54,7 +54,10 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def stop(self):
         if _memalloc is not None:
-            _memalloc.stop()
+            try:
+                _memalloc.stop()
+            except RuntimeError:
+                pass
             super(MemoryCollector, self).stop()
 
     def collect(self):
