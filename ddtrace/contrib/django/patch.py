@@ -376,9 +376,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-            if config.django.http.trace_query_string:
-                span.set_tag(http.QUERY_STRING, request_headers["QUERY_STRING"])
-
             # Not a 404 request
             if resolver_match:
                 span.set_tag("django.view", resolver_match.view_name)
@@ -430,9 +427,16 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     utils.set_tag_array(span, "django.response.template", template_names)
 
                 url = utils.get_request_uri(request)
-                trace_utils.set_http_meta(span, config.django, method=request.method, url=url, status_code=status)
                 headers = dict(response.items())
-                store_response_headers(headers, span, config.django)
+                trace_utils.set_http_meta(
+                    span,
+                    config.django,
+                    method=request.method,
+                    url=url,
+                    status_code=status,
+                    query=request_headers["QUERY_STRING"],
+                    headers=headers,
+                )
 
             return response
 
