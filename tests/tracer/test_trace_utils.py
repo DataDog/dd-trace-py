@@ -81,11 +81,6 @@ def test_ext_service(int_config, pin, config_val, default, expected):
     assert trace_utils.ext_service(pin, int_config.myint, default) == expected
 
 
-def set_config_error_codes(error_codes):
-    config.http_server.error_statuses = error_codes
-    return config
-
-
 @pytest.mark.parametrize(
     "method,url,status_code,query_params,headers",
     [
@@ -93,10 +88,12 @@ def set_config_error_codes(error_codes):
         ("GET", "http://localhost/", 200, None, None),
         (None, None, None, None, None),
         ("GET", "http://localhost/", 200, None, {"my-header":"value1"}),
+        ("GET", "http://localhost/", 200, "search?q=test+query", {"my-header":"value1"}),
     ],
 )
 def test_set_http_meta(span, int_config, method, url, status_code, query_params, headers):
     int_config.http.trace_headers(['my-header'])
+    int_config.trace_query_string = True
     trace_utils.set_http_meta(
         span, int_config, method=method, url=url, status_code=status_code, query_params=query_params, headers=headers
     )
@@ -135,7 +132,9 @@ def test_set_http_meta(span, int_config, method, url, status_code, query_params,
         ("400-404", 400, 1),
         ("400-404", 500, 0),
         ("500-520", 530, 0),
-        ("500-550         ", 530, 1)
+        ("500-550         ", 530, 1),
+        ("400-404,419", 419, 1),
+        ("400,401,403", 401, 1),
     ],
 )
 def test_set_http_meta_custom_errors(span, int_config, error_codes, status_code, error):
