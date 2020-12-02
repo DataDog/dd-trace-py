@@ -6,10 +6,18 @@ import logging
 import os
 import sys
 
-from ddtrace.utils.formats import asbool, get_env, parse_tags_str
-from ddtrace.internal.logger import get_logger
-from ddtrace import config, constants
-from ddtrace.tracer import debug_mode, DD_LOG_FORMAT
+# Perform gevent patching as early as possible in the application before
+# importing more of the library internals.
+if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+
+from ddtrace.utils.formats import asbool, get_env, parse_tags_str  # noqa
+from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace import config, constants  # noqa
+from ddtrace.tracer import debug_mode, DD_LOG_FORMAT  # noqa
 
 
 if config.logs_injection:
