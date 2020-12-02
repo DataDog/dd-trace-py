@@ -108,7 +108,8 @@ def on_prepare(request, response):
         method=request.method,
         url=url,
         status_code=response.status,
-        query=request.query_string
+        query=request.query_string,
+        headers=request.headers
     )
 
     request_span.finish()
