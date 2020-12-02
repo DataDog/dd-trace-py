@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add functionality to call gevent.monkey.patch_all() with ddtrace-run by
+    setting the environment variable DD_GEVENT_PATCH_ALL=true. This ensures
+    that gevent patching is done as early as possible in the application.
