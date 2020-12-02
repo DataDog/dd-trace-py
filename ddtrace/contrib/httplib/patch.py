@@ -6,7 +6,7 @@ from ddtrace.vendor import wrapt, six
 # Project
 from ...compat import PY2, httplib, parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes, http as ext_http
+from ...ext import SpanTypes
 from ...http import store_response_headers
 from ...internal.logger import get_logger
 from ...pin import Pin
