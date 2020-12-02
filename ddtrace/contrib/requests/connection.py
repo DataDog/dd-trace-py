@@ -4,7 +4,7 @@ from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
@@ -97,13 +97,11 @@ def _wrap_send(func, instance, args, kwargs):
             # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
             # requests custom structure, that we convert to a dict
             if hasattr(response, "headers"):
-                store_response_headers(dict(response.headers), span, config.requests)
+                trace_utils.set_http_meta(span, config.requests, headers=dict(response.headers))
             return response
         finally:
             try:
                 status = None
-                if config.requests.trace_query_string:
-                    span.set_tag(http.QUERY_STRING, parsed_uri.query)
                 if response is not None:
                     status = response.status_code
                     # Storing response headers in the span.
@@ -112,7 +110,12 @@ def _wrap_send(func, instance, args, kwargs):
                     response_headers = dict(getattr(response, "headers", {}))
                     store_response_headers(response_headers, span, config.requests)
                 trace_utils.set_http_meta(
-                    span, config.requests, method=request.method.upper(), url=sanitized_url, status_code=status
+                    span,
+                    config.requests,
+                    method=request.method.upper(),
+                    url=sanitized_url,
+                    status_code=status,
+                    query=parsed_uri.query,
                 )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)
