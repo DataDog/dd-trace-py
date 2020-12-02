@@ -25,7 +25,7 @@
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
-    uint32_t max_events;
+    uint16_t max_events;
     uint16_t max_nframe;
 } memalloc_context_t;
 
@@ -61,15 +61,11 @@ typedef struct
     frame_t frames[1];
 } traceback_t;
 
-/* The maximum number of frames is either:
-   - The maximum number of frames we can store in `traceback_t.nframe`
-   - The maximum memory size_t we can allocate */
-static const unsigned long MAX_NFRAME = Py_MIN(UINT16_MAX, (SIZE_MAX - sizeof(traceback_t)) / sizeof(frame_t) + 1);
+/* The maximum number of frames we can store in `traceback_t.nframe` */
+#define MAX_NFRAME UINT16_MAX
 
-/* The maximum number of tracebacks is either:
-   - The maximum number of traceback we can store in `traceback_list_t.size`
-   - The maximum memory size_t we can allocate */
-static const unsigned long MAX_EVENTS = Py_MIN(UINT32_MAX, (SIZE_MAX - sizeof(uint32_t)) / sizeof(traceback_t));
+/* The maximum number of events we can store in `traceback_list_t.count` */
+#define MAX_EVENTS UINT16_MAX
 
 /* Temporary traceback buffer to store new traceback */
 static traceback_t* traceback_buffer = NULL;
@@ -78,7 +74,7 @@ static traceback_t* traceback_buffer = NULL;
 typedef struct
 {
     traceback_t** tracebacks;
-    uint32_t count;
+    uint16_t count;
     uint64_t alloc_count;
 } traceback_list_t;
 
@@ -356,24 +352,25 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    int max_nframe, max_events;
+    long max_nframe, max_events;
 
-    if (!PyArg_ParseTuple(args, "ii", &max_nframe, &max_events))
+    /* Store short int in long so we're sure they fit */
+    if (!PyArg_ParseTuple(args, "ll", &max_nframe, &max_events))
         return NULL;
 
-    if (max_nframe < 1 || ((unsigned long)max_nframe) > MAX_NFRAME) {
+    if (max_nframe < 1 || max_nframe > MAX_NFRAME) {
         PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %lu]", MAX_NFRAME);
         return NULL;
     }
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
 
-    if (max_events < 1 || ((unsigned long)max_events) > MAX_EVENTS) {
+    if (max_events < 1 || max_events > MAX_EVENTS) {
         PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %lu]", MAX_EVENTS);
         return NULL;
     }
 
-    global_memalloc_ctx.max_events = (uint32_t)max_events;
+    global_memalloc_ctx.max_events = (uint16_t)max_events;
 
     PyMemAllocatorEx alloc;
 
