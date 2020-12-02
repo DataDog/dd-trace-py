@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The profiler now tracks the running gevent Greenlet and store it as part
+    of the CPU and wall time profiling information.

@@ -290,12 +290,18 @@ class PprofExporter(exporter.Exporter):
             return str(list(sorted(event.span_ids))[0])
         return ""
 
+    @staticmethod
+    def _get_thread_name(thread_id, thread_name):
+        if thread_name is None:
+            return "Anonymous Thread %d" % thread_id
+        return thread_name
+
     def _stack_event_group_key(self, event):
         # If multiple traces were active, we pick only one :(
         return (
             event.thread_id,
             event.thread_native_id,
-            str(event.thread_name),
+            self._get_thread_name(event.thread_id, event.thread_name),
             self._get_trace_id(event),
             self._get_span_id(event),
             tuple(event.frames),
@@ -312,7 +318,7 @@ class PprofExporter(exporter.Exporter):
         return (
             event.lock_name,
             event.thread_id,
-            str(event.thread_name),
+            self._get_thread_name(event.thread_id, event.thread_name),
             self._get_trace_id(event),
             self._get_span_id(event),
             tuple(event.frames),
@@ -331,7 +337,7 @@ class PprofExporter(exporter.Exporter):
         return (
             event.thread_id,
             event.thread_native_id,
-            str(event.thread_name),
+            self._get_thread_name(event.thread_id, event.thread_name),
             self._get_trace_id(event),
             self._get_span_id(event),
             tuple(event.frames),
@@ -345,11 +351,16 @@ class PprofExporter(exporter.Exporter):
             key=self._stack_exception_group_key,
         )
 
-    @staticmethod
-    def _exception_group_key(event):
+    def _exception_group_key(self, event):
         exc_type = event.exc_type
         exc_type_name = exc_type.__module__ + "." + exc_type.__name__
-        return (event.thread_id, str(event.thread_name), tuple(event.frames), event.nframes, exc_type_name)
+        return (
+            event.thread_id,
+            self._get_thread_name(event.thread_id, event.thread_name),
+            tuple(event.frames),
+            event.nframes,
+            exc_type_name,
+        )
 
     def _group_exception_events(self, events):
         return itertools.groupby(

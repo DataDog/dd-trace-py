@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -1212,3 +1213,12 @@ class TestPartialFlush(TracerTestCase):
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0","child1","child2","child3","child4"]
+
+
+def test_unicode_config_vals():
+    t = ddtrace.Tracer()
+
+    with override_global_config(dict(version=u"😇", env=u"😇")):
+        with t.trace("1"):
+            pass
+    t.shutdown()
