@@ -3,7 +3,7 @@ import asyncio
 from ..asyncio import context_provider
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from .. import trace_utils

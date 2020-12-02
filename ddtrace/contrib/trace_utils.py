@@ -145,7 +145,7 @@ def set_http_meta(span, integration_config, method=None, url=None, status_code=N
             if error_code[0] <= int(status_code) <= error_code[1]:
                 span.error = 1
 
-    if query_params is not None and integration_config.trace_query_string:
+    if query is not None and integration_config.trace_query_string:
         span.meta[http.QUERY_STRING] = query
 
     if headers is not None:
