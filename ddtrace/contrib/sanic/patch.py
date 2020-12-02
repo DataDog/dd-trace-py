@@ -3,8 +3,8 @@ import ddtrace
 import sanic
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import SpanTypes, http
-from ddtrace.http import store_request_headers, store_response_headers
+from ddtrace.ext import SpanTypes
+from ddtrace.http import store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
@@ -16,19 +16,6 @@ from ...internal.logger import get_logger
 log = get_logger(__name__)
 
 config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
-
-
-def _extract_tags_from_request(request):
-    tags = {}
-
-    query_string = None
-    if config.sanic.trace_query_string:
-        query_string = request.query_string
-        if isinstance(query_string, bytes):
-            query_string = query_string.decode()
-        tags[http.QUERY_STRING] = query_string
-
-    return tags
 
 
 def _wrap_response_callback(span, callback):
@@ -110,14 +97,12 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     if sample_rate is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-    tags = _extract_tags_from_request(request=request)
-    span.set_tags(tags)
-
     method = request.method
     url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
-    trace_utils.set_http_meta(span, config.sanic, method=method, url=url)
-
-    store_request_headers(headers, span, config.sanic)
+    query_string = request.query_string
+    if isinstance(query_string, bytes):
+        query_string = query_string.decode()
+    trace_utils.set_http_meta(span, config.sanic, method=method, url=url, query=query_string, headers=headers)
 
     if write_callback is not None:
         write_callback = _wrap_response_callback(span, write_callback)
