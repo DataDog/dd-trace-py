@@ -242,7 +242,9 @@ class _ProfilerInstance(object):
                 # = (60 seconds / 0.1 seconds)
                 memory.MemorySampleEvent: int(60 / 0.1),
                 # (default buffer size / interval) * export interval
-                memalloc.MemoryAllocSampleEvent: int((64 / 0.5) * 60),
+                memalloc.MemoryAllocSampleEvent: int(
+                    (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
+                ),
             },
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
