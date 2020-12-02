@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -1156,3 +1157,12 @@ def test_early_exit():
     s1 = t.trace("1-2")
     s1.finish()
     assert s1.parent_id is None
+
+
+def test_unicode_config_vals():
+    t = ddtrace.Tracer()
+
+    with override_global_config(dict(version=u"😇", env=u"😇")):
+        with t.trace("1"):
+            pass
+    t.shutdown()
