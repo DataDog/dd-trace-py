@@ -344,7 +344,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", True)):
+        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -355,6 +355,8 @@ class Tracer(object):
                     msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
                     self._log_compat(logging.INFO, msg)
 
+                # Always log errors since we're either in debug_mode or start up logs
+                # are enabled.
                 agent_error = info.get("agent_error")
                 if agent_error:
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
@@ -484,7 +486,7 @@ class Tracer(object):
             span.set_tags(self.tags)
 
         if config.env:
-            span.meta[ENV_KEY] = str(config.env)
+            span._set_str_tag(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -495,7 +497,7 @@ class Tracer(object):
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or \
                (root_span and root_span.service == service and VERSION_KEY in root_span.meta):
-                span.meta[VERSION_KEY] = str(config.version)
+                span._set_str_tag(VERSION_KEY, config.version)
 
         if not span._parent:
             span.metrics[system.PID] = self._pid or getpid()
