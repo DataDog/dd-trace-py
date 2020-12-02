@@ -7,7 +7,6 @@ import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
-from ..compat import stringify
 
 log = get_logger(__name__)
 
@@ -109,10 +108,10 @@ def ext_service(pin, config, default=None):
 
 def set_http_meta(span, config, method=None, url=None, status_code=None):
     if method is not None:
-        span.meta[http.METHOD] = method
+        span._set_str_tag(http.METHOD, method)
     if url is not None:
-        span.meta[http.URL] = stringify(url)
+        span._set_str_tag(http.URL, url)
     if status_code is not None:
-        span.meta[http.STATUS_CODE] = str(status_code)
+        span._set_str_tag(http.STATUS_CODE, status_code)
         if 500 <= int(status_code) < 600:
             span.error = 1
