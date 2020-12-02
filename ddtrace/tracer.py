@@ -667,18 +667,6 @@ class Tracer(object):
             return ctx.get_current_span()
         return None
 
-    @debtcollector.removals.remove(message="This functionality has been rolled into context.close_span()",
-                                   version="0.45",
-                                   removal_version="0.46")
-    def record(self, context):
-        """
-        Record the given ``Context`` if it's finished.
-        """
-        # extract and enqueue the trace if it's sampled
-        trace, sampled = context.get()
-        if trace and sampled:
-            self.write(trace)
-
     def write(self, spans):
         """
         Send the trace to the writer to enqueue the spans list in the agent
