@@ -15,7 +15,7 @@ from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
-from ddtrace.http import store_request_headers, store_response_headers
+from ddtrace.http import store_response_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
@@ -101,8 +101,6 @@ def _set_request_tags(django, span, request):
             name = from_wsgi_header(header)
             if name:
                 headers[name] = value
-
-    store_request_headers(headers, span, config.django)
 
     user = getattr(request, "user", None)
     if user is not None:
@@ -427,7 +425,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     utils.set_tag_array(span, "django.response.template", template_names)
 
                 url = utils.get_request_uri(request)
-                headers = dict(response.items())
+
                 trace_utils.set_http_meta(
                     span,
                     config.django,
@@ -435,8 +433,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     url=url,
                     status_code=status,
                     query=request_headers["QUERY_STRING"],
-                    headers=headers,
+                    headers=request_headers,
                 )
+
+                headers = dict(response.items())
+                store_response_headers(headers, span, config.django)
 
             return response
 
