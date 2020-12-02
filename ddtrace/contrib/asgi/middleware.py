@@ -27,15 +27,8 @@ def bytes_to_str(str_or_bytes):
     return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
-def _extract_tags_from_scope(scope, integration_config):
+def _extract_versions_from_scope(scope, integration_config):
     tags = {}
-
-    if integration_config.trace_query_string:
-        query_string = scope.get("query_string")
-        if len(query_string) > 0:
-            tags[http.QUERY_STRING] = bytes_to_str(query_string)
-    else:
-        query_string = None
 
     http_version = scope.get("http_version")
     if http_version:
@@ -126,12 +119,19 @@ class TraceMiddleware:
         else:
             url = None
 
-        trace_utils.set_http_meta(span, self.integration_config, method=method, url=url)
+        if self.integration_config.trace_query_string:
+            query_string = scope.get("query_string")
+            if len(query_string) > 0:
+                query_string = bytes_to_str(query_string)
+        else:
+            query_string = None
 
-        tags = _extract_tags_from_scope(scope, self.integration_config)
+        trace_utils.set_http_meta(
+            span, self.integration_config, method=method, url=url, query=query_string, headers=headers
+        )
+
+        tags = _extract_versions_from_scope(scope, self.integration_config)
         span.set_tags(tags)
-
-        store_request_headers(headers, span, self.integration_config)
 
         async def wrapped_send(message):
             if span and message.get("type") == "http.response.start" and "status" in message:
