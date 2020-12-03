@@ -149,4 +149,4 @@ def set_http_meta(span, integration_config, method=None, url=None, status_code=N
         span.meta[http.QUERY_STRING] = query
 
     if headers is not None:
-        store_request_headers(headers, span, integration_config)
+        store_request_headers(dict(headers), span, integration_config)
