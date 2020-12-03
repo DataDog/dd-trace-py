@@ -109,7 +109,7 @@ class Span(object):
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
 
     def _ignore_exception(self, exc):
-        # (Exception) -> None
+        # type: (Exception) -> None
         if self._ignored_exceptions is None:
             self._ignored_exceptions = [exc]
         else:
