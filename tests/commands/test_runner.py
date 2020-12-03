@@ -1,7 +1,11 @@
 import os
 import subprocess
 import sys
+import tempfile
 
+import ddtrace
+from ddtrace.compat import PY3
+from ddtrace.vendor import six
 from .. import BaseTestCase
 
 
@@ -289,5 +293,120 @@ def test_env_profiling_enabled(monkeypatch):
     assert out.strip() == b"RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
+    out = subprocess.check_output(["ddtrace-run", "--profiling", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"RUNNING"
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
+    out = subprocess.check_output(["ddtrace-run", "-p", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"RUNNING"
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
     out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])
     assert out.strip() == b"NO PROFILER"
+
+
+def test_version():
+    p = subprocess.Popen(
+        ["ddtrace-run", "-v"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+
+    # For some reason argparse prints the version to stderr
+    # in Python 2 and stdout in Python 3
+    if PY3:
+        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
+    else:
+        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+
+    p = subprocess.Popen(
+        ["ddtrace-run", "--version"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+    if PY3:
+        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
+    else:
+        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+
+
+def test_bad_executable():
+    p = subprocess.Popen(
+        ["ddtrace-run", "executable-does-not-exist"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 1
+    assert p.stdout.read() == six.b(
+        "ddtrace-run: failed to find executable 'executable-does-not-exist'.\n\n"
+        "usage: ddtrace-run <your usual python command>\n"
+    )
+
+
+def test_executable_no_perms():
+    fd, path = tempfile.mkstemp(suffix=".py")
+    p = subprocess.Popen(
+        ["ddtrace-run", path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 1
+    assert p.stdout.read() == six.b(
+        "ddtrace-run: executable '%s' does not have executable permissions.\n\n"
+        "usage: ddtrace-run <your usual python command>\n" % path
+    )
+
+
+def test_command_flags():
+    out = subprocess.check_output(["ddtrace-run", "python", "-c", "print('test!')"])
+    assert out.strip() == six.b("test!")
+
+
+def test_return_code():
+    p = subprocess.Popen(
+        ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    p.wait()
+
+    assert p.returncode == 4
+
+
+def test_debug_mode():
+    p = subprocess.Popen(
+        ["ddtrace-run", "--debug", "python", "-c", "''"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+    assert p.stdout.read() == six.b("")
+    assert six.b("ddtrace.sampler") in p.stderr.read()
+
+
+def test_info():
+    p = subprocess.Popen(
+        ["ddtrace-run", "--info"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+    stdout = p.stdout.read()
+    assert six.b("agent_url") in stdout
+
+
+def test_no_args():
+    p = subprocess.Popen(
+        ["ddtrace-run"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 1
+    assert six.b("usage:") in p.stdout.read()
