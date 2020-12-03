@@ -583,3 +583,21 @@ def test_span_ignored_exception_multi():
     assert s.get_tag(errors.ERROR_MSG) is None
     assert s.get_tag(errors.ERROR_TYPE) is None
     assert s.get_tag(errors.ERROR_STACK) is None
+
+
+def test_span_ignored_exception_subclass():
+    s = Span(None, None)
+    s._ignore_exception(Exception)
+
+    with pytest.raises(ValueError):
+        with s:
+            raise ValueError()
+
+    with pytest.raises(RuntimeError):
+        with s:
+            raise RuntimeError()
+
+    assert s.error == 0
+    assert s.get_tag(errors.ERROR_MSG) is None
+    assert s.get_tag(errors.ERROR_TYPE) is None
+    assert s.get_tag(errors.ERROR_STACK) is None
