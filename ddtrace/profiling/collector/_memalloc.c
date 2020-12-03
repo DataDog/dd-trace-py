@@ -22,7 +22,18 @@ typedef struct
 */
 static memalloc_context_t global_memalloc_ctx;
 
-static traceback_list_t* global_traceback_list;
+/* Allocation tracker */
+typedef struct
+{
+    /* List of traceback */
+    traceback_list_t allocs;
+    /* Total number of allocations */
+    uint64_t alloc_count;
+} alloc_tracker_t;
+
+#define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
+
+static alloc_tracker_t* global_alloc_tracker;
 
 static uint64_t
 random_range(uint64_t max)
@@ -35,29 +46,27 @@ static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
     /* Do not overflow; just ignore the new events if we ever reach that point */
-    if (global_traceback_list->alloc_count >= UINT64_MAX)
+    if (global_alloc_tracker->alloc_count >= ALLOC_TRACKER_MAX_COUNT)
         return;
 
-    global_traceback_list->alloc_count++;
+    global_alloc_tracker->alloc_count++;
 
     /* Determine if we can capture or if we need to sample */
-    if (global_traceback_list->count < ctx->max_events) {
+    if (global_alloc_tracker->allocs.count < ctx->max_events) {
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
-        if (tb) {
-            global_traceback_list->tracebacks[global_traceback_list->count] = tb;
-            global_traceback_list->count++;
-        }
+        if (tb)
+            traceback_list_append_traceback(&global_alloc_tracker->allocs, tb);
     } else {
         /* Sampling mode using a reservoir sampling algorithm */
-        uint64_t r = random_range(global_traceback_list->alloc_count);
+        uint64_t r = random_range(global_alloc_tracker->alloc_count);
 
         if (r < ctx->max_events) {
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
             if (tb) {
-                traceback_free(global_traceback_list->tracebacks[r]);
-                global_traceback_list->tracebacks[r] = tb;
+                traceback_free(global_alloc_tracker->allocs.tracebacks[r]);
+                global_alloc_tracker->allocs.tracebacks[r] = tb;
             }
         }
     }
@@ -115,21 +124,20 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     return ptr2;
 }
 
-static traceback_list_t*
-traceback_list_new()
+static alloc_tracker_t*
+alloc_tracker_new()
 {
-    traceback_list_t* traceback_list = PyMem_RawMalloc(sizeof(traceback_list_t));
-    traceback_list->tracebacks = PyMem_RawMalloc(sizeof(traceback_t*) * global_memalloc_ctx.max_events);
-    traceback_list->count = 0;
-    traceback_list->alloc_count = 0;
-    return traceback_list;
+    alloc_tracker_t* alloc_tracker = PyMem_RawMalloc(sizeof(alloc_tracker_t));
+    alloc_tracker->alloc_count = 0;
+    traceback_list_init(&alloc_tracker->allocs, global_memalloc_ctx.max_events);
+    return alloc_tracker;
 }
 
 static void
-traceback_list_free(traceback_list_t* tb_list)
+alloc_tracker_free(alloc_tracker_t* alloc_tracker)
 {
-    PyMem_RawFree(tb_list->tracebacks);
-    PyMem_RawFree(tb_list);
+    traceback_list_wipe(&alloc_tracker->allocs);
+    PyMem_RawFree(alloc_tracker);
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
@@ -143,7 +151,7 @@ PyDoc_STRVAR(memalloc_start__doc__,
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
-    if (global_traceback_list) {
+    if (global_alloc_tracker) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
         return NULL;
     }
@@ -177,7 +185,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     alloc.ctx = &global_memalloc_ctx;
 
-    global_traceback_list = traceback_list_new();
+    global_alloc_tracker = alloc_tracker_new();
 
     memalloc_tb_init(global_memalloc_ctx.max_nframe);
 
@@ -216,13 +224,6 @@ traceback_to_tuple(traceback_t* tb)
     return tuple;
 }
 
-static void
-traceback_list_free_tracebacks(traceback_list_t* tb_list)
-{
-    for (uint32_t i = 0; i < tb_list->count; i++)
-        traceback_free(tb_list->tracebacks[i]);
-}
-
 PyDoc_STRVAR(memalloc_stop__doc__,
              "stop($module, /)\n"
              "--\n"
@@ -233,23 +234,22 @@ PyDoc_STRVAR(memalloc_stop__doc__,
 static PyObject*
 memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
-    if (!global_traceback_list) {
+    if (!global_alloc_tracker) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
 
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
-    traceback_list_free_tracebacks(global_traceback_list);
-    traceback_list_free(global_traceback_list);
-    global_traceback_list = NULL;
+    alloc_tracker_free(global_alloc_tracker);
+    global_alloc_tracker = NULL;
 
     Py_RETURN_NONE;
 }
 
 typedef struct
 {
-    PyObject_HEAD traceback_list_t* traceback_list;
+    PyObject_HEAD alloc_tracker_t* alloc_tracker;
     uint32_t seq_index;
 } IterEventsState;
 
@@ -266,7 +266,7 @@ PyDoc_STRVAR(iterevents__doc__,
 static PyObject*
 iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
-    if (!global_traceback_list) {
+    if (!global_alloc_tracker) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
@@ -275,15 +275,15 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     if (!iestate)
         return NULL;
 
-    iestate->traceback_list = global_traceback_list;
+    iestate->alloc_tracker = global_alloc_tracker;
     /* reset the current traceback list */
-    global_traceback_list = traceback_list_new();
+    global_alloc_tracker = alloc_tracker_new();
     iestate->seq_index = 0;
 
     PyObject* iter_and_count = PyTuple_New(3);
     PyTuple_SET_ITEM(iter_and_count, 0, (PyObject*)iestate);
-    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->traceback_list->count));
-    PyTuple_SET_ITEM(iter_and_count, 2, PyLong_FromUnsignedLongLong(iestate->traceback_list->alloc_count));
+    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->alloc_tracker->allocs.count));
+    PyTuple_SET_ITEM(iter_and_count, 2, PyLong_FromUnsignedLongLong(iestate->alloc_tracker->alloc_count));
 
     return iter_and_count;
 }
@@ -291,16 +291,15 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 static void
 iterevents_dealloc(IterEventsState* iestate)
 {
-    traceback_list_free_tracebacks(iestate->traceback_list);
-    traceback_list_free(iestate->traceback_list);
+    alloc_tracker_free(iestate->alloc_tracker);
     Py_TYPE(iestate)->tp_free(iestate);
 }
 
 static PyObject*
 iterevents_next(IterEventsState* iestate)
 {
-    if (iestate->seq_index < iestate->traceback_list->count) {
-        traceback_t* tb = iestate->traceback_list->tracebacks[iestate->seq_index];
+    if (iestate->seq_index < iestate->alloc_tracker->allocs.count) {
+        traceback_t* tb = iestate->alloc_tracker->allocs.tracebacks[iestate->seq_index];
         iestate->seq_index++;
 
         PyObject* tb_and_size = PyTuple_New(2);

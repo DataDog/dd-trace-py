@@ -36,15 +36,14 @@ typedef struct
 /* The maximum number of frames we can store in `traceback_t.nframe` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
 
-/* List of tracebacks */
 typedef struct
 {
     /* List of traceback */
     traceback_t** tracebacks;
-    /* Number of traceback in the list of traceback */
+    /* Size of the traceback list */
+    uint16_t size;
+    /* Number of tracebacks in the list of traceback */
     uint16_t count;
-    /* Total number of allocations */
-    uint64_t alloc_count;
 } traceback_list_t;
 
 /* The maximum number of events we can store in `traceback_list_t.count` */
@@ -57,6 +56,13 @@ memalloc_tb_deinit();
 
 void
 traceback_free(traceback_t* tb);
+
+void
+traceback_list_init(traceback_list_t* tb_list, uint16_t size);
+void
+traceback_list_wipe(traceback_list_t* tb_list);
+void
+traceback_list_append_traceback(traceback_list_t* tb_list, traceback_t* tb);
 
 traceback_t*
 memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size);
