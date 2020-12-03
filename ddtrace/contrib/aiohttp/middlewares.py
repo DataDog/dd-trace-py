@@ -14,15 +14,6 @@ REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_SPAN_KEY = "__datadog_request_span"
 
-config._add(
-    "aiohttp",
-    dict(
-        _default_service="aiohttp",
-        request_span_name="aiohttp.request",
-        distributed_tracing=True,
-    ),
-)
-
 
 @asyncio.coroutine
 def trace_middleware(app, handler):
