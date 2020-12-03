@@ -15,7 +15,7 @@ Installation
 
 Install with :code:`pip`::
 
-$ pip install ddtrace
+    pip install ddtrace
 
 We strongly suggest pinning the version of the library you deploy.
 
@@ -30,11 +30,19 @@ command with ``ddtrace-run``.
 
 For example if you start your application with ``python app.py`` then run::
 
-  $ ddtrace-run python app.py
+    ddtrace-run python app.py
 
 For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here<ddtracerun>`.
 
-To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
+
+If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all` can be used::
+
+    import ddtrace
+    
+    ddtrace.patch_all()
+
+
+For information on how to manually create traces refer to the documentation :ref:`here<basic usage>`.
 
 Profiling
 ~~~~~~~~~
@@ -44,16 +52,18 @@ command with ``pyddprofile``.
 
 For example if you start your application with ``python app.py`` then run::
 
-  $ pyddprofile python app.py
+    DD_PROFILING_ENABLED=true ddtrace-run python app.py
 
-To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
+If ``ddtrace-run`` isn't suitable for your application then ``ddtrace.profiling.auto`` can be used::
+
+    import ddtrace.profiling.auto
+
 
 Configuration
 ~~~~~~~~~~~~~
 
-You can configure some parameters of the library by setting environment
-variables before starting your application and importing the library. See the
-full list in :ref:`Configuration`.
+Almost all configuration of ``ddtrace`` can be done via environment
+variable. See the full list in :ref:`Configuration`.
 
 OpenTracing
 -----------
