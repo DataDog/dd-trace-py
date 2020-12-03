@@ -6,7 +6,7 @@ from ddtrace.span import Span
 from ddtrace.api import API, APIExtendedException
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.writer import AgentWriter, LogWriter
-from ddtrace.payload import PayloadFull, PayloadFullExtended
+from ddtrace.payload import PayloadFullExtended
 from tests import BaseTestCase
 
 MAX_NUM_SPANS = 7

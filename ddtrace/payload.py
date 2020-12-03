@@ -12,6 +12,7 @@ class PayloadFullExtended(PayloadFull):
 
     Report payload size, number of spans, traces.
     """
+
     def __init__(self, size=None, spans=None, traces=None, msg=None):
         """Constructor for PayloadFullExtended.
 

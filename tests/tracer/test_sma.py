@@ -1,11 +1,13 @@
 from ddtrace.internal.sma import SimpleMovingAverage
 
+
 def test_min_size():
     sma = SimpleMovingAverage(0)
 
     assert 1 == sma.size
     assert 1 == len(sma.counts)
     assert 1 == len(sma.totals)
+
 
 def test_moving_average():
     sma = SimpleMovingAverage(4)

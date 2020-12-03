@@ -12,7 +12,7 @@ from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..encoding import JSONEncoderV2
-from ..payload import PayloadFull, PayloadFullExtended
+from ..payload import PayloadFull
 from ..constants import KEEP_SPANS_RATE_KEY
 from . import _queue
 from . import sma

@@ -12,6 +12,7 @@ ENV_KEY = "env"
 VERSION_KEY = "version"
 SERVICE_KEY = "service.name"
 SERVICE_VERSION_KEY = "service.version"
+SPAN_KIND = "span.kind"
 SPAN_MEASURED_KEY = "_dd.measured"
 
 NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
