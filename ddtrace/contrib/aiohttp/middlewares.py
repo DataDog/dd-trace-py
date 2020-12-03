@@ -3,7 +3,7 @@ import asyncio
 from ..asyncio import context_provider
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes
+from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from .. import trace_utils
@@ -13,6 +13,15 @@ CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_SPAN_KEY = "__datadog_request_span"
+
+config._add(
+    "aiohttp",
+    dict(
+        _default_service="aiohttp",
+        request_span_name="aiohttp.request",
+        distributed_tracing=True,
+    ),
+)
 
 
 @asyncio.coroutine
@@ -100,15 +109,20 @@ def on_prepare(request, response):
 
     request_span.resource = resource
 
-    url = request.url.with_query(None)
     # DEV: aiohttp is special case maintains separate configuration from config api
+    trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
+    if trace_query_string is None:
+        trace_query_string = config.http.trace_query_string
+    if trace_query_string:
+        request_span.set_tag(http.QUERY_STRING, request.query_string)
+
+    url = request.url.with_query(None)
     trace_utils.set_http_meta(
         request_span,
         config.aiohttp,
         method=request.method,
         url=url,
         status_code=response.status,
-        query=request.query_string,
         headers=request.headers
     )
 
