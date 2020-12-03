@@ -103,7 +103,10 @@ else:
 
 
 if sys.version_info.major < 3:
-    main_thread = threading._MainThread()
+    if isinstance(threading.current_thread(), threading._MainThread):
+        main_thread = threading.current_thread()
+    else:
+        main_thread = threading._MainThread()
 else:
     main_thread = threading.main_thread()
 
