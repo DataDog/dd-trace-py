@@ -4,10 +4,12 @@ import math
 import mock
 import subprocess
 import sys
-import ddtrace
+
 
 from unittest import TestCase, skip, skipUnless
 
+from ddtrace.vendor import six
+import ddtrace
 from ddtrace.api import API, Response
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
@@ -519,3 +521,48 @@ def test_debug_mode():
     assert p.stdout.read() == b""
     # Stderr should have some debug lines
     assert b"DEBUG:ddtrace" in p.stderr.read()
+
+
+def test_output(tmpdir):
+    f = tmpdir.join("test.py")
+    f.write(
+        """
+import ddtrace
+""".lstrip()
+    )
+    p = subprocess.Popen(
+        ["ddtrace-run", sys.executable, "test.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmpdir),
+    )
+    p.wait()
+    assert p.stderr.read() == six.b("")
+    assert p.stdout.read() == six.b("")
+    assert p.returncode == 0
+
+
+def test_start_in_thread(tmpdir):
+    f = tmpdir.join("test.py")
+    f.write(
+        """
+import threading
+
+def target():
+    import ddtrace
+
+t = threading.Thread(target=target)
+t.start()
+t.join()
+""".lstrip()
+    )
+    p = subprocess.Popen(
+        ["ddtrace-run", sys.executable, "test.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmpdir),
+    )
+    p.wait()
+    assert p.stderr.read() == six.b("")
+    assert p.stdout.read() == six.b("")
+    assert p.returncode == 0
