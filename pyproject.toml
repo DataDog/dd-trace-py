@@ -30,22 +30,17 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    (?!(compat|monkey|span|__init__|_hooks)\.py$)[^/]+\.py$
-    | commands/
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp
       | aiopg
-      | algoliasearch
       | boto
       | botocore
       | bottle
       | cassandra
       | celery
-      | consul
       | dbapi
-      | dogpile_cache
       | falcon
       | flask
       | flask_cache
@@ -64,16 +59,11 @@ exclude = '''
       | kombu
       | mako
       | molten
-      | mongoengine
-      | mysql
-      | mysqldb
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pymysql
-      | pyramid
       | rediscluster
       | requests/
       (
@@ -84,14 +74,12 @@ exclude = '''
         | session.py
       )
       | sqlalchemy
-      | sqlite3
       | tornado
       | util.py
     )
     | ext/
     (
        cassandra.py
-       | consul.py
        | db.py
        | elasticsearch.py
        | errors.py
@@ -117,13 +105,11 @@ exclude = '''
       aiobotocore
       | aiohttp
       | aiopg
-      | algoliasearch
       | boto
       | botocore
       | bottle
       | cassandra
       | config.py
-      | consul
       | dbapi
       | falcon
       | flask
@@ -137,16 +123,12 @@ exclude = '''
       | kombu
       | mako
       | molten
-      | mongoengine
-      | mysql
-      | mysqldb
       | patch.py
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pymysql
       | pyramid/
       (
         app/web.py
@@ -157,14 +139,13 @@ exclude = '''
       | rediscluster
       | requests
       | sqlalchemy
-      | sqlite3
       | test_utils.py
       | tornado
     )
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
-    | tracer/
+    | tracer/.*py
     | vendor
     | wait-for-services.py
   )

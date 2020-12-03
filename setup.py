@@ -114,8 +114,19 @@ if platform.system() == "Windows":
 else:
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
-    if "DD_COMPILE_DEBUG" in os.environ and platform.system() == "Linux":
-        debug_compile_args = ["-g", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+    if "DD_COMPILE_DEBUG" in os.environ:
+        if platform.system() == "Linux":
+            debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+        else:
+            debug_compile_args = [
+                "-g",
+                "-O0",
+                "-Werror",
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                "-Wno-deprecated-declarations",
+            ]
     else:
         debug_compile_args = []
 
@@ -124,7 +135,7 @@ if sys.version_info[:2] >= (3, 4):
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
-            sources=["ddtrace/profiling/collector/_memalloc.c"],
+            sources=["ddtrace/profiling/collector/_memalloc.c", "ddtrace/profiling/collector/_memalloc_tb.c"],
             extra_compile_args=debug_compile_args,
         ),
     ]
@@ -149,6 +160,7 @@ setup(
         install_requires=[
             "enum34; python_version<'3.4'",
             "funcsigs>=1.0.0; python_version=='2.7'",
+            "typing; python_version<'3.5'",
             "protobuf>=3",
             "intervaltree",
             "tenacity>=5",
@@ -165,7 +177,8 @@ setup(
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
                 "pyddprofile = ddtrace.profiling.__main__:main",
-            ]
+            ],
+            "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
         },
         classifiers=[
             "Programming Language :: Python",

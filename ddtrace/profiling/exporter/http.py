@@ -47,6 +47,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
     _retry_upload = attr.ib(init=None, default=None)
+    endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
@@ -160,17 +161,15 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         parsed = urlparse.urlparse(self.endpoint)
         if parsed.scheme == "https":
-            client_class = http_client.HTTPSConnection
+            client = http_client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.timeout)
         elif parsed.scheme == "http":
-            client_class = http_client.HTTPConnection
+            client = http_client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.timeout)
         elif parsed.scheme == "unix":
-            client_class = uds.UDSHTTPConnection
+            client = uds.UDSHTTPConnection(parsed.path, False, parsed.hostname, parsed.port, timeout=self.timeout)
         else:
             raise ValueError("Unknown connection scheme %s" % parsed.scheme)
 
-        client = client_class(parsed.hostname, parsed.port, timeout=self.timeout)
-
-        self._upload(client, parsed.path, body, headers)
+        self._upload(client, self.endpoint_path, body, headers)
 
     def _upload(self, client, path, body, headers):
         self._retry_upload(self._upload_once, client, path, body, headers)

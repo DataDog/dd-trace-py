@@ -165,17 +165,9 @@ class Span(object):
             self.duration_ns = ft - (self.start_ns or ft)
 
         if self._context:
-            try:
-                self._context.close_span(self)
-            except Exception:
-                log.exception("error recording finished trace")
-            else:
-                # if a tracer is available to process the current context
-                if self.tracer:
-                    try:
-                        self.tracer.record(self._context)
-                    except Exception:
-                        log.exception("error recording finished trace")
+            trace, sampled = self._context.close_span(self)
+            if self.tracer and trace and sampled:
+                self.tracer.write(trace)
 
     def set_tag(self, key, value=None):
         """Set a tag key/value pair on the span.
@@ -257,6 +249,10 @@ class Span(object):
                 del self.metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+
+    def _set_str_tag(self, key, value):
+        # (str, str) -> None
+        self.meta[key] = stringify(value)
 
     def _remove_tag(self, key):
         if key in self.meta:
@@ -365,7 +361,7 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace 'error.stack' tag with 'python.stack'
+            self.meta[errors.ERROR_STACK] = tb
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
@@ -382,9 +378,9 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self.set_tag(errors.ERROR_MSG, exc_val)
-        self.set_tag(errors.ERROR_TYPE, exc_type_str)
-        self.set_tag(errors.ERROR_STACK, tb)
+        self.meta[errors.ERROR_MSG] = str(exc_val)
+        self.meta[errors.ERROR_TYPE] = exc_type_str
+        self.meta[errors.ERROR_STACK] = tb
 
     def _remove_exc_info(self):
         """ Remove all exception related information from the span. """

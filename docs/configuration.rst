@@ -4,7 +4,7 @@
  Configuration
 ===============
 
-`ddtrace` can be configured using environment variable. They are listed
+`ddtrace` can be configured using environment variables. They are listed
 below:
 
 .. list-table::
@@ -73,7 +73,7 @@ below:
        Domain Socket.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
-     - True
+     - False
      - Enable or disable start up diagnostic logging.
    * - ``DD_TRACE_SAMPLE_RATE``
      - Float

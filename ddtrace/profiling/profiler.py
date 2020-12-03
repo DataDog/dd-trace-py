@@ -2,6 +2,7 @@
 import atexit
 import logging
 import os
+from typing import Optional, List
 
 import ddtrace
 from ddtrace.profiling import recorder
@@ -9,11 +10,11 @@ from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 
@@ -96,7 +97,8 @@ class Profiler(object):
 
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        self.stop()
+        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        self.stop(flush=False)
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
@@ -125,19 +127,45 @@ class Profiler(object):
         return self._profiler.url
 
 
-def _get_default_url(api_key):
+def _get_default_url(
+    tracer,  # type: Optional[ddtrace.Tracer]
+    api_key,  # type: str
+):
+    # type: (...) -> str
     """Get default profiler exporter URL.
 
     If an API key is not specified, the URL will default to the agent location configured via the environment variables.
 
     If an API key is specified, the profiler goes into agentless mode and uses `DD_SITE` to upload directly to Datadog
     backend.
+
+    :param api_key: The API key provided by the user.
+    :param tracer: The tracer object to use to find default URL.
     """
     # Default URL changes if an API_KEY is provided in the env
     if api_key is None:
-        hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-        port = int(os.environ.get("DD_TRACE_AGENT_PORT", 8126))
-        return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (hostname, port)) + "/profiling/v1/input"
+        if tracer is None:
+            default_hostname = "localhost"
+            default_port = 8126
+            scheme = "http"
+            path = ""
+        else:
+            default_hostname = tracer.writer.api.hostname
+            default_port = tracer.writer.api.port
+            if tracer.writer.api.https:
+                scheme = "https"
+                path = ""
+            elif tracer.writer.api.uds_path is not None:
+                scheme = "unix"
+                path = tracer.writer.api.uds_path
+            else:
+                scheme = "http"
+                path = ""
+
+        hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", default_hostname))
+        port = int(os.environ.get("DD_TRACE_AGENT_PORT", default_port))
+
+        return os.environ.get("DD_TRACE_AGENT_URL", "%s://%s:%d%s" % (scheme, hostname, port, path))
 
     # Agentless mode
     legacy = os.environ.get("DD_PROFILING_API_URL")
@@ -169,7 +197,14 @@ class _ProfilerInstance(object):
     status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
-    def _build_default_exporters(url, service, env, version):
+    def _build_default_exporters(
+        tracer,  # type: Optional[ddtrace.Tracer]
+        url,  # type: Optional[str]
+        service,  # type: Optional[str]
+        env,  # type: Optional[str]
+        version,  # type: Optional[str]
+    ):
+        # type: (...) -> List[exporter.Exporter]
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
@@ -177,10 +212,24 @@ class _ProfilerInstance(object):
             ]
 
         api_key = _get_api_key()
-        endpoint = _get_default_url(api_key) if url is None else url + "/profiling/v1/input"
+
+        if api_key is None:
+            # Agent mode
+            endpoint_path = "/profiling/v1/input"
+        else:
+            endpoint_path = "/v1/input"
+
+        endpoint = _get_default_url(tracer, api_key) if url is None else url
 
         return [
-            http.PprofHTTPExporter(service=service, env=env, version=version, api_key=api_key, endpoint=endpoint),
+            http.PprofHTTPExporter(
+                service=service,
+                env=env,
+                version=version,
+                api_key=api_key,
+                endpoint=endpoint,
+                endpoint_path=endpoint_path,
+            ),
         ]
 
     def __attrs_post_init__(self):
@@ -193,12 +242,14 @@ class _ProfilerInstance(object):
                 # = (60 seconds / 0.1 seconds)
                 memory.MemorySampleEvent: int(60 / 0.1),
                 # (default buffer size / interval) * export interval
-                memalloc.MemoryAllocSampleEvent: int((64 / 0.5) * 60),
+                memalloc.MemoryAllocSampleEvent: int(
+                    (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
+                ),
             },
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
 
-        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "false")):
+        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "true")):
             mem_collector = memalloc.MemoryCollector(r)
         else:
             mem_collector = memory.MemoryCollector(r)
@@ -206,11 +257,10 @@ class _ProfilerInstance(object):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
             mem_collector,
-            exceptions.UncaughtExceptionCollector(r),
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
-        exporters = self._build_default_exporters(self.url, self.service, self.env, self.version)
+        exporters = self._build_default_exporters(self.tracer, self.url, self.service, self.env, self.version)
 
         if exporters:
             self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)

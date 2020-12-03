@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -1156,3 +1157,68 @@ def test_early_exit():
     s1 = t.trace("1-2")
     s1.finish()
     assert s1.parent_id is None
+
+
+class TestPartialFlush(TracerTestCase):
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+    )
+    def test_partial_flush(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 5
+        assert [s.name for s in traces[0]] == ["child0","child1","child2","child3","child4"]
+
+        root.finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "root"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="1")
+    )
+    def test_partial_flush_too_many(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 5
+        for t in traces:
+            assert len(t) == 1
+        assert [t[0].name for t in traces] == ["child0", "child1", "child2", "child3", "child4"]
+
+        root.finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert traces[0][0].name == "root"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+    )
+    def test_partial_flush_too_few(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 0
+        root.finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert [s.name for s in traces[0]] == ["root", "child0","child1","child2","child3","child4"]
+
+
+def test_unicode_config_vals():
+    t = ddtrace.Tracer()
+
+    with override_global_config(dict(version=u"😇", env=u"😇")):
+        with t.trace("1"):
+            pass
+    t.shutdown()

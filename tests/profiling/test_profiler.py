@@ -113,61 +113,79 @@ def test_env_api():
 def test_env_api_key(name_var, monkeypatch):
     monkeypatch.setenv(name_var, "foobar")
     prof = profiler.Profiler()
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.api_key == "foobar"
-            assert exporter.endpoint == "https://intake.profile.datadoghq.com/v1/input"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
+    _check_url(prof, "https://intake.profile.datadoghq.com/v1/input", "foobar", endpoint_path="/v1/input")
 
 
 def test_url():
     prof = profiler.Profiler(url="https://foobar:123")
+    _check_url(prof, "https://foobar:123")
+
+
+def _check_url(prof, url, api_key=None, endpoint_path="/profiling/v1/input"):
     for exporter in prof._profiler._scheduler.exporters:
         if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.api_key is None
-            assert exporter.endpoint == "https://foobar:123/profiling/v1/input"
+            assert exporter.api_key == api_key
+            assert exporter.endpoint == url
+            assert exporter.endpoint_path == endpoint_path
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
+
+
+def test_default_tracer_and_url():
+    try:
+        ddtrace.tracer.configure(hostname="foobar")
+        prof = profiler.Profiler(url="https://foobaz:123")
+        _check_url(prof, "https://foobaz:123")
+    finally:
+        ddtrace.tracer.configure(hostname=ddtrace.Tracer.DEFAULT_HOSTNAME)
+
+
+def test_tracer_and_url():
+    t = ddtrace.Tracer()
+    t.configure(hostname="foobar")
+    prof = profiler.Profiler(tracer=t, url="https://foobaz:123")
+    _check_url(prof, "https://foobaz:123")
+
+
+def test_tracer_url():
+    t = ddtrace.Tracer()
+    t.configure(hostname="foobar")
+    prof = profiler.Profiler(tracer=t)
+    _check_url(prof, "http://foobar:8126")
+
+
+def test_tracer_url_https():
+    t = ddtrace.Tracer()
+    t.configure(hostname="foobar", https=True)
+    prof = profiler.Profiler(tracer=t)
+    _check_url(prof, "https://foobar:8126")
+
+
+def test_tracer_url_uds():
+    t = ddtrace.Tracer()
+    t.configure(hostname="foobar", https=True, uds_path="/foobar")
+    prof = profiler.Profiler(tracer=t)
+    _check_url(prof, "https://foobar:8126")
 
 
 def test_env_no_api_key():
     prof = profiler.Profiler()
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.api_key is None
-            assert exporter.endpoint == "http://localhost:8126/profiling/v1/input"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
+    _check_url(prof, "http://localhost:8126")
 
 
 def test_env_endpoint_url(monkeypatch):
     monkeypatch.setenv("DD_AGENT_HOST", "foobar")
     monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
     prof = profiler.Profiler()
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.api_key is None
-            assert exporter.endpoint == "http://foobar:123/profiling/v1/input"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
+    _check_url(prof, "http://foobar:123")
 
 
 def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.api_key == "123"
-            assert exporter.endpoint == "https://intake.profile.datadoghq.eu/v1/input"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
+    _check_url(prof, "https://intake.profile.datadoghq.eu/v1/input", "123", endpoint_path="/v1/input")
 
 
 def test_copy():
