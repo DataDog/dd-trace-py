@@ -13,8 +13,6 @@ static traceback_t* traceback_buffer = NULL;
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
 static PyObject* unknown_name = NULL;
-/* The number 1 */
-static PyObject* number_one = NULL;
 
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
@@ -28,11 +26,6 @@ memalloc_tb_init(uint16_t max_nframe)
         PyUnicode_InternInPlace(&unknown_name);
     }
 
-    if (number_one == NULL) {
-        number_one = PyLong_FromLong(1);
-        if (number_one == NULL)
-            return -1;
-    }
     /* Allocate a buffer that can handle the largest traceback possible.
        This will be used a temporary buffer when converting stack traces. */
     traceback_buffer = PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe));
