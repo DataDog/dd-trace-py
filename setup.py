@@ -135,7 +135,7 @@ if sys.version_info[:2] >= (3, 4):
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
-            sources=["ddtrace/profiling/collector/_memalloc.c"],
+            sources=["ddtrace/profiling/collector/_memalloc.c", "ddtrace/profiling/collector/_memalloc_tb.c"],
             extra_compile_args=debug_compile_args,
         ),
     ]
