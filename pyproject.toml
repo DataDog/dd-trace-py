@@ -30,8 +30,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    (?!(compat|monkey|span|__init__|_hooks)\.py$)[^/]+\.py$
-    | commands/
+    commands/
     | contrib/
     (
       aiobotocore
