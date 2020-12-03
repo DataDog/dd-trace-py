@@ -386,7 +386,7 @@ class Span(object):
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
 
-        if self._ignored_exceptions and exc_type in self._ignored_exceptions:
+        if self._ignored_exceptions and any([isinstance(exc_type, exc) for exc in self._ignored_exceptions]):
             return
 
         self.error = 1
