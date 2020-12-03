@@ -25,6 +25,7 @@ _VERSIONS = {
 
 class APIException(Exception):
     """API base exception."""
+
     pass
 
 
@@ -33,6 +34,7 @@ class APIExtendedException(APIException):
 
     Report payload size, number of spans, traces.
     """
+
     def __init__(self, payload=None, exc=None, msg=None):
         """Constructor for APIExtendedException.
 
@@ -235,10 +237,10 @@ class API(object):
                             payload.add_trace(trace)
                         except PayloadFull:
                             # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                            log.warning('Trace is too big to fit in a payload, dropping it')
+                            log.warning("Trace is too big to fit in a payload, dropping it")
                             responses.append(PayloadFullExtended(traces=1))
                     else:
-                        log.warning('Trace is larger than the max payload size, dropping it')
+                        log.warning("Trace is larger than the max payload size, dropping it")
                         responses.append(PayloadFullExtended(traces=1))
 
             # Check that the Payload is not empty:

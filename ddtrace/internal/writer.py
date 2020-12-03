@@ -140,7 +140,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         for response in traces_responses:
             if not isinstance(response, PayloadFull):
                 if isinstance(response, Exception) or response.status >= 400:
-                    dropped_root_spans += getattr(response, 'traces', 0)
+                    dropped_root_spans += getattr(response, "traces", 0)
                     self._log_error_status(response)
                 elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
                     result_traces_json = response.get_json()
@@ -154,7 +154,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                                 result_traces_json["rate_by_service"],
                             )
             else:
-                dropped_root_spans += getattr(response, 'traces', 0)
+                dropped_root_spans += getattr(response, "traces", 0)
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
@@ -194,7 +194,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self.dogstatsd.histogram("datadog.tracer.writer.cpu_time", diff)
 
         return dropped_root_spans
-
 
     def _histogram_with_total(self, name, value, tags=None):
         """Helper to add metric as a histogram and with a `.total` counter"""
