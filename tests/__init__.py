@@ -899,3 +899,13 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             conn.close()
 
     return wrapper
+
+
+class AnyStr(object):
+    def __eq__(self, other):
+        return isinstance(other, str)
+
+
+class AnyInt(object):
+    def __eq__(self, other):
+        return isinstance(other, int)
