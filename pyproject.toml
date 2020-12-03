@@ -30,8 +30,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    commands/
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp
