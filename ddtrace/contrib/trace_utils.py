@@ -133,7 +133,7 @@ def get_error_codes():
 
 def set_http_meta(span, integration_config, method=None, url=None, status_code=None, query=None, headers=None):
     if method is not None:
-        span.meta[http.METHOD] = method
+        span.meta[http.METHOD] = str(method)
 
     if url is not None:
         span.meta[http.URL] = stringify(url)
@@ -146,7 +146,7 @@ def set_http_meta(span, integration_config, method=None, url=None, status_code=N
                 span.error = 1
 
     if query is not None and integration_config.trace_query_string:
-        span.meta[http.QUERY_STRING] = query
+        span.meta[http.QUERY_STRING] = str(query)
 
     if headers is not None:
         store_request_headers(dict(headers), span, integration_config)
