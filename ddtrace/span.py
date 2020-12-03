@@ -1,6 +1,7 @@
 import math
 import sys
 import traceback
+from typing import Optional, List
 
 from .vendor import six
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
@@ -42,6 +43,7 @@ class Span(object):
         # Internal attributes
         "_context",
         "_parent",
+        "_ignored_exceptions",
         "__weakref__",
     ]
 
@@ -104,6 +106,14 @@ class Span(object):
 
         self._context = context
         self._parent = None
+        self._ignored_exceptions = None  # type: Optional[List[Exception]]
+
+    def _ignore_exception(self, exc):
+        # type: (Exception) -> None
+        if self._ignored_exceptions is None:
+            self._ignored_exceptions = [exc]
+        else:
+            self._ignored_exceptions.append(exc)
 
     @property
     def start(self):
@@ -367,6 +377,9 @@ class Span(object):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
+
+        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):
+            return
 
         self.error = 1
 
