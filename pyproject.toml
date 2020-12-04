@@ -33,11 +33,9 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | celery
       | dbapi
@@ -102,11 +100,9 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | config.py
       | dbapi
