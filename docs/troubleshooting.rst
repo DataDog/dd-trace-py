@@ -13,7 +13,7 @@ communication issue:
 - Ensure that ``ddtrace`` is configured with the hostname and port of the
   agent. See :ref:`Configuration` for the configuration variables.
 
-To verify that a connection is being made to the agent, enable startup logs
+To verify that a connection is being made to the agent, enable start-up logs
 with the environment variable ``DD_TRACE_STARTUP_LOGS=true``. A diagnostic log
 that looks like ``DATADOG TRACER DIAGNOSTIC...`` will be displayed with the
 connection error if there is a problem connecting to the agent.
