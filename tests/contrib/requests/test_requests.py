@@ -1,7 +1,11 @@
+import subprocess
+import sys
+
 import pytest
 import requests
 from requests import Session
 from requests.exceptions import MissingSchema
+from ddtrace.vendor import six
 
 from ddtrace import config
 from ddtrace import Pin
@@ -495,3 +499,26 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+
+def test_traced_session_no_patch_all(tmpdir):
+    f = tmpdir.join("test.py")
+    f.write(
+        """
+import ddtrace
+import ddtrace.contrib.requests
+
+session = ddtrace.contrib.requests.TracedSession()
+session.get("{}")
+""".lstrip().format(URL_200)
+    )
+    p = subprocess.Popen(
+        [sys.executable, "test.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmpdir),
+    )
+    p.wait()
+    assert p.stderr.read() == six.b("")
+    assert p.stdout.read() == six.b("")
+    assert p.returncode == 0
