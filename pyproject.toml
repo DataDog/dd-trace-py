@@ -33,7 +33,6 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
@@ -102,7 +101,6 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
