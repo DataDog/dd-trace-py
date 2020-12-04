@@ -505,12 +505,16 @@ def test_traced_session_no_patch_all(tmpdir):
     f = tmpdir.join("test.py")
     f.write(
         """
+import mock
 import ddtrace
-import ddtrace.contrib.requests
+from ddtrace.contrib.requests import TracedSession
 
-session = ddtrace.contrib.requests.TracedSession()
-session.get("{}")
-""".lstrip().format(URL_200)
+# disable tracer writing to agent
+ddtrace.tracer.writer.flush_queue = mock.Mock(return_value=None)
+
+session = TracedSession()
+session.get("http://httpbin.org/status/200")
+""".lstrip()
     )
     p = subprocess.Popen(
         [sys.executable, "test.py"],
