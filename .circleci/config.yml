@@ -156,9 +156,11 @@ commands:
                 condition:
                   << parameters.wait >>
                 steps:
+                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: pip install tox && tox -e 'wait' << parameters.wait >>
+                      command: tox -e 'wait' << parameters.wait >>
+            - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
             - save_codecov
