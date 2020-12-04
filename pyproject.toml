@@ -65,14 +65,6 @@ exclude = '''
       | pymemcache
       | pymongo
       | rediscluster
-      | requests/
-      (
-        __init__.py
-        | constants.py
-        | legacy.py
-        | patch.py
-        | session.py
-      )
       | sqlalchemy
       | tornado
       | util.py
@@ -137,7 +129,6 @@ exclude = '''
         | test_pyramid_autopatch.py
       )
       | rediscluster
-      | requests
       | sqlalchemy
       | test_utils.py
       | tornado
