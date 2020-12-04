@@ -54,7 +54,6 @@ exclude = '''
         | server_interceptor.py
         | utils.py
       )
-      | httplib
       | jinja2
       | kombu
       | mako
@@ -118,7 +117,6 @@ exclude = '''
       | futures
       | gevent
       | grpc
-      | httplib
       | jinja2
       | kombu
       | mako
