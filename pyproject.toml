@@ -33,11 +33,9 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | celery
       | dbapi
@@ -54,11 +52,9 @@ exclude = '''
         | server_interceptor.py
         | utils.py
       )
-      | httplib
       | jinja2
       | kombu
       | mako
-      | molten
       | psycopg
       | pylibmc
       | pylons
@@ -103,11 +99,9 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | config.py
       | dbapi
@@ -118,11 +112,9 @@ exclude = '''
       | futures
       | gevent
       | grpc
-      | httplib
       | jinja2
       | kombu
       | mako
-      | molten
       | patch.py
       | psycopg
       | pylibmc
