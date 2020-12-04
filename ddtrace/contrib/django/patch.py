@@ -93,15 +93,6 @@ def instrument_dbs(django):
 def _set_request_tags(django, span, request):
     span.set_tag("django.request.class", func_name(request))
 
-    if django.VERSION >= (2, 2, 0):
-        headers = request.headers
-    else:
-        headers = {}
-        for header, value in request.META.items():
-            name = from_wsgi_header(header)
-            if name:
-                headers[name] = value
-
     user = getattr(request, "user", None)
     if user is not None:
         if hasattr(user, "is_authenticated"):
@@ -429,6 +420,15 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
                 url = utils.get_request_uri(request)
 
+                if django.VERSION >= (2, 2, 0):
+                    headers = request.headers
+                else:
+                    headers = {}
+                    for header, value in request.META.items():
+                        name = from_wsgi_header(header)
+                        if name:
+                            headers[name] = value
+
                 trace_utils.set_http_meta(
                     span,
                     config.django,
@@ -436,7 +436,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     url=url,
                     status_code=status,
                     query=request_headers["QUERY_STRING"],
-                    headers=request_headers,
+                    headers=headers,
                 )
 
                 headers = dict(response.items())
