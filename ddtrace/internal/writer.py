@@ -11,9 +11,10 @@ from ..compat import httplib
 from ..sampler import BasePrioritySampler
 from ..encoding import Encoder, JSONEncoderV2
 from ..utils.time import StopWatch
+from .agent import get_connection
+from .buffer import BufferFull, BufferItemTooLarge, TraceBuffer
 from .logger import get_logger
 from .runtime import container
-from .buffer import BufferFull, BufferItemTooLarge, TraceBuffer
 from .uds import UDSHTTPConnection
 
 log = get_logger(__name__)
@@ -69,10 +70,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def __init__(
         self,
-        hostname="localhost",
-        port=8126,
-        uds_path=None,
-        https=False,
+        url,
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
@@ -88,15 +86,13 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         super(AgentWriter, self).__init__(
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
+        self.url = url
+        self._parsed_url = compat.parse.urlparse(url)
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
-        self._hostname = hostname
-        self._port = int(port)
-        self._uds_path = uds_path
-        self._https = https
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
@@ -127,6 +123,14 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._report_metrics = report_metrics
         self._metrics_reset()
 
+    @property
+    def _hostname(self):
+        return self._parsed_url.hostname
+
+    @property
+    def _port(self):
+        return self._parsed_url.port
+
     def _metrics_dist(self, name, count=1, tags=None):
         if self._report_metrics:
             self._metrics[name]["count"] += count
@@ -152,13 +156,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         return writer
 
     def _put(self, data, headers):
-        if self._uds_path is None:
-            if self._https:
-                conn = httplib.HTTPSConnection(self._hostname, self._port, timeout=self._timeout)
-            else:
-                conn = httplib.HTTPConnection(self._hostname, self._port, timeout=self._timeout)
-        else:
-            conn = UDSHTTPConnection(self._uds_path, self._https, self._hostname, self._port, timeout=self._timeout)
+        conn = get_connection(self._parsed_url, self._timeout)
 
         with StopWatch() as sw:
             try:
@@ -173,16 +171,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 else:
                     log_level = logging.DEBUG
                 log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
-
-    @property
-    def agent_url(self):
-        if self._uds_path:
-            return "unix://" + self._uds_path
-        if self._https:
-            scheme = "https://"
-        else:
-            scheme = "http://"
-        return "%s%s:%s" % (scheme, self._hostname, self._port)
 
     def _downgrade(self, payload, response):
         if self._endpoint == "/v0.4/traces":
@@ -199,7 +187,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         try:
             response = self._put(payload, headers)
         except (httplib.HTTPException, OSError, IOError):
-            log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
+            log.error("failed to send traces to Datadog Agent at %s", self.url, exc_info=True)
             if self._report_metrics:
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(payload))
@@ -224,7 +212,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             elif response.status >= 400:
                 log.error(
                     "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-                    self.agent_url,
+                    self.url,
                     response.status,
                     response.reason,
                 )

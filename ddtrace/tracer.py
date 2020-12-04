@@ -9,7 +9,7 @@ from ddtrace.vendor import debtcollector
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY, HOSTNAME_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal import debug, hostname
+from .internal import agent, debug, hostname
 from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
@@ -79,13 +79,13 @@ class Tracer(object):
 
     _RUNTIME_METRICS_INTERVAL = 10
 
-    DEFAULT_HOSTNAME = environ.get("DD_AGENT_HOST", environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-    DEFAULT_PORT = int(environ.get("DD_TRACE_AGENT_PORT", 8126))
+    DEFAULT_HOSTNAME = agent.HOSTNAME
+    DEFAULT_PORT = agent.PORT
     DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
     DEFAULT_DOGSTATSD_URL = get_env(
         "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
     )
-    DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
+    DEFAULT_AGENT_URL = agent.URL
 
     def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
         """
@@ -113,22 +113,20 @@ class Tracer(object):
             if url is None:
                 url = self.DEFAULT_AGENT_URL
             url_parsed = compat.parse.urlparse(url)
-            if url_parsed.scheme in ("http", "https"):
-                hostname = url_parsed.hostname
-                port = url_parsed.port
-                https = url_parsed.scheme == "https"
-                # FIXME This is needed because of the way of configure() works right now, where it considers `port=None`
-                # to be "no port set so let's use the default".
-                # It should go away when we remove configure()
-                if port is None:
-                    if https:
-                        port = 443
-                    else:
-                        port = 80
-            elif url_parsed.scheme == "unix":
-                uds_path = url_parsed.path
-            else:
+            if url_parsed.scheme not in ("http", "https", "unix"):
                 raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
+
+            hostname = url_parsed.hostname
+            https = url_parsed.scheme == "https"
+            port = url_parsed.port
+            # FIXME This is needed because of the way of configure() works
+            # right now, where it considers `port=None` to be "no port set so
+            # let's use the default". It should go away when we remove
+            # configure()
+            if port is None:
+                port = 443 if https else 80
+            if url_parsed.scheme == "unix":
+                uds_path = url_parsed.path
 
         # globally set tags
         self.tags = config.tags.copy()
@@ -299,25 +297,27 @@ class Tracer(object):
             or priority_sampling is not None
             or sampler is not None
         ):
-            # Preserve hostname and port when overriding priority sampling
-            # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                default_hostname = self.writer._hostname
-                default_port = self.writer._port
-                if https is None:
-                    https = self.writer._https
+            if hostname is not None or port is not None or uds_path is not None or https is not None:
+                if uds_path:
+                    url = "unix://%s%s" % (hostname or "", uds_path)
+                else:
+                    if https:
+                        scheme = "https"
+                    else:
+                        scheme = "http"
+                    url = "%s://%s:%d" % (scheme, hostname or self.DEFAULT_HOSTNAME, port or self.DEFAULT_PORT)
+            elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
+                # Preserve hostname and port when overriding priority sampling
+                # This is clumsy and a good reason to get rid of this configure() API
+                url = self.writer.url
             else:
-                default_hostname = self.DEFAULT_HOSTNAME
-                default_port = self.DEFAULT_PORT
+                url = self.DEFAULT_AGENT_URL
 
             if hasattr(self, "writer") and self.writer.is_alive():
                 self.writer.stop()
 
             self.writer = AgentWriter(
-                hostname or default_hostname,
-                port or default_port,
-                uds_path=uds_path,
-                https=https,
+                url,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,

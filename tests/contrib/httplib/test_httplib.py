@@ -8,7 +8,7 @@ import pytest
 
 # Project
 from ddtrace import config
-from ddtrace.compat import httplib, PY2
+from ddtrace.compat import httplib, PY2, urlparse
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
@@ -118,13 +118,15 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        request = self.get_http_connection(self.tracer.writer._hostname, self.tracer.writer._port)
+        parsed = urlparse(self.tracer.writer.url)
+        request = self.get_http_connection(parsed.hostname, parsed.port)
+
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Disabled Pin and internal request
         self.tracer.enabled = False
-        request = self.get_http_connection(self.tracer.writer._hostname, self.tracer.writer._port)
+        request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
