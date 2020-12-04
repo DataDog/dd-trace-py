@@ -63,6 +63,6 @@ RUN \
   && pyenv global 3.8.6 2.7.17 3.5.10 3.6.12 3.7.9 3.9.0 \
   && pip install --upgrade pip
 
-RUN pip install tox riot
+RUN pip install tox riot==0.4.0
 
 CMD ["/bin/bash"]
