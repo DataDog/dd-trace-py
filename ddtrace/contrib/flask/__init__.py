@@ -91,7 +91,7 @@ Example::
 from ...utils.importlib import require_modules
 
 
-required_modules = ['flask']
+required_modules = ["flask"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -102,4 +102,4 @@ with require_modules(required_modules) as missing_modules:
         patch = _patch.patch
         unpatch = _patch.unpatch
 
-        __all__ = ['TraceMiddleware', 'patch', 'unpatch']
+        __all__ = ["TraceMiddleware", "patch", "unpatch"]
