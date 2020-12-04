@@ -121,13 +121,6 @@ exclude = '''
       | pylons
       | pymemcache
       | pymongo
-      | pyramid/
-      (
-        app/web.py
-        | __init__.py
-        | test_pyramid.py
-        | test_pyramid_autopatch.py
-      )
       | rediscluster
       | requests
       | sqlalchemy
