@@ -9,12 +9,13 @@ class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     """Executes tests using the manual instrumentation so a middleware
     is explicitly added.
     """
+
     def setUp(self):
         super(MiddlewareTestCase, self).setUp()
 
         # build a test app with a dummy tracer
-        self._service = 'falcon'
+        self._service = "falcon"
         self.api = get_app(tracer=self.tracer)
         self.version = falcon.__version__
-        if(self.version[0] != '1'):
+        if self.version[0] != "1":
             self.client = testing.TestClient(self.api)
