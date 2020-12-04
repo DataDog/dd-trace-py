@@ -1,4 +1,5 @@
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from ddtrace import config
 
 from .utils import PyramidTestCase, PyramidBase
 
@@ -17,6 +18,23 @@ class TestPyramid(PyramidTestCase):
         self.app.get("/json", status=200)
         spans = self.tracer.writer.pop()
         assert len(spans) == 0
+
+    def test_http_request_header_tracing(self):
+        config.pyramid.http.trace_headers(["my-header"])
+
+        self.app.get(
+            "/",
+            headers={
+                "my-header": "my_value",
+            },
+        )
+
+        # validate it's traced
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.get_tag("http.request.headers.my-header") == "my_value"
 
 
 class TestPyramidDistributedTracingDefault(PyramidBase):
