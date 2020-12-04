@@ -59,6 +59,6 @@ void
 traceback_free(traceback_t* tb);
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, size_t size);
+memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size);
 
 #endif
