@@ -36,7 +36,6 @@ exclude = '''
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | celery
       | dbapi
@@ -105,7 +104,6 @@ exclude = '''
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | config.py
       | dbapi

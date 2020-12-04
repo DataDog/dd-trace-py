@@ -13,11 +13,11 @@ plugin to your app::
 
 from ...utils.importlib import require_modules
 
-required_modules = ['bottle']
+required_modules = ["bottle"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .trace import TracePlugin
         from .patch import patch
 
-        __all__ = ['TracePlugin', 'patch']
+        __all__ = ["TracePlugin", "patch"]
