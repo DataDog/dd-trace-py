@@ -2,8 +2,6 @@
 import ddtrace
 from json import loads
 
-from ddtrace.vendor import debtcollector
-
 # project
 from .encoding import Encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
@@ -93,7 +91,6 @@ class Response(object):
         )
 
 
-@debtcollector.removals.removed_class("API", removal_version="0.47")
 class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format

@@ -150,14 +150,14 @@ def _get_default_url(
             scheme = "http"
             path = ""
         else:
-            default_hostname = tracer.writer.api.hostname
-            default_port = tracer.writer.api.port
-            if tracer.writer.api.https:
+            default_hostname = tracer.writer._hostname
+            default_port = tracer.writer._port
+            if tracer.writer._https:
                 scheme = "https"
                 path = ""
-            elif tracer.writer.api.uds_path is not None:
+            elif tracer.writer._uds_path is not None:
                 scheme = "unix"
-                path = tracer.writer.api.uds_path
+                path = tracer.writer._uds_path
             else:
                 scheme = "http"
                 path = ""

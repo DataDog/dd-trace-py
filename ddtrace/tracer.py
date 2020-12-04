@@ -290,6 +290,7 @@ class Tracer(object):
 
         if writer:
             self.writer = writer
+            self.writer.dogstatsd = self._dogstatsd_client
         elif (
             hostname is not None
             or port is not None
@@ -300,7 +301,7 @@ class Tracer(object):
         ):
             # Preserve hostname and port when overriding priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, "writer") and hasattr(self.writer, AgentWriter):
+            if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
                 default_hostname = self.writer._hostname
                 default_port = self.writer._port
                 if https is None:
