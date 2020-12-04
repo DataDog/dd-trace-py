@@ -41,7 +41,6 @@ exclude = '''
       | cassandra
       | celery
       | dbapi
-      | falcon
       | flask
       | flask_cache
       | futures
@@ -111,7 +110,6 @@ exclude = '''
       | cassandra
       | config.py
       | dbapi
-      | falcon
       | flask
       | flask_autopatch
       | flask_cache
