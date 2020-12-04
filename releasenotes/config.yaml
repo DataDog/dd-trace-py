@@ -1,0 +1,3 @@
+---
+unreleased_version_title: Unreleased
+release_tag_re: "v[0-9]+\\.[0-9]+\\.[0-9]+$"
