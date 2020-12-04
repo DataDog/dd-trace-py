@@ -212,11 +212,14 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     return ret
 
 
-def traced_func(django, name, resource=None):
+def traced_func(django, name, resource=None, ignored_excs=None):
     """Returns a function to trace Django functions."""
 
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource):
+        with pin.tracer.trace(name, resource=resource) as s:
+            if ignored_excs:
+                for exc in ignored_excs:
+                    s._ignore_exception(exc)
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -514,7 +517,9 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+        view = wrapt.FunctionWrapper(
+            view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
+        )
     return view
 
 
