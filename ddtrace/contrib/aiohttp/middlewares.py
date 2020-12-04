@@ -101,7 +101,7 @@ def on_prepare(request, response):
     request_span.resource = resource
 
     # DEV: aiohttp is special case maintains separate configuration from config api
-    trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
+    trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
     if trace_query_string is None:
         trace_query_string = config.http.trace_query_string
     if trace_query_string:
@@ -114,7 +114,7 @@ def on_prepare(request, response):
         method=request.method,
         url=url,
         status_code=response.status,
-        headers=request.headers
+        headers=request.headers,
     )
 
     request_span.finish()
