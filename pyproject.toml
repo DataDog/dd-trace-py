@@ -55,7 +55,6 @@ exclude = '''
       | jinja2
       | kombu
       | mako
-      | molten
       | psycopg
       | pylibmc
       | pylons
@@ -116,7 +115,6 @@ exclude = '''
       | jinja2
       | kombu
       | mako
-      | molten
       | patch.py
       | psycopg
       | pylibmc

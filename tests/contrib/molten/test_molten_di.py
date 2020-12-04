@@ -28,7 +28,7 @@ class SettingsComponent:
 
 
 class Metrics:
-    __slots__ = ['settings']
+    __slots__ = ["settings"]
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -45,7 +45,7 @@ class MetricsComponent:
 
 
 class DB:
-    __slots__ = ['settings', 'metrics']
+    __slots__ = ["settings", "metrics"]
 
     def __init__(self, settings: Settings, metrics: Metrics) -> None:
         self.settings = settings
@@ -81,7 +81,7 @@ class AccountsComponent:
 class TestMoltenDI(TestCase):
     """"Ensures Molten dependency injection is properly instrumented."""
 
-    TEST_SERVICE = 'molten-patch-di'
+    TEST_SERVICE = "molten-patch-di"
 
     def setUp(self):
         patch()
@@ -94,12 +94,14 @@ class TestMoltenDI(TestCase):
 
     def test_di_can_inject_dependencies(self):
         # Given that I have a DI instance
-        di = DependencyInjector(components=[
-            SettingsComponent(),
-            MetricsComponent(),
-            DBComponent(),
-            AccountsComponent(),
-        ])
+        di = DependencyInjector(
+            components=[
+                SettingsComponent(),
+                MetricsComponent(),
+                DBComponent(),
+                AccountsComponent(),
+            ]
+        )
 
         # And a function that uses DI
         def example(accounts: Accounts):
