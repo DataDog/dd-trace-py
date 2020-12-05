@@ -33,11 +33,9 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | celery
       | dbapi
@@ -54,25 +52,15 @@ exclude = '''
         | server_interceptor.py
         | utils.py
       )
-      | httplib
       | jinja2
       | kombu
       | mako
-      | molten
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
       | rediscluster
-      | requests/
-      (
-        __init__.py
-        | constants.py
-        | legacy.py
-        | patch.py
-        | session.py
-      )
       | sqlalchemy
       | tornado
       | util.py
@@ -103,11 +91,9 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
       | boto
       | botocore
-      | bottle
       | cassandra
       | config.py
       | dbapi
@@ -118,26 +104,16 @@ exclude = '''
       | futures
       | gevent
       | grpc
-      | httplib
       | jinja2
       | kombu
       | mako
-      | molten
       | patch.py
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pyramid/
-      (
-        app/web.py
-        | __init__.py
-        | test_pyramid.py
-        | test_pyramid_autopatch.py
-      )
       | rediscluster
-      | requests
       | sqlalchemy
       | test_utils.py
       | tornado

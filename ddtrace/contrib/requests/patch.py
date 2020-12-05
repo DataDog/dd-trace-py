@@ -11,20 +11,23 @@ from .legacy import _distributed_tracing, _distributed_tracing_setter
 from .connection import _wrap_send
 
 # requests default settings
-config._add('requests', {
-    'distributed_tracing': asbool(get_env('requests', 'distributed_tracing', default=True)),
-    'split_by_domain': asbool(get_env('requests', 'split_by_domain', default=False)),
-})
+config._add(
+    "requests",
+    {
+        "distributed_tracing": asbool(get_env("requests", "distributed_tracing", default=True)),
+        "split_by_domain": asbool(get_env("requests", "split_by_domain", default=False)),
+    },
+)
 
 
 def patch():
     """Activate http calls tracing"""
-    if getattr(requests, '__datadog_patch', False):
+    if getattr(requests, "__datadog_patch", False):
         return
-    setattr(requests, '__datadog_patch', True)
+    setattr(requests, "__datadog_patch", True)
 
-    _w('requests', 'Session.send', _wrap_send)
-    Pin(app='requests', _config=config.requests).onto(requests.Session)
+    _w("requests", "Session.send", _wrap_send)
+    Pin(app="requests", _config=config.requests).onto(requests.Session)
 
     # [Backward compatibility]: `session.distributed_tracing` should point and
     # update the `Pin` configuration instead. This block adds a property so that
@@ -36,8 +39,8 @@ def patch():
 
 def unpatch():
     """Disable traced sessions"""
-    if not getattr(requests, '__datadog_patch', False):
+    if not getattr(requests, "__datadog_patch", False):
         return
-    setattr(requests, '__datadog_patch', False)
+    setattr(requests, "__datadog_patch", False)
 
-    _u(requests.Session, 'send')
+    _u(requests.Session, "send")

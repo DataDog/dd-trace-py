@@ -19,7 +19,7 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     def setUp(self):
         super(AutoPatchTestCase, self).setUp()
 
-        self._service = 'my-falcon'
+        self._service = "my-falcon"
 
         # Since most integrations do `from ddtrace import tracer` we cannot update do `ddtrace.tracer = self.tracer`
         self.original_writer = ddtrace.tracer.writer
@@ -32,7 +32,7 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         self.api = get_app(tracer=None)
 
         self.version = falcon.__version__
-        if(self.version[0] != '1'):
+        if self.version[0] != "1":
             self.client = testing.TestClient(self.api)
 
     def tearDown(self):
