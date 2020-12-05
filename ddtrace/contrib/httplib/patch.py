@@ -125,7 +125,6 @@ def _wrap_putrequest(func, instance, args, kwargs):
         sanitized_url = parse.urlunparse(
             (parsed.scheme, parsed.netloc, parsed.path, parsed.params, None, parsed.fragment)  # drop query
         )
-
         trace_utils.set_http_meta(span, config.httplib, method=method, url=sanitized_url, query=parsed.query)
 
         # set analytics sample rate
