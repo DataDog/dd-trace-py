@@ -111,7 +111,7 @@ def trace_tween_factory(handler, registry):
                         url=request.path_url,
                         status_code=status,
                         query=request.query_string,
-                        headers=request.headers,
+                        request_headers=request.headers,
                     )
                 return response
 

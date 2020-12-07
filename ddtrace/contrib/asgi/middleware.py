@@ -127,7 +127,7 @@ class TraceMiddleware:
             query_string = None
 
         trace_utils.set_http_meta(
-            span, self.integration_config, method=method, url=url, query=query_string, headers=headers
+            span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
         )
 
         tags = _extract_versions_from_scope(scope, self.integration_config)

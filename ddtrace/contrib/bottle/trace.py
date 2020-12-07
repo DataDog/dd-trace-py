@@ -81,7 +81,7 @@ class TracePlugin(object):
                         url=url,
                         status_code=response_code,
                         query=request.query_string,
-                        headers=request.headers,
+                        request_headers=request.headers,
                     )
 
         return wrapped

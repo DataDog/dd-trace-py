@@ -178,7 +178,7 @@ class TraceMiddleware(object):
             url=compat.to_unicode(url),
             status_code=code,
             query=query,
-            headers=headers,
+            request_headers=headers,
         )
         span.finish()
 

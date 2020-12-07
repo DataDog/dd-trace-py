@@ -102,7 +102,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     query_string = request.query_string
     if isinstance(query_string, bytes):
         query_string = query_string.decode()
-    trace_utils.set_http_meta(span, config.sanic, method=method, url=url, query=query_string, headers=headers)
+    trace_utils.set_http_meta(span, config.sanic, method=method, url=url, query=query_string, request_headers=headers)
 
     if write_callback is not None:
         write_callback = _wrap_response_callback(span, write_callback)

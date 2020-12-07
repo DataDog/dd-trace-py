@@ -114,7 +114,7 @@ def on_prepare(request, response):
         method=request.method,
         url=url,
         status_code=response.status,
-        headers=request.headers,
+        request_headers=request.headers,
     )
 
     request_span.finish()

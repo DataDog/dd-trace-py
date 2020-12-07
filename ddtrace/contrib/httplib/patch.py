@@ -152,7 +152,7 @@ def _wrap_putheader(func, instance, args, kwargs):
     span = getattr(instance, "_datadog_span", None)
     if span:
         request_headers = {args[0]: args[1]}
-        trace_utils.set_http_meta(span, config.httplib, headers=request_headers)
+        trace_utils.set_http_meta(span, config.httplib, request_headers=request_headers)
 
     return func(*args, **kwargs)
 

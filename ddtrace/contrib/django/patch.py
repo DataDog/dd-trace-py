@@ -436,7 +436,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     url=url,
                     status_code=status,
                     query=request_headers["QUERY_STRING"],
-                    headers=headers,
+                    request_headers=headers,
                 )
 
                 headers = dict(response.items())
