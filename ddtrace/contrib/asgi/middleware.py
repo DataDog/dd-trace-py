@@ -3,7 +3,6 @@ import sys
 import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes, http
-from ddtrace.http import store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
 
@@ -138,10 +137,13 @@ class TraceMiddleware:
                 status_code = message["status"]
             else:
                 status_code = None
-            trace_utils.set_http_meta(span, self.integration_config, status_code=status_code)
 
             if "headers" in message:
-                store_response_headers(message["headers"], span, self.integration_config)
+                response_headers = message["headers"]
+            else:
+                response_headers = None
+            
+            trace_utils.set_http_meta(span, self.integration_config, status_code=status_code, response_headers=response_headers)
 
             return await send(message)
 

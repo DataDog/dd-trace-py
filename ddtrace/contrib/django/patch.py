@@ -15,7 +15,6 @@ from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
-from ddtrace.http import store_response_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
@@ -421,14 +420,15 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 url = utils.get_request_uri(request)
 
                 if django.VERSION >= (2, 2, 0):
-                    headers = request.headers
+                    request_headers = request.headers
                 else:
-                    headers = {}
+                    request_headers = {}
                     for header, value in request.META.items():
                         name = from_wsgi_header(header)
                         if name:
-                            headers[name] = value
+                            request_headers[name] = value
 
+                response_headers = dict(response.items())
                 trace_utils.set_http_meta(
                     span,
                     config.django,
@@ -436,11 +436,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     url=url,
                     status_code=status,
                     query=request_headers["QUERY_STRING"],
-                    request_headers=headers,
+                    request_headers=request_headers,
+                    response_headers=response_headers
                 )
-
-                headers = dict(response.items())
-                store_response_headers(headers, span, config.django)
 
             return response
 

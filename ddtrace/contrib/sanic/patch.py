@@ -4,7 +4,6 @@ import sanic
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.http import store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
@@ -25,11 +24,12 @@ def _wrap_response_callback(span, callback):
     def update_span(response):
         if isinstance(response, sanic.response.BaseHTTPResponse):
             status_code = response.status
-            store_response_headers(response.headers, span, config.sanic)
+            response_headers = response.headers
         else:
             # invalid response causes ServerError exception which must be handled
             status_code = 500
-        trace_utils.set_http_meta(span, config.sanic, status_code=status_code)
+            response_headers = None
+        trace_utils.set_http_meta(span, config.sanic, status_code=status_code, response_headers=response_headers)
         span.finish()
 
     @wrapt.function_wrapper

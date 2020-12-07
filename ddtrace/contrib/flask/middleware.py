@@ -124,6 +124,7 @@ class TraceMiddleware(object):
             return
 
         code = response.status_code if response else ""
+        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=response.headers)
         span.set_tag(http.STATUS_CODE, code)
 
     def _request_exception(self, *args, **kwargs):
@@ -156,14 +157,14 @@ class TraceMiddleware(object):
         endpoint = ""
         url = ""
         query = ""
-        headers = ""
+        request_headers = ""
 
         if request:
             method = request.method
             endpoint = request.endpoint or code
             url = request.base_url or ""
             query = request.query_string.decode() if hasattr(request.query_string, "decode") else request.query_string
-            headers = request.headers
+            request_headers = request.headers
 
         # Let users specify their own resource in middleware if they so desire.
         # See case https://github.com/DataDog/dd-trace-py/issues/353
@@ -178,7 +179,7 @@ class TraceMiddleware(object):
             url=compat.to_unicode(url),
             status_code=code,
             query=query,
-            request_headers=headers,
+            request_headers=request_headers,
         )
         span.finish()
 

@@ -1,7 +1,6 @@
 import sys
 
 from ddtrace.ext import SpanTypes, http as httpx
-from ddtrace.http import store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
@@ -56,9 +55,6 @@ class TraceMiddleware(object):
 
         status = httpx.normalize_status_code(resp.status)
 
-        # Note: any response header set after this line will not be stored in the span
-        store_response_headers(resp._headers, span, config.falcon)
-
         # FIXME[matt] falcon does not map errors or unmatched routes
         # to proper status codes, so we we have to try to infer them
         # here. See https://github.com/falconry/falcon/issues/606
@@ -81,7 +77,7 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        trace_utils.set_http_meta(span, config.falcon, status_code=status)
+        trace_utils.set_http_meta(span, config.falcon, status_code=status, response_headers=resp._headers)
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
