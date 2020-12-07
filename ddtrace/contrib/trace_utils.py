@@ -1,7 +1,7 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
@@ -104,6 +104,28 @@ def ext_service(pin, config, default=None):
 
     # A default is required since it's an external service.
     return default
+
+
+def get_error_codes():
+    error_codes = []
+    try:
+        error_str = config.http_server.error_statuses
+    except AttributeError:
+        return [[500, 599]]
+    error_ranges = error_str.split(",")
+    for error_range in error_ranges:
+        values = error_range.split("-")
+        min_code = int(values[0])
+        if len(values) == 2:
+            max_code = int(values[1])
+        else:
+            max_code = min_code
+        if min_code > max_code:
+            tmp = min_code
+            min_code = max_code
+            max_code = tmp
+        error_codes.append([min_code, max_code])
+    return error_codes
 
 
 def set_http_meta(span, config, method=None, url=None, status_code=None):
