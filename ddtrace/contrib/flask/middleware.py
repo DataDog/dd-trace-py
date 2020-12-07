@@ -162,7 +162,7 @@ class TraceMiddleware(object):
             method = request.method
             endpoint = request.endpoint or code
             url = request.base_url or ""
-            query = request.query_string.decode()
+            query = request.query_string.decode() if hasattr(request.query_string, "decode") else request.query_string
             headers = request.headers
 
         # Let users specify their own resource in middleware if they so desire.
