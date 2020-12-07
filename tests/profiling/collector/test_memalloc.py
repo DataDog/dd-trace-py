@@ -32,7 +32,7 @@ def test_start_wrong_arg():
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 65535\\]"):
         _memalloc.start(-1, 1000)
 
-    with pytest.raises(ValueError, match="the number of events must be in range \\[1; 4294967295\\]"):
+    with pytest.raises(ValueError, match="the number of events must be in range \\[1; 65535\\]"):
         _memalloc.start(64, -1)
 
 

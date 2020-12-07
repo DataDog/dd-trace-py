@@ -21,13 +21,13 @@ def patch():
         * aiohttp_jinja2
     """
     if template_module:
-        if getattr(aiohttp_jinja2, '__datadog_patch', False):
+        if getattr(aiohttp_jinja2, "__datadog_patch", False):
             return
-        setattr(aiohttp_jinja2, '__datadog_patch', True)
+        setattr(aiohttp_jinja2, "__datadog_patch", True)
 
         _w = wrapt.wrap_function_wrapper
-        _w('aiohttp_jinja2', 'render_template', _trace_render_template)
-        Pin(app='aiohttp', service=config.service).onto(aiohttp_jinja2)
+        _w("aiohttp_jinja2", "render_template", _trace_render_template)
+        Pin(app="aiohttp", service=config.service).onto(aiohttp_jinja2)
 
 
 def unpatch():
@@ -35,6 +35,6 @@ def unpatch():
     Remove tracing from patched modules.
     """
     if template_module:
-        if getattr(aiohttp_jinja2, '__datadog_patch', False):
-            setattr(aiohttp_jinja2, '__datadog_patch', False)
-            unwrap(aiohttp_jinja2, 'render_template')
+        if getattr(aiohttp_jinja2, "__datadog_patch", False):
+            setattr(aiohttp_jinja2, "__datadog_patch", False)
+            unwrap(aiohttp_jinja2, "render_template")

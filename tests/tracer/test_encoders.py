@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import random
 import string
@@ -347,6 +348,8 @@ class SubFloat(float):
         (Span(None, "name"), {"int": SubInt(123)}),
         (Span(None, "name"), {"float": SubFloat(123.213)}),
         (Span(None, SubString("name")), {SubString("test"): SubString("test")}),
+        (Span(None, "name"), {"unicode": u"😐"}),
+        (Span(None, "name"), {u"😐": u"😐"}),
     ],
 )
 def test_span_types(span, tags):

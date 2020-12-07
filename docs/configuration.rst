@@ -73,7 +73,7 @@ below:
        Domain Socket.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
-     - True
+     - False
      - Enable or disable start up diagnostic logging.
    * - ``DD_TRACE_SAMPLE_RATE``
      - Float

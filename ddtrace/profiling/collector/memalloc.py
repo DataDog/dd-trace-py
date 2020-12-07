@@ -34,11 +34,14 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
+    _DEFAULT_MAX_EVENTS = 32
+    _DEFAULT_INTERVAL = 0.5
+
     # Arbitrary interval to empty the _memalloc event buffer
-    _interval = attr.ib(default=0.5, repr=False)
+    _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(factory=_attr.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", 64, int))
+    _max_events = attr.ib(factory=_attr.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
     max_nframe = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
@@ -51,7 +54,10 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def stop(self):
         if _memalloc is not None:
-            _memalloc.stop()
+            try:
+                _memalloc.stop()
+            except RuntimeError:
+                pass
             super(MemoryCollector, self).stop()
 
     def collect(self):
