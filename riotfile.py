@@ -305,4 +305,30 @@ suites = [
             ),
         ],
     ),
+    Suite(
+        name="boto",
+        command="pytest tests/contrib/boto",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6],
+                pkgs=[
+                    ("boto", [""]),
+                    ("moto", ["<1.0"]),
+                ],
+            ),
+        ],
+    ),
+    Suite(
+        name="botocore",
+        command="pytest tests/contrib/botocore",
+        cases=[
+            Case(
+                pys=[2.7, 3.5, 3.6, 3.7, 3.8, 3.9],
+                pkgs=[
+                    ("botocore", [""]),
+                    ("moto", [">=1.0,<2"]),
+                ],
+            ),
+        ],
+    ),
 ]
