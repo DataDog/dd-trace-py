@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace import Pin, Tracer, config
+from ddtrace import Pin, Tracer
 from ddtrace.settings import Config
 from ddtrace.ext import http
 from ddtrace.compat import stringify
