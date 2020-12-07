@@ -282,5 +282,31 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="boto",
+            command="pytest tests/contrib/boto",
+            venvs=[
+                Venv(
+                    pys=[2.7, 3.5, 3.6],
+                    pkgs={
+                        "boto": latest,
+                        "moto": ["<1.0"],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="botocore",
+            command="pytest tests/contrib/botocore",
+            venvs=[
+                Venv(
+                    pys=[2.7, 3.5, 3.6, 3.7, 3.8, 3.9],
+                    pkgs={
+                        "botocore": latest,
+                        "moto": [">=1.0,<2.0"],
+                    },
+                ),
+            ],
+        ),
     ],
 )

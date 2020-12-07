@@ -417,13 +417,10 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d localstack testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
+      - run_test:
+          pattern: '^boto'  # run boto and botocore
+          snapshot: true
+          docker_services: "localstack"
 
   ddtracerun:
     <<: *contrib_job
