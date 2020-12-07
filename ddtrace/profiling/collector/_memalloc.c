@@ -32,7 +32,7 @@ random_range(uint64_t max)
 }
 
 static void
-memalloc_add_event(size_t size, memalloc_context_t* ctx)
+memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
     /* Do not overflow; just ignore the new events if we ever reach that point */
     if (global_traceback_list->alloc_count >= UINT64_MAX)
@@ -43,7 +43,7 @@ memalloc_add_event(size_t size, memalloc_context_t* ctx)
     /* Determine if we can capture or if we need to sample */
     if (global_traceback_list->count < ctx->max_events) {
         /* Buffer is not full, fill it */
-        traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, size);
+        traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
         if (tb) {
             global_traceback_list->tracebacks[global_traceback_list->count] = tb;
             global_traceback_list->count++;
@@ -54,7 +54,7 @@ memalloc_add_event(size_t size, memalloc_context_t* ctx)
 
         if (r < ctx->max_events) {
             /* Replace a random traceback with this one */
-            traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, size);
+            traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
             if (tb) {
                 traceback_free(global_traceback_list->tracebacks[r]);
                 global_traceback_list->tracebacks[r] = tb;
@@ -86,7 +86,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
         ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
 
     if (ptr)
-        memalloc_add_event(nelem * elsize, memalloc_ctx);
+        memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
 
     return ptr;
 }
@@ -110,7 +110,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
 
     if (ptr2)
-        memalloc_add_event(new_size, memalloc_ctx);
+        memalloc_add_event(memalloc_ctx, ptr2, new_size);
 
     return ptr2;
 }
