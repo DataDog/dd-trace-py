@@ -49,7 +49,9 @@ def _wrap_getresponse(func, instance, args, kwargs):
             span = getattr(instance, "_datadog_span", None)
             if span:
                 if resp:
-                    trace_utils.set_http_meta(span, config.httplib, status_code=resp.status, response_headers=resp.getheaders())
+                    trace_utils.set_http_meta(
+                        span, config.httplib, status_code=resp.status, response_headers=resp.getheaders()
+                    )
 
                 span.finish()
                 delattr(instance, "_datadog_span")

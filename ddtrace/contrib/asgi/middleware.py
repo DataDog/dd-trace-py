@@ -142,8 +142,10 @@ class TraceMiddleware:
                 response_headers = message["headers"]
             else:
                 response_headers = None
-            
-            trace_utils.set_http_meta(span, self.integration_config, status_code=status_code, response_headers=response_headers)
+
+            trace_utils.set_http_meta(
+                span, self.integration_config, status_code=status_code, response_headers=response_headers
+            )
 
             return await send(message)
 
