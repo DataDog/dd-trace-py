@@ -87,9 +87,6 @@ def _wrap_send(func, instance, args, kwargs):
             propagator = HTTPPropagator()
             propagator.inject(span.context, request.headers)
 
-        # Storing request headers in the span
-        store_request_headers(request.headers, span, config.requests)
-
         response = None
         try:
             response = func(*args, **kwargs)
@@ -97,7 +94,10 @@ def _wrap_send(func, instance, args, kwargs):
             # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
             # requests custom structure, that we convert to a dict
             if hasattr(response, "headers"):
-                trace_utils.set_http_meta(span, config.requests, headers=dict(response.headers))
+                response_headers = response.headers
+            else:
+                response_headers = None
+            trace_utils.set_http_meta(span, config.requests, request_headers=request.headers, response_headers=response_headers)
             return response
         finally:
             try:
