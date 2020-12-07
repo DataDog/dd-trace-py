@@ -107,30 +107,6 @@ def ext_service(pin, config, default=None):
     return default
 
 
-def get_error_codes():
-    error_codes = []
-    try:
-        error_str = config.http_server.error_statuses
-    except AttributeError:
-        error_str = None
-    if error_str is None:
-        return [[500, 599]]
-    error_ranges = error_str.split(",")
-    for error_range in error_ranges:
-        values = error_range.split("-")
-        min_code = int(values[0])
-        if len(values) == 2:
-            max_code = int(values[1])
-        else:
-            max_code = min_code
-        if min_code > max_code:
-            tmp = min_code
-            min_code = max_code
-            max_code = tmp
-        error_codes.append([min_code, max_code])
-    return error_codes
-
-
 def set_http_meta(span, integration_config, method=None, url=None, status_code=None, query=None, headers=None):
     if method is not None:
         span.meta[http.METHOD] = str(method)
@@ -140,10 +116,8 @@ def set_http_meta(span, integration_config, method=None, url=None, status_code=N
 
     if status_code is not None:
         span.meta[http.STATUS_CODE] = str(status_code)
-        error_codes = get_error_codes()
-        for error_code in error_codes:
-            if error_code[0] <= int(status_code) <= error_code[1]:
-                span.error = 1
+        if 500 <= int(status_code) <= 599:
+            span.error = 1
 
     if query is not None and integration_config.trace_query_string:
         span.meta[http.QUERY_STRING] = str(query)
