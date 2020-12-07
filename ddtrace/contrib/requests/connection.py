@@ -1,6 +1,5 @@
 import ddtrace
 from ddtrace import config
-from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
@@ -97,7 +96,9 @@ def _wrap_send(func, instance, args, kwargs):
                 response_headers = response.headers
             else:
                 response_headers = None
-            trace_utils.set_http_meta(span, config.requests, request_headers=request.headers, response_headers=response_headers)
+            trace_utils.set_http_meta(
+                span, config.requests, request_headers=request.headers, response_headers=response_headers
+            )
             return response
         finally:
             try:
@@ -108,7 +109,6 @@ def _wrap_send(func, instance, args, kwargs):
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
-                    store_response_headers(response_headers, span, config.requests)
                 trace_utils.set_http_meta(
                     span,
                     config.requests,
