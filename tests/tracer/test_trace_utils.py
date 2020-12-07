@@ -109,3 +109,20 @@ def test_set_http_meta(span, config, method, url, status_code):
             assert span.error == 0
     else:
         assert http.STATUS_CODE not in span.meta
+
+@pytest.mark.parametrize(
+    "error_codes,status_code,error",
+    [
+        ("404-400", 400, 1),
+        ("400-404", 400, 1),
+        ("400-404", 500, 0),
+        ("500-520", 530, 0),
+        ("500-550         ", 530, 1),
+        ("400-404,419", 419, 1),
+        ("400,401,403", 401, 1),
+    ],
+)
+def test_set_http_meta_custom_errors(span, int_config, error_codes, status_code, error):
+    config.http_server.error_statuses = error_codes
+    trace_utils.set_http_meta(span, int_config, status_code=status_code)
+    assert span.error == error
