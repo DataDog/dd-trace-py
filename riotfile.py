@@ -1,26 +1,17 @@
 from riot import Venv, latest
 
+SUPPORT_PYTHON_VERSIONS = [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
+
+
+def select_pys(min_version=min(SUPPORT_PYTHON_VERSIONS), max_version=max(SUPPORT_PYTHON_VERSIONS)):
+    """Helper to select python versions from the list of versions we support"""
+    return [version for version in SUPPORT_PYTHON_VERSIONS if min_version <= version <= max_version]
+
+
 venv = Venv(
-    pkgs={
-        "mock": latest,
-        "pytest": latest,
-        "coverage": latest,
-        "pytest-cov": latest,
-        "opentracing": latest,
-    },
+    pkgs={"mock": latest, "pytest": latest, "coverage": latest, "pytest-cov": latest, "opentracing": latest},
     venvs=[
-        Venv(
-            name="black",
-            command="black --check .",
-            venvs=[
-                Venv(
-                    pys=3.8,
-                    pkgs={
-                        "black": "==20.8b1",
-                    },
-                ),
-            ],
-        ),
+        Venv(name="black", command="black --check .", venvs=[Venv(pys=3.8, pkgs={"black": "==20.8b1"})]),
         Venv(
             name="flake8",
             command="flake8 ddtrace/ tests/",
@@ -39,34 +30,13 @@ venv = Venv(
                 ),
             ],
         ),
-        Venv(
-            name="tracer",
-            command="pytest tests/tracer/",
-            venvs=[
-                Venv(
-                    pys=[
-                        2.7,
-                        3.5,
-                        3.6,
-                        3.7,
-                        3.8,
-                        3.9,
-                    ],
-                    pkgs={"msgpack": latest},
-                ),
-            ],
-        ),
+        Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
             name="pymongo",
             command="pytest tests/contrib/pymongo",
             venvs=[
                 Venv(
-                    pys=[
-                        2.7,
-                        3.5,
-                        3.6,
-                        3.7,
-                    ],
+                    pys=select_pys(max_version=3.7),
                     pkgs={
                         "pymongo": [
                             ">=3.0,<3.1",
@@ -86,10 +56,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[
-                        3.8,
-                        3.9,
-                    ],
+                    pys=select_pys(min_version=3.8),
                     pkgs={
                         "pymongo": [
                             ">=3.0,<3.1",
@@ -122,7 +89,7 @@ venv = Venv(
             command="pytest tests/contrib/django",
             venvs=[
                 Venv(
-                    pys=[2.7, 3.5, 3.6],
+                    pys=select_pys(max_version=3.6),
                     pkgs={
                         "django": [">=1.8,<1.9", ">=1.11,<1.12"],
                         "django-pylibmc": ">=0.6,<0.7",
@@ -146,7 +113,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.6, 3.7, 3.8],
+                    pys=select_pys(min_version=3.6),
                     pkgs={
                         "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", latest],
                         "django-pylibmc": ">=0.6,<0.7",
@@ -158,7 +125,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[2.7, 3.5, 3.6],
+                    pys=select_pys(max_version=3.6),
                     env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
                     pkgs={
                         "pytest-django": "==3.10.0",
@@ -174,7 +141,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.6, 3.7, 3.8],
+                    pys=select_pys(min_version=3.6),
                     env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
                     pkgs={
                         "pytest-django": "==3.10.0",
@@ -188,7 +155,7 @@ venv = Venv(
             command="pytest tests/contrib/djangorestframework",
             venvs=[
                 Venv(
-                    pys=[2.7, 3.5, 3.6],
+                    pys=select_pys(max_version=3.6),
                     pkgs={
                         "django": "==1.11",
                         "djangorestframework": [">=3.4,<3.5", ">=3.7,<3.8"],
@@ -196,7 +163,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.5, 3.6, 3.7],
+                    pys=select_pys(min_version=3.5),
                     pkgs={
                         "django": ">=2.2,<2.3",
                         "djangorestframework": [">=3.8,<3.9", ">=3.9,<3.10", latest],
@@ -204,7 +171,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.6, 3.7, 3.8],
+                    pys=select_pys(min_version=3.6),
                     pkgs={
                         "django": ">=3.0,<3.1",
                         "djangorestframework": ">=3.10,<3.11",
@@ -212,7 +179,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.6, 3.7, 3.8],
+                    pys=select_pys(min_version=3.6),
                     pkgs={
                         "django": latest,
                         "djangorestframework": ">=3.11,<3.12",
@@ -226,7 +193,7 @@ venv = Venv(
             command="pytest tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    pys=[2.7, 3.5, 3.6, 3.7, 3.8, 3.9],
+                    pys=select_pys(),
                     pkgs={
                         "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
                         "moto": ">=1.0,<2.0",
@@ -239,7 +206,7 @@ venv = Venv(
             command="pytest tests/contrib/starlette",
             venvs=[
                 Venv(
-                    pys=[3.6, 3.7, 3.8, 3.9],
+                    pys=select_pys(min_version=3.6),
                     pkgs={
                         "starlette": [">=0.13,<0.14", ">=0.14,<0.15", latest],
                         "httpx": latest,
@@ -258,14 +225,7 @@ venv = Venv(
             command="pytest tests/contrib/requests",
             venvs=[
                 Venv(
-                    pys=[
-                        2.7,
-                        3.5,
-                        3.6,
-                        3.7,
-                        3.8,
-                        3.9,
-                    ],
+                    pys=select_pys(),
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
@@ -285,28 +245,12 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest tests/contrib/boto",
-            venvs=[
-                Venv(
-                    pys=[2.7, 3.5, 3.6],
-                    pkgs={
-                        "boto": latest,
-                        "moto": ["<1.0"],
-                    },
-                ),
-            ],
+            venvs=[Venv(pys=select_pys(), pkgs={"boto": latest, "moto": ["<1.0"]})],
         ),
         Venv(
             name="botocore",
             command="pytest tests/contrib/botocore",
-            venvs=[
-                Venv(
-                    pys=[2.7, 3.5, 3.6, 3.7, 3.8, 3.9],
-                    pkgs={
-                        "botocore": latest,
-                        "moto": [">=1.0,<2.0"],
-                    },
-                ),
-            ],
+            venvs=[Venv(pys=select_pys(), pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]})],
         ),
     ],
 )
