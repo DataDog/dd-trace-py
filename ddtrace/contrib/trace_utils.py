@@ -52,7 +52,7 @@ def with_traced_module(func):
     return with_mod
 
 
-def int_service(pin, config, default=None):
+def int_service(pin, int_config, default=None):
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -60,7 +60,7 @@ def int_service(pin, config, default=None):
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
-    config = config or {}
+    int_config = int_config or {}
 
     # Pin has top priority since it is user defined in code
     if pin and pin.service:
@@ -69,38 +69,38 @@ def int_service(pin, config, default=None):
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
-    if "service" in config and config.service is not None:
-        return config.service
-    if "service_name" in config and config.service_name is not None:
-        return config.service_name
+    if "service" in int_config and int_config.service is not None:
+        return int_config.service
+    if "service_name" in int_config and int_config.service_name is not None:
+        return int_config.service_name
 
-    global_service = config.global_config._get_service()
+    global_service = int_config.global_config._get_service()
     if global_service:
         return global_service
 
-    if "_default_service" in config and config._default_service is not None:
-        return config._default_service
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return int_config._default_service
 
     return default
 
 
-def ext_service(pin, config, default=None):
+def ext_service(pin, int_config, default=None):
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
     """
-    config = config or {}
+    int_config = int_config or {}
 
     if pin and pin.service:
         return pin.service
 
-    if "service" in config and config.service is not None:
-        return config.service
-    if "service_name" in config and config.service_name is not None:
-        return config.service_name
+    if "service" in int_config and int_config.service is not None:
+        return int_config.service
+    if "service_name" in int_config and int_config.service_name is not None:
+        return int_config.service_name
 
-    if "_default_service" in config and config._default_service is not None:
-        return config._default_service
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return int_config._default_service
 
     # A default is required since it's an external service.
     return default
@@ -122,6 +122,7 @@ def is_error_code(status_code):
         for error_range in error_ranges:
             values = error_range.split("-")
             min_code = int(values[0])
+
             if len(values) == 2:
                 max_code = int(values[1])
             else:
@@ -130,6 +131,7 @@ def is_error_code(status_code):
                 tmp = min_code
                 min_code = max_code
                 max_code = tmp
+
             if min_code <= int(status_code) <= max_code:
                 return True
     except AttributeError:
@@ -138,7 +140,7 @@ def is_error_code(status_code):
     return False
 
 
-def set_http_meta(span, config, method=None, url=None, status_code=None):
+def set_http_meta(span, int_config, method=None, url=None, status_code=None):
     if method is not None:
         span._set_str_tag(http.METHOD, method)
     if url is not None:

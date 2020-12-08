@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace import Pin, Tracer
+from ddtrace import Pin, Tracer, config
 from ddtrace.settings import Config
 from ddtrace.ext import http
 from ddtrace.compat import stringify
@@ -11,7 +11,7 @@ from tests.tracer.test_tracer import get_dummy_tracer
 
 
 @pytest.fixture
-def config():
+def int_config():
     c = Config()
     c._add("myint", dict())
     return c
@@ -43,25 +43,25 @@ def span(tracer):
         (Pin(service="pin-svc"), "config-svc", "default-svc", None, "pin-svc"),
     ],
 )
-def test_int_service(config, pin, config_val, default, global_service, expected):
+def test_int_service(int_config, pin, config_val, default, global_service, expected):
     if config_val:
-        config.myint.service = config_val
+        int_config.myint.service = config_val
 
     if global_service:
-        config.service = global_service
+        int_config.service = global_service
 
-    assert trace_utils.int_service(pin, config.myint, default) == expected
+    assert trace_utils.int_service(pin, int_config.myint, default) == expected
 
 
-def test_int_service_integration(config):
+def test_int_service_integration(int_config):
     pin = Pin()
     tracer = Tracer()
-    assert trace_utils.int_service(pin, config.myint) is None
+    assert trace_utils.int_service(pin, int_config.myint) is None
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(pin, config.myint) is None
+        assert trace_utils.int_service(pin, int_config.myint) is None
 
-        with tracer.trace("something", service=trace_utils.int_service(pin, config.myint)) as s:
+        with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
             assert s.service == "global-svc"
 
 
@@ -74,11 +74,11 @@ def test_int_service_integration(config):
         (Pin(service="pin-svc"), "config-svc", "default-svc", "pin-svc"),
     ],
 )
-def test_ext_service(config, pin, config_val, default, expected):
+def test_ext_service(int_config, pin, config_val, default, expected):
     if config_val:
-        config.myint.service = config_val
+        int_config.myint.service = config_val
 
-    assert trace_utils.ext_service(pin, config.myint, default) == expected
+    assert trace_utils.ext_service(pin, int_config.myint, default) == expected
 
 
 @pytest.mark.parametrize(
@@ -89,8 +89,8 @@ def test_ext_service(config, pin, config_val, default, expected):
         (None, None, None),
     ],
 )
-def test_set_http_meta(span, config, method, url, status_code):
-    trace_utils.set_http_meta(span, config, method=method, url=url, status_code=status_code)
+def test_set_http_meta(span, int_config, method, url, status_code):
+    trace_utils.set_http_meta(span, int_config, method=method, url=url, status_code=status_code)
     if method is not None:
         assert span.meta[http.METHOD] == method
     else:
