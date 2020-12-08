@@ -1,11 +1,11 @@
 from riot import Venv, latest
 
-SUPPORT_PYTHON_VERSIONS = [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
+SUPPORTED_PYTHON_VERSIONS = [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
 
 
-def select_pys(min_version=min(SUPPORT_PYTHON_VERSIONS), max_version=max(SUPPORT_PYTHON_VERSIONS)):
+def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPORTED_PYTHON_VERSIONS)):
     """Helper to select python versions from the list of versions we support"""
-    return [version for version in SUPPORT_PYTHON_VERSIONS if min_version <= version <= max_version]
+    return [version for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
 venv = Venv(
