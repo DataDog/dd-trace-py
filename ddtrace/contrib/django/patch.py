@@ -435,7 +435,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     method=request.method,
                     url=url,
                     status_code=status,
-                    query=request_headers["QUERY_STRING"],
+                    query=request.META["QUERY_STRING"],
                     request_headers=request_headers,
                     response_headers=response_headers,
                 )
