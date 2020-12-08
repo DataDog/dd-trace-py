@@ -110,6 +110,7 @@ def test_set_http_meta(span, config, method, url, status_code):
     else:
         assert http.STATUS_CODE not in span.meta
 
+
 @pytest.mark.parametrize(
     "error_codes,status_code,error",
     [
