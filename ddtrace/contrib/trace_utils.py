@@ -108,7 +108,7 @@ def ext_service(pin, config, default=None):
 
 def is_error_code(status_code):
     """Returns a boolean representing whether or not a status code is an error code.
-    Error status codes by default are 500-599. 
+    Error status codes by default are 500-599.
     You may also enable custom error codes::
 
         from ddtrace import config
