@@ -245,7 +245,7 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(), pkgs={"boto": latest, "moto": ["<1.0"]})],
+            venvs=[Venv(pys=select_pys(max_version=3.6), pkgs={"boto": latest, "moto": ["<1.0"]})],
         ),
         Venv(
             name="botocore",
