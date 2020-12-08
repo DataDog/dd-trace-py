@@ -93,6 +93,12 @@ commands:
     steps:
       - run: pip install -U tox
 
+  setup_riot:
+    description: "Install riot"
+    steps:
+      # Make sure we install and run riot on Python 3
+      - run: pip3 install -U riot
+
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
     steps:
@@ -146,14 +152,15 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
-            - run: pip3 install riot==0.2
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
+                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: pip install tox && tox -e 'wait' << parameters.wait >>
+                      command: tox -e 'wait' << parameters.wait >>
+            - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
             - save_codecov
@@ -295,7 +302,7 @@ jobs:
     parallelism: 6
     steps:
       - checkout
-      - run: pip install riot==0.2
+      - setup_riot
       - run:
           name: "Generate base virtual environments."
           command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
