@@ -26,7 +26,7 @@ static memalloc_context_t global_memalloc_ctx;
 typedef struct
 {
     /* List of traceback */
-    traceback_list_t allocs;
+    traceback_array_t allocs;
     /* Total number of allocations */
     uint64_t alloc_count;
 } alloc_tracker_t;
@@ -56,7 +56,7 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
         if (tb)
-            traceback_list_append_traceback(&global_alloc_tracker->allocs, tb);
+            traceback_array_append(&global_alloc_tracker->allocs, tb);
     } else {
         /* Sampling mode using a reservoir sampling algorithm */
         uint64_t r = random_range(global_alloc_tracker->alloc_count);
@@ -65,8 +65,8 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size);
             if (tb) {
-                traceback_free(global_alloc_tracker->allocs.tracebacks[r]);
-                global_alloc_tracker->allocs.tracebacks[r] = tb;
+                traceback_free(global_alloc_tracker->allocs.tab[r]);
+                global_alloc_tracker->allocs.tab[r] = tb;
             }
         }
     }
@@ -129,14 +129,14 @@ alloc_tracker_new()
 {
     alloc_tracker_t* alloc_tracker = PyMem_RawMalloc(sizeof(alloc_tracker_t));
     alloc_tracker->alloc_count = 0;
-    traceback_list_init(&alloc_tracker->allocs, global_memalloc_ctx.max_events);
+    traceback_array_init(&alloc_tracker->allocs);
     return alloc_tracker;
 }
 
 static void
 alloc_tracker_free(alloc_tracker_t* alloc_tracker)
 {
-    traceback_list_wipe(&alloc_tracker->allocs);
+    traceback_array_wipe(&alloc_tracker->allocs);
     PyMem_RawFree(alloc_tracker);
 }
 
@@ -169,8 +169,8 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
 
-    if (max_events < 1 || max_events > TRACEBACK_LIST_MAX_COUNT) {
-        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %lu]", TRACEBACK_LIST_MAX_COUNT);
+    if (max_events < 1 || max_events > TRACEBACK_ARRAY_MAX_COUNT) {
+        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %lu]", TRACEBACK_ARRAY_MAX_COUNT);
         return NULL;
     }
 
@@ -300,7 +300,7 @@ static PyObject*
 iterevents_next(IterEventsState* iestate)
 {
     if (iestate->seq_index < iestate->alloc_tracker->allocs.count) {
-        traceback_t* tb = iestate->alloc_tracker->allocs.tracebacks[iestate->seq_index];
+        traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
         iestate->seq_index++;
 
         PyObject* tb_and_size = PyTuple_New(2);
