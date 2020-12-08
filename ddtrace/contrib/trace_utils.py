@@ -106,26 +106,27 @@ def ext_service(pin, config, default=None):
     return default
 
 
-def get_error_codes():
-    error_codes = []
+def is_error_code(status_code):
     try:
         error_str = config.http_server.error_statuses
+        error_ranges = error_str.split(",")
+        for error_range in error_ranges:
+            values = error_range.split("-")
+            min_code = int(values[0])
+            if len(values) == 2:
+                max_code = int(values[1])
+            else:
+                max_code = min_code
+            if min_code > max_code:
+                tmp = min_code
+                min_code = max_code
+                max_code = tmp
+            if min_code <= int(status_code) <= max_code:
+                return True
     except AttributeError:
-        return [[500, 599]]
-    error_ranges = error_str.split(",")
-    for error_range in error_ranges:
-        values = error_range.split("-")
-        min_code = int(values[0])
-        if len(values) == 2:
-            max_code = int(values[1])
-        else:
-            max_code = min_code
-        if min_code > max_code:
-            tmp = min_code
-            min_code = max_code
-            max_code = tmp
-        error_codes.append([min_code, max_code])
-    return error_codes
+        if 500 <= int(status_code) <= 599:
+            return True
+    return False
 
 
 def set_http_meta(span, config, method=None, url=None, status_code=None):
@@ -135,5 +136,5 @@ def set_http_meta(span, config, method=None, url=None, status_code=None):
         span._set_str_tag(http.URL, url)
     if status_code is not None:
         span._set_str_tag(http.STATUS_CODE, status_code)
-        if 500 <= int(status_code) < 600:
+        if is_error_code(status_code):
             span.error = 1
