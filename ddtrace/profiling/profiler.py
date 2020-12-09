@@ -247,6 +247,8 @@ class _ProfilerInstance(_service.Service):
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
                 ),
+                # Do not limit the heap sample size as the number of events is relative to allocated memory anyway
+                memalloc.MemoryHeapSampleEvent: None,
             },
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
