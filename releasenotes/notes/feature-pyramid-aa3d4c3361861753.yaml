@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Store request and response headers in the pyramid integration.
