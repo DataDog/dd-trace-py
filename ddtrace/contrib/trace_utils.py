@@ -1,4 +1,3 @@
-
 """
 This module contains utility functions for writing ddtrace integrations.
 """
