@@ -21,7 +21,6 @@ def trace_middleware(app, handler):
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
     instance both to the Task and to the Request objects. In this way:
-
     * the Task is used by the internal automatic instrumentation
     * the ``Context`` attached to the request can be freely used in the application code
     """
@@ -100,15 +99,24 @@ def on_prepare(request, response):
 
     request_span.resource = resource
 
-    url = request.url.with_query(None)
-    trace_utils.set_http_meta(request_span, config.aiohttp, method=request.method, url=url, status_code=response.status)
-
     # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
     if trace_query_string is None:
         trace_query_string = config.http.trace_query_string
     if trace_query_string:
         request_span.set_tag(http.QUERY_STRING, request.query_string)
+
+    url = request.url.with_query(None)
+    trace_utils.set_http_meta(
+        request_span,
+        config.aiohttp,
+        method=request.method,
+        url=url,
+        status_code=response.status,
+        request_headers=request.headers,
+        response_headers=response.headers,
+    )
+
     request_span.finish()
 
 
@@ -116,7 +124,6 @@ def trace_app(app, tracer, service="aiohttp-web"):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
-
     :param app: aiohttp application to trace
     :param tracer: tracer instance to use
     :param service: service name of tracer
