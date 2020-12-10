@@ -117,29 +117,15 @@ def is_error_code(status_code):
     Ranges and singular error codes are permitted and can be separated using commas.
     """
     try:
-        error_str = config.http_server.error_statuses
+        error_str = config.http_server.error_statuses.strip()
         error_ranges = error_str.split(",")
         for error_range in error_ranges:
             values = error_range.split("-")
-            min_code_str = values[0].strip()
-
-            if len(values) == 2:
-                max_code_str = values[1].strip()
-            else:
-                max_code_str = min_code_str
-
-            if min_code_str.isnumeric() and max_code_str.isnumeric():
-                min_code = int(min_code_str)
-                max_code = int(max_code_str)
-            else:
+            try:
+                values = [int(v) for v in values]
+            except ValueError:
                 continue
-
-            if min_code > max_code:
-                tmp = min_code
-                min_code = max_code
-                max_code = tmp
-
-            if min_code <= int(status_code) <= max_code:
+            if min(values) <= int(status_code) <= max(values):
                 return True
     except AttributeError:
         if 500 <= int(status_code) <= 599:
