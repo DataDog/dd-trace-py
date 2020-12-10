@@ -126,7 +126,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         )
         query = urlencode(dict(request.params))
         trace_utils.set_http_meta(
-            span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
+            span, config.molten, method=request.method, url=url, query=query,
         )
 
         span.set_tag("molten.version", molten.__version__)
