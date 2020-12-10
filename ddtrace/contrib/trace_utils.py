@@ -121,12 +121,19 @@ def is_error_code(status_code):
         error_ranges = error_str.split(",")
         for error_range in error_ranges:
             values = error_range.split("-")
-            min_code = int(values[0])
+            min_code_str = values[0].strip()
 
             if len(values) == 2:
-                max_code = int(values[1])
+                max_code_str = values[1].strip()
             else:
-                max_code = min_code
+                max_code_str = min_code_str
+
+            if min_code_str.isnumeric() and max_code_str.isnumeric():
+                min_code = int(min_code_str)
+                max_code = int(max_code_str)
+            else:
+                continue
+
             if min_code > max_code:
                 tmp = min_code
                 min_code = max_code
@@ -137,6 +144,7 @@ def is_error_code(status_code):
     except AttributeError:
         if 500 <= int(status_code) <= 599:
             return True
+
     return False
 
 

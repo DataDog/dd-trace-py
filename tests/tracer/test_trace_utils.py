@@ -121,6 +121,7 @@ def test_set_http_meta(span, int_config, method, url, status_code):
         ("500-550         ", 530, 1),
         ("400-404,419", 419, 1),
         ("400,401,403", 401, 1),
+        ("400-404,X", 0, 0),
     ],
 )
 def test_set_http_meta_custom_errors(span, int_config, error_codes, status_code, error):
