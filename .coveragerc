@@ -1,5 +1,13 @@
 [run]
+branch = true
+dynamic_context = test_function
 omit = ddtrace/vendor/*
+
+[html]
+show_contexts = true
+
+[json]
+show_contexts = true
 
 [paths]
 source =
