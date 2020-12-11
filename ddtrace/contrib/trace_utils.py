@@ -118,18 +118,18 @@ def set_http_meta(
     response_headers=None,
 ):
     if method is not None:
-        span.meta[http.METHOD] = str(method)
+        span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        span.meta[http.URL] = stringify(url)
+        span._set_str_tag(http.URL, url)
 
     if status_code is not None:
-        span.meta[http.STATUS_CODE] = str(status_code)
+        span._set_str_tag(http.STATUS_CODE, status_code)
         if 500 <= int(status_code) <= 599:
             span.error = 1
 
     if query is not None and integration_config.trace_query_string:
-        span.meta[http.QUERY_STRING] = str(query)
+        span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers is not None:
         store_request_headers(dict(request_headers), span, integration_config)
