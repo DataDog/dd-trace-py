@@ -7,6 +7,7 @@ import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+from ..compat import stringify
 
 log = get_logger(__name__)
 
