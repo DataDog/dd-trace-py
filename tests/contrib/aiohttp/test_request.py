@@ -106,7 +106,7 @@ class TestRequestTracing(TraceTestCase):
     @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_http_request_header_tracing(self):
         config.aiohttp.http.trace_headers(["my-header"])
-        request = yield from self.client.request("GET", "/template/", headers={"my-header": "my_value"})
+        self.client.request("GET", "/template/", headers={"my-header": "my_value"})
 
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
