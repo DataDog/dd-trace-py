@@ -4,6 +4,7 @@ from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
 from .. import trace_utils
+from ddtrace.http import store_request_headers
 from ddtrace import config
 
 import flask.templating
@@ -124,7 +125,7 @@ class TraceMiddleware(object):
             return
 
         code = response.status_code if response else ""
-        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=response.headers)
+        trace_utils.set_http_meta(span, config.flask, status_code=code)
         span.set_tag(http.STATUS_CODE, code)
 
     def _request_exception(self, *args, **kwargs):
