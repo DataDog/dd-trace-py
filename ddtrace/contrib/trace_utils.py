@@ -21,17 +21,13 @@ store_response_headers = ddtrace.http.store_response_headers
 def with_traced_module(func):
     """Helper for providing tracing essentials (module and pin) for tracing
     wrappers.
-
     This helper enables tracing wrappers to dynamically be disabled when the
     corresponding pin is disabled.
-
     Usage::
-
         @with_traced_module
         def my_traced_wrapper(django, pin, func, instance, args, kwargs):
             # Do tracing stuff
             pass
-
         def patch():
             import django
             wrap(django.somefunc, my_traced_wrapper(django))
@@ -56,7 +52,6 @@ def int_service(pin, config, default=None):
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
-
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
@@ -106,12 +101,32 @@ def ext_service(pin, config, default=None):
     return default
 
 
-def set_http_meta(span, config, method=None, url=None, status_code=None):
+def set_http_meta(
+    span,
+    integration_config,
+    method=None,
+    url=None,
+    status_code=None,
+    query=None,
+    request_headers=None,
+    response_headers=None,
+):
     if method is not None:
         span._set_str_tag(http.METHOD, method)
+
     if url is not None:
         span._set_str_tag(http.URL, url)
+
     if status_code is not None:
         span._set_str_tag(http.STATUS_CODE, status_code)
-        if 500 <= int(status_code) < 600:
+        if 500 <= int(status_code) <= 599:
             span.error = 1
+
+    if query is not None and integration_config.trace_query_string:
+        span._set_str_tag(http.QUERY_STRING, query)
+
+    if request_headers is not None:
+        store_request_headers(dict(request_headers), span, integration_config)
+
+    if response_headers is not None:
+        store_response_headers(dict(response_headers), span, integration_config)
