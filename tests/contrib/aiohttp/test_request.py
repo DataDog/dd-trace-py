@@ -103,15 +103,15 @@ class TestRequestTracing(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
-    @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_http_request_header_tracing(self):
         config.aiohttp.http.trace_headers(["my-header"])
-        self.client.request("GET", "/template/", headers={"my-header": "my_value"})
+        request = yield from self.client.request("GET", "/template/", headers={"my-header": "my_value"})
+        yield from request.text()
 
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
 
         request_span = traces[0][0]
-        assert request_span.service == "mysvc"
+        assert request_span.service == "aiohttp-web"
         assert request_span.get_tag("http.request.headers.my-header") == "my_value"
