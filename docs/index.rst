@@ -163,3 +163,4 @@ Indices and tables
     advanced_usage
     contributing
     release_notes
+    troubleshooting

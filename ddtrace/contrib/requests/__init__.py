@@ -34,7 +34,7 @@ The library can be configured globally and per instance, using the Configuration
 from ...utils.importlib import require_modules
 
 
-required_modules = ['requests']
+required_modules = ["requests"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -42,7 +42,7 @@ with require_modules(required_modules) as missing_modules:
         from .session import TracedSession
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'TracedSession',
+            "patch",
+            "unpatch",
+            "TracedSession",
         ]

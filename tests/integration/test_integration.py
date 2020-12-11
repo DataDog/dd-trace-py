@@ -13,13 +13,8 @@ from ddtrace.internal.runtime import container
 
 from tests import TracerTestCase, snapshot, AnyInt, override_global_config
 
-agent_version = os.environ.get("AGENT_VERSION")
-if agent_version == "5":
-    AGENT_VERSION = "v5"
-elif agent_version == "testagent":
-    AGENT_VERSION = "testagent"
-else:
-    AGENT_VERSION = "latest"
+
+AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def test_configure_keeps_api_hostname_and_port():
