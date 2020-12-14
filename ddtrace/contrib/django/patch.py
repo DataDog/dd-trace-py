@@ -15,7 +15,6 @@ from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
-from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
@@ -92,17 +91,6 @@ def instrument_dbs(django):
 
 def _set_request_tags(django, span, request):
     span.set_tag("django.request.class", func_name(request))
-
-    if django.VERSION >= (2, 2, 0):
-        headers = request.headers
-    else:
-        headers = {}
-        for header, value in request.META.items():
-            name = from_wsgi_header(header)
-            if name:
-                headers[name] = value
-
-    store_request_headers(headers, span, config.django)
 
     user = getattr(request, "user", None)
     if user is not None:
@@ -379,9 +367,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-            if config.django.http.trace_query_string:
-                span.set_tag(http.QUERY_STRING, request_headers["QUERY_STRING"])
-
             # Not a 404 request
             if resolver_match:
                 span.set_tag("django.view", resolver_match.view_name)
@@ -433,9 +418,27 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     utils.set_tag_array(span, "django.response.template", template_names)
 
                 url = utils.get_request_uri(request)
-                trace_utils.set_http_meta(span, config.django, method=request.method, url=url, status_code=status)
-                headers = dict(response.items())
-                store_response_headers(headers, span, config.django)
+
+                if django.VERSION >= (2, 2, 0):
+                    request_headers = request.headers
+                else:
+                    request_headers = {}
+                    for header, value in request.META.items():
+                        name = from_wsgi_header(header)
+                        if name:
+                            request_headers[name] = value
+
+                response_headers = dict(response.items())
+                trace_utils.set_http_meta(
+                    span,
+                    config.django,
+                    method=request.method,
+                    url=url,
+                    status_code=status,
+                    query=request.META["QUERY_STRING"],
+                    request_headers=request_headers,
+                    response_headers=response_headers,
+                )
 
             return response
 
