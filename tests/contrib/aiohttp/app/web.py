@@ -23,6 +23,13 @@ def name(request):
 
 
 @asyncio.coroutine
+def response_headers(request):
+    response = web.Response(text="response_headers_test")
+    response.headers["my-response-header"] = "my_response_value"
+    return response
+
+
+@asyncio.coroutine
 def coroutine_chaining(request):
     tracer = get_tracer(request)
     span = tracer.trace("aiohttp.coro_1")
@@ -142,6 +149,7 @@ def setup_app(loop):
     app.router.add_get("/template/", template_handler)
     app.router.add_get("/template_decorator/", template_decorator)
     app.router.add_get("/template_error/", template_error)
+    app.router.add_get("/response_headers/", response_headers)
 
     return app
 
