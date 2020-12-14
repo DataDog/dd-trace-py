@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    bottle: Store request and response headers.
+    bottle: store request and response headers.
