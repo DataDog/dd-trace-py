@@ -493,7 +493,9 @@ class TraceBottleTest(TracerTestCase):
         self._trace_app()
 
         # make a request
-        resp = self.app.get("/home/",)
+        resp = self.app.get(
+            "/home/",
+        )
         assert resp.status_int == 200
         # validate it's traced
         spans = self.tracer.writer.pop()
