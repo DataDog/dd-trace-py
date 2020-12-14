@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 import pytest
 
 import ddtrace
@@ -195,3 +199,19 @@ def test_copy():
     assert p.version == c.version
     assert p.service == c.service
     assert p.tracer == c.tracer
+
+
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
+@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not support Python 2")
+def test_gevent_warning(monkeypatch):
+    # Set a very short timeout to exit fast
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    subp = subprocess.Popen(
+        ("python", os.path.join(os.path.dirname(__file__), "wrong_program_gevent.py")),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+    )
+    assert subp.wait() == 0
+    assert subp.stdout.read() == b""
+    assert b"RuntimeWarning: Starting the profiler before using gevent" in subp.stderr.read()
