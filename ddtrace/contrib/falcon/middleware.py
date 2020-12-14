@@ -1,7 +1,6 @@
 import sys
 
 from ddtrace.ext import SpanTypes, http as httpx
-from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
@@ -37,12 +36,9 @@ class TraceMiddleware(object):
         # set analytics sample rate with global config enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))
 
-        trace_utils.set_http_meta(span, config.falcon, method=req.method, url=req.url)
-        if config.falcon.trace_query_string:
-            span.set_tag(httpx.QUERY_STRING, req.query_string)
-
-        # Note: any request header set after this line will not be stored in the span
-        store_request_headers(req.headers, span, config.falcon)
+        trace_utils.set_http_meta(
+            span, config.falcon, method=req.method, url=req.url, query=req.query_string, request_headers=req.headers
+        )
 
     def process_resource(self, req, resp, resource, params):
         span = self.tracer.current_span()
@@ -58,9 +54,6 @@ class TraceMiddleware(object):
             return  # unexpected
 
         status = httpx.normalize_status_code(resp.status)
-
-        # Note: any response header set after this line will not be stored in the span
-        store_response_headers(resp._headers, span, config.falcon)
 
         # FIXME[matt] falcon does not map errors or unmatched routes
         # to proper status codes, so we we have to try to infer them
@@ -84,7 +77,7 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        trace_utils.set_http_meta(span, config.falcon, status_code=status)
+        trace_utils.set_http_meta(span, config.falcon, status_code=status, response_headers=resp._headers)
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
