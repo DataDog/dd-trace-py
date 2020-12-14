@@ -36,6 +36,18 @@ class TestPyramid(PyramidTestCase):
 
         assert s.get_tag("http.request.headers.my-header") == "my_value"
 
+    def test_http_response_header_tracing(self):
+        config.pyramid.http.trace_headers(["my-response-header"])
+
+        self.app.get("/")
+
+        # validate it's traced
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
 
 class TestPyramidDistributedTracingDefault(PyramidBase):
     instrument = True
