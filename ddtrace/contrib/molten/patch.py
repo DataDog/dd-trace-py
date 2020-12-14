@@ -6,7 +6,7 @@ import molten
 from ... import Pin, config
 from ...compat import urlencode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
 from ...utils.importlib import func_name
@@ -124,9 +124,15 @@ def patch_app_call(wrapped, instance, args, kwargs):
             request.port,
             request.path,
         )
-        trace_utils.set_http_meta(span, config.molten, method=request.method, url=url)
-        if config.molten.trace_query_string:
-            span.set_tag(http.QUERY_STRING, urlencode(dict(request.params)))
+        query = urlencode(dict(request.params))
+        trace_utils.set_http_meta(
+            span,
+            config.molten,
+            method=request.method,
+            url=url,
+            query=query,
+        )
+
         span.set_tag("molten.version", molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
