@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Store request and response headers in the bottle integration.
+    bottle: Store request and response headers.
