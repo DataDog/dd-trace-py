@@ -13,7 +13,7 @@ python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
-datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
+datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
@@ -93,6 +93,12 @@ commands:
     steps:
       - run: pip install -U tox
 
+  setup_riot:
+    description: "Install riot"
+    steps:
+      # Make sure we install and run riot on Python 3
+      - run: pip3 install -U riot
+
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
     steps:
@@ -146,14 +152,15 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
-            - run: pip3 install riot==0.2
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
+                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: pip install tox && tox -e 'wait' << parameters.wait >>
+                      command: tox -e 'wait' << parameters.wait >>
+            - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
             - save_codecov
@@ -249,9 +256,11 @@ deploy_docs_filters: &deploy_docs_filters
 datadog_agent: &datadog_agent
   image: *datadog_agent_image
   environment:
-    DD_APM_ENABLED: true
-    DD_BIND_HOST: 0.0.0.0
     DD_API_KEY: invalid_key_but_this_is_fine
+    DD_APM_ENABLED: true
+    DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
+    DD_BIND_HOST: 0.0.0.0
+    DD_LOG_LEVEL: DEBUG
 
 mysql_server: &mysql_server
   image: *mysql_image
@@ -295,7 +304,7 @@ jobs:
     parallelism: 6
     steps:
       - checkout
-      - run: pip install riot==0.2
+      - setup_riot
       - run:
           name: "Generate base virtual environments."
           command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
@@ -381,16 +390,38 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-profile'
 
-  integration:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-        environment:
-          TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
+  integration_agent5:
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-integration'
+      - checkout
+      - run: docker-compose up -d ddagent5
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
+
+  integration_agent:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: docker-compose up -d ddagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-latest'
+
+  integration_testagent:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
     <<: *contrib_job
@@ -410,13 +441,10 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d localstack testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
+      - run_test:
+          pattern: '^boto'  # run boto and botocore
+          snapshot: true
+          docker_services: "localstack"
 
   ddtracerun:
     <<: *contrib_job
@@ -908,7 +936,9 @@ requires_tests: &requires_tests
   - gevent
   - grpc
   - httplib
-  - integration
+  - integration_agent5
+  - integration_agent
+  - integration_testagent
   - vendor
   - profile
   - jinja2
@@ -1010,7 +1040,9 @@ workflows:
       - gevent: *requires_pre_test
       - grpc: *requires_pre_test
       - httplib: *requires_pre_test
-      - integration: *requires_pre_test
+      - integration_agent5: *requires_pre_test
+      - integration_agent: *requires_pre_test
+      - integration_testagent: *requires_pre_test
       - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test

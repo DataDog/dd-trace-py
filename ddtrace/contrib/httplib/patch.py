@@ -6,8 +6,7 @@ from ddtrace.vendor import wrapt, six
 # Project
 from ...compat import PY2, httplib, parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes, http as ext_http
-from ...http import store_request_headers, store_response_headers
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
@@ -50,8 +49,9 @@ def _wrap_getresponse(func, instance, args, kwargs):
             span = getattr(instance, "_datadog_span", None)
             if span:
                 if resp:
-                    trace_utils.set_http_meta(span, config.httplib, status_code=resp.status)
-                    store_response_headers(dict(resp.getheaders()), span, config.httplib)
+                    trace_utils.set_http_meta(
+                        span, config.httplib, status_code=resp.status, response_headers=resp.getheaders()
+                    )
 
                 span.finish()
                 delattr(instance, "_datadog_span")
@@ -125,11 +125,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
         sanitized_url = parse.urlunparse(
             (parsed.scheme, parsed.netloc, parsed.path, parsed.params, None, parsed.fragment)  # drop query
         )
-
-        trace_utils.set_http_meta(span, config.httplib, method=method, url=sanitized_url)
-
-        if config.httplib.trace_query_string:
-            span.set_tag(ext_http.QUERY_STRING, parsed.query)
+        trace_utils.set_http_meta(span, config.httplib, method=method, url=sanitized_url, query=parsed.query)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())
@@ -155,7 +151,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
 def _wrap_putheader(func, instance, args, kwargs):
     span = getattr(instance, "_datadog_span", None)
     if span:
-        store_request_headers({args[0]: args[1]}, span, config.httplib)
+        request_headers = {args[0]: args[1]}
+        trace_utils.set_http_meta(span, config.httplib, request_headers=request_headers)
 
     return func(*args, **kwargs)
 

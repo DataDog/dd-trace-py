@@ -4,9 +4,9 @@ import math
 import mock
 import subprocess
 import sys
+from unittest import TestCase, skip
 
-
-from unittest import TestCase, skip, skipUnless
+import pytest
 
 from ddtrace.vendor import six
 import ddtrace
@@ -16,12 +16,15 @@ from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
-from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION, numeric_types
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.payload import Payload
 from ddtrace.span import Span
 from ddtrace.compat import monotonic
 from tests.tracer.test_tracer import get_dummy_tracer
+
+
+AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 class MockedLogHandler(logging.Handler):
@@ -50,10 +53,6 @@ class FlawedAPI(API):
         return Response.from_http_response(conn.getresponse())
 
 
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
@@ -96,10 +95,7 @@ class TestWorkers(TestCase):
 
         return None, None
 
-    @skipUnless(
-        os.environ.get("TEST_DATADOG_INTEGRATION_UDS", False),
-        "You should have a running trace agent on a socket and set TEST_DATADOG_INTEGRATION_UDS=1 env variable",
-    )
+    @pytest.mark.skipif(AGENT_VERSION == "v5" or AGENT_VERSION == "testagent", reason="Agent doesn't support UDS")
     def test_worker_single_trace_uds(self):
         self.tracer.configure(uds_path="/tmp/ddagent/trace.sock")
         # Write a first trace so we get a _worker
@@ -185,6 +181,7 @@ class TestWorkers(TestCase):
         assert payload[0][0][b"name"] == b"client.testing"
         assert payload[0][1][b"name"] == b"client.testing"
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
@@ -225,10 +222,6 @@ class TestWorkers(TestCase):
         assert payload[0][0][b"name"] == b"testing.nonfilteredurl"
 
 
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
 class TestAPITransport(TestCase):
     """
     Ensures that traces are properly sent to a local agent. These are part
@@ -275,6 +268,7 @@ class TestAPITransport(TestCase):
         headers = params[3]
         assert expected_headers == headers
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def _send_traces_and_check(self, traces, nresponses=1):
         # test JSON encoder
         responses = self.api_json.send_traces(traces)
@@ -288,6 +282,7 @@ class TestAPITransport(TestCase):
         for response in responses:
             assert isinstance(response, Exception) or response.status == 200
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace("client.testing").finish()
@@ -296,6 +291,7 @@ class TestAPITransport(TestCase):
 
         self._send_traces_and_check(traces)
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_many_traces(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace("client.testing").finish()
@@ -305,6 +301,7 @@ class TestAPITransport(TestCase):
 
         self._send_traces_and_check(traces, 2)
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_single_trace_max_payload(self):
         payload = Payload()
 
@@ -330,6 +327,7 @@ class TestAPITransport(TestCase):
         assert len(logged_warnings) == 1
         assert "Trace is larger than the max payload size, dropping it" in logged_warnings[0]
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_multiple_trace_max_payload(self):
         payload = Payload()
 
@@ -359,6 +357,7 @@ class TestAPITransport(TestCase):
         assert len(logged_warnings) == 1
         assert "Trace is too big to fit in a payload, dropping it" in logged_warnings[0]
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_single_with_wrong_errors(self):
         # if the error field is set to True, it must be cast as int so
         # that the agent decoder handles that properly without providing
@@ -371,6 +370,7 @@ class TestAPITransport(TestCase):
 
         self._send_traces_and_check(traces)
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_multiple_traces(self):
         # register some traces and send them to the trace agent
         self.tracer.trace("client.testing").finish()
@@ -381,6 +381,7 @@ class TestAPITransport(TestCase):
 
         self._send_traces_and_check(traces)
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_single_trace_multiple_spans(self):
         # register some traces and send them to the trace agent
         with self.tracer.trace("client.testing"):
@@ -390,6 +391,7 @@ class TestAPITransport(TestCase):
 
         self._send_traces_and_check(traces)
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support json API.")
     def test_send_multiple_traces_multiple_spans(self):
         # register some traces and send them to the trace agent
         with self.tracer.trace("client.testing"):
@@ -405,10 +407,6 @@ class TestAPITransport(TestCase):
         self._send_traces_and_check(traces)
 
 
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
 class TestAPIDowngrade(TestCase):
     """
     Ensures that if the tracing client found an earlier trace agent,
@@ -436,10 +434,6 @@ class TestAPIDowngrade(TestCase):
         assert isinstance(api._encoder, JSONEncoder)
 
 
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
 class TestRateByService(TestCase):
     """
     Check we get feedback from the agent and we're able to process it.
@@ -454,6 +448,7 @@ class TestRateByService(TestCase):
         self.api_json = API("localhost", 8126, encoder=JSONEncoder(), priority_sampling=True)
         self.api_msgpack = API("localhost", 8126, encoder=MsgpackEncoder(), priority_sampling=True)
 
+    @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't yet support rate sampling.")
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace("client.testing").finish()
@@ -469,19 +464,17 @@ class TestRateByService(TestCase):
         responses = self.api_json.send_traces(traces)
         assert len(responses) == 1
         assert responses[0].status == 200
-        assert responses[0].get_json() == dict(rate_by_service={"service:,env:": 1})
+        resp = responses[0].get_json()
+        assert isinstance(resp["rate_by_service"]["service:,env:"], numeric_types)
 
         # test Msgpack encoder
         responses = self.api_msgpack.send_traces(traces)
         assert len(responses) == 1
         assert responses[0].status == 200
-        assert responses[0].get_json() == dict(rate_by_service={"service:,env:": 1})
+        resp = responses[0].get_json()
+        assert isinstance(resp["rate_by_service"]["service:,env:"], numeric_types)
 
 
-@skipUnless(
-    os.environ.get("TEST_DATADOG_INTEGRATION", False),
-    "You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable",
-)
 class TestConfigure(TestCase):
     """
     Ensures that when calling configure without specifying hostname and port,
