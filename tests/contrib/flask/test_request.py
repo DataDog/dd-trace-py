@@ -3,9 +3,8 @@ from ddtrace.compat import PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace import config
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-from flask import abort, Response
+from flask import abort
 
 from . import BaseFlaskTestCase
 from ... import assert_is_measured, assert_span_http_status_code
@@ -799,43 +798,3 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertTrue(user_ex_span.get_tag("error.msg").startswith("500 error"))
         self.assertTrue(user_ex_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(user_ex_span.get_tag("error.type"), base_exception_name)
-
-    def test_http_request_header_tracing(self):
-        config.flask.http.trace_headers(["my-header"])
-
-        @self.app.route("/")
-        def index():
-            return "Hello Flask", 200
-
-        res = self.client.get("/", headers={"my-header": "my_value"})
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data, b"Hello Flask")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 8)
-
-        # Root request span
-        req_span = spans[0]
-        assert_is_measured(req_span)
-        self.assertEqual(req_span.get_tag("http.request.headers.my-header"), "my_value")
-
-    def test_http_response_header_tracing(self):
-        config.flask.http.trace_headers(["my-response-header"])
-
-        @self.app.route("/")
-        def index():
-            resp = Response("Hello Flask")
-            resp.headers["my-response-header"] = "my_response_value"
-            return resp
-
-        res = self.client.get("/")
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data, b"Hello Flask")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 8)
-
-        # Root request span
-        req_span = spans[0]
-        assert_is_measured(req_span)
-        self.assertEqual(req_span.get_tag("http.response.headers.my-response-header"), "my_response_value")
