@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Store request and response headers in the flask integration.
+    flask: Store request and response headers.
