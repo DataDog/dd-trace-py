@@ -107,6 +107,7 @@ def trace_tween_factory(handler, registry):
                         response_headers = response.headers
                     else:
                         response_headers = None
+
                     trace_utils.set_http_meta(
                         span,
                         config.pyramid,
