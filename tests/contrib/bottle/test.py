@@ -480,3 +480,24 @@ class TraceBottleTest(TracerTestCase):
         s = spans[0]
 
         assert s.get_tag("http.request.headers.my-header") == "my_value"
+
+    def test_http_response_header_tracing(self):
+        config.bottle.http.trace_headers(["my-response-header"])
+
+        # setup our test app
+        @self.app.route("/home/")
+        def home():
+            bottle.response.headers["my-response-header"] = "my_response_value"
+            return "Hello world"
+
+        self._trace_app()
+
+        # make a request
+        resp = self.app.get("/home/",)
+        assert resp.status_int == 200
+        # validate it's traced
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
