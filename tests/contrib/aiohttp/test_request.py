@@ -8,6 +8,7 @@ from aiohttp.test_utils import unittest_run_loop
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace import config
 
 from .utils import TraceTestCase
 from ... import assert_is_measured
@@ -99,3 +100,33 @@ class TestRequestTracing(TraceTestCase):
 
         template_span = traces[0][1]
         assert template_span.service == "mysvc"
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_http_request_header_tracing(self):
+        config.aiohttp.http.trace_headers(["my-header"])
+        request = yield from self.client.request("GET", "/", headers={"my-header": "my_value"})
+        yield from request.text()
+
+        traces = self.tracer.writer.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert request_span.service == "aiohttp-web"
+        assert request_span.get_tag("http.request.headers.my-header") == "my_value"
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_http_response_header_tracing(self):
+        config.aiohttp.http.trace_headers(["my-response-header"])
+        request = yield from self.client.request("GET", "/response_headers/")
+        yield from request.text()
+
+        traces = self.tracer.writer.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+        assert request_span.service == "aiohttp-web"
+        assert request_span.get_tag("http.response.headers.my-response-header") == "my_response_value"

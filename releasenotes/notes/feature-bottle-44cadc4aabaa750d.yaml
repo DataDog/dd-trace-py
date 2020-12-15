@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    bottle: store request and response headers.
