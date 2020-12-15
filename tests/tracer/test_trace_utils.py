@@ -91,8 +91,6 @@ def test_ext_service(int_config, pin, config_val, default, expected):
         ("GET", "http://localhost/", 200, "search?q=test+query", {"my-header": "value1"}),
     ],
 )
-
-
 def test_set_http_meta(span, int_config, method, url, status_code, query, request_headers):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
@@ -125,6 +123,7 @@ def test_set_http_meta(span, int_config, method, url, status_code, query, reques
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
+
 
 @pytest.mark.parametrize(
     "error_codes,status_code,error",
