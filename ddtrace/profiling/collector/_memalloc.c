@@ -176,6 +176,9 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     global_memalloc_ctx.max_events = (uint16_t)max_events;
 
+    if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
+        return NULL;
+
     PyMemAllocatorEx alloc;
 
     alloc.malloc = memalloc_malloc;
@@ -186,8 +189,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     alloc.ctx = &global_memalloc_ctx;
 
     global_alloc_tracker = alloc_tracker_new();
-
-    memalloc_tb_init(global_memalloc_ctx.max_nframe);
 
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
