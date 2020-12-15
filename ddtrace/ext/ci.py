@@ -222,7 +222,6 @@ def extract_jenkins(env):
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
         git.REPOSITORY_URL: env.get("GIT_URL"),
         git.TAG: tag,
-        JOB_URL: env.get("JOB_URL"),
         PIPELINE_ID: env.get("BUILD_TAG"),
         PIPELINE_NAME: name,
         PIPELINE_NUMBER: env.get("BUILD_NUMBER"),

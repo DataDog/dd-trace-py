@@ -12,7 +12,6 @@
       "JOB_URL": "jenkins-job-url"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -37,7 +36,6 @@
       "JOB_URL": "jenkins-job-url"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -63,7 +61,6 @@
       "WORKSPACE": "foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -90,7 +87,6 @@
       "WORKSPACE": "/foo/bar~"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -117,7 +113,6 @@
       "WORKSPACE": "/foo/~/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -146,7 +141,6 @@
       "WORKSPACE": "~/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -175,7 +169,6 @@
       "WORKSPACE": "~foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -204,7 +197,6 @@
       "WORKSPACE": "~"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -231,7 +223,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -258,7 +249,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -285,7 +275,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName/another",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -312,7 +301,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -339,7 +327,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -366,7 +353,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -393,7 +379,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName/another-branch",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -419,7 +404,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.number": "jenkins-pipeline-number",
       "ci.pipeline.url": "jenkins-pipeline-url",
@@ -444,7 +428,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.number": "jenkins-pipeline-number",
       "ci.pipeline.url": "jenkins-pipeline-url",
@@ -470,7 +453,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -497,7 +479,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -524,7 +505,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -551,7 +531,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
@@ -578,7 +557,6 @@
       "WORKSPACE": "/foo/bar"
     },
     {
-      "ci.job.url": "jenkins-job-url",
       "ci.pipeline.id": "jenkins-pipeline-id",
       "ci.pipeline.name": "jobName",
       "ci.pipeline.number": "jenkins-pipeline-number",
