@@ -104,6 +104,9 @@ def trace_tween_factory(handler, registry):
                     # set response tags
                     if response:
                         status = response.status_code
+                        response_headers = response.headers
+                    else:
+                        response_headers = None
 
                     trace_utils.set_http_meta(
                         span,
@@ -112,6 +115,8 @@ def trace_tween_factory(handler, registry):
                         url=request.path_url,
                         status_code=status,
                         query=request.query_string,
+                        request_headers=request.headers,
+                        response_headers=response_headers,
                     )
                 return response
 

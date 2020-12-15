@@ -1,7 +1,7 @@
 import molten
 from molten.testing import TestClient
 
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors, http
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
@@ -333,3 +333,17 @@ class TestMolten(TracerTestCase):
         spans = self.tracer.writer.pop()
         for span in spans:
             assert span.service == "mysvc"
+
+    def test_http_request_header_tracing(self):
+        config.molten.http.trace_headers(["my-header"])
+        response = molten_client(
+            headers={
+                "my-header": "my_value",
+            }
+        )
+        self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        span = spans[0]
+        self.assertEqual(span.name, "molten.request")
+        self.assertEqual(span.get_tag("http.request.headers.my-header"), "my_value")
