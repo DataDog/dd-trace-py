@@ -80,7 +80,6 @@ services:
         - DD_API_KEY=invalid_but_this_is_fine
       ports:
         - "127.0.0.1:8126:8126"
-
     ddagent:
         image: datadog/agent:latest
         environment:

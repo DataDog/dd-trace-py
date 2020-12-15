@@ -179,6 +179,9 @@ setup(
                 "pyddprofile = ddtrace.profiling.__main__:main",
             ],
             "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
+            "gevent.plugins.monkey.did_patch_all": [
+                "ddtrace.profiling.profiler = ddtrace.profiling.profiler:gevent_patch_all",
+            ],
         },
         classifiers=[
             "Programming Language :: Python",

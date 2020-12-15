@@ -252,5 +252,25 @@ venv = Venv(
             command="pytest tests/contrib/botocore",
             venvs=[Venv(pys=select_pys(), pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]})],
         ),
+        Venv(
+            name="mongoengine",
+            command="pytest tests/contrib/mongoengine",
+            pkgs={
+                "pymongo": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        # 0.20 dropped support for Python 2.7
+                        "mongoengine": [">=0.15,<0.16", ">=0.16,<0.17", ">=0.17,<0.18", ">=0.18,<0.19"]
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.6),
+                    pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", latest]},
+                ),
+            ],
+        ),
     ],
 )

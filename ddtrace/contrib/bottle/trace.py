@@ -6,7 +6,7 @@ import ddtrace
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from .. import trace_utils
@@ -74,9 +74,15 @@ class TracePlugin(object):
 
                     method = request.method
                     url = request.urlparts._replace(query="").geturl()
-                    trace_utils.set_http_meta(s, config.bottle, method=method, url=url, status_code=response_code)
-
-                    if config.bottle.trace_query_string:
-                        s.set_tag(http.QUERY_STRING, request.query_string)
+                    trace_utils.set_http_meta(
+                        s,
+                        config.bottle,
+                        method=method,
+                        url=url,
+                        status_code=response_code,
+                        query=request.query_string,
+                        request_headers=request.headers,
+                        response_headers=response.headers,
+                    )
 
         return wrapped

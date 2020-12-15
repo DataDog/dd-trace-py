@@ -4,7 +4,6 @@ from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
 from .. import trace_utils
-from ddtrace.http import store_request_headers
 from ddtrace import config
 
 import flask.templating
@@ -125,6 +124,7 @@ class TraceMiddleware(object):
             return
 
         code = response.status_code if response else ""
+        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=response.headers)
         span.set_tag(http.STATUS_CODE, code)
 
     def _request_exception(self, *args, **kwargs):
@@ -156,11 +156,15 @@ class TraceMiddleware(object):
         method = ""
         endpoint = ""
         url = ""
+        query = ""
+        request_headers = ""
+
         if request:
-            store_request_headers(request.headers, span, config.flask)
             method = request.method
             endpoint = request.endpoint or code
             url = request.base_url or ""
+            query = request.query_string.decode() if hasattr(request.query_string, "decode") else request.query_string
+            request_headers = request.headers
 
         # Let users specify their own resource in middleware if they so desire.
         # See case https://github.com/DataDog/dd-trace-py/issues/353
@@ -168,7 +172,15 @@ class TraceMiddleware(object):
             resource = endpoint or code
             span.resource = compat.to_unicode(resource).lower()
 
-        trace_utils.set_http_meta(span, config.flask, method=method, url=compat.to_unicode(url), status_code=code)
+        trace_utils.set_http_meta(
+            span,
+            config.flask,
+            method=method,
+            url=compat.to_unicode(url),
+            status_code=code,
+            query=query,
+            request_headers=request_headers,
+        )
         span.finish()
 
 

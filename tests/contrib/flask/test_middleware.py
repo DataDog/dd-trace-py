@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
 import re
+from flask import make_response
 
 from unittest import TestCase
 
@@ -404,3 +405,22 @@ class TestFlask(TestCase):
 
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.request.headers.host") == "localhost"
+
+    def test_http_response_header_tracing(self):
+        config.flask.http.trace_headers(["my-response-header"])
+
+        @self.app.route("/response_headers")
+        def response_headers():
+            resp = make_response("Hello Flask")
+            resp.headers["my-response-header"] = "my_response_value"
+            return resp
+
+        self.client.get("/response_headers")
+
+        traces = self.tracer.writer.pop_traces()
+
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        span = traces[0][0]
+
+        assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"

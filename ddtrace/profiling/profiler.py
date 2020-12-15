@@ -3,6 +3,8 @@ import atexit
 import logging
 import os
 from typing import Optional, List
+import warnings
+import sys
 
 import ddtrace
 from ddtrace.profiling import recorder
@@ -55,6 +57,15 @@ ProfilerStatus.STOPPED = ProfilerStatus("stopped")
 ProfilerStatus.RUNNING = ProfilerStatus("running")
 
 
+def gevent_patch_all(event):
+    if "ddtrace.profiling.auto" in sys.modules:
+        warnings.warn(
+            "Starting the profiler before using gevent monkey patching is not supported "
+            "and is likely to break the application. Use DD_GEVENT_PATCH_ALL=true to avoid this.",
+            RuntimeWarning,
+        )
+
+
 class Profiler(object):
     """Run profiling while code is executed.
 
@@ -71,7 +82,6 @@ class Profiler(object):
 
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         :param profile_children: Whether to start a profiler in child processes.
-                                 The new profiler object will be stored in the `child` attribute.
         """
 
         self._profiler.start()
