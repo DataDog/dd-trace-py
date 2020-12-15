@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.internal.buffer import TraceBuffer
+from ddtrace.internal.buffer import BufferFull, BufferItemTooLarge, TraceBuffer
 
 
 def test_buffer_put_get():
@@ -35,20 +35,20 @@ def test_buffer_size_limit():
     for i in range(9):
         buf.put([0])
 
-    with pytest.raises(TraceBuffer.BufferFull):
+    with pytest.raises(BufferFull):
         buf.put([1])
 
-    with pytest.raises(TraceBuffer.BufferFull):
+    with pytest.raises(BufferFull):
         buf.put([1])
 
 
 def test_buffer_item_size_limit():
     buf = TraceBuffer(max_size=10, max_item_size=3)
 
-    with pytest.raises(TraceBuffer.BufferItemTooLarge):
+    with pytest.raises(BufferItemTooLarge):
         buf.put([i for i in range(10000)])
 
-    with pytest.raises(TraceBuffer.BufferItemTooLarge):
+    with pytest.raises(BufferItemTooLarge):
         buf.put([1, 2, 3, 4])
 
     buf.put([1, 2, 3])
@@ -72,7 +72,7 @@ def test_buffer_many_items():
     assert buf.size == 10000
     assert len(buf) == 200
 
-    with pytest.raises(TraceBuffer.BufferFull):
+    with pytest.raises(BufferFull):
         buf.put("1")
     items = buf.get()
     assert len(items) == 200

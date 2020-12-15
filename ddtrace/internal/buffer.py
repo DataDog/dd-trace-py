@@ -14,6 +14,13 @@ class BufferItemTooLarge(Exception):
 
 @attr.s
 class TraceBuffer(object):
+    """A thread-safe buffer for collecting encoded trace payloads to be sent to
+    a Datadog Agent.
+
+    :param max_size: The maximum size (in bytes) of the buffer.
+    :param max_item_size: The maximum size of any item in the buffer. It is necessary
+        to have an item limit as traces cannot be divided across trace payloads.
+    """
 
     max_size = attr.ib(type=int)
     max_item_size = attr.ib(type=int)
@@ -26,6 +33,7 @@ class TraceBuffer(object):
 
     @property
     def size(self):
+        """Return the size in bytes of the trace buffer."""
         with self._lock:
             return self._size
 
@@ -34,6 +42,10 @@ class TraceBuffer(object):
         self._size = 0
 
     def put(self, item):
+        """Put an item in the buffer.
+
+        The item should be an encoded trace (list of spans).
+        """
         item_len = len(item)
         if item_len > self.max_item_size or item_len > self.max_size:
             raise BufferItemTooLarge()
@@ -46,12 +58,12 @@ class TraceBuffer(object):
                 raise BufferFull()
 
     def get(self):
+        """Return the entire buffer.
+
+        The buffer is cleared in the process.
+        """
         with self._lock:
             try:
                 return list(self._buffer)
             finally:
                 self._clear()
-
-
-TraceBuffer.BufferFull = BufferFull
-TraceBuffer.BufferItemTooLarge = BufferItemTooLarge

@@ -13,7 +13,7 @@ from ..encoding import Encoder, JSONEncoderV2
 from ..utils.time import StopWatch
 from .logger import get_logger
 from .runtime import container
-from .buffer import TraceBuffer
+from .buffer import BufferFull, BufferItemTooLarge, TraceBuffer
 from .uds import UDSHTTPConnection
 
 log = get_logger(__name__)
@@ -23,8 +23,9 @@ LOG_ERR_INTERVAL = 60
 
 
 def _human_size(nbytes):
+    """Return a human-readable size."""
     i = 0
-    suffixes = ["B", "KB", "MB", "GB", "TB", "PB"]
+    suffixes = ["B", "KB", "MB", "GB", "TB"]
     while nbytes >= 1000 and i < len(suffixes) - 1:
         nbytes /= 1000.0
         i += 1
@@ -58,7 +59,13 @@ class LogWriter:
 
 
 class AgentWriter(_worker.PeriodicWorkerThread):
-    """Writer to the Datadog Agent."""
+    """Writer to the Datadog Agent.
+
+    The Datadog Agent supports (at the time of writing this) receiving trace
+    payloads up to 50MB. A trace payload is just a list of traces and the agent
+    expects a trace to be complete. That is, all spans with the same trace_id
+    should be in the same trace.
+    """
 
     def __init__(
         self,
@@ -70,7 +77,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
-        buffer_size=8 * 1000000,  # 8MB
+        # Match the payload size since there is no functionality
+        # to flush dynamically.
+        buffer_size=8 * 1000000,
         max_payload_size=8 * 1000000,
         timeout=2,
         dogstatsd=None,
@@ -159,11 +168,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             finally:
                 conn.close()
                 t = sw.elapsed()
-                if t >= 1:
+                if t >= self.interval:
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), sw.elapsed())
+                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
 
     @property
     def agent_url(self):
@@ -179,10 +188,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if self._endpoint == "/v0.4/traces":
             self._endpoint = "/v0.3/traces"
             return payload
-        else:
-            log.error(
-                "unsupported endpoint '%s': received response %s from Datadog Agent", self._endpoint, response.status
-            )
+        raise ValueError
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
@@ -205,9 +211,15 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
             if response.status in [404, 415]:
                 log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-                payload = self._downgrade(payload, response)
-
-                if payload:
+                try:
+                    payload = self._downgrade(payload, response)
+                except ValueError:
+                    log.error(
+                        "unsupported endpoint '%s': received response %s from Datadog Agent",
+                        self._endpoint,
+                        response.status,
+                    )
+                else:
                     return self._send_payload(payload, count)
             elif response.status >= 400:
                 log.error(
@@ -248,7 +260,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
         try:
             self._buffer.put(encoded)
-        except TraceBuffer.BufferItemTooLarge:
+        except BufferItemTooLarge:
             log.warning(
                 "trace (%db) larger than payload limit (%db), dropping",
                 len(encoded),
@@ -256,7 +268,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:t_too_big"])
-        except TraceBuffer.BufferFull:
+        except BufferFull:
             log.warning(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
                 len(self._buffer),
@@ -295,5 +307,4 @@ class AgentWriter(_worker.PeriodicWorkerThread):
     def run_periodic(self):
         self.flush_queue()
 
-    def on_shutdown(self):
-        self.run_periodic()
+    on_shutdown = run_periodic

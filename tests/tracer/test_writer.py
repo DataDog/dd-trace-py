@@ -1,7 +1,7 @@
 import mock
 
 from ddtrace.span import Span
-from ddtrace.internal.writer import AgentWriter, LogWriter
+from ddtrace.internal.writer import AgentWriter, LogWriter, _human_size
 from tests import BaseTestCase, AnyInt
 
 
@@ -156,3 +156,14 @@ class LogWriterTests(BaseTestCase):
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)]
             )
         return writer
+
+
+def test_humansize():
+    assert _human_size(0) == "0B"
+    assert _human_size(999) == "999B"
+    assert _human_size(1000) == "1KB"
+    assert _human_size(10000) == "10KB"
+    assert _human_size(100000) == "100KB"
+    assert _human_size(1000000) == "1MB"
+    assert _human_size(10000000) == "10MB"
+    assert _human_size(1000000000) == "1GB"
