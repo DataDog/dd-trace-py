@@ -6,7 +6,7 @@ from ddtrace.vendor import wrapt
 # project
 import ddtrace
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -98,16 +98,25 @@ def trace_tween_factory(handler, registry):
                     raise
                 finally:
                     # set request tags
-                    if config.pyramid.trace_query_string:
-                        span.set_tag(http.QUERY_STRING, request.query_string)
                     if request.matched_route:
                         span.resource = "{} {}".format(request.method, request.matched_route.name)
                         span.set_tag("pyramid.route.name", request.matched_route.name)
                     # set response tags
                     if response:
                         status = response.status_code
+                        response_headers = response.headers
+                    else:
+                        response_headers = None
+
                     trace_utils.set_http_meta(
-                        span, config.pyramid, method=request.method, url=request.path_url, status_code=status
+                        span,
+                        config.pyramid,
+                        method=request.method,
+                        url=request.path_url,
+                        status_code=status,
+                        query=request.query_string,
+                        request_headers=request.headers,
+                        response_headers=response_headers,
                     )
                 return response
 
