@@ -15,7 +15,9 @@ def create_app(settings, instrument):
     """Return a pyramid wsgi app"""
 
     def index(request):
-        return Response("idx")
+        resp = Response("idx")
+        resp.headers["my-response-header"] = "my_response_value"
+        return resp
 
     def error(request):
         raise HTTPInternalServerError("oh no")
