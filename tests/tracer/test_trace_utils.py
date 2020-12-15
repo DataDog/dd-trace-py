@@ -82,15 +82,23 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 
 @pytest.mark.parametrize(
-    "method,url,status_code",
+    "method,url,status_code,query,request_headers",
     [
-        ("GET", "http://localhost/", 0),
-        ("GET", "http://localhost/", 200),
-        (None, None, None),
+        ("GET", "http://localhost/", 0, None, None),
+        ("GET", "http://localhost/", 200, None, None),
+        (None, None, None, None, None),
+        ("GET", "http://localhost/", 200, None, {"my-header": "value1"}),
+        ("GET", "http://localhost/", 200, "search?q=test+query", {"my-header": "value1"}),
     ],
 )
-def test_set_http_meta(span, int_config, method, url, status_code):
-    trace_utils.set_http_meta(span, int_config, method=method, url=url, status_code=status_code)
+
+
+def test_set_http_meta(span, int_config, method, url, status_code, query, request_headers):
+    int_config.http.trace_headers(["my-header"])
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span, int_config, method=method, url=url, status_code=status_code, query=query, request_headers=request_headers
+    )
     if method is not None:
         assert span.meta[http.METHOD] == method
     else:
@@ -110,6 +118,13 @@ def test_set_http_meta(span, int_config, method, url, status_code):
     else:
         assert http.STATUS_CODE not in span.meta
 
+    if query is not None and int_config.trace_query_string:
+        assert span.meta[http.QUERY_STRING] == query
+
+    if request_headers is not None:
+        for header, value in request_headers.items():
+            tag = "http.request.headers." + header
+            assert span.get_tag(tag) == value
 
 @pytest.mark.parametrize(
     "error_codes,status_code,error",
