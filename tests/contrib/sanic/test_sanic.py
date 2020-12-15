@@ -5,6 +5,8 @@ import re
 import pytest
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.propagation import http as http_propagation
+from ddtrace import config
+
 from sanic import Sanic
 from sanic.server import HttpProtocol
 from sanic.exceptions import ServerError
@@ -282,3 +284,21 @@ async def test_invalid_response_type_empty(tracer, client):
     assert re.search("/empty$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
+
+
+async def test_http_request_header_tracing(tracer, client):
+    config.sanic.http.trace_headers(["my-header"])
+
+    response = await client.get(
+        "/hello",
+        headers={
+            "my-header": "my_value",
+        },
+    )
+    assert _response_status(response) == 200
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.get_tag("http.request.headers.my-header") == "my_value"
