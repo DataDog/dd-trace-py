@@ -116,6 +116,11 @@ def is_error_code(status_code):
 
     Ranges and singular error codes are permitted and can be separated using commas.
     """
+
+    if not isinstance(config.http_server.error_statuses, str):
+        log.debug("Error statuses in config are not a string")
+        return False
+
     error_str = config.http_server.error_statuses.strip()
     error_ranges = error_str.split(",")
     for error_range in error_ranges:
@@ -123,6 +128,7 @@ def is_error_code(status_code):
         try:
             values = [int(v) for v in values]
         except ValueError:
+            log.debug("Invalid status code range for %s", error_range)
             continue
         if min(values) <= int(status_code) <= max(values):
             return True
