@@ -182,10 +182,10 @@ commands:
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
             - when:
-              condition:
-                << parameters.store_coverage >>
-              steps:
-                - save_coverage
+                condition:
+                  << parameters.store_coverage >>
+                steps:
+                  - save_coverage
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
