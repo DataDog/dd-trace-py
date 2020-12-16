@@ -88,7 +88,7 @@ commands:
       - run: pip install coverage
       - run: mkdir coverage
       - run: >
-          if [[ -e .coverage ]]
+          if [ -f .coverage ];
           then
             cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
           fi
