@@ -149,6 +149,9 @@ commands:
       docker_services:
         type: string
         default: ""
+      store_coverage:
+        type: boolean
+        default: true
     steps:
       - attach_workspace:
           at: .
@@ -178,7 +181,11 @@ commands:
             - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
-            - save_coverage
+            -when:
+              condition:
+                << parameters.store_coverage >>
+              steps:
+                - save_coverage
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -297,6 +304,7 @@ jobs:
     executor: python38
     steps:
       - run_test:
+          store_coverage: false
           pattern: "black"
 
   ccheck:
@@ -312,6 +320,7 @@ jobs:
     executor: python38
     steps:
       - run_test:
+          store_coverage: false
           pattern: "flake8"
 
   coverage_report:
