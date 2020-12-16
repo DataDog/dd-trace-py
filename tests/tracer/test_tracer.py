@@ -106,7 +106,7 @@ class TracerTestCases(TracerTestCase):
         # Child span should not contain a pid tag
         child_span.assert_metrics(dict(), exact=True)
 
-    def test_tracer_wrap_default_name(self):
+    def test_tracer_wrap_function_default_name(self):
         @self.tracer.wrap()
         def f():
             pass
@@ -114,6 +114,16 @@ class TracerTestCases(TracerTestCase):
         f()
 
         self.assert_structure(dict(name="tests.tracer.test_tracer.f"))
+
+    def test_tracer_wrap_method_default_name(self):
+        @self.tracer.wrap()
+        class Foo:
+            def f(self):
+                pass
+
+        Foo().f()
+
+        self.assert_structure(dict(name="tests.tracer.test_tracer.Foo.f"))
 
     def test_tracer_wrap_exception(self):
         @self.tracer.wrap()

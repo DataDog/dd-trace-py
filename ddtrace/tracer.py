@@ -739,8 +739,7 @@ class Tracer(object):
         """
 
         def wrap_decorator(f):
-            # FIXME[matt] include the class name for methods.
-            span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
+            span_name = name or "%s.%s" % (f.__module__, f.__qualname__)
 
             # detect if the the given function is a coroutine to use the
             # right decorator; this initial check ensures that the

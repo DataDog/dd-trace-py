@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    core: use the qualified function name for the default span name in the
+    tracer wrap decorator.
