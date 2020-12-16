@@ -82,6 +82,17 @@ commands:
             S3_DIR: << parameters.s3_dir >>
             S3_BUCKET: << parameters.s3_bucket >>
 
+  save_coverage:
+    description: "Save coverage.py results to workspace"
+    steps:
+      - run: pip install coverage
+      - run: mkdir coverage
+      - run: cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
+      - persist_to_workspace:
+          root: coverage
+          paths:
+            - *.coverage
+
   save_codecov:
     description: "Push code coverage results to codecov.io"
     steps:
@@ -163,7 +174,7 @@ commands:
             - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
-            - save_codecov
+            - save_coverage
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -188,7 +199,7 @@ commands:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
-      - save_codecov
+      - save_coverage
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
@@ -298,6 +309,28 @@ jobs:
     steps:
       - run_test:
           pattern: "flake8"
+
+  coverage_report:
+    executor: python38
+    steps:
+      - run: pip install coverage diff_cover
+      - attach_workspace:
+          at: /tmp/coverage
+      - run: coverage combine /tmp/coverage/*.coverage
+      - run: bash <(curl -s https://codecov.io/bash)
+      - run: coverage xml
+      - store_artifacts:
+          path: coverage.xml
+      - run: coverage json
+      - store_artifacts:
+          path: coverage.json
+      - run: coverage html
+      - store_artifacts:
+          path: htmlcov
+      - run: coverage report
+      - run: diff-cover coverage.xml
+      - store_artifacts:
+          path: coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -911,72 +944,73 @@ requires_pre_test: &requires_pre_test
     - build_base_venvs
 
 requires_tests: &requires_tests
-  - build_docs
-  - aiobotocore
-  - aiohttp
-  - aiopg
-  - asyncio
-  - algoliasearch
-  - asgi
-  - benchmarks
-  - boto
-  - bottle
-  - cassandra
-  - celery
-  - consul
-  - dbapi
-  - ddtracerun
-  - dogpile_cache
-  - django
-  - djangorestframework
-  - elasticsearch
-  - falcon
-  - flask
-  - futures
-  - gevent
-  - grpc
-  - httplib
-  - integration_agent5
-  - integration_agent
-  - integration_testagent
-  - vendor
-  - profile
-  - jinja2
-  - kombu
-  - mako
-  - molten
-  - mongoengine
-  - mysqlconnector
-  - mysqldb
-  - mysqlpython
-  - opentracer
-  - psycopg
-  - pylibmc
-  - pylons
-  - pymemcache
-  - pymongo
-  - pymysql
-  - pynamodb
-  - pyodbc
-  - pyramid
-  - pytest
-  - redis
-  - rediscluster
-  - requests
-  - sqlalchemy
-  - sqlite3
-  - starlette
-  - test_build_alpine
-  - test_build_py38
-  - test_build_py37
-  - test_build_py36
-  - test_build_py35
-  - test_build_py27
-  - test_logging
-  - tracer
-  - tornado
-  - vertica
-  - build-docker-ci-image
+  requires:
+    - build_docs
+    - aiobotocore
+    - aiohttp
+    - aiopg
+    - asyncio
+    - algoliasearch
+    - asgi
+    - benchmarks
+    - boto
+    - bottle
+    - cassandra
+    - celery
+    - consul
+    - dbapi
+    - ddtracerun
+    - dogpile_cache
+    - django
+    - djangorestframework
+    - elasticsearch
+    - falcon
+    - flask
+    - futures
+    - gevent
+    - grpc
+    - httplib
+    - integration_agent5
+    - integration_agent
+    - integration_testagent
+    - vendor
+    - profile
+    - jinja2
+    - kombu
+    - mako
+    - molten
+    - mongoengine
+    - mysqlconnector
+    - mysqldb
+    - mysqlpython
+    - opentracer
+    - psycopg
+    - pylibmc
+    - pylons
+    - pymemcache
+    - pymongo
+    - pymysql
+    - pynamodb
+    - pyodbc
+    - pyramid
+    - pytest
+    - redis
+    - rediscluster
+    - requests
+    - sqlalchemy
+    - sqlite3
+    - starlette
+    - test_build_alpine
+    - test_build_py38
+    - test_build_py37
+    - test_build_py36
+    - test_build_py35
+    - test_build_py27
+    - test_logging
+    - tracer
+    - tornado
+    - vertica
+    - build-docker-ci-image
 
 workflows:
   version: 2
@@ -1076,6 +1110,7 @@ workflows:
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
+      - coverage_report: *requires_tests
       - deploy_master:
           filters:
             branches:
