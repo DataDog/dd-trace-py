@@ -1,6 +1,5 @@
 [run]
 branch = true
-dynamic_context = test_function
 omit = ddtrace/vendor/*
 
 [html]
