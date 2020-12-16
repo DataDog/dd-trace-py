@@ -87,7 +87,7 @@ commands:
     steps:
       - run: pip install coverage
       - run: mkdir coverage
-      - run: cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
+      - run: [[ -e .coverage ]] && cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
       - persist_to_workspace:
           root: coverage
           paths:
