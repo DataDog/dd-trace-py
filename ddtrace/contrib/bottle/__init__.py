@@ -9,6 +9,9 @@ plugin to your app::
     app = bottle.Bottle()
     plugin = TracePlugin(service="my-web-app")
     app.install(plugin)
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules

@@ -86,6 +86,9 @@ Example::
     config.flask['extra_error_codes'] = [401, 403]
 
 .. __: http://flask.pocoo.org/
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules

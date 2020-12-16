@@ -30,6 +30,9 @@ Configuration
    Can also be configured via the ``DD_SERVICE`` or ``DD_MOLTEN_SERVICE_NAME`` environment variables.
 
    Default: ``'molten'``
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+
 """
 from ...utils.importlib import require_modules
 

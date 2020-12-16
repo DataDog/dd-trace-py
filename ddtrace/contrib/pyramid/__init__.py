@@ -36,6 +36,8 @@ explicitly to the list. For example::
     # use your config as normal.
     config.add_route('index', '/')
 
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules
