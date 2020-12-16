@@ -105,7 +105,13 @@ Configuration
 
 .. py:data:: ddtrace.config.django['use_handler_resource_format']
 
-   Whether or not to use the legacy resource format `"{method} {handler}"`.
+   Whether or not to use the resource format `"{method} {handler}"`.
+
+   The default resource format for Django >= 2.2.0 is otherwise `"{method} {urlpattern}"`.
+
+.. py:data:: ddtrace.config.django['use_legacy_resource_format']
+
+   Whether or not to use the legacy resource format `"{handler}"`.
 
    The default resource format for Django >= 2.2.0 is otherwise `"{method} {urlpattern}"`.
 

@@ -1388,6 +1388,22 @@ def test_django_use_handler_resource_format(client, test_spans):
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
 
+def test_django_use_legacy_resource_format(client, test_spans):
+    """
+    Test that the specified format is used over the default.
+    """
+    with override_config("django", dict(use_legacy_resource_format=True)):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+        resource = "tests.contrib.django.views.index"
+
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
+
+
 def test_custom_dispatch_template_view(client, test_spans):
     """
     Test that a template view with a custom dispatch method inherited from a
