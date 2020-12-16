@@ -87,7 +87,7 @@ commands:
     steps:
       - run: pip install coverage
       - run: mkdir coverage
-      - run: >
+      - run: |
           set -ex
           if [ -f .coverage ];
           then
