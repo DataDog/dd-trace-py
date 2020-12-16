@@ -272,5 +272,15 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="asgi",
+            pkgs={
+                "pytest-asyncio": latest,
+                "httpx": latest,
+                "asgiref": ["~=3.0.0", "~=3.0"],
+            },
+            pys=select_pys(min_version=3.6),
+            command="pytest tests/contrib/asgi",
+        ),
     ],
 )
