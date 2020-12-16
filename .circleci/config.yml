@@ -196,6 +196,9 @@ commands:
       wait:
         type: string
         default: ""
+      store_coverage:
+        type: boolean
+        default: true
     steps:
       - checkout
       - setup_tox
@@ -211,7 +214,11 @@ commands:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
-      - save_coverage
+      - when:
+          condition:
+            << parameters.store_coverage >>
+          steps:
+            - save_coverage
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
@@ -500,6 +507,7 @@ jobs:
       - image: *redis_image
     steps:
       - run_tox_scenario:
+          store_coverage: false
           pattern: '^py..-ddtracerun$'
 
   test_logging:
