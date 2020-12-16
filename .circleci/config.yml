@@ -97,6 +97,8 @@ commands:
           root: coverage
           paths:
             - "*.coverage"
+      - store_artifacts:
+          path: coverage
 
   save_codecov:
     description: "Push code coverage results to codecov.io"
@@ -334,10 +336,11 @@ jobs:
   coverage_report:
     executor: python38
     steps:
-      - run: pip install coverage diff_cover
+      - checkout
       - attach_workspace:
-          at: /tmp/coverage
-      - run: coverage combine /tmp/coverage/*.coverage
+          at: .
+      - run: pip install coverage diff_cover
+      - run: coverage combine *.coverage
       - run: bash <(curl -s https://codecov.io/bash)
       - run: coverage xml
       - store_artifacts:
