@@ -91,7 +91,7 @@ commands:
       - persist_to_workspace:
           root: coverage
           paths:
-            - *.coverage
+            - "*.coverage"
 
   save_codecov:
     description: "Push code coverage results to codecov.io"
