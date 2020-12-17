@@ -278,6 +278,7 @@ structure like in the following example::
       url  https://api.github.com/events
     }
 
+
 .. _adv_opentracing:
 
 OpenTracing
