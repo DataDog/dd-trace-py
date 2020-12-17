@@ -293,7 +293,7 @@ Examples::
 Certain status codes can be excluded by providing a list of ranges. Valid options:
     - ``400-400``
     - ``400-403,405-499``
-    - ``400,401,403
+    - ``400,401,403``
 
 .. _adv_opentracing:
 
