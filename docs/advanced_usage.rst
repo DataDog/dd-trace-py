@@ -290,7 +290,7 @@ Examples::
 
     config.http_server.error_statuses = '500-599'
 
-Certain status codes can be excluded by providing a list of ranges. Valid options:
+Certain status codes can be excluded by providing a list of ranges as a string. Valid options:
     - ``400-400``
     - ``400-403,405-499``
     - ``400,401,403``
