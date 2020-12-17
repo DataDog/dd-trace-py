@@ -111,24 +111,3 @@ def test_randbits_stdlib(benchmark):
     from ddtrace.compat import getrandbits
 
     benchmark(getrandbits, 64)
-
-
-@pytest.mark.benchmark(group="queue", min_time=0.005)
-def test_trace_queue_put(benchmark):
-    from ddtrace.internal._queue import TraceQueue
-
-    @benchmark
-    def f():
-        q = TraceQueue()
-        q.put([])
-
-
-@pytest.mark.benchmark(group="queue", min_time=0.005)
-def test_trace_queue_get(benchmark):
-    from ddtrace.internal._queue import TraceQueue
-
-    @benchmark
-    def f():
-        q = TraceQueue()
-        q.put([])
-        q.get()

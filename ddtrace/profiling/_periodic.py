@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import sys
 import threading
+import time
 
 from ddtrace.profiling import _service
 from ddtrace.profiling import _nogevent
@@ -92,7 +93,7 @@ class _GeventPeriodicThread(PeriodicThread):
     def join(self, timeout=None):
         # FIXME: handle the timeout argument
         while not self.has_quit:
-            _nogevent.sleep(self.SLEEP_INTERVAL)
+            time.sleep(self.SLEEP_INTERVAL)
 
     def stop(self):
         """Stop the thread."""

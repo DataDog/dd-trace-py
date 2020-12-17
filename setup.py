@@ -210,11 +210,6 @@ setup(
                     define_macros=encoding_macros,
                 ),
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._queue",
-                    sources=["ddtrace/internal/_queue.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
                     sources=["ddtrace/profiling/collector/stack.pyx"],
                     language="c",
