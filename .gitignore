@@ -48,6 +48,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.pytest
 coverage.xml
 *,cover
 .hypothesis/
