@@ -174,8 +174,8 @@ class Config(object):
                     values = [int(v) for v in values]
                 except ValueError:
                     continue
-                range = [min(values), max(values)]
-                error_statuses.append(range)
+                error_range = [min(values), max(values)]
+                error_statuses.append(error_range)
             if error_statuses:
                 self.http_server.error_statuses_array = error_statuses
         super(Config, self).__setattr__(name, value)
