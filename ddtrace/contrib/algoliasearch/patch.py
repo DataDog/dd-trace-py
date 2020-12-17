@@ -1,26 +1,25 @@
 from ...constants import SPAN_MEASURED_KEY
 from ddtrace.pin import Pin
 from ddtrace.settings import config
+from ddtrace.ext import SpanTypes
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 
-DD_PATCH_ATTR = '_datadog_patch'
+DD_PATCH_ATTR = "_datadog_patch"
 
-SERVICE_NAME = 'algoliasearch'
-APP_NAME = 'algoliasearch'
+SERVICE_NAME = "algoliasearch"
+APP_NAME = "algoliasearch"
 
 try:
     import algoliasearch
     from algoliasearch.version import VERSION
-    algoliasearch_version = tuple([int(i) for i in VERSION.split('.')])
+
+    algoliasearch_version = tuple([int(i) for i in VERSION.split(".")])
 
     # Default configuration
-    config._add('algoliasearch', dict(
-        _default_service=SERVICE_NAME,
-        collect_query_text=False
-    ))
+    config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
     algoliasearch_version = (0, 0)
 
@@ -32,16 +31,17 @@ def patch():
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
-    setattr(algoliasearch, '_datadog_patch', True)
+    setattr(algoliasearch, "_datadog_patch", True)
 
     pin = Pin(app=APP_NAME)
 
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
-        _w(algoliasearch.index, 'Index.search', _patched_search)
+        _w(algoliasearch.index, "Index.search", _patched_search)
         pin.onto(algoliasearch.index.Index)
     elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
         from algoliasearch import search_index
-        _w(algoliasearch, 'search_index.SearchIndex.search', _patched_search)
+
+        _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
         pin.onto(search_index.SearchIndex)
     else:
         return
@@ -55,10 +55,11 @@ def unpatch():
         setattr(algoliasearch, DD_PATCH_ATTR, False)
 
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
-        _u(algoliasearch.index.Index, 'search')
+        _u(algoliasearch.index.Index, "search")
     elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
         from algoliasearch import search_index
-        _u(search_index.SearchIndex, 'search')
+
+        _u(search_index.SearchIndex, "search")
     else:
         return
 
@@ -67,33 +68,33 @@ def unpatch():
 # will be sent along as tags, as well as converting arguments names into tag names compliant with
 # tag naming recommendations set out here: https://docs.datadoghq.com/tagging/
 QUERY_ARGS_DD_TAG_MAP = {
-    'page': 'page',
-    'hitsPerPage': 'hits_per_page',
-    'attributesToRetrieve': 'attributes_to_retrieve',
-    'attributesToHighlight': 'attributes_to_highlight',
-    'attributesToSnippet': 'attributes_to_snippet',
-    'minWordSizefor1Typo': 'min_word_size_for_1_typo',
-    'minWordSizefor2Typos': 'min_word_size_for_2_typos',
-    'getRankingInfo': 'get_ranking_info',
-    'aroundLatLng': 'around_lat_lng',
-    'numericFilters': 'numeric_filters',
-    'tagFilters': 'tag_filters',
-    'queryType': 'query_type',
-    'optionalWords': 'optional_words',
-    'distinct': 'distinct'
+    "page": "page",
+    "hitsPerPage": "hits_per_page",
+    "attributesToRetrieve": "attributes_to_retrieve",
+    "attributesToHighlight": "attributes_to_highlight",
+    "attributesToSnippet": "attributes_to_snippet",
+    "minWordSizefor1Typo": "min_word_size_for_1_typo",
+    "minWordSizefor2Typos": "min_word_size_for_2_typos",
+    "getRankingInfo": "get_ranking_info",
+    "aroundLatLng": "around_lat_lng",
+    "numericFilters": "numeric_filters",
+    "tagFilters": "tag_filters",
+    "queryType": "query_type",
+    "optionalWords": "optional_words",
+    "distinct": "distinct",
 }
 
 
 def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     """
-        wrapt_args is called the way it is to distinguish it from the 'args'
-        argument to the algoliasearch.index.Index.search() method.
+    wrapt_args is called the way it is to distinguish it from the 'args'
+    argument to the algoliasearch.index.Index.search() method.
     """
 
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
-        function_query_arg_name = 'args'
+        function_query_arg_name = "args"
     elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
-        function_query_arg_name = 'request_options'
+        function_query_arg_name = "request_options"
     else:
         return func(*wrapt_args, **wrapt_kwargs)
 
@@ -102,7 +103,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         return func(*wrapt_args, **wrapt_kwargs)
 
     with pin.tracer.trace(
-        'algoliasearch.search', service=trace_utils.ext_service(pin, config.algoliasearch)
+        "algoliasearch.search",
+        service=trace_utils.ext_service(pin, config.algoliasearch),
+        span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -110,7 +113,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span.set_tag('query.text', wrapt_kwargs.get('query', wrapt_args[0]))
+            span.set_tag("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
 
         query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 
@@ -118,7 +121,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
                 value = query_args.get(query_arg)
                 if value is not None:
-                    span.set_tag('query.args.{}'.format(tag_name), value)
+                    span.set_tag("query.args.{}".format(tag_name), value)
 
         # Result would look like this
         # {
@@ -139,10 +142,10 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         result = func(*wrapt_args, **wrapt_kwargs)
 
         if isinstance(result, dict):
-            if result.get('processingTimeMS', None) is not None:
-                span.set_metric('processing_time_ms', int(result['processingTimeMS']))
+            if result.get("processingTimeMS", None) is not None:
+                span.set_metric("processing_time_ms", int(result["processingTimeMS"]))
 
-            if result.get('nbHits', None) is not None:
-                span.set_metric('number_of_hits', int(result['nbHits']))
+            if result.get("nbHits", None) is not None:
+                span.set_metric("number_of_hits", int(result["nbHits"]))
 
         return result

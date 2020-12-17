@@ -5,7 +5,7 @@ from ddtrace.internal.logger import DDLogger, get_logger
 
 from tests import BaseTestCase
 
-ALL_LEVEL_NAMES = ('debug', 'info', 'warn', 'warning', 'error', 'exception', 'critical', 'fatal')
+ALL_LEVEL_NAMES = ('debug', 'info', 'warning', 'error', 'exception', 'critical', 'fatal')
 
 
 class DDLoggerTestCase(BaseTestCase):
@@ -143,8 +143,8 @@ class DDLoggerTestCase(BaseTestCase):
         # -- NOTSET
         # By default no level is set so we only get warn, error, and critical messages
         self.assertEqual(log.level, logging.NOTSET)
-        # `log.warn`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
-        self.assert_log_records(log, ['WARNING', 'WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
+        # `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ['WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
 
         # -- CRITICAL
         log.setLevel(logging.CRITICAL)
@@ -158,18 +158,18 @@ class DDLoggerTestCase(BaseTestCase):
 
         # -- WARN
         log.setLevel(logging.WARN)
-        # `log.warn`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
-        self.assert_log_records(log, ['WARNING', 'WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
+        # `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ['WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
 
         # -- INFO
         log.setLevel(logging.INFO)
-        # `log.info`, `log.warn`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
-        self.assert_log_records(log, ['INFO', 'WARNING', 'WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
+        # `log.info`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ['INFO', 'WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
 
         # -- DEBUG
         log.setLevel(logging.DEBUG)
-        # `log.debug`, `log.info`, `log.warn`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
-        self.assert_log_records(log, ['DEBUG', 'INFO', 'WARNING', 'WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
+        # `log.debug`, `log.info`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'ERROR', 'CRITICAL', 'CRITICAL'])
 
     @mock.patch('logging.Logger.handle')
     def test_logger_handle_no_limit(self, base_handle):
@@ -189,6 +189,31 @@ class DDLoggerTestCase(BaseTestCase):
 
         # Assert that we did not perform any rate limiting
         self.assertEqual(base_handle.call_count, 1000)
+
+        # Our buckets are empty
+        self.assertEqual(log.buckets, dict())
+
+    @mock.patch('logging.Logger.handle')
+    def test_logger_handle_debug(self, base_handle):
+        """
+        Calling `DDLogger.handle`
+            When effective level is DEBUG
+                Always calls the base `Logger.handle`
+        """
+        # Configure an INFO logger with no rate limit
+        log = get_logger('test.logger')
+        log.setLevel(logging.DEBUG)
+        assert log.rate_limit > 0
+
+        # Log a bunch of times very quickly (this is fast)
+        for level in ALL_LEVEL_NAMES:
+            log_fn = getattr(log, level)
+            for _ in range(1000):
+                log_fn('test')
+
+        # Assert that we did not perform any rate limiting
+        total = 1000 * len(ALL_LEVEL_NAMES)
+        self.assertEqual(base_handle.call_count, total)
 
         # Our buckets are empty
         self.assertEqual(log.buckets, dict())

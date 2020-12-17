@@ -28,6 +28,7 @@ class FilterRequestsOnUrl(object):
 
         FilterRequestOnUrl([r'http://test\\.example\\.com', r'http://example\\.com/healthcheck'])
     """
+
     def __init__(self, regexps):
         if isinstance(regexps, str):
             regexps = [regexps]

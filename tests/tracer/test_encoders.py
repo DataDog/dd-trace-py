@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import random
 import string
@@ -321,6 +322,41 @@ def span_type_span():
 def test_msgpack_span_property_variations(span):
     refencoder = RefMsgpackEncoder()
     encoder = MsgpackEncoder()
+
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    trace = [span]
+    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+
+
+class SubString(str):
+    pass
+
+
+class SubInt(int):
+    pass
+
+
+class SubFloat(float):
+    pass
+
+
+@pytest.mark.parametrize(
+    "span, tags",
+    [
+        (Span(None, "name"), {"int": SubInt(123)}),
+        (Span(None, "name"), {"float": SubFloat(123.213)}),
+        (Span(None, SubString("name")), {SubString("test"): SubString("test")}),
+        (Span(None, "name"), {"unicode": u"😐"}),
+        (Span(None, "name"), {u"😐": u"😐"}),
+    ],
+)
+def test_span_types(span, tags):
+    refencoder = RefMsgpackEncoder()
+    encoder = MsgpackEncoder()
+
+    span.set_tags(tags)
 
     # Finish the span to ensure a duration exists.
     span.finish()

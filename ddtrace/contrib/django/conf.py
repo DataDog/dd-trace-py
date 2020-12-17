@@ -60,7 +60,12 @@ def import_from_string(val, setting_name):
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        msg = 'Could not import "{}" for setting "{}". {}: {}.'.format(val, setting_name, e.__class__.__name__, e,)
+        msg = 'Could not import "{}" for setting "{}". {}: {}.'.format(
+            val,
+            setting_name,
+            e.__class__.__name__,
+            e,
+        )
 
         raise ImportError(msg)
 
@@ -189,7 +194,7 @@ def configure_from_settings(pin, config, settings):
         pin.tracer.enabled = settings["ENABLED"]
 
     if "AGENT_HOSTNAME" in settings:
-        pin.tracer.writer.api.hostname = settings["AGENT_HOSTNAME"]
+        pin.tracer.writer._hostname = settings["AGENT_HOSTNAME"]
 
     if "AGENT_PORT" in settings:
-        pin.tracer.writer.api.port = settings["AGENT_PORT"]
+        pin.tracer.writer._port = settings["AGENT_PORT"]

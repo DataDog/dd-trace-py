@@ -7,10 +7,10 @@ __pycache__/
 ddtrace/profiling/collector/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
+ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
-ddtrace/internal/_queue.c
 *.so
 
 # Distribution / packaging

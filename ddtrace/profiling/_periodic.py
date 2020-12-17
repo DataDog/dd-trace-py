@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import sys
 import threading
+import time
 
 from ddtrace.profiling import _service
 from ddtrace.profiling import _nogevent
@@ -35,7 +36,12 @@ class PeriodicThread(threading.Thread):
 
     def stop(self):
         """Stop the thread."""
-        self.quit.set()
+        # NOTE: make sure the thread is alive before using self.quit:
+        # 1. self.quit is Lock-based
+        # 2. if we're a child trying to stop a Thread,
+        #    the Lock might have been locked in a parent process while forking so that'd block forever
+        if self.is_alive():
+            self.quit.set()
 
     def run(self):
         """Run the target function periodically."""
@@ -87,7 +93,7 @@ class _GeventPeriodicThread(PeriodicThread):
     def join(self, timeout=None):
         # FIXME: handle the timeout argument
         while not self.has_quit:
-            _nogevent.sleep(self.SLEEP_INTERVAL)
+            time.sleep(self.SLEEP_INTERVAL)
 
     def stop(self):
         """Stop the thread."""

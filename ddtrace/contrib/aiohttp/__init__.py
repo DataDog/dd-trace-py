@@ -32,7 +32,6 @@ Available settings are:
 * ``distributed_tracing_enabled`` (default: ``True``): enable distributed tracing during
   the middleware execution, so that a new span is created with the given ``trace_id`` and
   ``parent_id`` injected via request headers.
-* ``analytics_enabled`` (default: ``None``): analyze spans for AioHTTP in App Analytics.
 
 Third-party modules that are currently supported by the ``patch()`` method are:
 
@@ -47,7 +46,7 @@ to the ``request`` object, so that it can be used in the application code::
 """
 from ...utils.importlib import require_modules
 
-required_modules = ['aiohttp']
+required_modules = ["aiohttp"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -55,7 +54,7 @@ with require_modules(required_modules) as missing_modules:
         from .middlewares import trace_app
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'trace_app',
+            "patch",
+            "unpatch",
+            "trace_app",
         ]

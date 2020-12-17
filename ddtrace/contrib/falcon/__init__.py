@@ -20,9 +20,6 @@ You can also use the autopatching functionality::
 To disable distributed tracing when using autopatching, set the
 ``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
 
-To enable analyzed spans for App Analytics, set the
-``DD_FALCON_ANALYTICS_ENABLED`` environment variable to ``True``.
-
 **Supported span hooks**
 
 The following is a list of available tracer hooks that can be used to intercept
@@ -49,11 +46,11 @@ Example::
 """
 from ...utils.importlib import require_modules
 
-required_modules = ['falcon']
+required_modules = ["falcon"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
         from .patch import patch
 
-        __all__ = ['TraceMiddleware', 'patch']
+        __all__ = ["TraceMiddleware", "patch"]

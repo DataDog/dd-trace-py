@@ -1,64 +1,8 @@
-import time
-
 import mock
 
 from ddtrace.span import Span
-from ddtrace.api import API
-from ddtrace.internal.writer import AgentWriter, LogWriter
-from ddtrace.payload import PayloadFull
-from tests import BaseTestCase
-
-MAX_NUM_SPANS = 7
-
-
-class RemoveAllFilter:
-    def __init__(self):
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        return None
-
-
-class KeepAllFilter:
-    def __init__(self):
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        return trace
-
-
-class AddTagFilter:
-    def __init__(self, tag_name):
-        self.tag_name = tag_name
-        self.filtered_traces = 0
-
-    def process_trace(self, trace):
-        self.filtered_traces += 1
-        for span in trace:
-            span.set_tag(self.tag_name, "A value")
-        return trace
-
-
-class DummyAPI(API):
-    def __init__(self):
-        # Call API.__init__ to setup required properties
-        super(DummyAPI, self).__init__(hostname="localhost", port=8126)
-
-        self.traces = []
-
-    def send_traces(self, traces):
-        responses = []
-        for trace in traces:
-            self.traces.append(trace)
-            if len(trace) > MAX_NUM_SPANS:
-                response = PayloadFull()
-            else:
-                response = mock.Mock()
-                response.status = 200
-            responses.append(response)
-        return responses
+from ddtrace.internal.writer import AgentWriter, LogWriter, _human_size
+from tests import BaseTestCase, AnyInt
 
 
 class DummyOutput:
@@ -81,198 +25,145 @@ class FailingAPI(object):
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
-    def create_worker(
-        self, filters=None, api_class=DummyAPI, enable_stats=False, num_traces=N_TRACES, num_spans=MAX_NUM_SPANS
-    ):
-        with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
-            self.dogstatsd = mock.Mock()
-            worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
-            worker._STATS_EVERY_INTERVAL = 1
-            self.api = api_class()
-            worker.api = self.api
-            for i in range(num_traces):
-                worker.write(
-                    [
-                        Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
-                        for j in range(num_spans)
-                    ]
-                )
-            worker.stop()
-            worker.join()
-            return worker
+    def test_metrics_disabled(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.stop()
+        writer.join()
 
-    def test_send_stats(self):
-        dogstatsd = mock.Mock()
-        worker = AgentWriter(dogstatsd=dogstatsd)
-        assert worker._send_stats is False
-        with self.override_global_config(dict(health_metrics_enabled=True)):
-            assert worker._send_stats is True
+        statsd.increment.assert_not_called()
+        statsd.distribution.assert_not_called()
 
-        worker = AgentWriter(dogstatsd=None)
-        assert worker._send_stats is False
-        with self.override_global_config(dict(health_metrics_enabled=True)):
-            assert worker._send_stats is False
+    def test_metrics_bad_endpoint(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.stop()
+        writer.join()
 
-    def test_filters_keep_all(self):
-        filtr = KeepAllFilter()
-        self.create_worker([filtr])
-        self.assertEqual(len(self.api.traces), self.N_TRACES)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
 
-    def test_filters_remove_all(self):
-        filtr = RemoveAllFilter()
-        self.create_worker([filtr])
-        self.assertEqual(len(self.api.traces), 0)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
+    def test_metrics_trace_too_big(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.write(
+            [Span(tracer=None, name="a" * 5000, trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(2 ** 10)]
+        )
+        writer.stop()
+        writer.join()
 
-    def test_filters_add_tag(self):
-        tag_name = "Tag"
-        filtr = AddTagFilter(tag_name)
-        self.create_worker([filtr])
-        self.assertEqual(len(self.api.traces), self.N_TRACES)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
-        for trace in self.api.traces:
-            for span in trace:
-                self.assertIsNotNone(span.get_tag(tag_name))
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.buffer.dropped.traces", 1, tags=["reason:t_too_big"]),
+                mock.call("datadog.tracer.buffer.dropped.bytes", AnyInt(), tags=["reason:t_too_big"]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
 
-    def test_filters_short_circuit(self):
-        filtr = KeepAllFilter()
-        filters = [RemoveAllFilter(), filtr]
-        self.create_worker(filters)
-        self.assertEqual(len(self.api.traces), 0)
-        self.assertEqual(filtr.filtered_traces, 0)
+    def test_metrics_multi(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.flush_queue()
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
 
-    def test_no_dogstats(self):
-        worker = self.create_worker()
-        assert worker._send_stats is False
-        assert [] == self.dogstatsd.gauge.mock_calls
+        statsd.reset_mock()
 
-    def test_dogstatsd(self):
-        self.create_worker(enable_stats=True)
-        assert [
-            mock.call("datadog.tracer.heartbeat", 1),
-            mock.call("datadog.tracer.queue.max_length", 1000),
-        ] == self.dogstatsd.gauge.mock_calls
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+        writer.stop()
+        writer.join()
 
-        assert [
-            mock.call("datadog.tracer.flushes"),
-            mock.call("datadog.tracer.flush.traces.total", 11, tags=None),
-            mock.call("datadog.tracer.flush.spans.total", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
-            mock.call("datadog.tracer.api.requests.total", 11, tags=None),
-            mock.call("datadog.tracer.api.errors.total", 0, tags=None),
-            mock.call("datadog.tracer.api.traces_payloadfull.total", 0, tags=None),
-            mock.call("datadog.tracer.api.responses.total", 11, tags=["status:200"]),
-            mock.call("datadog.tracer.queue.dropped.traces", 0),
-            mock.call("datadog.tracer.queue.enqueued.traces", 11),
-            mock.call("datadog.tracer.queue.enqueued.spans", 77),
-            mock.call("datadog.tracer.shutdown"),
-        ] == self.dogstatsd.increment.mock_calls
-
-        histogram_calls = [
-            mock.call("datadog.tracer.flush.traces", 11, tags=None),
-            mock.call("datadog.tracer.flush.spans", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
-            mock.call("datadog.tracer.api.requests", 11, tags=None),
-            mock.call("datadog.tracer.api.errors", 0, tags=None),
-            mock.call("datadog.tracer.api.traces_payloadfull", 0, tags=None),
-            mock.call("datadog.tracer.api.responses", 11, tags=["status:200"]),
-        ]
-        if hasattr(time, "thread_time"):
-            histogram_calls.append(mock.call("datadog.tracer.writer.cpu_time", mock.ANY))
-
-        assert histogram_calls == self.dogstatsd.histogram.mock_calls
-
-    def test_dogstatsd_traces_payloadfull(self):
-        num_spans = MAX_NUM_SPANS + 1
-        self.create_worker(enable_stats=True, num_traces=1, num_spans=num_spans)
-        assert [
-            mock.call("datadog.tracer.heartbeat", 1),
-            mock.call("datadog.tracer.queue.max_length", 1000),
-        ] == self.dogstatsd.gauge.mock_calls
-
-        assert [
-            mock.call("datadog.tracer.flushes"),
-            mock.call("datadog.tracer.flush.traces.total", 1, tags=None),
-            mock.call("datadog.tracer.flush.spans.total", num_spans, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
-            mock.call("datadog.tracer.api.requests.total", 1, tags=None),
-            mock.call("datadog.tracer.api.errors.total", 0, tags=None),
-            mock.call("datadog.tracer.api.traces_payloadfull.total", 1, tags=None),
-            mock.call("datadog.tracer.queue.dropped.traces", 0),
-            mock.call("datadog.tracer.queue.enqueued.traces", 1),
-            mock.call("datadog.tracer.queue.enqueued.spans", 8),
-            mock.call("datadog.tracer.shutdown"),
-        ] == self.dogstatsd.increment.mock_calls
-
-        histogram_calls = [
-            mock.call("datadog.tracer.flush.traces", 1, tags=None),
-            mock.call("datadog.tracer.flush.spans", num_spans, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
-            mock.call("datadog.tracer.api.requests", 1, tags=None),
-            mock.call("datadog.tracer.api.errors", 0, tags=None),
-            mock.call("datadog.tracer.api.traces_payloadfull", 1, tags=None),
-        ]
-        if hasattr(time, "thread_time"):
-            histogram_calls.append(mock.call("datadog.tracer.writer.cpu_time", mock.ANY))
-
-        assert histogram_calls == self.dogstatsd.histogram.mock_calls
-
-    def test_dogstatsd_failing_api(self):
-        self.create_worker(api_class=FailingAPI, enable_stats=True)
-        assert [
-            mock.call("datadog.tracer.heartbeat", 1),
-            mock.call("datadog.tracer.queue.max_length", 1000),
-        ] == self.dogstatsd.gauge.mock_calls
-
-        assert [
-            mock.call("datadog.tracer.flushes"),
-            mock.call("datadog.tracer.flush.traces.total", 11, tags=None),
-            mock.call("datadog.tracer.flush.spans.total", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered.total", 0, tags=None),
-            mock.call("datadog.tracer.api.requests.total", 1, tags=None),
-            mock.call("datadog.tracer.api.errors.total", 1, tags=None),
-            mock.call("datadog.tracer.api.traces_payloadfull.total", 0, tags=None),
-            mock.call("datadog.tracer.queue.dropped.traces", 0),
-            mock.call("datadog.tracer.queue.enqueued.traces", 11),
-            mock.call("datadog.tracer.queue.enqueued.spans", 77),
-            mock.call("datadog.tracer.shutdown"),
-        ] == self.dogstatsd.increment.mock_calls
-
-        histogram_calls = [
-            mock.call("datadog.tracer.flush.traces", 11, tags=None),
-            mock.call("datadog.tracer.flush.spans", 77, tags=None),
-            mock.call("datadog.tracer.flush.traces_filtered", 0, tags=None),
-            mock.call("datadog.tracer.api.requests", 1, tags=None),
-            mock.call("datadog.tracer.api.errors", 1, tags=None),
-            mock.call("datadog.tracer.api.traces_payloadfull", 0, tags=None),
-        ]
-        if hasattr(time, "thread_time"):
-            histogram_calls.append(mock.call("datadog.tracer.writer.cpu_time", mock.ANY))
-
-        assert histogram_calls == self.dogstatsd.histogram.mock_calls
+        statsd.increment.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.requests"),
+            ]
+        )
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
 
 
 class LogWriterTests(BaseTestCase):
     N_TRACES = 11
 
-    def create_writer(self, filters=None):
+    def create_writer(self):
         self.output = DummyOutput()
-        writer = LogWriter(out=self.output, filters=filters)
+        writer = LogWriter(out=self.output)
         for i in range(self.N_TRACES):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)]
             )
         return writer
 
-    def test_filters_keep_all(self):
-        filtr = KeepAllFilter()
-        self.create_writer([filtr])
-        self.assertEqual(len(self.output.entries), self.N_TRACES)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
 
-    def test_filters_remove_all(self):
-        filtr = RemoveAllFilter()
-        self.create_writer([filtr])
-        self.assertEqual(len(self.output.entries), 0)
-        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
+def test_humansize():
+    assert _human_size(0) == "0B"
+    assert _human_size(999) == "999B"
+    assert _human_size(1000) == "1KB"
+    assert _human_size(10000) == "10KB"
+    assert _human_size(100000) == "100KB"
+    assert _human_size(1000000) == "1MB"
+    assert _human_size(10000000) == "10MB"
+    assert _human_size(1000000000) == "1GB"

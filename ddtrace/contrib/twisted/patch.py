@@ -248,7 +248,6 @@ def agent_request(twisted, pin, func, instance, args, kwargs):
 def reactor_callLater(twisted, pin, func, instance, args, kwargs):
     ctx = pin.tracer.get_call_context().clone()
 
-    delay = args[0]
     fn = args[1]
 
     def traced_fn(*args, **kwargs):

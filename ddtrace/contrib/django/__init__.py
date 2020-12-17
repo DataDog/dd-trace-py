@@ -35,14 +35,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.django['analytics_enabled']
-
-   Whether to analyze spans for Django in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_DJANGO_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.django['service_name']
 
    The service name reported for your Django app.
@@ -175,10 +167,6 @@ The mapping from old configuration settings to new ones.
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``DISTRIBUTED_TRACING``     | ``config.django['distributed_tracing_enabled']``                                                                        |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``ANALYTICS_ENABLED``       | ``config.django['analytics_enabled']``                                                                                  |
-+-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``ANALYTICS_SAMPLE_RATE``   | ``config.django['analytics_sample_rate']``                                                                              |
-+-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``TRACE_QUERY_STRING``      | ``config.django['trace_query_string']``                                                                                 |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``TAGS``                    | ``DD_TAGS`` environment variable or ``tracer.set_tags()``                                                               |
@@ -208,8 +196,6 @@ Before::
        'DEFAULT_DATABASE_PREFIX': 'my-',
        'ENABLED': True,
        'DISTRIBUTED_TRACING': True,
-       'ANALYTICS_ENABLED': True,
-       'ANALYTICS_SAMPLE_RATE': 0.5,
        'TRACE_QUERY_STRING': None,
        'TAGS': {'env': 'production'},
        'TRACER': 'my.custom.tracer',
@@ -230,8 +216,6 @@ After::
    config.django['instrument_databases'] = True
    config.django['instrument_caches'] = True
    config.django['trace_query_string'] = True
-   config.django['analytics_enabled'] = True
-   config.django['analytics_sample_rate'] = 0.5
    tracer.set_tags({'env': 'production'})
 
    import my.custom.tracer
@@ -252,9 +236,10 @@ required_modules = ["django"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
+        from . import patch as _patch
         from .patch import patch, unpatch
 
-        __all__ = ["patch", "unpatch", "TraceMiddleware"]
+        __all__ = ["patch", "unpatch", "TraceMiddleware", "_patch"]
 
 
 # define the Django app configuration

@@ -1,7 +1,11 @@
 import os
 import subprocess
 import sys
+import tempfile
 
+import ddtrace
+from ddtrace.compat import PY3
+from ddtrace.vendor import six
 from .. import BaseTestCase
 
 
@@ -21,12 +25,12 @@ def inject_sitecustomize(path):
     # required otherwise `ddtrace` scripts are not found when `env` kwarg is
     # passed
     env = os.environ.copy()
-    sitecustomize = os.path.join(root_folder, "..", path)
+    sitecustomize = os.path.abspath(os.path.join(root_folder, "..", path))
 
     # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
     # if `import sitecustomize` is run that it'll be the one we specify
     python_path = [sitecustomize] + list(sys.path)
-    env["PYTHONPATH"] = ":".join(python_path)
+    env["PYTHONPATH"] = os.pathsep.join(python_path)
     return env
 
 
@@ -91,7 +95,8 @@ class DdtraceRunTest(BaseTestCase):
 
         with self.override_env(dict(DATADOG_TRACE_DEBUG="true")):
             out = subprocess.check_output(
-                ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"], stderr=subprocess.STDOUT,
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
+                stderr=subprocess.STDOUT,
             )
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" in out
@@ -216,7 +221,10 @@ class DdtraceRunTest(BaseTestCase):
         #   ValueError: list.remove(x): x not in list
         # as mentioned here: https://github.com/DataDog/dd-trace-py/pull/516
         env = inject_sitecustomize("")
-        out = subprocess.check_output(["python", "tests/commands/ddtrace_minimal.py"], env=env,)
+        out = subprocess.check_output(
+            ["python", "tests/commands/ddtrace_minimal.py"],
+            env=env,
+        )
         # `out` contains the `loaded` status of the module
         result = out[:-1] == b"True"
         self.assertTrue(result)
@@ -227,7 +235,8 @@ class DdtraceRunTest(BaseTestCase):
         # defined in users' PYTHONPATH.
         env = inject_sitecustomize("tests/commands/bootstrap")
         out = subprocess.check_output(
-            ["ddtrace-run", "python", "tests/commands/ddtrace_run_sitecustomize.py"], env=env,
+            ["ddtrace-run", "python", "tests/commands/ddtrace_run_sitecustomize.py"],
+            env=env,
         )
         assert out.startswith(b"Test success")
 
@@ -235,7 +244,8 @@ class DdtraceRunTest(BaseTestCase):
         # ensure `sitecustomize.py` is not loaded if `-S` is used
         env = inject_sitecustomize("tests/commands/bootstrap")
         out = subprocess.check_output(
-            ["ddtrace-run", "python", "-S", "tests/commands/ddtrace_run_sitecustomize.py", "-S"], env=env,
+            ["ddtrace-run", "python", "-S", "tests/commands/ddtrace_run_sitecustomize.py", "-S"],
+            env=env,
         )
         assert out.startswith(b"Test success")
 
@@ -251,17 +261,24 @@ class DdtraceRunTest(BaseTestCase):
         assert out.startswith(b"ddtrace_run_app_name.py")
 
     def test_global_trace_tags(self):
-        """ Ensure global tags are passed in from environment
-        """
+        """Ensure global tags are passed in from environment"""
         with self.override_env(dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_global_tags.py"])
             assert out.startswith(b"Test success")
 
     def test_logs_injection(self):
-        """ Ensure logs injection works
-        """
+        """Ensure logs injection works"""
         with self.override_env(dict(DD_LOGS_INJECTION="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
+            assert out.startswith(b"Test success")
+
+    def test_gevent_patch_all(self):
+        with self.override_env(dict(DD_GEVENT_PATCH_ALL="true")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_GEVENT_PATCH_ALL="1")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
             assert out.startswith(b"Test success")
 
 
@@ -276,5 +293,120 @@ def test_env_profiling_enabled(monkeypatch):
     assert out.strip() == b"RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
+    out = subprocess.check_output(["ddtrace-run", "--profiling", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"RUNNING"
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
+    out = subprocess.check_output(["ddtrace-run", "-p", "python", "tests/commands/ddtrace_run_profiling.py"])
+    assert out.strip() == b"RUNNING"
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
     out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])
     assert out.strip() == b"NO PROFILER"
+
+
+def test_version():
+    p = subprocess.Popen(
+        ["ddtrace-run", "-v"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+
+    # For some reason argparse prints the version to stderr
+    # in Python 2 and stdout in Python 3
+    if PY3:
+        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
+    else:
+        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+
+    p = subprocess.Popen(
+        ["ddtrace-run", "--version"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+    if PY3:
+        assert p.stdout.read() == six.b("ddtrace-run %s\n" % ddtrace.__version__)
+    else:
+        assert six.b("ddtrace-run %s" % ddtrace.__version__) in p.stderr.read()
+
+
+def test_bad_executable():
+    p = subprocess.Popen(
+        ["ddtrace-run", "executable-does-not-exist"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 1
+    assert p.stdout.read() == six.b(
+        "ddtrace-run: failed to find executable 'executable-does-not-exist'.\n\n"
+        "usage: ddtrace-run <your usual python command>\n"
+    )
+
+
+def test_executable_no_perms():
+    fd, path = tempfile.mkstemp(suffix=".py")
+    p = subprocess.Popen(
+        ["ddtrace-run", path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 1
+    assert p.stdout.read() == six.b(
+        "ddtrace-run: executable '%s' does not have executable permissions.\n\n"
+        "usage: ddtrace-run <your usual python command>\n" % path
+    )
+
+
+def test_command_flags():
+    out = subprocess.check_output(["ddtrace-run", "python", "-c", "print('test!')"])
+    assert out.strip() == six.b("test!")
+
+
+def test_return_code():
+    p = subprocess.Popen(
+        ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    p.wait()
+
+    assert p.returncode == 4
+
+
+def test_debug_mode():
+    p = subprocess.Popen(
+        ["ddtrace-run", "--debug", "python", "-c", "''"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+    assert p.stdout.read() == six.b("")
+    assert six.b("ddtrace.sampler") in p.stderr.read()
+
+
+def test_info():
+    p = subprocess.Popen(
+        ["ddtrace-run", "--info"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 0
+    stdout = p.stdout.read()
+    assert six.b("agent_url") in stdout
+
+
+def test_no_args():
+    p = subprocess.Popen(
+        ["ddtrace-run"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    assert p.returncode == 1
+    assert six.b("usage:") in p.stdout.read()

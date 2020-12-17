@@ -23,11 +23,26 @@ from ddtrace.vendor import six
 # module without having gevent crashing our dedicated thread.
 
 
-# Those are special features that might not be available depending on your Python version and platform
+# These are special features that might not be available depending on your Python version and platform
 FEATURES = {
     "cpu-time": False,
     "stack-exceptions": False,
+    "gevent-tasks": False,
 }
+
+
+_gevent_tracer = None
+try:
+    import gevent._tracer
+    import gevent.thread
+except ImportError:
+    _gevent_tracer = None
+else:
+    # NOTE: bold assumption: this module is always imported by the MainThread.
+    # A GreenletTracer is local to the thread instantiating it and we assume this is run by the MainThread.
+    _gevent_tracer = gevent._tracer.GreenletTracer()
+    FEATURES["gevent-tasks"] = True
+
 
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
@@ -214,6 +229,26 @@ ELSE:
         PyObject* _PyThread_CurrentFrames()
 
 
+cdef get_task(thread_id):
+    """Return the task id and name for a thread."""
+    # gevent greenlet support:
+    # we only support tracing tasks in the greenlets are run in the MainThread.
+    if thread_id == _nogevent.main_thread_id and _gevent_tracer is not None:
+        if _gevent_tracer.active_greenlet is None:
+            # That means gevent never switch to another greenlet, we're still in the main one
+            task_id = compat.main_thread.ident
+        else:
+            task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
+
+        # Greenlets might be started as Thread in gevent
+        task_name = _threading.get_thread_name(task_id)
+    else:
+        task_id = None
+        task_name = None
+
+    return task_id, task_name
+
+
 cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
 
@@ -288,12 +323,18 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     for thread_id, thread_native_id, thread_name, frame, exception, spans, cpu_time in running_threads:
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+
+        task_id, task_name = get_task(thread_id)
+
         stack_events.append(
             StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
+                task_id=task_id,
+                task_name=task_name,
                 trace_ids=set(span.trace_id for span in spans),
+                span_ids=set(span.span_id for span in spans),
                 nframes=nframes, frames=frames,
                 wall_time_ns=wall_time,
                 cpu_time_ns=cpu_time,
@@ -309,6 +350,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     thread_id=thread_id,
                     thread_name=thread_name,
                     thread_native_id=thread_native_id,
+                    task_id=task_id,
+                    task_name=task_name,
                     nframes=nframes,
                     frames=frames,
                     sampling_period=int(interval * 1e9),

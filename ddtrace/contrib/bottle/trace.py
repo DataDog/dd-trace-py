@@ -6,27 +6,27 @@ import ddtrace
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from ...settings import config
+from .. import trace_utils
 
 
 class TracePlugin(object):
-    name = 'trace'
+    name = "trace"
     api = 2
 
-    def __init__(self, service='bottle', tracer=None, distributed_tracing=True):
+    def __init__(self, service="bottle", tracer=None, distributed_tracing=True):
         self.service = ddtrace.config.service or service
         self.tracer = tracer or ddtrace.tracer
         self.distributed_tracing = distributed_tracing
 
     def apply(self, callback, route):
-
         def wrapped(*args, **kwargs):
             if not self.tracer or not self.tracer.enabled:
                 return callback(*args, **kwargs)
 
-            resource = '{} {}'.format(request.method, route.rule)
+            resource = "{} {}".format(request.method, route.rule)
 
             # Propagate headers such as x-datadog-trace-id.
             if self.distributed_tracing:
@@ -36,14 +36,14 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace(
-                'bottle.request', service=self.service, resource=resource, span_type=SpanTypes.WEB,
+                "bottle.request",
+                service=self.service,
+                resource=resource,
+                span_type=SpanTypes.WEB,
             ) as s:
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled
-                s.set_tag(
-                    ANALYTICS_SAMPLE_RATE_KEY,
-                    config.bottle.get_analytics_sample_rate(use_global_config=True)
-                )
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))
 
                 code = None
                 result = None
@@ -72,13 +72,17 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    if 500 <= response_code < 600:
-                        s.error = 1
-
-                    s.set_tag(http.STATUS_CODE, response_code)
-                    s.set_tag(http.URL, request.urlparts._replace(query='').geturl())
-                    s.set_tag(http.METHOD, request.method)
-                    if config.bottle.trace_query_string:
-                        s.set_tag(http.QUERY_STRING, request.query_string)
+                    method = request.method
+                    url = request.urlparts._replace(query="").geturl()
+                    trace_utils.set_http_meta(
+                        s,
+                        config.bottle,
+                        method=method,
+                        url=url,
+                        status_code=response_code,
+                        query=request.query_string,
+                        request_headers=request.headers,
+                        response_headers=response.headers,
+                    )
 
         return wrapped
