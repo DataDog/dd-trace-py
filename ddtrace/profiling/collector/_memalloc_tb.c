@@ -30,6 +30,9 @@ memalloc_tb_init(uint16_t max_nframe)
        This will be used a temporary buffer when converting stack traces. */
     traceback_buffer = PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe));
 
+    if (traceback_buffer == NULL)
+        return -1;
+
     return 0;
 }
 

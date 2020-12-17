@@ -70,10 +70,10 @@ def collect(tracer):
             agent_url = "AGENTLESS"
             hostname = port = uds_path = None
         else:
-            hostname = tracer.writer.api.hostname
-            port = tracer.writer.api.port
-            uds_path = tracer.writer.api.uds_path
-            https = tracer.writer.api.https
+            hostname = tracer.writer._hostname
+            port = tracer.writer._port
+            uds_path = tracer.writer._uds_path
+            https = tracer.writer._https
 
             # If all specified, uds_path will take precedence
             if uds_path:

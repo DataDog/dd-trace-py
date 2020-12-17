@@ -112,8 +112,6 @@ services:
         image: datadog/dd-trace-py:latest
         environment:
             - TOX_SKIP_DIST=True
-            - TEST_DATADOG_INTEGRATION=1
-            - TEST_DATADOG_INTEGRATION_UDS=1
         network_mode: host
         working_dir: /root/project/
         volumes:
