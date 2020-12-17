@@ -44,7 +44,7 @@ to the ``request`` object, so that it can be used in the application code::
         ctx = request['datadog_context']
         # do something with the tracing Context
 
-:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
 from ...utils.importlib import require_modules

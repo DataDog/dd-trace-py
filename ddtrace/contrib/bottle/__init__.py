@@ -10,7 +10,7 @@ plugin to your app::
     plugin = TracePlugin(service="my-web-app")
     app.install(plugin)
 
-:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
 

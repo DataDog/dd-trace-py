@@ -204,6 +204,8 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
+..  _http-tagging:
+
 HTTP tagging
 ------------
 

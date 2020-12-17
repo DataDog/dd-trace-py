@@ -87,7 +87,7 @@ Example::
 
 .. __: http://flask.pocoo.org/
 
-:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
 
