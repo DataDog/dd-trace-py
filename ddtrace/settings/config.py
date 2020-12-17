@@ -58,7 +58,7 @@ class Config(object):
         self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
         self.http_server.error_statuses = "500-599"
-        self.http_server.error_statuses_array = [[500,599]]
+        self.http_server.error_statuses_array = [[500, 599]]
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
