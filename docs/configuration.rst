@@ -34,7 +34,7 @@ below:
      - String
      -
      - Set an application's version in traces and logs e.g. ``1.2.3``,
-       ``6c44da20``, ``2020.02.13``. Added in ``v0.36.0``.
+       ``6c44da20``, ``2020.02.13``. Generally set along with ``DD_SERVICE``. Added in ``v0.36.0``.
    * - ``DD_SITE``
      - String
      - datadoghq.com
