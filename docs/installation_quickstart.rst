@@ -38,7 +38,7 @@ For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here
 If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all` can be used::
 
     import ddtrace
-    
+
     ddtrace.patch_all()
 
 
@@ -47,14 +47,13 @@ For information on how to manually create traces refer to the documentation :ref
 Profiling
 ~~~~~~~~~
 
-Getting started for profiling is as easy as prefixing your python entry-point
-command with ``pyddprofile``.
-
-For example if you start your application with ``python app.py`` then run::
+Profiling can also be auto enabled with :ref:`ddtracerun` by providing the
+``DD_PROFILING_ENABLED`` environment variable::
 
     DD_PROFILING_ENABLED=true ddtrace-run python app.py
 
-If ``ddtrace-run`` isn't suitable for your application then ``ddtrace.profiling.auto`` can be used::
+If ``ddtrace-run`` isn't suitable for your application then
+``ddtrace.profiling.auto`` can be used::
 
     import ddtrace.profiling.auto
 

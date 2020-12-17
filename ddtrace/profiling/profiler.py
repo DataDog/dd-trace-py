@@ -3,6 +3,8 @@ import atexit
 import logging
 import os
 from typing import Optional, List
+import warnings
+import sys
 
 import ddtrace
 from ddtrace.profiling import recorder
@@ -55,6 +57,15 @@ ProfilerStatus.STOPPED = ProfilerStatus("stopped")
 ProfilerStatus.RUNNING = ProfilerStatus("running")
 
 
+def gevent_patch_all(event):
+    if "ddtrace.profiling.auto" in sys.modules:
+        warnings.warn(
+            "Starting the profiler before using gevent monkey patching is not supported "
+            "and is likely to break the application. Use DD_GEVENT_PATCH_ALL=true to avoid this.",
+            RuntimeWarning,
+        )
+
+
 class Profiler(object):
     """Run profiling while code is executed.
 
@@ -71,7 +82,6 @@ class Profiler(object):
 
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         :param profile_children: Whether to start a profiler in child processes.
-                                 The new profiler object will be stored in the `child` attribute.
         """
 
         self._profiler.start()
@@ -150,14 +160,14 @@ def _get_default_url(
             scheme = "http"
             path = ""
         else:
-            default_hostname = tracer.writer.api.hostname
-            default_port = tracer.writer.api.port
-            if tracer.writer.api.https:
+            default_hostname = tracer.writer._hostname
+            default_port = tracer.writer._port
+            if tracer.writer._https:
                 scheme = "https"
                 path = ""
-            elif tracer.writer.api.uds_path is not None:
+            elif tracer.writer._uds_path is not None:
                 scheme = "unix"
-                path = tracer.writer.api.uds_path
+                path = tracer.writer._uds_path
             else:
                 scheme = "http"
                 path = ""

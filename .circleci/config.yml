@@ -482,8 +482,8 @@ jobs:
   asgi:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^asgi_contrib-'
+      - run_test:
+          pattern: 'asgi$'
 
   tornado:
     <<: *contrib_job
@@ -669,13 +669,13 @@ jobs:
           pattern: '^pymemcache_contrib\(_autopatch\)\?-'
 
   mongoengine:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *mongo_image
+    <<: *machine_executor
+    parallelism: 1
     steps:
-      - run_tox_scenario:
-          pattern: '^mongoengine_contrib-'
+      - run_test:
+          pattern: 'mongoengine'
+          snapshot: true
+          docker_services: 'mongo'
 
   pymongo:
     <<: *contrib_job
