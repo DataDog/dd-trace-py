@@ -115,7 +115,7 @@ def get_error_ranges(error_range_str):
         try:
             values = [int(v) for v in values]
         except ValueError:
-            log.exception("Error status codes was not a number %s", v)
+            log.exception("Error status codes was not a number %s", values)
             continue
         error_range = [min(values), max(values)]
         error_ranges.append(error_range)
