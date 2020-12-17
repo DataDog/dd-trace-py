@@ -482,8 +482,8 @@ jobs:
   asgi:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^asgi_contrib-'
+      - run_test:
+          pattern: 'asgi$'
 
   tornado:
     <<: *contrib_job
