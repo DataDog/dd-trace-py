@@ -52,6 +52,18 @@ def _wrap_response_callback(span, callback):
     return wrap_sync(callback)
 
 
+def _get_path(request):
+    """Get path and replace path parameter values with names if route exists."""
+    path = request.path
+    try:
+        match_info = request.match_info
+    except sanic.exceptions.SanicException:
+        return path
+    for key, value in match_info.items():
+        path = path.replace(value, f"<{key}>")
+    return path
+
+
 def patch():
     """Patch the instrumented methods."""
     if getattr(sanic, "__datadog_patch", False):
@@ -77,7 +89,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     if request.scheme not in ("http", "https"):
         return await wrapped(request, write_callback, stream_callback, **kwargs)
 
-    resource = "{} {}".format(request.method, request.path)
+    resource = "{} {}".format(request.method, _get_path(request))
 
     headers = request.headers.copy()
 

@@ -110,30 +110,14 @@ services:
 
     testrunner:
         image: datadog/dd-trace-py:latest
+        command: bash
         environment:
             - TOX_SKIP_DIST=True
         network_mode: host
         working_dir: /root/project/
         volumes:
-            - ddagent:/tmp/ddagent
-            # DEV: Make ddtrace rw so setup.py can build C-extensions
-            - ./ddtrace:/root/project/ddtrace:rw
-            - ./tests:/root/project/tests:ro
-            - ./setup.cfg:/root/project/setup.cfg:ro
-            - ./setup.py:/root/project/setup.py:ro
-            - ./conftest.py:/root/project/conftest.py:ro
-            - ./tox.ini:/root/project/tox.ini:ro
-            - ./riotfile.py:/root/project/riotfile.py:ro
-            - ./docs:/root/project/docs:rw
-            - ./pyproject.toml:/root/project/pyproject.toml:ro
-            - ./.riot:/root/project/.riot
-            - ./.ddtox:/root/project/.tox
-            - ./scripts:/root/project/scripts
-            # setuptools_scm needs `.git` to figure out what version we are on
-            # DEV: We could use `SETUPTOOLS_SCM_PRETEND_VERSION` but prefer `.git`
-            #      to get the same behavior as during releases
-            - ./.git:/root/project/.git:ro
-        command: bash
+          - ddagent:/tmp/ddagent
+          - "./:/root/project"
 
     localstack:
         image: localstack/localstack:0.12.1
