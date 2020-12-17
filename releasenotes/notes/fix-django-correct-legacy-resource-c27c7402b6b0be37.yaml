@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Add an option for the Django integration to use a legacy resource format of `{handler}`.
+    django: add legacy resource format of `{handler}`.
