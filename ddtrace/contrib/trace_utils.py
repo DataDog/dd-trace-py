@@ -106,6 +106,22 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
+def get_error_ranges(error_range_str):
+    error_ranges = []
+    error_range_str = error_range_str.strip()
+    error_ranges_str = error_range_str.split(",")
+    for error_range in error_ranges_str:
+        values = error_range.split("-")
+        try:
+            values = [int(v) for v in values]
+        except ValueError:
+            log.exception("Error status codes was not a number %s", v)
+            continue
+        error_range = [min(values), max(values)]
+        error_ranges.append(error_range)
+    return error_ranges
+
+
 def is_error_code(status_code):
     """Returns a boolean representing whether or not a status code is an error code.
     Error status codes by default are 500-599.
@@ -117,9 +133,9 @@ def is_error_code(status_code):
     Ranges and singular error codes are permitted and can be separated using commas.
     """
 
-    error_ranges = config.http_server.error_statuses_array
+    error_ranges = get_error_ranges(config.http_server.error_statuses)
     for error_range in error_ranges:
-        if min(error_range) <= int(status_code) <= max(error_range):
+        if error_range[0] <= int(status_code) <= error_range[1]:
             return True
     return False
 

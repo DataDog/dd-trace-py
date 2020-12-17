@@ -58,7 +58,6 @@ class Config(object):
         self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
         self.http_server.error_statuses = "500-599"
-        self.http_server.error_statuses_array = [[500, 599]]
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -160,25 +159,6 @@ class Config(object):
         :rtype: str|None
         """
         return self.service if self.service is not None else get_service_legacy(default=default)
-
-    def __setattr__(self, name, value):
-        if name == "http_server.error_statuses":
-            if not isinstance(value, str):
-                return
-            error_statuses = []
-            error_str = value.strip()
-            error_ranges = error_str.split(",")
-            for error_range in error_ranges:
-                values = error_range.split("-")
-                try:
-                    values = [int(v) for v in values]
-                except ValueError:
-                    continue
-                error_range = [min(values), max(values)]
-                error_statuses.append(error_range)
-            if error_statuses:
-                self.http_server.error_statuses_array = error_statuses
-        super(Config, self).__setattr__(name, value)
 
     def __repr__(self):
         cls = self.__class__
