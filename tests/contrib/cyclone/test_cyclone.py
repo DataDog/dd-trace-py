@@ -234,7 +234,11 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
     def test_distributed_tracing_receive(self):
         resp = yield self.client.get(
             "/",
-            headers={"x-datadog-trace-id": "1234321", "x-datadog-parent-id": "12", "x-datadog-sampling-priority": 2,},
+            headers={
+                "x-datadog-trace-id": "1234321",
+                "x-datadog-parent-id": "12",
+                "x-datadog-sampling-priority": 2,
+            },
         )
         assert resp.get_status() == 200
 

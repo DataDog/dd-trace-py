@@ -21,7 +21,7 @@ class RuntimeMetricCollector(ValueCollector):
 
 
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
-    """ Collector for garbage collection generational counts
+    """Collector for garbage collection generational counts
 
     More information at https://docs.python.org/3/library/gc.html
     """
@@ -51,7 +51,10 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["ddtrace.vendor.psutil"]
     stored_value = dict(
-        CPU_TIME_SYS_TOTAL=0, CPU_TIME_USER_TOTAL=0, CTX_SWITCH_VOLUNTARY_TOTAL=0, CTX_SWITCH_INVOLUNTARY_TOTAL=0,
+        CPU_TIME_SYS_TOTAL=0,
+        CPU_TIME_USER_TOTAL=0,
+        CTX_SWITCH_VOLUNTARY_TOTAL=0,
+        CTX_SWITCH_INVOLUNTARY_TOTAL=0,
     )
 
     def _on_modules_load(self):

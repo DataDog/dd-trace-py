@@ -6,10 +6,11 @@ from functools import partial
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
-from django.http import HttpResponse
+from django.http import HttpResponse, Http404
 from django.template import loader
 from django.template.response import TemplateResponse
 from django.views.generic import ListView, TemplateView, View
+from django.utils.safestring import mark_safe
 
 
 class UserList(ListView):
@@ -20,6 +21,11 @@ class UserList(ListView):
 class TemplateCachedUserList(ListView):
     model = User
     template_name = "cached_list.html"
+
+
+class SafeTemplateUserList(ListView):
+    model = User
+    template_name = mark_safe("cached_list.html")
 
 
 class BasicView(View):
@@ -156,3 +162,7 @@ class CustomDispatchView(View):
 
 class ComposedView(TemplateView, CustomDispatchView):
     template_name = "custom_dispatch.html"
+
+
+def not_found_view(request):
+    raise Http404("DNE")

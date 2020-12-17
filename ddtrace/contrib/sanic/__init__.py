@@ -40,13 +40,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.sanic['analytics_enabled']
-
-   Whether to analyze spans for Sanic in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_SANIC_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
 
 .. py:data:: ddtrace.config.sanic['service_name']
 

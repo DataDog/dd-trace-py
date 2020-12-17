@@ -13,6 +13,7 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     * the ``active`` method, that returns the current active ``Context``
     * the ``activate`` method, that sets the current active ``Context``
     """
+
     @abc.abstractmethod
     def _has_active_context(self):
         pass
@@ -38,6 +39,7 @@ class DefaultContextProvider(BaseContextProvider):
     thread-local storage. It is suitable for synchronous programming and
     Python WSGI frameworks.
     """
+
     def __init__(self, reset_context_manager=True):
         self._local = DefaultContextManager(reset=reset_context_manager)
 

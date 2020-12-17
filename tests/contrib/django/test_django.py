@@ -1,12 +1,16 @@
+import itertools
 import django
 from django.views.generic import TemplateView
 from django.test import modify_settings, override_settings
+from django.utils.functional import SimpleLazyObject
 import os
 import pytest
 
 from ddtrace import config
+from ddtrace.compat import string_type, binary_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
+from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -58,7 +62,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         service="django",
         resource=resource,
         parent_id=None,
-        span_type="http",
+        span_type="web",
         error=0,
         meta=meta,
     )
@@ -189,7 +193,10 @@ def test_v2XX_middleware(client, test_spans):
     # Assert common span structure
     for span in middleware_spans:
         span.assert_matches(
-            name="django.middleware", service="django", error=0, span_type=None,
+            name="django.middleware",
+            service="django",
+            error=0,
+            span_type=None,
         )
 
     span_resources = {
@@ -267,7 +274,7 @@ def test_django_request_not_found(client, test_spans):
         service="django",
         resource="GET 404",
         parent_id=None,
-        span_type="http",
+        span_type="web",
         error=0,
         meta={
             "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
@@ -286,7 +293,9 @@ def test_django_request_not_found(client, test_spans):
     render_span.assert_matches(
         name="django.template.render",
         resource="django.template.base.Template.render",
-        meta={"django.template.engine.class": "django.template.engine.Engine",},
+        meta={
+            "django.template.engine.class": "django.template.engine.Engine",
+        },
     )
 
 
@@ -395,7 +404,10 @@ def test_request_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.index", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.index",
+        error=0,
     )
 
 
@@ -423,7 +435,10 @@ def test_template_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -441,7 +456,10 @@ def test_template_simple_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_simple_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_simple_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -459,7 +477,10 @@ def test_template_list_view(client, test_spans):
     # Assert span properties
     view_span = view_spans[0]
     view_span.assert_matches(
-        name="django.view", service="django", resource="tests.contrib.django.views.template_list_view", error=0,
+        name="django.view",
+        service="django",
+        resource="tests.contrib.django.views.template_list_view",
+        error=0,
     )
 
     root_span = test_spans.get_root_span()
@@ -478,19 +499,6 @@ def test_middleware_trace_function_based_view(client, test_spans):
         assert span.resource == "GET ^fn-view/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.function_view"
-
-
-def test_middleware_trace_callable_view(client, test_spans):
-    # ensures that the internals are properly traced when using callable views
-    assert client.get("/feed-view/").status_code == 200
-
-    span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/feed-view/"
-    if django.VERSION >= (2, 2, 0):
-        assert span.resource == "GET ^feed-view/$"
-    else:
-        assert span.resource == "GET tests.contrib.django.views.FeedView"
 
 
 def test_middleware_trace_errors(client, test_spans):
@@ -519,19 +527,6 @@ def test_middleware_trace_staticmethod(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.StaticMethodView"
 
 
-def test_middleware_trace_partial_based_view(client, test_spans):
-    # ensures that the internals are properly traced when using a function views
-    assert client.get("/partial-view/").status_code == 200
-
-    span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/partial-view/"
-    if django.VERSION >= (2, 2, 0):
-        assert span.resource == "GET ^partial-view/$"
-    else:
-        assert span.resource == "GET partial"
-
-
 def test_simple_view_get(client, test_spans):
     # The `get` method of a view should be traced
     assert client.get("/simple/").status_code == 200
@@ -541,7 +536,8 @@ def test_simple_view_get(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.get", error=0,
+        resource="tests.contrib.django.views.BasicView.get",
+        error=0,
     )
 
 
@@ -555,7 +551,8 @@ def test_simple_view_post(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.post", error=0,
+        resource="tests.contrib.django.views.BasicView.post",
+        error=0,
     )
 
 
@@ -568,7 +565,8 @@ def test_simple_view_delete(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.delete", error=0,
+        resource="tests.contrib.django.views.BasicView.delete",
+        error=0,
     )
 
 
@@ -582,7 +580,8 @@ def test_simple_view_options(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="django.views.generic.base.View.options", error=0,
+        resource="django.views.generic.base.View.options",
+        error=0,
     )
 
 
@@ -595,7 +594,8 @@ def test_simple_view_head(client, test_spans):
     assert len(spans) == 1
     span = spans[0]
     span.assert_matches(
-        resource="tests.contrib.django.views.BasicView.head", error=0,
+        resource="tests.contrib.django.views.BasicView.head",
+        error=0,
     )
 
 
@@ -1135,7 +1135,12 @@ def test_django_request_distributed(client, test_spans):
     # DEV: Do not use `test_spans.get_root_span()` since that expects `parent_id is None`
     root = test_spans.find_span(name="django.request")
     root.assert_matches(
-        name="django.request", trace_id=12345, parent_id=78910, metrics={SAMPLING_PRIORITY_KEY: USER_KEEP,},
+        name="django.request",
+        trace_id=12345,
+        parent_id=78910,
+        metrics={
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
     )
 
 
@@ -1322,18 +1327,6 @@ def test_urlpatterns_path(client, test_spans):
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="include only exists in >=2.0.0")
-def test_urlpatterns_include(client, test_spans):
-    """
-    When a view is specified using `django.urls.include`
-        The view is traced
-    """
-    assert client.get("/include/test/").status_code == 200
-
-    # Ensure the view was traced
-    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
-
-
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="repath only exists in >=2.0.0")
 def test_urlpatterns_repath(client, test_spans):
     """
@@ -1392,7 +1385,7 @@ def test_django_use_handler_resource_format(client, test_spans):
         root = test_spans.get_root_span()
         resource = "GET tests.contrib.django.views.index"
 
-        root.assert_matches(resource=resource, parent_id=None, span_type="http")
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
 
 def test_custom_dispatch_template_view(client, test_spans):
@@ -1460,3 +1453,41 @@ def test_template_view_patching():
     # Patch via `as_view()`
     TemplateView.as_view()
     assert "dispatch" not in vars(TemplateView)
+
+
+class _MissingSchemeRequest(django.http.HttpRequest):
+    @property
+    def scheme(self):
+        pass
+
+
+class _HttpRequest(django.http.HttpRequest):
+    @property
+    def scheme(self):
+        return b"http"
+
+
+@pytest.mark.parametrize(
+    "request_cls,request_path,http_host",
+    itertools.product(
+        [django.http.HttpRequest, _HttpRequest, _MissingSchemeRequest],
+        [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
+    ),
+)
+def test_helper_get_request_uri(request_cls, request_path, http_host):
+    request = request_cls()
+    request.path = request_path
+    request.META = {"HTTP_HOST": http_host}
+    request_uri = get_request_uri(request)
+    if (
+        isinstance(http_host, SimpleLazyObject) and not (issubclass(http_host.__class__, str))
+    ) or request_cls is _MissingSchemeRequest:
+        assert request_uri is None
+    else:
+        assert (
+            request_cls == _HttpRequest
+            and isinstance(request_path, binary_type)
+            and isinstance(http_host, binary_type)
+            and isinstance(request_uri, binary_type)
+        ) or isinstance(request_uri, string_type)

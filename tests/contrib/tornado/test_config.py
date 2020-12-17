@@ -28,12 +28,11 @@ class TestTornadoSettings(TornadoTestCase):
         # the tracer must be properly configured
         assert self.tracer.tags == {'env': 'production', 'debug': 'false'}
         assert self.tracer.enabled is False
-        assert self.tracer.writer.api.hostname == 'dd-agent.service.consul'
-        assert self.tracer.writer.api.port == 8126
+        assert self.tracer.writer._hostname == 'dd-agent.service.consul'
+        assert self.tracer.writer._port == 8126
         # settings are properly passed
-        assert self.tracer.writer._filters is not None
-        assert len(self.tracer.writer._filters) == 1
-        assert isinstance(self.tracer.writer._filters[0], FilterRequestsOnUrl)
+        assert len(self.tracer._filters) == 1
+        assert isinstance(self.tracer._filters[0], FilterRequestsOnUrl)
 
 
 class TestTornadoSettingsEnabled(TornadoTestCase):

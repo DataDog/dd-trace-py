@@ -20,8 +20,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
 
 
 def trace_func(resource):
-    """Trace calls to function using provided resource name
-    """
+    """Trace calls to function using provided resource name"""
 
     @wrapt.function_wrapper
     def _trace_func(wrapped, instance, args, kwargs):
@@ -88,7 +87,10 @@ class WrapperRouter(wrapt.ObjectProxy):
             route.handler = trace_func(func_name(route.handler))(route.handler)
 
             # update root span resource while we know the matched route
-            resource = "{} {}".format(route.method, route.template,)
+            resource = "{} {}".format(
+                route.method,
+                route.template,
+            )
             root_span = pin.tracer.current_root_span()
             root_span.resource = resource
 

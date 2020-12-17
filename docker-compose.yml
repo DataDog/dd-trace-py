@@ -73,8 +73,15 @@ services:
         image: rabbitmq:3.7-alpine
         ports:
             - "127.0.0.1:5672:5672"
+    ddagent5:
+      image: datadog/docker-dd-agent:latest
+      environment:
+        - DD_BIND_HOST=0.0.0.0
+        - DD_API_KEY=invalid_but_this_is_fine
+      ports:
+        - "127.0.0.1:8126:8126"
     ddagent:
-        image: datadog/agent-dev:gbbr-apm-build
+        image: datadog/agent:latest
         environment:
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
@@ -82,7 +89,7 @@ services:
         ports:
             - "127.0.0.1:8126:8126"
         volumes:
-          - ddagent:/tmp/ddagent
+          - ddagent:/tmp/ddagent:rw
     testagent:
         image: kyleverhoog/dd-trace-test-agent
         ports:
@@ -105,28 +112,48 @@ services:
         image: datadog/dd-trace-py:latest
         environment:
             - TOX_SKIP_DIST=True
-            - TEST_DATADOG_INTEGRATION=1
-            - TEST_DATADOG_INTEGRATION_UDS=1
         network_mode: host
-        working_dir: /src
+        working_dir: /root/project/
         volumes:
             - ddagent:/tmp/ddagent
             # DEV: Make ddtrace rw so setup.py can build C-extensions
-            - ./ddtrace:/src/ddtrace:rw
-            - ./tests:/src/tests:ro
-            - ./setup.cfg:/src/setup.cfg:ro
-            - ./setup.py:/src/setup.py:ro
-            - ./conftest.py:/src/conftest.py:ro
-            - ./tox.ini:/src/tox.ini:ro
-            - ./docs:/src/docs:rw
-            - ./pyproject.toml:/src/pyproject.toml:ro
-            - ./.ddtox:/src/.tox
-            - ./scripts:/src/scripts
+            - ./ddtrace:/root/project/ddtrace:rw
+            - ./tests:/root/project/tests:ro
+            - ./setup.cfg:/root/project/setup.cfg:ro
+            - ./setup.py:/root/project/setup.py:ro
+            - ./conftest.py:/root/project/conftest.py:ro
+            - ./tox.ini:/root/project/tox.ini:ro
+            - ./riotfile.py:/root/project/riotfile.py:ro
+            - ./docs:/root/project/docs:rw
+            - ./pyproject.toml:/root/project/pyproject.toml:ro
+            - ./.riot:/root/project/.riot
+            - ./.ddtox:/root/project/.tox
+            - ./scripts:/root/project/scripts
             # setuptools_scm needs `.git` to figure out what version we are on
             # DEV: We could use `SETUPTOOLS_SCM_PRETEND_VERSION` but prefer `.git`
             #      to get the same behavior as during releases
-            - ./.git:/src/.git:ro
+            - ./.git:/root/project/.git:ro
         command: bash
+
+    localstack:
+        image: localstack/localstack:0.12.1
+        network_mode: bridge
+        ports:
+          - "127.0.0.1:4566:4566"
+          - "127.0.0.1:4571:4571"
+        environment:
+          - SERVICES=${SERVICES- }
+          - DEBUG=${DEBUG- }
+          - DATA_DIR=${DATA_DIR- }
+          - PORT_WEB_UI=${PORT_WEB_UI- }
+          - LAMBDA_EXECUTOR=local
+          - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+          - DOCKER_HOST=unix:///var/run/docker.sock
+          - HOST_TMP_FOLDER=${TMPDIR}
+          - INIT_SCRIPTS_PATH=/setup
+        volumes:
+          - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+          - "/var/run/docker.sock:/var/run/docker.sock"
 
 volumes:
     ddagent:

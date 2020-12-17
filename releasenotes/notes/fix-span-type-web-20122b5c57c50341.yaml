@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django, DRF, ASGI: fix span type for web request spans.

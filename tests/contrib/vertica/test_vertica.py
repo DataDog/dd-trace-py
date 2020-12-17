@@ -145,7 +145,12 @@ class TestVertica(TracerTestCase):
         routine_config = dict(
             patch={
                 "vertica_python.vertica.connection.Connection": dict(
-                    routines=dict(cursor=dict(operation_name="get_cursor", trace_enabled=True,),),
+                    routines=dict(
+                        cursor=dict(
+                            operation_name="get_cursor",
+                            trace_enabled=True,
+                        ),
+                    ),
                 ),
             },
         )
@@ -322,7 +327,8 @@ class TestVertica(TracerTestCase):
 
         with conn:
             cur.copy(
-                "COPY {0} (a, b) FROM STDIN DELIMITER ','".format(TEST_TABLE), "1,foo\n2,bar",
+                "COPY {0} (a, b) FROM STDIN DELIMITER ','".format(TEST_TABLE),
+                "1,foo\n2,bar",
             )
 
         spans = self.test_tracer.writer.pop()

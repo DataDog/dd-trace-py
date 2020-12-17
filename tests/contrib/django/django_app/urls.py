@@ -35,6 +35,7 @@ urlpatterns = [
     url(r"^simple/$", views.BasicView.as_view()),
     url(r"^users/$", views.UserList.as_view(), name="users-list"),
     url(r"^cached-template/$", views.TemplateCachedUserList.as_view(), name="cached-template-list"),
+    url(r"^safe-template/$", views.SafeTemplateUserList.as_view(), name="safe-template-list"),
     url(r"^cached-users/$", cache_page(60)(views.UserList.as_view()), name="cached-users-list"),
     url(r"^fail-view/$", views.ForbiddenView.as_view(), name="forbidden-view"),
     url(r"^authenticated/$", authenticated_view, name="authenticated-view"),
@@ -55,4 +56,5 @@ urlpatterns = [
     url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
     url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
+    url(r"^404-view/$", views.not_found_view, name="404-view"),
 ]

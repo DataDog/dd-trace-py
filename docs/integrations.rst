@@ -228,6 +228,13 @@ PynamoDB
 .. automodule:: ddtrace.contrib.pynamodb
 
 
+.. _pyodbc:
+
+PyODBC
+^^^^^^^^
+.. automodule:: ddtrace.contrib.pyodbc
+
+
 .. _pymemcache:
 
 pymemcache
@@ -254,6 +261,13 @@ pymysql
 Pyramid
 ^^^^^^^
 .. automodule:: ddtrace.contrib.pyramid
+
+
+.. _pytest:
+
+pytest
+^^^^^^
+.. automodule:: ddtrace.contrib.pytest
 
 
 .. _psycopg2:
@@ -289,6 +303,13 @@ Requests
 Sanic
 ^^^^^
 .. automodule:: ddtrace.contrib.sanic
+
+
+.. _starlette:
+
+Starlette
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.starlette
 
 
 .. _sqlalchemy:

@@ -88,7 +88,8 @@ def test_memory_ignore_false():
 
 @pytest.mark.benchmark(group="memory-capture", min_time=1)
 @pytest.mark.parametrize(
-    "pct", range(10, 101, 10),
+    "pct",
+    range(10, 101, 10),
 )
 @pytest.mark.skipif(tracemalloc is None, reason="tracemalloc is unavailable")
 def test_memory_alloc_speed_patched(benchmark, pct):
@@ -97,6 +98,8 @@ def test_memory_alloc_speed_patched(benchmark, pct):
         benchmark(_alloc)
 
 
-@pytest.mark.benchmark(group="memory-capture",)
+@pytest.mark.benchmark(
+    group="memory-capture",
+)
 def test_memory_alloc_speed(benchmark):
     benchmark(_alloc)

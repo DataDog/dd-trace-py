@@ -24,21 +24,17 @@ The library can be configured globally and per instance, using the Configuration
     # disable distributed tracing globally
     config.requests['distributed_tracing'] = False
 
-    # enable trace analytics globally
-    config.requests['analytics_enabled'] = True
-
     # change the service name/distributed tracing only for this session
     session = Session()
     cfg = config.get_from(session)
     cfg['service_name'] = 'auth-api'
-    cfg['analytics_enabled'] = True
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 from ...utils.importlib import require_modules
 
 
-required_modules = ['requests']
+required_modules = ["requests"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -46,7 +42,7 @@ with require_modules(required_modules) as missing_modules:
         from .session import TracedSession
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'TracedSession',
+            "patch",
+            "unpatch",
+            "TracedSession",
         ]

@@ -1,6 +1,7 @@
-from ...compat import parse
-from ...internal.logger import get_logger
+from django.utils.functional import SimpleLazyObject
 
+from ...compat import PY3, binary_type, parse, to_unicode
+from ...internal.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -86,8 +87,44 @@ def get_request_uri(request):
             log.debug("Failed to build Django request host", exc_info=True)
             host = "unknown"
 
+    # If request scheme is missing, possible in case where wsgi.url_scheme
+    # environ has not been set, return None and skip providing a uri
+    if request.scheme is None:
+        return
+
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    return parse.urlunparse(
-        parse.ParseResult(scheme=request.scheme, netloc=host, path=request.path, params="", query="", fragment="",)
-    )
+    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+
+    # If any url part is a SimpleLazyObject, use its __class__ property to cast
+    # str/bytes and allow for _setup() to execute
+    for (k, v) in urlparts.items():
+        if isinstance(v, SimpleLazyObject):
+            if issubclass(v.__class__, str):
+                v = str(v)
+            elif issubclass(v.__class__, bytes):
+                v = bytes(v)
+            else:
+                # lazy object that is not str or bytes should not happen here
+                # but if it does skip providing a uri
+                log.debug(
+                    "Skipped building Django request uri, %s is SimpleLazyObject wrapping a %s class",
+                    k,
+                    v.__class__.__name__,
+                )
+                return None
+        urlparts[k] = v
+
+    # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
+    # type of the scheme to check the type to expect from all url parts, raising
+    # a TypeError otherwise. If the scheme is not a str, the function returns
+    # the url parts bytes decoded along with a function to encode the result of
+    # combining the url parts. We returns a byte string when all url parts are
+    # byte strings.
+    # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
+    if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
+        for (key, value) in urlparts.items():
+            if value is not None and isinstance(value, binary_type):
+                urlparts[key] = to_unicode(value)
+
+    return parse.urlunparse(parse.ParseResult(**urlparts))

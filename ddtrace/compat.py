@@ -2,6 +2,7 @@ import platform
 import random
 import re
 import sys
+import threading
 import textwrap
 
 from ddtrace.vendor import six
@@ -41,6 +42,7 @@ reload_module = six.moves.reload_module
 
 stringify = six.text_type
 string_type = six.string_types[0]
+binary_type = six.binary_type
 msgpack_type = six.binary_type
 # DEV: `six` doesn't have `float` in `integer_types`
 numeric_types = six.integer_types + (float,)
@@ -98,6 +100,15 @@ if sys.version_info.major < 3:
     getrandbits = random.SystemRandom().getrandbits
 else:
     getrandbits = random.getrandbits
+
+
+if sys.version_info.major < 3:
+    if isinstance(threading.current_thread(), threading._MainThread):
+        main_thread = threading.current_thread()
+    else:
+        main_thread = threading._shutdown.im_self
+else:
+    main_thread = threading.main_thread()
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 4):
@@ -189,6 +200,7 @@ try:
     import contextvars  # noqa
 except ImportError:
     from ddtrace.vendor import contextvars  # noqa
+
     CONTEXTVARS_IS_AVAILABLE = False
 else:
     CONTEXTVARS_IS_AVAILABLE = True

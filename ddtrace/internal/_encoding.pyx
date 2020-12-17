@@ -1,5 +1,5 @@
 from cpython cimport *
-from cpython.bytearray cimport PyByteArray_CheckExact
+from cpython.bytearray cimport PyByteArray_Check
 import struct
 
 from ..span import Span
@@ -29,10 +29,12 @@ cdef extern from "pack.h":
 cdef extern from "buff_converter.h":
     object buff_to_buff(char *, Py_ssize_t)
 
+
 cdef long long ITEM_LIMIT = (2**32)-1
 
-cdef inline int PyBytesLike_CheckExact(object o):
-    return PyBytes_CheckExact(o) or PyByteArray_CheckExact(o)
+
+cdef inline int PyBytesLike_Check(object o):
+    return PyBytes_Check(o) or PyByteArray_Check(o)
 
 
 cdef inline int pack_bytes(msgpack_packer *pk, char *bytes, Py_ssize_t l):
@@ -106,7 +108,7 @@ cdef class Packer(object):
         while True:
             if o is None:
                 ret = msgpack_pack_nil(&self.pk)
-            elif PyLong_CheckExact(o):
+            elif PyLong_Check(o):
                 # PyInt_Check(long) is True for Python 3.
                 # So we should test long before int.
                 try:
@@ -123,13 +125,13 @@ cdef class Packer(object):
                         continue
                     else:
                         raise OverflowError("Integer value out of range")
-            elif PyInt_CheckExact(o):
+            elif PyInt_Check(o):
                 longval = o
                 ret = msgpack_pack_long(&self.pk, longval)
-            elif PyFloat_CheckExact(o):
+            elif PyFloat_Check(o):
                 dval = o
                 ret = msgpack_pack_double(&self.pk, dval)
-            elif PyBytesLike_CheckExact(o):
+            elif PyBytesLike_Check(o):
                 L = len(o)
                 if L > ITEM_LIMIT:
                     PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(o).tp_name)
@@ -137,7 +139,7 @@ cdef class Packer(object):
                 ret = msgpack_pack_raw(&self.pk, L)
                 if ret == 0:
                     ret = msgpack_pack_raw_body(&self.pk, rawval, L)
-            elif PyUnicode_CheckExact(o):  #  if strict_types else PyUnicode_Check(o):
+            elif PyUnicode_Check(o):
                 if self.encoding == NULL:
                     ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
                     if ret == -2:

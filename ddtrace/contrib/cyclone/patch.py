@@ -8,7 +8,13 @@ from ddtrace.propagation.http import HTTPPropagator
 from .. import trace_utils
 
 
-config._add("cyclone", dict(_default_service="cyclone", distributed_tracing_enabled=True,))
+config._add(
+    "cyclone",
+    dict(
+        _default_service="cyclone",
+        distributed_tracing_enabled=True,
+    ),
+)
 
 
 log = get_logger(__name__)
@@ -97,7 +103,6 @@ def traced_requesthandler_handle_request_exception(cyclone, pin, func, instance,
             return func(*args, **kwargs)
         finally:
             span.finish()
-
 
 
 @trace_utils.with_traced_module

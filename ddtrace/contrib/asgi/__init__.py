@@ -33,19 +33,11 @@ The middleware also supports using a custom function for handling exceptions for
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.asgi['distributed_tracing_enabled']
+.. py:data:: ddtrace.config.asgi['distributed_tracing']
 
    Whether to use distributed tracing headers from requests received by your Asgi app.
 
    Default: ``True``
-
-.. py:data:: ddtrace.config.asgi['analytics_enabled']
-
-   Whether to analyze spans for Asgi in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_ASGI_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
 
 .. py:data:: ddtrace.config.asgi['service_name']
 

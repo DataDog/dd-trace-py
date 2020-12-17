@@ -8,7 +8,11 @@ from ddtrace.profiling.exporter import pprof_pb2
 
 
 def call_program(*args):
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, close_fds=True,)
+    subp = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        close_fds=True,
+    )
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid
 
@@ -38,7 +42,7 @@ def check_pprof_file(filename):
         content = f.read()
     p = pprof_pb2.Profile()
     p.ParseFromString(content)
-    assert len(p.sample_type) == 11
+    assert len(p.sample_type) == 10
     assert p.string_table[p.sample_type[0].type] == "cpu-samples"
 
 
@@ -63,7 +67,6 @@ def test_call_script_pprof_output_interval(tmp_path, monkeypatch):
         check_pprof_file(filename + "." + str(pid) + (".%d" % i))
 
 
-@pytest.mark.skipif(os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Test hangs forever on gevent")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")

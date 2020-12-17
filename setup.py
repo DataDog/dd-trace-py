@@ -107,16 +107,37 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-if platform.uname()[0] != "Windows":
-    encoding_libraries = []
-    extra_compile_args = ["-DPy_BUILD_CORE"]
-else:
+if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
+    debug_compile_args = []
+else:
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+    if "DD_COMPILE_DEBUG" in os.environ:
+        if platform.system() == "Linux":
+            debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+        else:
+            debug_compile_args = [
+                "-g",
+                "-O0",
+                "-Werror",
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                "-Wno-deprecated-declarations",
+            ]
+    else:
+        debug_compile_args = []
+
 
 if sys.version_info[:2] >= (3, 4):
     ext_modules = [
-        Extension("ddtrace.profiling.collector._memalloc", sources=["ddtrace/profiling/collector/_memalloc.c"],),
+        Extension(
+            "ddtrace.profiling.collector._memalloc",
+            sources=["ddtrace/profiling/collector/_memalloc.c", "ddtrace/profiling/collector/_memalloc_tb.c"],
+            extra_compile_args=debug_compile_args,
+        ),
     ]
 else:
     ext_modules = []
@@ -139,6 +160,7 @@ setup(
         install_requires=[
             "enum34; python_version<'3.4'",
             "funcsigs>=1.0.0; python_version=='2.7'",
+            "typing; python_version<'3.5'",
             "protobuf>=3",
             "intervaltree",
             "tenacity>=5",
@@ -155,7 +177,11 @@ setup(
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
                 "pyddprofile = ddtrace.profiling.__main__:main",
-            ]
+            ],
+            "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
+            "gevent.plugins.monkey.did_patch_all": [
+                "ddtrace.profiling.profiler = ddtrace.profiling.profiler:gevent_patch_all",
+            ],
         },
         classifiers=[
             "Programming Language :: Python",
@@ -164,6 +190,7 @@ setup(
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
         ],
         use_scm_version=True,
         setup_requires=["setuptools_scm[toml]>=4", "cython"],
@@ -171,7 +198,9 @@ setup(
         + cythonize(
             [
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
                 ),
                 Extension(
                     "ddtrace.internal._encoding",
@@ -179,9 +208,6 @@ setup(
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._queue", sources=["ddtrace/internal/_queue.pyx"], language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
@@ -200,7 +226,14 @@ setup(
                     language="c",
                 ),
                 Cython.Distutils.Extension(
-                    "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._build",
+                    sources=["ddtrace/profiling/_build.pyx"],
+                    language="c",
                 ),
             ],
             compile_time_env={

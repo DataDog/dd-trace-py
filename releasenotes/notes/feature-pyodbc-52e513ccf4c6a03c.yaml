@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    pyodbc integration.
+    This enables the `pyodbc <https://github.com/mkleehammer/pyodbc>`_ library to trace queries. 

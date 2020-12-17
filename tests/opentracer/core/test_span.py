@@ -74,7 +74,12 @@ class TestSpan(object):
 
         stack_trace = str(traceback.format_stack())
         nop_span.log_kv(
-            {"event": "error", "error": 3, "message": "my error message", "stack": stack_trace,}
+            {
+                "event": "error",
+                "error": 3,
+                "message": "my error message",
+                "stack": stack_trace,
+            }
         )
 
         # Ensure error flag is set...
@@ -117,8 +122,7 @@ class TestSpan(object):
 
 
 class TestSpanCompatibility(object):
-    """Ensure our opentracer spans features correspond to datadog span features.
-    """
+    """Ensure our opentracer spans features correspond to datadog span features."""
 
     def test_set_tag(self, nop_span):
         nop_span.set_tag("test", 2)
