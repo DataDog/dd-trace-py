@@ -166,8 +166,6 @@ commands:
             - save_codecov
       - store_test_results:
           path: .pytest
-      - store_artifacts:
-          path: .pytest
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -194,8 +192,6 @@ commands:
       - save_tox_cache
       - save_codecov
       - store_test_results:
-          path: .pytest
-      - store_artifacts:
           path: .pytest
 
   test_build:
