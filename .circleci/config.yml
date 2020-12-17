@@ -359,9 +359,12 @@ jobs:
       - run: coverage html --ignore-errors
       - store_artifacts:
           path: htmlcov
-      # Print report to stdout
+      # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors
+      - run: coverage report --ignore-errors --omit=tests/
+      # Print tests/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=ddtrace/
       # Print diff-cover report to stdout (compares against origin/master)
       - run: diff-cover coverage.xml
 
