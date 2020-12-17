@@ -164,8 +164,8 @@ commands:
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
             - save_codecov
-      - store_test_artifacts:
-          - path: /tmp/pytest
+      - store_test_results:
+          path: /tmp/pytest
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -191,8 +191,8 @@ commands:
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
       - save_codecov
-      - store_test_artifacts:
-          - path: /tmp/pytest
+      - store_test_results:
+          path: /tmp/pytest
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
