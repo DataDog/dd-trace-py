@@ -153,9 +153,10 @@ latter.
 4. Enable Django tracing automatically via `ddtrace-run`` or manually by
    adding ``ddtrace.patch_all()`` to ``settings.py``.
 
-5. Set environment variable ``DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT=true`` to
-   continue with the legacy resource format `"{handler}"` rather than the new
-   default resource format `"{method} {urlpattern}"`.
+5. Set environment variable ``DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT`` or
+   ``ddtrace.config.django['use_legacy_resource_format']`` to continue using the
+   legacy resource format `"{handler}"` rather than the new default resource
+   format `"{method} {urlpattern}"`.
 
 The mapping from old configuration settings to new ones.
 
