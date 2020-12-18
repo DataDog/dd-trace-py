@@ -493,14 +493,12 @@ jobs:
 
   twisted:
     <<: *machine_executor
+    parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d mysql testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^twisted_contrib-'
+      - run_test:
+          pattern: 'twisted'
+          snapshot: true
+          docker_services: 'mysql'
 
   bottle:
     <<: *contrib_job

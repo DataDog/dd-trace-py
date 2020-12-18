@@ -2,7 +2,6 @@ import twisted
 from twisted.enterprise import adbapi
 from twisted.internet import reactor, task
 
-import ddtrace
 from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
 from ddtrace.contrib.mysqldb import patch as mysql_patch
