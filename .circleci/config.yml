@@ -289,8 +289,9 @@ jobs:
   black:
     executor: python38
     steps:
-      - run_test:
-          pattern: "black"
+      - checkout
+      - setup_riot
+      - run: riot run -s black --check .
 
   ccheck:
     executor: cimg_base
@@ -304,8 +305,9 @@ jobs:
   flake8:
     executor: python38
     steps:
-      - run_test:
-          pattern: "flake8"
+      - checkout
+      - setup_riot
+      - run: riot run -s flake8
 
   build_base_venvs:
     executor: ddtrace_dev
