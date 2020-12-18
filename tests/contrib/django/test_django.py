@@ -16,7 +16,7 @@ from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
 
-from tests import override_config, override_global_config, override_http_config, assert_dict_issuperset
+from tests import override_config, override_env, override_global_config, override_http_config, assert_dict_issuperset
 from tests.opentracer.utils import init_tracer
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
@@ -1387,12 +1387,34 @@ def test_django_use_handler_resource_format(client, test_spans):
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
+    with override_env(dict(DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT="true")):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+        resource = "GET tests.contrib.django.views.index"
+
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
+
 
 def test_django_use_legacy_resource_format(client, test_spans):
     """
     Test that the specified format is used over the default.
     """
     with override_config("django", dict(use_legacy_resource_format=True)):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+        resource = "tests.contrib.django.views.index"
+
+        root.assert_matches(resource=resource, parent_id=None, span_type="web")
+
+    with override_env(dict(DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT="true")):
         resp = client.get("/")
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."
