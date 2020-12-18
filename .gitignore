@@ -48,6 +48,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+test-results/
 coverage.xml
 coverage.json
 *,cover
