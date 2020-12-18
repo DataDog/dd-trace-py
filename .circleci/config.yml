@@ -340,32 +340,32 @@ jobs:
           at: .
       - run: pip install coverage diff_cover
       # Combine all job coverage reports into one
-      - run: coverage combine *.coverage
-      # Upload coverage report to Codecov
-      - run: bash <(curl -s https://codecov.io/bash)
-      # Generate and save xml report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage xml --ignore-errors
-      - store_artifacts:
-          path: coverage.xml
-      # Generate and save JSON report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage json --ignore-errors
-      - store_artifacts:
-          path: coverage.json
-      # Generate and save HTML report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage html --ignore-errors
-      - store_artifacts:
-          path: htmlcov
-      # Print ddtrace/ report to stdout
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/
-      # Print tests/ report to stdout
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/
-      # Print diff-cover report to stdout (compares against origin/master)
-      - run: diff-cover coverage.xml
+      # - run: coverage combine *.coverage
+      # # Upload coverage report to Codecov
+      # - run: bash <(curl -s https://codecov.io/bash)
+      # # Generate and save xml report
+      # # DEV: "--ignore-errors" to skip over files that are missing
+      # - run: coverage xml --ignore-errors
+      # - store_artifacts:
+      #     path: coverage.xml
+      # # Generate and save JSON report
+      # # DEV: "--ignore-errors" to skip over files that are missing
+      # - run: coverage json --ignore-errors
+      # - store_artifacts:
+      #     path: coverage.json
+      # # Generate and save HTML report
+      # # DEV: "--ignore-errors" to skip over files that are missing
+      # - run: coverage html --ignore-errors
+      # - store_artifacts:
+      #     path: htmlcov
+      # # Print ddtrace/ report to stdout
+      # # DEV: "--ignore-errors" to skip over files that are missing
+      # - run: coverage report --ignore-errors --omit=tests/
+      # # Print tests/ report to stdout
+      # # DEV: "--ignore-errors" to skip over files that are missing
+      # - run: coverage report --ignore-errors --omit=ddtrace/
+      # # Print diff-cover report to stdout (compares against origin/master)
+      # - run: diff-cover coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
