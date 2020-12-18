@@ -42,8 +42,8 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        use_handler_resource_format=get_env("django", "use_handler_resource_format", default=False),
-        use_legacy_resource_format=get_env("django", "use_legacy_resource_format", default=False),
+        use_handler_resource_format=asbool(get_env("django", "use_handler_resource_format", default=False)),
+        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
     ),
 )
 

@@ -5,6 +5,7 @@ from django.test import modify_settings, override_settings
 from django.utils.functional import SimpleLazyObject
 import os
 import pytest
+import subprocess
 
 from ddtrace import config
 from ddtrace.compat import string_type, binary_type
@@ -1387,16 +1388,23 @@ def test_django_use_handler_resource_format(client, test_spans):
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
+
+def test_django_use_handler_resource_format_env(client, test_spans):
+    """
+    Test that the specified format is used over the default.
+    """
     with override_env(dict(DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT="true")):
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
-
-        # Assert the structure of the root `django.request` span
-        root = test_spans.get_root_span()
-        resource = "GET tests.contrib.django.views.index"
-
-        root.assert_matches(resource=resource, parent_id=None, span_type="web")
+        out = subprocess.check_output(
+            [
+                "python",
+                "-c",
+                (
+                    "from ddtrace import config, patch_all; patch_all(); "
+                    "assert config.django.use_handler_resource_format; print('Test success')"
+                ),
+            ]
+        )
+        assert out.startswith(b"Test success")
 
 
 def test_django_use_legacy_resource_format(client, test_spans):
@@ -1414,16 +1422,20 @@ def test_django_use_legacy_resource_format(client, test_spans):
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
-    with override_env(dict(DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT="true")):
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
 
-        # Assert the structure of the root `django.request` span
-        root = test_spans.get_root_span()
-        resource = "tests.contrib.django.views.index"
-
-        root.assert_matches(resource=resource, parent_id=None, span_type="web")
+def test_django_use_legacy_resource_format_env(client, test_spans):
+    with override_env(dict(DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT="true")):
+        out = subprocess.check_output(
+            [
+                "python",
+                "-c",
+                (
+                    "from ddtrace import config, patch_all; patch_all(); "
+                    "assert config.django.use_legacy_resource_format; print('Test success')"
+                ),
+            ],
+        )
+        assert out.startswith(b"Test success")
 
 
 def test_custom_dispatch_template_view(client, test_spans):
