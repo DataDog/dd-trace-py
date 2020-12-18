@@ -52,6 +52,29 @@ traceback_free(traceback_t* tb)
     PyMem_RawFree(tb);
 }
 
+void
+traceback_list_init(traceback_list_t* tb_list, uint16_t size)
+{
+    tb_list->tracebacks = PyMem_RawMalloc(sizeof(traceback_t*) * size);
+    tb_list->count = 0;
+    tb_list->size = size;
+}
+
+void
+traceback_list_wipe(traceback_list_t* tb_list)
+{
+    for (uint16_t i = 0; i < tb_list->count; i++)
+        PyMem_RawFree(tb_list->tracebacks[i]);
+    PyMem_RawFree(tb_list->tracebacks);
+}
+
+void
+traceback_list_append_traceback(traceback_list_t* tb_list, traceback_t* tb)
+{
+    /* WARNING: this does not check size mostly because it does not know what to do if size is reached */
+    tb_list->tracebacks[tb_list->count++] = tb;
+}
+
 /* Convert PyFrameObject to a frame_t that we can store in memory */
 static void
 memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
