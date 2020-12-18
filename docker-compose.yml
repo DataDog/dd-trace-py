@@ -117,7 +117,9 @@ services:
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - "./:/root/project"
+          - ./:/root/project
+          - ./.ddtox:/root/project/.tox
+          - ./.ddriot:/root/project/.riot
 
     localstack:
         image: localstack/localstack:0.12.1

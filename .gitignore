@@ -45,6 +45,7 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .ddtox/
+.ddriot/
 .coverage
 .coverage.*
 .cache
