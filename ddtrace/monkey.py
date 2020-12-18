@@ -29,6 +29,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
+    "cyclone": True,
     "django": True,
     "elasticsearch": True,
     "algoliasearch": True,

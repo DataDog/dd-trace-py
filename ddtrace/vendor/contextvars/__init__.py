@@ -6,7 +6,7 @@ except ImportError:
     from collections import Mapping
 
 
-__all__ = ("ContextVar", "Context", "Token", "copy_context")
+__all__ = ("ContextVar", "Context", "Token", "copy_context", "_get_context")
 
 
 _NO_DEFAULT = object()

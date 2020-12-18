@@ -291,5 +291,13 @@ venv = Venv(
             },
             command="pytest {cmdargs} tests/contrib/twisted",
         ),
+        Venv(
+            name="cyclone",
+            command="pytest {cmdargs} tests/contrib/cyclone",
+            venvs=[
+                Venv(pys=2.7, pkgs={"cyclone": [">=1.1,<1.2", ">=1.2,<1.3"]}),
+                Venv(pys=select_pys(min_version=3.6), pkgs={"cyclone": [">=1.3,<1.4", latest]}),
+            ],
+        ),
     ],
 )

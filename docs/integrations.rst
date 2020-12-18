@@ -85,6 +85,13 @@ Consul
 .. automodule:: ddtrace.contrib.consul
 
 
+.. _cyclone:
+
+Cyclone
+^^^^^^^
+.. automodule:: ddtrace.contrib.cyclone
+
+
 .. _djangorestframework:
 .. _django:
 
