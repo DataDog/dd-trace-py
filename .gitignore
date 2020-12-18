@@ -50,6 +50,7 @@ htmlcov/
 .cache
 test-results/
 coverage.xml
+coverage.json
 *,cover
 .hypothesis/
 .pytest_cache/
