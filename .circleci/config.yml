@@ -85,7 +85,6 @@ commands:
   save_coverage:
     description: "Save coverage.py results to workspace"
     steps:
-      - run: pip install coverage
       - run: mkdir coverage
       - run: |
           set -ex
