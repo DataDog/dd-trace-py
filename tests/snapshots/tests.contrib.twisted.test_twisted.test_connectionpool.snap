@@ -1,18 +1,20 @@
-[[{"name" "ConnectionPool.runQuery.deferred"
-   "service" "twisted"
-   "resource" "ConnectionPool.runQuery.deferred"
+[[{"name" "sql.query"
+   "service" "db"
+   "resource" "SELECT 1"
+   "type" "sql"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1601517823985105000
-   "duration" 46480000
-   "meta" {"runtime-id" "64e394ad90ea4512b14b926f5258ca4a"
-           "errback.0" "twisted.internet.defer.passthru"
-           "callback.0" "tests.contrib.twisted.test_twisted.cb"}
+   "start" 1608255031103629000
+   "duration" 1071000
+   "meta" {"runtime-id" "3423ee21ff8046a08eb7f877d59e60fe"}
    "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 45946}}
+              "system.pid" 44600
+              "sql.rows" 1
+              "db.rowcount" 1}}
       {"name" "mysql.query"
        "service" "mysql"
        "resource" "SELECT 1"
@@ -21,24 +23,36 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1601517824028105000
-       "duration" 1416000
+       "start" 1608255031103832000
+       "duration" 844000
        "meta" {"out.host" "127.0.0.1"
                "db.user" "test"}
        "metrics" {"_dd.measured" 1
-                  "_sampling_priority_v1" 1
                   "sql.rows" 1
                   "out.port" 3306
-                  "db.rowcount" 1}}
+                  "db.rowcount" 1}}]
+ [{"name" "twisted.connection.commit"
+   "service" "db"
+   "resource" "twisted.connection.commit"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1608255031105119000
+   "duration" 996000
+   "meta" {"runtime-id" "3423ee21ff8046a08eb7f877d59e60fe"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 44600}}
       {"name" "MySQLdb.connection.commit"
        "service" "mysql"
        "resource" "MySQLdb.connection.commit"
        "error" 0
-       "span_id" 2
-       "trace_id" 0
+       "span_id" 1
+       "trace_id" 1
        "parent_id" 0
-       "start" 1601517824029824000
-       "duration" 1552000
+       "start" 1608255031105309000
+       "duration" 790000
        "meta" {"out.host" "127.0.0.1"
                "db.user" "test"}
        "metrics" {"out.port" 3306}}]]
