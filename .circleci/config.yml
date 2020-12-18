@@ -1021,6 +1021,7 @@ requires_tests: &requires_tests
     - redis
     - rediscluster
     - requests
+    - sanic
     - sqlalchemy
     - sqlite3
     - starlette
