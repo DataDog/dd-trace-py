@@ -8,9 +8,6 @@ from ddtrace.profiling import _nogevent
 from ddtrace.vendor import attr
 
 
-PERIODIC_THREADS = {}
-
-
 class PeriodicThread(threading.Thread):
     """Periodic thread.
 
@@ -18,6 +15,8 @@ class PeriodicThread(threading.Thread):
     seconds.
 
     """
+
+    _ddtrace_profiling_ignore = True
 
     def __init__(self, interval, target, name=None, on_shutdown=None):
         """Create a periodic thread.
@@ -45,15 +44,10 @@ class PeriodicThread(threading.Thread):
 
     def run(self):
         """Run the target function periodically."""
-        PERIODIC_THREADS[self.ident] = self
-
-        try:
-            while not self.quit.wait(self.interval):
-                self._target()
-            if self._on_shutdown is not None:
-                self._on_shutdown()
-        finally:
-            del PERIODIC_THREADS[self.ident]
+        while not self.quit.wait(self.interval):
+            self._target()
+        if self._on_shutdown is not None:
+            self._on_shutdown()
 
 
 class _GeventPeriodicThread(PeriodicThread):
@@ -101,8 +95,8 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def run(self):
         """Run the target function periodically."""
-        PERIODIC_THREADS[self._tident] = self
-
+        # Do not use the threading._active_limbo_lock here because it's a gevent lock
+        threading._active[self._tident] = self
         try:
             while self.quit is False:
                 self._target()
@@ -120,8 +114,8 @@ class _GeventPeriodicThread(PeriodicThread):
                 raise
         finally:
             try:
+                del threading._active[self._tident]
                 self.has_quit = True
-                del PERIODIC_THREADS[self._tident]
             except Exception:
                 # Exceptions might happen during interpreter shutdown.
                 # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.

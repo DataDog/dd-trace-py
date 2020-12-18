@@ -249,7 +249,7 @@ cdef get_task(thread_id):
     return task_id, task_name
 
 
-cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
+cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
 
     IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
@@ -305,14 +305,22 @@ cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
             cpu_time,
         )
         for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
-        if not ignore_profiler or pthread_id not in _periodic.PERIODIC_THREADS
+        if pthread_id not in thread_id_ignore_list
     )
 
 
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
 
-    running_threads = collect_threads(ignore_profiler, thread_time, thread_span_links)
+    if ignore_profiler:
+        # Do not use `threading.enumerate` to not mess with locking (gevent!)
+        thread_id_ignore_list = {thread_id
+                                 for thread_id, thread in threading._active.items()
+                                 if getattr(thread, "_ddtrace_profiling_ignore", False)}
+    else:
+        thread_id_ignore_list = set()
+
+    running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
 
     if thread_span_links:
         # FIXME also use native thread id
