@@ -118,13 +118,13 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        request = self.get_http_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        request = self.get_http_connection(self.tracer.writer._hostname, self.tracer.writer._port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Disabled Pin and internal request
         self.tracer.enabled = False
-        request = self.get_http_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        request = self.get_http_connection(self.tracer.writer._hostname, self.tracer.writer._port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
