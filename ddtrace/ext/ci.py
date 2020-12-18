@@ -69,7 +69,7 @@ def extract_appveyor(env):
         env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
     )
 
-    if env.get("APPVEYOR_REPO_PROVIDER") and env.get("APPVEYOR_REPO_PROVIDER") == "github":
+    if env.get("APPVEYOR_REPO_PROVIDER") == "github":
         repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))
         commit = env.get("APPVEYOR_REPO_COMMIT")
         branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH")
