@@ -49,6 +49,16 @@ def app(tracer):
         await random_sleep()
         return json({"hello": "world"})
 
+    @app.route("/hello/<first_name>")
+    async def hello_single_param(request, first_name):
+        await random_sleep()
+        return json({"hello": first_name})
+
+    @app.route("/hello/<first_name>/<surname>")
+    async def hello_multiple_params(request, first_name, surname):
+        await random_sleep()
+        return json({"hello": f"{first_name} {surname}"})
+
     @app.route("/stream_response")
     async def stream_response(request):
         async def sample_streaming_fn(response):
@@ -142,6 +152,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     assert request_span.get_tag("http.method") == "GET"
     assert re.search("/hello$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.resource == "GET /hello"
 
     sleep_span = spans[0][1]
     assert sleep_span.name == "tests.contrib.sanic.test_sanic.random_sleep"
@@ -169,6 +180,23 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     else:
         assert request_span.parent_id is None
         assert request_span.trace_id is not None and request_span.trace_id != 5678
+
+
+@pytest.mark.parametrize(
+    "url, expected_json, expected_resource",
+    [
+        ("/hello/foo", {"hello": "foo"}, "GET /hello/<first_name>"),
+        ("/hello/foo/bar", {"hello": "foo bar"}, "GET /hello/<first_name>/<surname>"),
+    ],
+)
+async def test_resource_name(tracer, client, url, expected_json, expected_resource):
+    response = await client.get(url)
+    assert _response_status(response) == 200
+    assert await _response_json(response) == expected_json
+
+    spans = tracer.writer.pop_traces()
+    request_span = spans[0][0]
+    assert request_span.resource == expected_resource
 
 
 async def test_streaming_response(tracer, client):
