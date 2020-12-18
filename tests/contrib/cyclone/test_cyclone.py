@@ -6,14 +6,15 @@ import os
 import cyclone
 import cyclone.web
 from cyclone import template
-from .testcase import CycloneTestCase
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
+import pytest
 
 from ddtrace import config, Pin
 from ddtrace.contrib.cyclone import patch, unpatch
 
 from tests import TracerTestCase, TracerSpanContainer
+from .testcase import CycloneTestCase
 
 
 def mk_app():
@@ -72,10 +73,10 @@ def mk_app():
         @cyclone.web.asynchronous
         def get(self):
             posts = [
-                ("Michael Scott", "My mind is going a mile an hour"),
-                ("Kevin Malone", "Why waste time say lot word when few word do trick"),
+                ("Michael", "My mind is going a mile an hour"),
+                ("Kevin", "Why waste time say lot word when few word do trick"),
                 (
-                    "Darryl Philbin",
+                    "Darryl",
                     (
                         "I decided to stay home, eat a bunch of tacos in my basement. "
                         "Now my basement smells like tacos. You can't air out a basement. "
@@ -127,10 +128,10 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert resp.content == b"Hello, world"
         assert resp.get_status() == 200
 
-        assert len(self.test_spans.get_spans()) == 2
+        assert len(self.test_spans.get_spans()) == 1
         span = self.test_spans.get_root_span()
         assert span.name == "cyclone.request"
-        assert span.resource == "tests.contrib.cyclone.test_cyclone.RootHandler"
+        assert span.resource == "GET tests.contrib.cyclone.test_cyclone.RootHandler"
         assert span.get_tag("cyclone.handler") == "tests.contrib.cyclone.test_cyclone.RootHandler"
         assert span.service == "cyclone"
         assert span.error == 0
@@ -139,12 +140,6 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert span.get_tag("http.status_code") == "200"
         assert span.get_tag("http.url") == "http://127.0.0.1/"
         self.assert_is_measured(span)
-
-        _, span2 = self.test_spans.get_spans()
-        assert span2.name == "cyclone.request.get"
-        assert span2.resource == "cyclone.request.get"
-        assert span2.service == "cyclone"
-        assert span2.error == 0
 
     @inlineCallbacks
     def test_request_error(self):
@@ -157,7 +152,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert len(self.test_spans.get_spans()) == 1
         span = self.test_spans.get_root_span()
         assert span.name == "cyclone.request"
-        assert span.resource == "tests.contrib.cyclone.test_cyclone.ErrHandler"
+        assert span.resource == "GET tests.contrib.cyclone.test_cyclone.ErrHandler"
         assert span.service == "cyclone"
         assert span.error == 1
         assert span.span_type == "web"
@@ -256,6 +251,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
     #     s1, s2, s3 = spans
     #     assert s1.trace_id == s2.trace_id == s3.trace_id
 
+    @pytest.mark.xfail(reason="twisted integration is required to get context propagation")
     def test_concurrent_requests(self):
         self.client.get("/async-sleep?k=1")
         self.client.get("/async-sleep?k=2")
@@ -265,7 +261,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         reactor.run()
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 6
+        assert len(spans) == 3
 
         roots = self.test_spans.get_root_spans()
         assert len(roots) == 3
@@ -277,12 +273,11 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
             assert resp.get_status() == 200
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 3
+        assert len(spans) == 2
 
-        s1, s2, s3 = spans
-        assert s1.trace_id == s2.trace_id == s3.trace_id
+        s1, s2 = spans
+        assert s1.trace_id == s2.trace_id
         assert s2.parent_id == s1.span_id
-        assert s3.parent_id == s2.span_id
 
     @inlineCallbacks
     def test_handler_multi(self):
@@ -292,7 +287,7 @@ class TestCylcone(CycloneTestCase, TracerTestCase):
         assert resp.get_status() == 200
 
         spans = self.test_spans.get_spans()
-        assert len(spans) == 3
+        assert len(spans) == 2
 
         s1, s2 = self.test_spans.get_root_spans()
         assert s1.trace_id != s2.trace_id

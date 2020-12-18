@@ -447,10 +447,12 @@ jobs:
           docker_services: "localstack"
 
   cyclone:
-    executor: ddtrace_dev
+    <<: *machine_executor
+    parallelism: 1
     steps:
-      - run_tox_scenario:
-          pattern: '^cyclone_contrib-'
+      - run_test:
+          pattern: 'cyclone'
+          snapshot: true
 
   ddtracerun:
     <<: *contrib_job
