@@ -324,11 +324,11 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          at: coverage/
+          at: .
       - run: pip install coverage diff_cover
-      - run: ls -hal coverage/*
+      - run: ls -hal *.coverage
       # Combine all job coverage reports into one
-      - run: coverage combine coverage/*.coverage
+      - run: coverage combine *.coverage
       # Upload coverage report to Codecov
       - run: bash <(curl -s https://codecov.io/bash)
       # Generate and save xml report
