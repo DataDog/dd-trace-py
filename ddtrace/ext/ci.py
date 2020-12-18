@@ -68,25 +68,34 @@ def extract_appveyor(env):
     url = "https://ci.appveyor.com/project/{0}/builds/{1}".format(
         env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
     )
+
+    if env.get("APPVEYOR_REPO_PROVIDER") and env.get("APPVEYOR_REPO_PROVIDER") == "github":
+        repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))
+        commit = env.get("APPVEYOR_REPO_COMMIT")
+        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH")
+        tag = env.get("APPVEYOR_REPO_TAG_NAME")
+    else:
+        repository = commit = branch = tag = None
+
     return {
         PROVIDER_NAME: "appveyor",
-        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME")),
-        git.COMMIT_SHA: env.get("APPVEYOR_REPO_COMMIT"),
+        git.REPOSITORY_URL: repository,
+        git.COMMIT_SHA: commit,
         WORKSPACE_PATH: env.get("APPVEYOR_BUILD_FOLDER"),
         PIPELINE_ID: env.get("APPVEYOR_BUILD_ID"),
         PIPELINE_NAME: env.get("APPVEYOR_REPO_NAME"),
         PIPELINE_NUMBER: env.get("APPVEYOR_BUILD_NUMBER"),
         PIPELINE_URL: url,
         JOB_URL: url,
-        git.BRANCH: env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH"),
-        git.TAG: env.get("APPVEYOR_REPO_TAG_NAME"),
+        git.BRANCH: branch,
+        git.TAG: tag,
     }
 
 
 def extract_azure_pipelines(env):
-    if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECT") and env.get("BUILD_BUILDID"):
+    if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECTID") and env.get("BUILD_BUILDID"):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
-            env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECT"), env.get("BUILD_BUILDID")
+            env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
         pipeline_url = base_url + "&_a=summary"
         job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))
