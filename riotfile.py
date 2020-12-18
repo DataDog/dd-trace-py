@@ -11,24 +11,33 @@ def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPO
 venv = Venv(
     pkgs={"mock": latest, "pytest": latest, "coverage": latest, "pytest-cov": latest, "opentracing": latest},
     venvs=[
-        Venv(name="black", command="black --check .", venvs=[Venv(pys=3.8, pkgs={"black": "==20.8b1"})]),
         Venv(
-            name="flake8",
-            command="flake8 ddtrace/ tests/",
+            pys="3",
+            pkgs={"black": "==20.8b1"},
             venvs=[
                 Venv(
-                    pys=3.8,
-                    pkgs={
-                        "flake8": ">=3.8,<3.9",
-                        "flake8-blind-except": latest,
-                        "flake8-builtins": latest,
-                        "flake8-docstrings": latest,
-                        "flake8-logging-format": latest,
-                        "flake8-rst-docstrings": latest,
-                        "pygments": latest,
-                    },
+                    name="fmt",
+                    command="black .",
+                ),
+                Venv(
+                    name="black",
+                    command="black {cmdargs}",
                 ),
             ],
+        ),
+        Venv(
+            pys=3,
+            name="flake8",
+            command="flake8 {cmdargs} ddtrace/ tests/",
+            pkgs={
+                "flake8": ">=3.8,<3.9",
+                "flake8-blind-except": latest,
+                "flake8-builtins": latest,
+                "flake8-docstrings": latest,
+                "flake8-logging-format": latest,
+                "flake8-rst-docstrings": latest,
+                "pygments": latest,
+            },
         ),
         Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
