@@ -2,7 +2,7 @@
 import atexit
 import logging
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, AnyStr
 import warnings
 import sys
 
@@ -136,6 +136,10 @@ class Profiler(object):
     def url(self):
         return self._profiler.url
 
+    @property
+    def tags(self):
+        return self._profiler.tags
+
 
 def _get_default_url(
     tracer,  # type: Optional[ddtrace.Tracer]
@@ -197,6 +201,7 @@ class _ProfilerInstance(object):
     # User-supplied values
     url = attr.ib(default=None)
     service = attr.ib(factory=_get_service_name)
+    tags = attr.ib(factory=dict)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
@@ -210,6 +215,7 @@ class _ProfilerInstance(object):
     def _build_default_exporters(
         tracer,  # type: Optional[ddtrace.Tracer]
         url,  # type: Optional[str]
+        tags,  # type: Dict[str, AnyStr]
         service,  # type: Optional[str]
         env,  # type: Optional[str]
         version,  # type: Optional[str]
@@ -235,6 +241,7 @@ class _ProfilerInstance(object):
             http.PprofHTTPExporter(
                 service=service,
                 env=env,
+                tags=tags,
                 version=version,
                 api_key=api_key,
                 endpoint=endpoint,
@@ -270,13 +277,17 @@ class _ProfilerInstance(object):
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
-        exporters = self._build_default_exporters(self.tracer, self.url, self.service, self.env, self.version)
+        exporters = self._build_default_exporters(
+            self.tracer, self.url, self.tags, self.service, self.env, self.version
+        )
 
         if exporters:
             self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)
 
     def copy(self):
-        return self.__class__(service=self.service, env=self.env, version=self.version, tracer=self.tracer)
+        return self.__class__(
+            service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
+        )
 
     def start(self):
         """Start the profiler."""
