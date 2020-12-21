@@ -23,7 +23,7 @@ def pytest_configure(config):
     if os.getenv("CI") != "true":
         return
 
-    # Write JUnit xml results to a file that contains this proceses PID
+    # Write JUnit xml results to a file that contains this process' PID
     # This ensures running pytest multiple times does not overwrite previous results
     # e.g. test-results/junit.xml -> test-results/junit.1797.xml
     if config.option.xmlpath:
