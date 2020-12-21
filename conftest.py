@@ -20,7 +20,7 @@ PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 # Hook for dynamic configuration of pytest in CI
 # https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
 def pytest_configure(config):
-    if not os.getenv("CI") == "true":
+    if os.getenv("CI") != "true":
         return
 
     # Write JUnit xml results to a file that contains this proceses PID
