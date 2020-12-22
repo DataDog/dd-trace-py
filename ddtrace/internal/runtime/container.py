@@ -1,4 +1,4 @@
-import os
+import errno
 import re
 
 from ...vendor import attr
@@ -89,16 +89,14 @@ def get_container_info(pid="self"):
 
     cgroup_file = "/proc/{0}/cgroup".format(pid)
 
-    if not os.path.exists(cgroup_file):
-        # If the cgroup file does not exist then this is likely not a container
-        # which is a valid use-case so pass.
-        return
-
     try:
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and info.container_id:
                     return info
+    except IOError as e:
+        if e.errno != errno.ENOENT:
+            log.debug("Failed to open cgroup file for pid %r", pid, exc_info=True)
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)
