@@ -195,6 +195,7 @@ def test_env_endpoint_url_no_agent(monkeypatch):
 def test_copy():
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()
+    assert c == p
     assert p.env == c.env
     assert p.version == c.version
     assert p.service == c.service

@@ -46,7 +46,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     version = attr.ib(default=None)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    _retry_upload = attr.ib(init=None, default=None)
+    _retry_upload = attr.ib(init=None, default=None, eq=False)
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
