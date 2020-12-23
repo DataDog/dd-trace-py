@@ -900,7 +900,7 @@ jobs:
           pattern: '^sqlite3_contrib-'
 
   benchmarks:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: '^benchmarks'
