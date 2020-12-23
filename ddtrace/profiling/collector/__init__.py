@@ -11,6 +11,13 @@ class Collector(_service.Service):
 
     recorder = attr.ib()
 
+    @staticmethod
+    def snapshot():
+        """Take a snapshot of collected data.
+
+        :return: A list of sample list to push in the recorder.
+        """
+
 
 @attr.s(slots=True)
 class PeriodicCollector(Collector, _periodic.PeriodicService):
