@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import binascii
 import datetime
+import itertools
 import gzip
 import os
 import platform
@@ -60,15 +61,30 @@ class PprofHTTPExporter(pprof.PprofExporter):
             retry_error_cls=UploadFailed,
             retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
         )
-        self.tags.update(
+        tags = {
+            k: six.ensure_binary(v)
+            for k, v in itertools.chain(
+                parse_tags_str(os.environ.get("DD_TAGS")).items(),
+                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+            )
+        }
+        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
+        tags.update(
             {
                 "host": HOSTNAME.encode("utf-8"),
                 "language": b"python",
                 "runtime": PYTHON_IMPLEMENTATION,
                 "runtime_version": PYTHON_VERSION,
-                "profiler_version": ddtrace.__version__.encode("utf-8"),
+                "profiler_version": ddtrace.__version__.encode("ascii"),
             }
         )
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
+
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
+
+        self.tags = tags
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -110,16 +126,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
         }
 
-        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
-        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
-        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
-        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
-
-        if self.version:
-            tags["version"] = self.version.encode("utf-8")
-
-        if self.env:
-            tags["env"] = self.env.encode("utf-8")
+        tags.update(self.tags)
 
         return tags
 

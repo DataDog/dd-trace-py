@@ -120,7 +120,7 @@ def test_tags_api():
         if isinstance(exporter, http.PprofHTTPExporter):
             assert exporter.env == "staging"
             assert exporter.version == "123"
-            assert exporter.tags["foo"] == "bar"
+            assert exporter.tags["foo"] == b"bar"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
