@@ -44,6 +44,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     service = attr.ib(default=None)
     env = attr.ib(default=None)
     version = attr.ib(default=None)
+    tags = attr.ib(factory=dict)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
     _retry_upload = attr.ib(init=None, default=None, eq=False)
@@ -58,6 +59,15 @@ class PprofHTTPExporter(pprof.PprofExporter):
             stop=tenacity.stop_after_delay(self.max_retry_delay),
             retry_error_cls=UploadFailed,
             retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
+        )
+        self.tags.update(
+            {
+                "host": HOSTNAME.encode("utf-8"),
+                "language": b"python",
+                "runtime": PYTHON_IMPLEMENTATION,
+                "runtime_version": PYTHON_VERSION,
+                "profiler_version": ddtrace.__version__.encode("utf-8"),
+            }
         )
 
     @staticmethod
@@ -97,13 +107,13 @@ class PprofHTTPExporter(pprof.PprofExporter):
     def _get_tags(self, service):
         tags = {
             "service": service.encode("utf-8"),
-            "host": HOSTNAME.encode("utf-8"),
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "language": b"python",
-            "runtime": PYTHON_IMPLEMENTATION,
-            "runtime_version": PYTHON_VERSION,
-            "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
+
+        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
+        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
+        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
+        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
 
         if self.version:
             tags["version"] = self.version.encode("utf-8")
@@ -111,9 +121,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if self.env:
             tags["env"] = self.env.encode("utf-8")
 
-        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
-        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
-        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
     def export(self, events, start_time_ns, end_time_ns):
