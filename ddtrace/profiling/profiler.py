@@ -24,9 +24,6 @@ from ddtrace.profiling.exporter import http
 LOG = logging.getLogger(__name__)
 
 
-ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
-
-
 def _get_api_key():
     legacy = os.environ.get("DD_PROFILING_API_KEY")
     if legacy:
@@ -139,6 +136,9 @@ class Profiler(object):
     @property
     def tags(self):
         return self._profiler.tags
+
+
+ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
 
 def _get_default_url(

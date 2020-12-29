@@ -133,7 +133,7 @@ def test_tags_api():
 def test_env_api_key(name_var, monkeypatch):
     monkeypatch.setenv(name_var, "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.com/v1/input", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
 
 
 def test_url():
@@ -205,7 +205,7 @@ def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu/v1/input", "123", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "123", endpoint_path="/v1/input")
 
 
 def test_copy():
