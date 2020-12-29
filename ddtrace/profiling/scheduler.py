@@ -56,5 +56,3 @@ class Scheduler(_periodic.PeriodicService):
             self.flush()
         finally:
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
-
-    on_shutdown = flush

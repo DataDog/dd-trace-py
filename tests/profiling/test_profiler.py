@@ -12,11 +12,11 @@ from ddtrace.profiling.exporter import http
 
 def test_status():
     p = profiler.Profiler()
-    assert repr(p.status) == "STOPPED"
+    assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
     p.start()
-    assert repr(p.status) == "RUNNING"
+    assert repr(p.status) == "<ServiceStatus.RUNNING: 'running'>"
     p.stop(flush=False)
-    assert repr(p.status) == "STOPPED"
+    assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
 
 
 def test_restart():
