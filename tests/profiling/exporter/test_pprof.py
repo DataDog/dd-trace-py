@@ -230,6 +230,107 @@ TEST_EVENTS = {
             nevents=2048,
         ),
     ],
+    memalloc.MemoryHeapSampleEvent: [
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=1,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=34,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=2,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
+            size=99,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=3,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=340,
+            nframes=4,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=4,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            size=44,
+            nframes=6,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=5,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            trace_ids=set([1322219321]),
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            size=68,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=6,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=24,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=7,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=12,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+    ],
     stack.StackSampleEvent: [
         stack.StackSampleEvent(
             timestamp=1,
@@ -684,6 +785,10 @@ sample_type {
   type: 16
   unit: 17
 }
+sample_type {
+  type: 18
+  unit: 17
+}
 sample {
   location_id: 1
   value: 0
@@ -696,6 +801,7 @@ sample {
   value: 0
   value: 100
   value: 169380
+  value: 0
 }
 sample {
   location_id: 2
@@ -709,10 +815,11 @@ sample {
   value: 0
   value: 40
   value: 1920
+  value: 0
 }
 mapping {
   id: 1
-  filename: 19
+  filename: 20
 }
 location {
   id: 1
@@ -755,12 +862,13 @@ string_table: "lock-release-hold"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"
+string_table: "heap-space"
 string_table: "time"
 string_table: "bonjour"
 time_nanos: 1
 duration_nanos: 1
 period_type {
-  type: 18
+  type: 19
   unit: 8
 }
 """ == str(
