@@ -16,6 +16,7 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling import _service
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
@@ -37,21 +38,6 @@ def _get_service_name():
         service_name = os.environ.get(service_name_var)
         if service_name is not None:
             return service_name
-
-
-# This ought to use `enum.Enum`, but since it's not available in Python 2, we just use a dumb class.
-@attr.s(repr=False)
-class ProfilerStatus(object):
-    """A Profiler status."""
-
-    status = attr.ib()
-
-    def __repr__(self):
-        return self.status.upper()
-
-
-ProfilerStatus.STOPPED = ProfilerStatus("stopped")
-ProfilerStatus.RUNNING = ProfilerStatus("running")
 
 
 def gevent_patch_all(event):
@@ -98,7 +84,7 @@ class Profiler(object):
     def stop(self, flush=True):
         """Stop the profiler.
 
-        :param flush: Wait for the flush of the remaining events before stopping.
+        :param flush: Flush last profile.
         """
         self._profiler.stop(flush)
 
@@ -191,7 +177,7 @@ def _get_default_url(
 
 
 @attr.s
-class _ProfilerInstance(object):
+class _ProfilerInstance(_service.Service):
     """A instance of the profiler.
 
     Each process must manage its own instance.
@@ -209,7 +195,6 @@ class _ProfilerInstance(object):
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
-    status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
     def _build_default_exporters(
@@ -291,6 +276,7 @@ class _ProfilerInstance(object):
 
     def start(self):
         """Start the profiler."""
+        super(_ProfilerInstance, self).start()
         for col in self._collectors:
             try:
                 col.start()
@@ -301,15 +287,22 @@ class _ProfilerInstance(object):
         if self._scheduler is not None:
             self._scheduler.start()
 
-        self.status = ProfilerStatus.RUNNING
-
     def stop(self, flush=True):
         """Stop the profiler.
 
-        :param flush: Wait for the flush of the remaining events before stopping.
+        :param flush: Flush a last profile.
         """
+        if self.status != _service.ServiceStatus.RUNNING:
+            return
+
         if self._scheduler:
             self._scheduler.stop()
+            # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
+            # collectors before the possibly running flush is finished.
+            self._scheduler.join()
+            if flush:
+                # Do not stop the collectors before flushing, they might be needed (snapshot)
+                self._scheduler.flush()
 
         for col in reversed(self._collectors):
             col.stop()
@@ -317,12 +310,9 @@ class _ProfilerInstance(object):
         for col in reversed(self._collectors):
             col.join()
 
-        if self._scheduler and flush:
-            self._scheduler.join()
-
-        self.status = ProfilerStatus.STOPPED
-
         # Python 2 does not have unregister
         if hasattr(atexit, "unregister"):
             # You can unregister a method that was not registered, so no need to do any other check
             atexit.unregister(self.stop)
+
+        super(_ProfilerInstance, self).stop()
