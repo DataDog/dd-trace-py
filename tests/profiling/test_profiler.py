@@ -12,11 +12,11 @@ from ddtrace.profiling.exporter import http
 
 def test_status():
     p = profiler.Profiler()
-    assert repr(p.status) == "STOPPED"
+    assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
     p.start()
-    assert repr(p.status) == "RUNNING"
+    assert repr(p.status) == "<ServiceStatus.RUNNING: 'running'>"
     p.stop(flush=False)
-    assert repr(p.status) == "STOPPED"
+    assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
 
 
 def test_restart():
@@ -110,6 +110,22 @@ def test_env_api():
         pytest.fail("Unable to find HTTP exporter")
 
 
+def test_tags_api():
+    prof = profiler.Profiler(env="staging", version="123", tags={"foo": "bar"})
+    assert prof.env == "staging"
+    assert prof.version == "123"
+    assert prof.url is None
+    assert prof.tags["foo"] == "bar"
+    for exporter in prof._profiler._scheduler.exporters:
+        if isinstance(exporter, http.PprofHTTPExporter):
+            assert exporter.env == "staging"
+            assert exporter.version == "123"
+            assert exporter.tags["foo"] == b"bar"
+            break
+    else:
+        pytest.fail("Unable to find HTTP exporter")
+
+
 @pytest.mark.parametrize(
     "name_var",
     ("DD_API_KEY", "DD_PROFILING_API_KEY"),
@@ -117,7 +133,7 @@ def test_env_api():
 def test_env_api_key(name_var, monkeypatch):
     monkeypatch.setenv(name_var, "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.com/v1/input", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
 
 
 def test_url():
@@ -189,16 +205,18 @@ def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu/v1/input", "123", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "123", endpoint_path="/v1/input")
 
 
 def test_copy():
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()
+    assert c == p
     assert p.env == c.env
     assert p.version == c.version
     assert p.service == c.service
     assert p.tracer == c.tracer
+    assert p.tags == c.tags
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")

@@ -48,8 +48,7 @@ def test_collect_truncate():
     c.stop()
     for e in r.events[stack.StackSampleEvent]:
         if e.thread_name == "MainThread":
-            assert e.nframes > c.nframes
-            assert len(e.frames) == c.nframes
+            assert len(e.frames) <= c.nframes
             break
     else:
         pytest.fail("Unable to find the main thread")
@@ -99,26 +98,21 @@ def test_collect_thread():
     def _dofib():
         for _ in range(10):
             # spend some time in CPU so the profiler can catch something
-            _fib(29)
-            # allow to switch
-            time.sleep(0.1)
+            _fib(28)
+            # Just make sure gevent switches threads/greenlets
+            time.sleep(0)
 
     threads = []
-    for i in range(10):
-        # Just make sure gevent switches threads/greenlets
-        t = threading.Thread(target=_dofib, name="TestThread %d" % i)
-        t.start()
-        threads.append(t)
-
     with s:
-        time.sleep(2)
-
-    for t in threads:
-        t.join()
+        for i in range(10):
+            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
 
     for event in r.events[stack.StackSampleEvent]:
-        if event.thread_name == "MainThread" and event.task_name is not None:
-            assert event.task_id in {thread.ident for thread in threads}
+        if event.thread_name == "MainThread" and event.task_id in {thread.ident for thread in threads}:
             assert event.task_name.startswith("TestThread ")
             # This test is not uber-reliable as it has timing issue, therefore if we find one of our TestThread with the
             # correct info, we're happy enough to stop here.
@@ -296,7 +290,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 290, "test_exception_collection")]
+    assert e.frames == [(__file__, 284, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 

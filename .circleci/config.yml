@@ -145,6 +145,9 @@ commands:
       docker_services:
         type: string
         default: ""
+      store_coverage:
+        type: boolean
+        default: true
     steps:
       - attach_workspace:
           at: .
@@ -174,7 +177,11 @@ commands:
             - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
-      - save_coverage
+      - when:
+          condition:
+            << parameters.store_coverage >>
+          steps:
+            - save_coverage
       - store_test_results:
           path: test-results
       - store_artifacts:
@@ -900,16 +907,11 @@ jobs:
           pattern: '^sqlite3_contrib-'
 
   benchmarks:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
-      - checkout
-      - setup_tox
-      - restore_tox_cache
-      - run:
-          command: |
-            mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
-      - save_tox_cache
+      - run_test:
+          store_coverage: false
+          pattern: '^benchmarks'
 
   deploy_master:
     # build the master branch releasing development docs and wheels

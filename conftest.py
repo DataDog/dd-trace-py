@@ -17,6 +17,21 @@ pytest_plugins = ("pytester",)
 PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 
 
+# Hook for dynamic configuration of pytest in CI
+# https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
+def pytest_configure(config):
+    if os.getenv("CI") != "true":
+        return
+
+    # Write JUnit xml results to a file that contains this process' PID
+    # This ensures running pytest multiple times does not overwrite previous results
+    # e.g. test-results/junit.xml -> test-results/junit.1797.xml
+    if config.option.xmlpath:
+        fname, ext = os.path.splitext(config.option.xmlpath)
+        # DEV: `ext` will contain the `.`, e.g. `.xml`
+        config.option.xmlpath = "{0}.{1}{2}".format(fname, os.getpid(), ext)
+
+
 # Determine if the folder should be ignored
 # https://docs.pytest.org/en/3.10.1/reference.html#_pytest.hookspec.pytest_ignore_collect
 # DEV: We can only ignore folders/modules, we cannot ignore individual files
