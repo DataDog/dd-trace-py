@@ -1,0 +1,16 @@
+---
+prelude: >
+    Major breaking changes to context management. See the upgrade section for
+    the specifics. Note that only advanced users of the library should be
+    affected by the changes.
+deprecations:
+  - Context has been deprecated from the public API. Any continued usage of
+    Context is discouraged.
+upgrade:
+  - Tracer
+    - Context providers are no longer used by Tracer.
+    - tracer.get_call_context() will return a new instance of Context with each
+      invocation.
+  - Span
+    - `context` parameter to Span has been removed.
+    - `sampled` and `context` attributes have been removed from Span.

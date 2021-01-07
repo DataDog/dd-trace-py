@@ -14,8 +14,7 @@ class Span(OpenTracingSpan):
 
     def __init__(self, tracer, context, operation_name):
         if context is not None:
-            context = SpanContext(ddcontext=context._dd_context,
-                                  baggage=context.baggage)
+            context = SpanContext(baggage=context.baggage)
         else:
             context = SpanContext()
 
@@ -24,8 +23,7 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
-                                    context=context._dd_context)
+        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name)
 
     def finish(self, finish_time=None):
         """Finish the span.
