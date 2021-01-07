@@ -3,19 +3,30 @@ import logging
 import json
 from os import environ, getpid
 import sys
+import threading
+from typing import Dict, List, Optional, Union
 
+from ddtrace.vendor import attr
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
-from .ext import system
+from .constants import (
+    FILTERS_KEY,
+    SAMPLING_PRIORITY_KEY,
+    SAMPLE_RATE_METRIC_KEY,
+    VERSION_KEY,
+    ENV_KEY,
+    ORIGIN_KEY,
+    HOSTNAME_KEY,
+)
+from .context import Context
+from .ext import system, SpanTypes
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal import debug
+from .internal import debug, hostname
 from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .internal import _rand
 from .provider import DefaultContextProvider
-from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
@@ -30,6 +41,9 @@ log = get_logger(__name__)
 
 debug_mode = asbool(get_env("trace", "debug", default=False))
 
+partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
+
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
@@ -39,6 +53,59 @@ if debug_mode and not hasHandlers(log):
         logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
     else:
         logging.basicConfig(level=logging.DEBUG)
+
+
+@attr.s()
+class _Trace(object):
+    trace_id = attr.ib(type=int)  # type: int
+    sampled = attr.ib(type=bool, default=True)  # type: bool
+    num_finished = attr.ib(type=int, default=0)  # type: int
+    sampling_priority = attr.ib(default=None)  # type: Optional[int]
+    dd_origin = attr.ib(default=None)  # type: Optional[str]
+    local_root_span = attr.ib(default=None)  # type: Optional[Span]
+    _spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
+
+    def __len__(self):
+        return len(self._spans)
+
+    def add_span(self, span):
+        # type: (Span) -> None
+        self._spans.append(span)
+
+    def pop_finished_spans(self):
+        # type: () -> List[Span]
+        local_root_span = self.local_root_span
+        if local_root_span:
+            if self.sampling_priority is not None and self.sampled:
+                local_root_span.set_metric(SAMPLING_PRIORITY_KEY, self.sampling_priority)
+            if self.dd_origin:
+                local_root_span.meta[ORIGIN_KEY] = str(self.dd_origin)
+
+        finished_spans = [span for span in self._spans if span.finished]
+        self._spans = [span for span in self._spans if not span.finished]
+        self.num_finished -= len(finished_spans)
+        return finished_spans
+
+
+_traces = {}  # type: Dict[int, _Trace]
+_traces_lock = threading.Lock()
+
+
+def _get_trace(trace_id):
+    # type: (int) -> Optional[_Trace]
+    if trace_id in _traces:
+        return _traces[trace_id]
+    return None
+
+
+def _get_or_create_trace(trace_id):
+    # type: (int) -> _Trace
+    if trace_id in _traces:
+        return _traces[trace_id]
+    else:
+        trace = _Trace(trace_id=trace_id)
+        _traces[trace_id] = trace
+        return trace
 
 
 def _parse_dogstatsd_url(url):
@@ -100,6 +167,7 @@ class Tracer(object):
         self.priority_sampler = None
         self._runtime_worker = None
         self._filters = []
+        self._traces = _traces
 
         uds_path = None
         https = None
@@ -156,6 +224,51 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
 
+    def _add_span(self, span):
+        # type: (Span) -> _Trace
+        trace = _get_or_create_trace(span.trace_id)
+        trace.add_span(span)
+
+        if span._parent is None:
+            # Duplicate root spans in a trace is an error.
+            if trace.local_root_span:
+                raise NotImplementedError
+            trace.local_root_span = span
+
+        self.context_provider.activate(span)
+        return trace
+
+    def _close_span(self, span):
+        # type: (Span) -> List[Span]
+
+        # It's possible that a span can be created from a trace that has already
+        # been finished and deleted. So _get_or_create_trace has to be used instead
+        # of _get_trace.
+        trace = _get_or_create_trace(span.trace_id)
+        trace.num_finished += 1
+
+        # Safe-guard: only set the next active span to the parent if it is not
+        # finished.
+        if not span.parent_id or (span._parent and not span._parent.finished):
+            self.context_provider.activate(span._parent)
+        else:
+            self.context_provider.activate(None)
+
+        if trace.num_finished == len(trace) or (
+            partial_flush_enabled and trace.num_finished >= partial_flush_min_spans
+        ):
+            spans = trace.pop_finished_spans()
+            root_span = spans[0]
+
+            if root_span.parent_id is not None:
+                log.debug("Using span %r as a root span even though it has a parent", root_span)
+
+            if len(trace) == 0:
+                del _traces[span.trace_id]
+            return spans
+
+        return []
+
     def on_start_span(self, func):
         """Register a function to execute when a span start.
 
@@ -195,7 +308,30 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
+    def _active_trace(self):
+        # type: () -> Optional[_Trace]
+        active = self.active()
+        if active and active.trace_id:
+            return _get_trace(active.trace_id)
+        return None
+
+    def activate(self, span_or_ctx):
+        # type: (Union[Context, Span]) -> None
+        self.context_provider.activate(span_or_ctx)
+
+    def active(self):
+        # type: () -> Optional[Union[Context, Span]]
+        return self.context_provider.active()
+
+    def active_span(self):
+        # type: () -> Optional[Span]
+        active = self.context_provider.active()
+        return active if isinstance(active, Span) else None
+
+    current_span = active_span
+
     def get_call_context(self, *args, **kwargs):
+        # type (...) -> Context
         """
         Return the current active ``Context`` for this traced execution. This method is
         automatically called in the ``tracer.trace()``, but it can be used in the application
@@ -211,7 +347,19 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self.context_provider.active(*args, **kwargs)
+        active = self.context_provider.active(*args, **kwargs)
+        if isinstance(active, Context):
+            return active
+        elif isinstance(active, Span):
+            trace = _get_trace(active.trace_id)
+            return Context(
+                span_id=active.span_id,
+                trace_id=active.trace_id,
+                sampling_priority=trace.sampling_priority if trace else None,
+                _dd_origin=trace.dd_origin if trace else None,
+            )
+        else:
+            return Context()
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg(
@@ -219,6 +367,11 @@ class Tracer(object):
     )
     @debtcollector.removals.removed_kwarg(
         "dogstatsd_port", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
+    )
+    @debtcollector.removals.removed_kwarg(
+        "context_provider",
+        "context_provider is no longer needed",
+        removal_version="0.48",
     )
     def configure(
         self,
@@ -360,7 +513,8 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
-    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
+    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None, activate=True):
+        # type: (str, Optional[Union[Context, Span]], Optional[str], Optional[str], Optional[SpanTypes], bool) -> Span
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -375,36 +529,25 @@ class Tracer(object):
         To start a new root span, simply::
 
             span = tracer.start_span('web.request')
+            span.finish()
 
         If you want to create a child for a root span, just::
 
             root_span = tracer.start_span('web.request')
             span = tracer.start_span('web.decoder', child_of=root_span)
+            span.finish()
 
-        Or if you have a ``Context`` object::
-
-            context = tracer.get_call_context()
-            span = tracer.start_span('web.worker', child_of=context)
+        Ensure to finish all spans to avoid memory leaks and incorrect
+        parenting of spans.
         """
-        new_ctx = self._check_new_process()
+        self._check_new_process()
 
-        if child_of is not None:
-            if isinstance(child_of, Context):
-                context = new_ctx or child_of
-                parent = child_of.get_current_span()
-            else:
-                context = child_of.context
-                parent = child_of
+        if child_of is None:
+            trace_id = parent_id = parent = None
         else:
-            context = Context()
-            parent = None
-
-        if parent:
-            trace_id = parent.trace_id
-            parent_span_id = parent.span_id
-        else:
-            trace_id = context.trace_id
-            parent_span_id = context.span_id
+            trace_id = child_of.trace_id
+            parent_id = child_of.span_id
+            parent = child_of if isinstance(child_of, Span) else None  # type: Optional[Span]
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -424,7 +567,7 @@ class Tracer(object):
                 self,
                 name,
                 trace_id=trace_id,
-                parent_id=parent_span_id,
+                parent_id=parent_id,
                 service=service,
                 resource=resource,
                 span_type=span_type,
@@ -433,9 +576,15 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span.sampled = parent.sampled
                 span._parent = parent
 
+            trace = self._add_span(span)
+            sampling_priority = getattr(child_of, "sampling_priority", None)
+            if sampling_priority is not None:
+                trace.sampling_priority = sampling_priority
+            dd_origin = getattr(child_of, "_dd_origin", None)
+            if dd_origin is not None:
+                trace.dd_origin = dd_origin
         else:
             # this is the root span of a new trace
             span = Span(
@@ -446,12 +595,21 @@ class Tracer(object):
                 span_type=span_type,
                 _check_pid=False,
             )
+            span.metrics[system.PID] = self._pid or getpid()
+            span.meta["runtime-id"] = get_runtime_id()
+            if config.report_hostname:
+                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
+            # add tags to root span to correlate trace with runtime metrics
+            # only applied to spans with types that are internal to applications
+            if self._runtime_worker and self._is_span_internal(span):
+                span.meta["language"] = "python"
 
-            span.sampled = self.sampler.sample(span)
+            sampled = self.sampler.sample(span)
+            sampling_priority = None
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self.sampler, DatadogSampler):
-                if span.sampled:
+                if sampled:
                     # When doing client sampling in the client, keep the sample rate so that we can
                     # scale up statistics in the next steps of the pipeline.
                     if isinstance(self.sampler, RateSampler):
@@ -462,22 +620,21 @@ class Tracer(object):
                         # priority sampler will use the default sampling rate, which might
                         # lead to oversampling (that is, dropping too many traces).
                         if self.priority_sampler.sample(span):
-                            context.sampling_priority = AUTO_KEEP
+                            sampling_priority = AUTO_KEEP
                         else:
-                            context.sampling_priority = AUTO_REJECT
+                            sampling_priority = AUTO_REJECT
                 else:
                     if self.priority_sampler:
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        context.sampling_priority = AUTO_REJECT
+                        sampling_priority = AUTO_REJECT
             else:
-                context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                sampling_priority = AUTO_KEEP if sampled else AUTO_REJECT
                 # We must always mark the span as sampled so it is forwarded to the agent
-                span.sampled = True
+                sampled = True
 
-            # add tags to root span to correlate trace with runtime metrics
-            # only applied to spans with types that are internal to applications
-            if self._runtime_worker and self._is_span_internal(span):
-                span.meta["language"] = "python"
+            trace = self._add_span(span)
+            trace.sampling_priority = sampling_priority
+            trace.sampled = sampled
 
         # Apply default global tags.
         if self.tags:
@@ -488,7 +645,7 @@ class Tracer(object):
 
         # Only set the version tag on internal spans.
         if config.version:
-            root_span = self.current_root_span()
+            root_span = self.active_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
@@ -497,13 +654,6 @@ class Tracer(object):
                 root_span and root_span.service == service and VERSION_KEY in root_span.meta
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
-
-        if not span._parent:
-            span.metrics[system.PID] = self._pid or getpid()
-            span.meta["runtime-id"] = get_runtime_id()
-
-        # add it to the current context
-        context.add_span(span)
 
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
@@ -514,8 +664,12 @@ class Tracer(object):
             self._update_dogstatsd_constant_tags()
 
         self._hooks.emit(self.__class__.start_span, span)
-
         return span
+
+    def _finish_span(self, span):
+        # type: (Span) -> None
+        spans = self._close_span(span)
+        self.write(spans)
 
     def _update_dogstatsd_constant_tags(self):
         """Prepare runtime tags for ddstatsd."""
@@ -542,18 +696,10 @@ class Tracer(object):
         # they will share the seed and generate the same random numbers.
         _rand.seed()
 
-        ctx = self.get_call_context()
-        # The spans remaining in the context can not and will not be finished
-        # in this new process. So we need to copy out the trace metadata needed
-        # to continue the trace.
-        # Also, note that because we're in a forked process, the lock that the
-        # context has might be permanently locked so we can't use ctx.clone().
-        new_ctx = Context(
-            sampling_priority=ctx._sampling_priority,
-            span_id=ctx._parent_span_id,
-            trace_id=ctx._parent_trace_id,
-        )
-        self.context_provider.activate(new_ctx)
+        # The previous process is responsible for flushing the spans it created.
+        for trace_id, trace in _traces:
+            # Note that the remaining metadata (like active span id) is left in place.
+            trace.spans = []
 
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
@@ -568,8 +714,6 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
-
-        return new_ctx
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -623,46 +767,32 @@ class Tracer(object):
             parent2 = tracer.trace('parent2')   # has no parent span
             parent2.finish()
         """
-
-        # retrieve the Context using the context provider and create
-        # a new Span that could be a root or a nested span
-        context = self.get_call_context()
         return self.start_span(
             name,
-            child_of=context,
+            child_of=self.active(),
             service=service,
             resource=resource,
             span_type=span_type,
         )
 
-    def current_root_span(self):
-        """Returns the root span of the current context.
+    def active_root_span(self):
+        # type: () -> Optional[Span]
+        """Returns the root span of the current execution.
 
         This is useful for attaching information related to the trace as a
         whole without needing to add to child spans.
 
-        Usage is simple, for example::
-
+        For example::
             # get the root span
-            root_span = tracer.current_root_span()
+            root_span = tracer.active_root_span()
             # set the host just once on the root span
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        ctx = self.get_call_context()
-        if ctx:
-            return ctx.get_current_root_span()
-        return None
+        trace = self._active_trace()
+        return trace.local_root_span if trace else None
 
-    def current_span(self):
-        """
-        Return the active span for the current call context or ``None``
-        if no spans are available.
-        """
-        ctx = self.get_call_context()
-        if ctx:
-            return ctx.get_current_span()
-        return None
+    current_root_span = active_root_span
 
     def write(self, spans):
         """

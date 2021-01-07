@@ -4,6 +4,7 @@ import traceback
 from typing import Optional, List
 
 from .vendor import six
+from .context import Context
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
 from .constants import (
     NUMERIC_TAGS,
@@ -38,10 +39,7 @@ class Span(object):
         "start_ns",
         "duration_ns",
         "tracer",
-        # Sampler attributes
-        "sampled",
         # Internal attributes
-        "_context",
         "_parent",
         "_ignored_exceptions",
         "__weakref__",
@@ -58,7 +56,6 @@ class Span(object):
         span_id=None,
         parent_id=None,
         start=None,
-        context=None,
         _check_pid=True,
     ):
         """
@@ -77,7 +74,6 @@ class Span(object):
         :param int span_id: the id of this span.
 
         :param int start: the start time of request as a unix epoch in seconds
-        :param object context: the Context of the span.
         """
         # required span info
         self.name = name
@@ -101,12 +97,39 @@ class Span(object):
         self.parent_id = parent_id
         self.tracer = tracer
 
-        # sampling
-        self.sampled = True
-
-        self._context = context
         self._parent = None
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
+
+    @property
+    def context(self):
+        # type: () -> Context
+        from .tracer import _get_trace
+
+        trace = _get_trace(self.trace_id)
+        return Context(
+            trace_id=self.trace_id,
+            span_id=self.span_id,
+            sampling_priority=trace.sampling_priority if trace else None,
+            _dd_origin=trace.dd_origin if trace else None,
+        )
+
+    @property
+    def sampled(self):
+        # Have to inline the import because of circular dependency.
+        from .tracer import _get_trace
+
+        # This is not thread-safe.
+        trace = _get_trace(self.trace_id)
+        return trace.sampled if trace else True
+
+    @sampled.setter
+    def sampled(self, sampled):
+        # Have to inline the import because of circular dependency.
+        from .tracer import _get_trace
+
+        # This is not thread-safe.
+        trace = _get_trace(self.trace_id)
+        trace.sampled = sampled
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -174,10 +197,10 @@ class Span(object):
             # be defensive so we don't die if start isn't set
             self.duration_ns = ft - (self.start_ns or ft)
 
-        if self._context:
-            trace, sampled = self._context.close_span(self)
-            if self.tracer and trace and sampled:
-                self.tracer.write(trace)
+        # FIXME: self.tracer should always be defined, only reason it's
+        # optional seems to be for testing.
+        if self.tracer:
+            self.tracer._finish_span(self)
 
     def set_tag(self, key, value=None):
         """Set a tag key/value pair on the span.
@@ -234,10 +257,12 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = priority.USER_KEEP
+            if self.tracer and self.trace_id in self.tracer._traces:
+                self.tracer._traces[self.trace_id].sampling_priority = priority.USER_KEEP
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = priority.USER_REJECT
+            if self.tracer and self.trace_id in self.tracer._traces:
+                self.tracer._traces[self.trace_id].sampling_priority = priority.USER_REJECT
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -290,7 +315,7 @@ class Span(object):
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
 
-        # Enforce a specific connstant for `_dd.measured`
+        # Enforce a specific constant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
@@ -421,15 +446,6 @@ class Span(object):
 
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % line for line in lines)
-
-    @property
-    def context(self):
-        """
-        Property that provides access to the ``Context`` associated with this ``Span``.
-        The ``Context`` contains state that propagates from span to span in a
-        larger trace.
-        """
-        return self._context
 
     def __enter__(self):
         return self

@@ -1,0 +1,15 @@
+---
+prelude: >
+    Major breaking changes to context management. See the upgrade section for
+    the specifics. Note that only advanced users of the library should be
+    affected by the changes.
+upgrade:
+  - Tracer
+    - tracer.get_call_context() will return a new instance of Context with each
+      invocation.
+  - Span
+    - `context` parameter to Span has been removed.
+    - `context` attribute has been removed.
+  - Context
+    - No longer maintains the trace state.
+    - All methods have been removed.

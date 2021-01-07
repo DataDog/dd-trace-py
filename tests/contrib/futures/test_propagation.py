@@ -310,7 +310,7 @@ class PropagationTestCase(TracerTestCase):
                 future = executor.submit(fn)
                 time.sleep(0.01)
 
-        # assert main thread span is fniished first
+        # assert main thread span is finished first
         self.assert_span_count(1)
         self.assert_structure(dict(name='main.thread'))
 

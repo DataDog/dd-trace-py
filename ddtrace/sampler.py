@@ -11,6 +11,7 @@ from .ext.priority import AUTO_KEEP, AUTO_REJECT
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .utils.formats import get_env
+from .span import Span
 from .vendor import six
 
 log = get_logger(__name__)
@@ -170,9 +171,10 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
             self.default_sampler.update_rate_by_service_sample_rates(sample_rates)
 
     def _set_priority(self, span, priority):
-        if span._context:
-            span._context.sampling_priority = priority
-        span.sampled = priority is AUTO_KEEP
+        # type: (Span, str) -> None
+        if span.trace_id in span.tracer._traces:
+            trace = span.tracer._traces[span.trace_id]
+            trace.sampling_priority = priority
 
     def sample(self, span):
         """
@@ -186,7 +188,6 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
         :rtype: :obj:`bool`
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
-        matching_rule = None
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:

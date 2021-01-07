@@ -2,10 +2,12 @@ import abc
 from ddtrace.vendor import six
 
 from ddtrace.compat import contextvars
+
 from .logger import get_logger
 from ..context import Context
 
 log = get_logger(__name__)
+
 
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 

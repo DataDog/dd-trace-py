@@ -2,8 +2,7 @@ import asyncio
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w, ObjectProxy
 
-from ...compat import CONTEXTVARS_IS_AVAILABLE
-from .wrappers import wrapped_create_task, wrapped_create_task_contextvars
+from .wrappers import wrapped_create_task
 from ...utils.wrappers import unwrap as _u
 
 
@@ -15,14 +14,12 @@ def patch():
         return
     setattr(asyncio, "_datadog_patch", True)
 
-    wrapper = wrapped_create_task_contextvars if CONTEXTVARS_IS_AVAILABLE else wrapped_create_task
-
-    _w(asyncio.BaseEventLoop, "create_task", wrapper)
+    _w(asyncio.BaseEventLoop, "create_task", wrapped_create_task)
 
     # also patch event loop if not inheriting the wrapped create_task from BaseEventLoop
     loop = asyncio.get_event_loop()
     if not isinstance(loop.create_task, ObjectProxy):
-        _w(loop, "create_task", wrapper)
+        _w(loop, "create_task", wrapped_create_task)
 
 
 def unpatch():
