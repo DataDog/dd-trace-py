@@ -102,7 +102,7 @@ class TraceMiddleware:
         )
 
         if self.span_modifier:
-            self.span_modifier(span, scope)
+            self.span_modifier(span, scope, self.integration_config)
 
         sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
