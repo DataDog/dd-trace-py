@@ -284,7 +284,7 @@ def extract_bitrise(env):
         git.REPOSITORY_URL: env.get("GIT_REPOSITORY_URL"),
         git.COMMIT_SHA: commit,
         git.BRANCH: branch,
-        git.TAG: env.get("BITRISE_GIT_TAG")
+        git.TAG: env.get("BITRISE_GIT_TAG"),
     }
 
 PROVIDERS = (
