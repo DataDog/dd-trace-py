@@ -271,6 +271,7 @@ def extract_travis(env):
         WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
     }
 
+
 def extract_bitrise(env):
     commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
     branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
@@ -286,6 +287,7 @@ def extract_bitrise(env):
         git.BRANCH: branch,
         git.TAG: env.get("BITRISE_GIT_TAG"),
     }
+
 
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
