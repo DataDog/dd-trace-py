@@ -97,7 +97,7 @@ def extract_azure_pipelines(env):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
-        pipeline_url = base_url + "&_a=summary"
+        pipeline_url = base_url
         job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))
     else:
         pipeline_url = job_url = None
@@ -271,6 +271,21 @@ def extract_travis(env):
         WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
     }
 
+def extract_bitrise(env):
+    commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
+    branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
+    return {
+        PROVIDER_NAME: "bitrise",
+        PIPELINE_ID: env.get("BITRISE_BUILD_SLUG"),
+        PIPELINE_NAME: env.get("BITRISE_APP_TITLE"),
+        PIPELINE_NUMBER: env.get("BITRISE_BUILD_NUMBER"),
+        PIPELINE_URL: env.get("BITRISE_BUILD_URL"),
+        WORKSPACE_PATH: env.get("BITRISE_SOURCE_DIR"),
+        git.REPOSITORY_URL: env.get("GIT_REPOSITORY_URL"),
+        git.COMMIT_SHA: commit,
+        git.BRANCH: branch,
+        git.TAG: env.get("BITRISE_GIT_TAG")
+    }
 
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
@@ -283,4 +298,5 @@ PROVIDERS = (
     ("JENKINS_URL", extract_jenkins),
     ("TEAMCITY_VERSION", extract_teamcity),
     ("TRAVIS", extract_travis),
+    ("BITRISE_BUILD_SLUG", extract_bitrise),
 )
