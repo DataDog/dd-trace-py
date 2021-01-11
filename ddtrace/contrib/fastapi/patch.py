@@ -4,7 +4,7 @@ from fastapi.middleware import Middleware
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.starlette.patch import span_modifier, get_resource
+from ddtrace.contrib.starlette.patch import span_modifier
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.internal.logger import get_logger
 
@@ -27,9 +27,6 @@ def traced_init(wrapped, instance, args, kwargs):
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.fastapi, span_modifier=span_modifier))
     kwargs.update({"middleware": mw})
     wrapped(*args, **kwargs)
-
-
-# TODO: Can we refactor this as well?
 
 
 def patch():
