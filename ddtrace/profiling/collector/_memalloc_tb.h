@@ -18,6 +18,9 @@ typedef struct
     PyObject* name;
     unsigned int lineno;
 } frame_t;
+#if defined(_MSC_VER)
+#pragma pack(pop)
+#endif
 
 typedef struct
 {
