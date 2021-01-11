@@ -17,7 +17,7 @@ class Scheduler(_periodic.PeriodicService):
 
     recorder = attr.ib()
     exporters = attr.ib()
-    before_flush = attr.ib(default=None)
+    before_flush = attr.ib(default=None, eq=False)
     _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
