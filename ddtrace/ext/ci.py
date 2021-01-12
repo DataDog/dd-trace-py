@@ -53,7 +53,6 @@ def tags(env=None):
     if tags.get(git.TAG) and git.BRANCH in tags:
         del tags[git.BRANCH]
     tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
-    tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     # Expand ~
