@@ -14,8 +14,6 @@ typedef struct
     PyMemAllocatorEx pymem_allocator_obj;
     /* The maximum number of events for allocation tracking */
     uint16_t max_events;
-    /* Granularity of the heap profiler in bytes */
-    uint32_t heap_sample_size;
     /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
 } memalloc_context_t;
@@ -102,7 +100,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 
     if (ptr) {
         memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
-        memalloc_heap_track(memalloc_ctx->heap_sample_size, memalloc_ctx->max_nframe, ptr, nelem * elsize);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize);
     }
 
     return ptr;
@@ -129,7 +127,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     if (ptr2) {
         memalloc_add_event(memalloc_ctx, ptr2, new_size);
         memalloc_heap_untrack(ptr);
-        memalloc_heap_track(memalloc_ctx->heap_sample_size, memalloc_ctx->max_nframe, ptr2, new_size);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size);
     }
 
     return ptr2;
@@ -195,12 +193,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    global_memalloc_ctx.heap_sample_size = (uint32_t)heap_sample_size;
-
     if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
         return NULL;
 
-    memalloc_heap_tracker_init();
+    memalloc_heap_tracker_init((uint32_t)heap_sample_size);
 
     PyMemAllocatorEx alloc;
 

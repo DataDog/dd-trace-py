@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <Python.h>
 
@@ -12,15 +13,15 @@
 #define MAX_HEAP_SAMPLE_SIZE UINT32_MAX
 
 void
-memalloc_heap_tracker_init(void);
+memalloc_heap_tracker_init(uint32_t sample_size);
 void
 memalloc_heap_tracker_deinit(void);
 
 PyObject*
 memalloc_heap();
 
-void
-memalloc_heap_track(uint32_t heap_sample_size, uint16_t max_nframe, void* ptr, size_t size);
+bool
+memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size);
 void
 memalloc_heap_untrack(void* ptr);
 
