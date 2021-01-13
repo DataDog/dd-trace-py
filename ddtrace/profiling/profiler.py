@@ -267,7 +267,19 @@ class _ProfilerInstance(_service.Service):
         )
 
         if exporters:
-            self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)
+            self._scheduler = scheduler.Scheduler(
+                recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
+            )
+
+    def _collectors_snapshot(self):
+        for c in self._collectors:
+            try:
+                snapshot = c.snapshot()
+                if snapshot:
+                    for events in snapshot:
+                        self._recorder.push_events(events)
+            except Exception:
+                LOG.error("Error while snapshoting collector %r", c, exc_info=True)
 
     def copy(self):
         return self.__class__(
