@@ -290,6 +290,7 @@ class Tracer(object):
 
         if writer:
             self.writer = writer
+            self.writer.dogstatsd = self._dogstatsd_client
         elif (
             hostname is not None
             or port is not None
@@ -300,11 +301,11 @@ class Tracer(object):
         ):
             # Preserve hostname and port when overriding priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, "writer") and hasattr(self.writer, "api"):
-                default_hostname = self.writer.api.hostname
-                default_port = self.writer.api.port
+            if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
+                default_hostname = self.writer._hostname
+                default_port = self.writer._port
                 if https is None:
-                    https = self.writer.api.https
+                    https = self.writer._https
             else:
                 default_hostname = self.DEFAULT_HOSTNAME
                 default_port = self.DEFAULT_PORT
@@ -320,10 +321,8 @@ class Tracer(object):
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,
+                report_metrics=config.health_metrics_enabled,
             )
-
-        # HACK: since we recreated our dogstatsd agent, replace the old write one
-        self.writer.dogstatsd = self._dogstatsd_client
 
         if context_provider is not None:
             self.context_provider = context_provider

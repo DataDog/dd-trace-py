@@ -132,6 +132,10 @@ def test_cgroup_info_init():
 )
 def test_cgroup_info_from_line(line, expected_info):
     info = CGroupInfo.from_line(line)
+    info2 = CGroupInfo.from_line(line)
+
+    # Check __eq__
+    assert info == info2
 
     if expected_info is None:
         assert info is None, line

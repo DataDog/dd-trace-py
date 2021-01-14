@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The `Profiler` object can now be passed tags with the `tags` keyword
+    argument.

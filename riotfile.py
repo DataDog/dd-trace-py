@@ -11,24 +11,39 @@ def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPO
 venv = Venv(
     pkgs={"mock": latest, "pytest": latest, "coverage": latest, "pytest-cov": latest, "opentracing": latest},
     venvs=[
-        Venv(name="black", command="black --check .", venvs=[Venv(pys=3.8, pkgs={"black": "==20.8b1"})]),
         Venv(
-            name="flake8",
-            command="flake8 ddtrace/ tests/",
+            pys="3",
+            pkgs={"black": "==20.8b1"},
             venvs=[
                 Venv(
-                    pys=3.8,
-                    pkgs={
-                        "flake8": ">=3.8,<3.9",
-                        "flake8-blind-except": latest,
-                        "flake8-builtins": latest,
-                        "flake8-docstrings": latest,
-                        "flake8-logging-format": latest,
-                        "flake8-rst-docstrings": latest,
-                        "pygments": latest,
-                    },
+                    name="fmt",
+                    command="black .",
+                ),
+                Venv(
+                    name="black",
+                    command="black {cmdargs}",
                 ),
             ],
+        ),
+        Venv(
+            pys=3,
+            name="flake8",
+            command="flake8 {cmdargs} ddtrace/ tests/",
+            pkgs={
+                "flake8": ">=3.8,<3.9",
+                "flake8-blind-except": latest,
+                "flake8-builtins": latest,
+                "flake8-docstrings": latest,
+                "flake8-logging-format": latest,
+                "flake8-rst-docstrings": latest,
+                "pygments": latest,
+            },
+        ),
+        Venv(
+            name="benchmarks",
+            pys=select_pys(),
+            pkgs={"pytest-benchmark": latest, "msgpack": latest},
+            command="pytest --no-cov {cmdargs} tests/benchmarks",
         ),
         Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
@@ -251,6 +266,36 @@ venv = Venv(
             name="botocore",
             command="pytest tests/contrib/botocore",
             venvs=[Venv(pys=select_pys(), pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]})],
+        ),
+        Venv(
+            name="mongoengine",
+            command="pytest tests/contrib/mongoengine",
+            pkgs={
+                "pymongo": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        # 0.20 dropped support for Python 2.7
+                        "mongoengine": [">=0.15,<0.16", ">=0.16,<0.17", ">=0.17,<0.18", ">=0.18,<0.19"]
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.6),
+                    pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", latest]},
+                ),
+            ],
+        ),
+        Venv(
+            name="asgi",
+            pkgs={
+                "pytest-asyncio": latest,
+                "httpx": latest,
+                "asgiref": ["~=3.0.0", "~=3.0"],
+            },
+            pys=select_pys(min_version=3.6),
+            command="pytest tests/contrib/asgi",
         ),
     ],
 )

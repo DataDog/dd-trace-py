@@ -17,9 +17,10 @@ class Scheduler(_periodic.PeriodicService):
 
     recorder = attr.ib()
     exporters = attr.ib()
+    before_flush = attr.ib(default=None, eq=False)
     _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
     _configured_interval = attr.ib(init=False)
-    _last_export = attr.ib(init=False, default=None)
+    _last_export = attr.ib(init=False, default=None, eq=False)
 
     def __attrs_post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
@@ -35,6 +36,11 @@ class Scheduler(_periodic.PeriodicService):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
+        if self.before_flush is not None:
+            try:
+                self.before_flush()
+            except Exception:
+                LOG.error("Scheduler before_flush hook failed", exc_info=True)
         if self.exporters:
             events = self.recorder.reset()
             start = self._last_export
@@ -56,5 +62,3 @@ class Scheduler(_periodic.PeriodicService):
             self.flush()
         finally:
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
-
-    on_shutdown = flush
