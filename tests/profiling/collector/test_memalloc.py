@@ -69,9 +69,9 @@ def test_iter_events():
         assert 0 < len(stack) <= max_nframe
         assert nframe >= len(stack)
         last_call = stack[0]
-        assert thread_id == _nogevent.main_thread_id
         assert size >= 1  # size depends on the object size
         if last_call[2] == "_allocate_1k" and last_call[1] == _ALLOC_LINE_NUMBER:
+            assert thread_id == _nogevent.main_thread_id
             assert last_call[0] == __file__
             assert stack[1][0] == __file__
             assert stack[1][1] == 60

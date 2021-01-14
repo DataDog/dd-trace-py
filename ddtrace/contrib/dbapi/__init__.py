@@ -9,6 +9,7 @@ from ...pin import Pin
 from ...settings import config
 from ...utils.formats import asbool, get_env
 from ...vendor import wrapt
+from ...vendor import six
 from ..trace_utils import ext_service, iswrapped
 
 
@@ -74,7 +75,8 @@ class TracedCursor(wrapt.ObjectProxy):
                 # implementation of the TracedCursor, which used to store the row count into a tag instead of
                 # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
                 # this tag has been added since.
-                if row_count and row_count >= 0:
+                # Check row count is an integer type to avoid comparison type error
+                if isinstance(row_count, six.integer_types) and row_count >= 0:
                     s.set_tag(sql.ROWS, row_count)
 
     def executemany(self, query, *args, **kwargs):
