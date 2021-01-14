@@ -5,8 +5,8 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 
 from pydantic import BaseModel
-import sqlalchemy
-import databases
+import sqlalchemy  # noqa: F401
+import databases  # noqa: F401
 from tempfile import NamedTemporaryFile
 
 

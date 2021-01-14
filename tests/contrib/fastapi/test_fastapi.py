@@ -3,17 +3,17 @@ import sys
 
 import httpx
 import pytest
-import sqlalchemy
+import sqlalchemy  # noqa: F401
 
 import ddtrace
-from ddtrace import Pin
-from ddtrace import config
+from ddtrace import Pin  # noqa: F401
+from ddtrace import config  # noqa: F401
 from ddtrace.contrib.fastapi import patch as fastapi_patch, unpatch as fastapi_unpatch
-from ddtrace.contrib.sqlalchemy import patch as sql_patch, unpatch as sql_unpatch
+from ddtrace.contrib.sqlalchemy import patch as sql_patch, unpatch as sql_unpatch  # noqa: F401
 from ddtrace.propagation import http as http_propagation
 
 from fastapi.testclient import TestClient
-from tests import override_http_config, snapshot
+from tests import override_http_config, snapshot  # noqa: F401
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
