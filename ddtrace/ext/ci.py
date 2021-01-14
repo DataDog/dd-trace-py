@@ -6,6 +6,12 @@ import re
 
 from . import git
 
+# Stage Name
+STAGE_NAME = "ci.stage.name"
+
+# Job Name
+JOB_NAME = "ci.job.name"
+
 # Job URL
 JOB_URL = "ci.job.url"
 
@@ -202,6 +208,8 @@ def extract_gitlab(env):
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
         git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         git.TAG: env.get("CI_COMMIT_TAG"),
+        STAGE_NAME: env.get("CI_JOB_STAGE"),
+        JOB_NAME: env.get("CI_JOB_NAME"),
         JOB_URL: env.get("CI_JOB_URL"),
         PIPELINE_ID: env.get("CI_PIPELINE_ID"),
         PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
