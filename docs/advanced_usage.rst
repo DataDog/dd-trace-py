@@ -278,6 +278,8 @@ structure like in the following example::
       url  https://api.github.com/events
     }
 
+..  _http-custom-error:
+
 Custom Error Codes
 ^^^^^^^^^^^^^^^^^^
 It is possible to have a custom mapping of which HTTP status codes are considered errors.
