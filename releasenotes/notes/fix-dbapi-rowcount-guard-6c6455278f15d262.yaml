@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dbapi: avoid type error with potential non-compliance in db libraries when setting tag for row count.
