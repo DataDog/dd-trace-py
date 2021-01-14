@@ -5,6 +5,7 @@ from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
+from flask import make_response
 
 from . import BaseFlaskTestCase
 from ... import assert_is_measured, assert_span_http_status_code
@@ -798,3 +799,43 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertTrue(user_ex_span.get_tag("error.msg").startswith("500 error"))
         self.assertTrue(user_ex_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(user_ex_span.get_tag("error.type"), base_exception_name)
+
+    def test_http_request_header_tracing(self):
+        with self.override_http_config("flask", dict(trace_headers=["Host", "my-header"])):
+            self.client.get(
+                "/",
+                headers={
+                    "my-header": "my_value",
+                },
+            )
+
+        traces = self.tracer.writer.pop_traces()
+
+        span = traces[0][0]
+        assert span.get_tag("http.request.headers.my-header") == "my_value"
+        assert span.get_tag("http.request.headers.host") == "localhost"
+
+    def test_http_response_header_tracing(self):
+        @self.app.route("/response_headers")
+        def response_headers():
+            resp = make_response("Hello Flask")
+            resp.headers["my-response-header"] = "my_response_value"
+            return resp
+
+        with self.override_http_config("flask", dict(trace_headers=["my-response-header"])):
+            self.client.get("/response_headers")
+
+        traces = self.tracer.writer.pop_traces()
+
+        span = traces[0][0]
+        assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_extra_error_codes(self):
+        with self.override_config("flask", dict(extra_error_codes=[404])):
+            res = self.client.get("/not-found")
+            self.assertEqual(res.status_code, 404)
+
+        spans = self.get_spans()
+        req_span = spans[0]
+        assert_span_http_status_code(req_span, 404)
+        self.assertEqual(req_span.error, 1)
