@@ -15,7 +15,7 @@ fake_secret_token = "DataDog"
 fake_db = {
     "foo": {"id": "foo", "name": "Foo", "description": "This item's description is foo."},
     "bar": {"id": "bar", "name": "Bar", "description": "The bartenders"},
-    "testUserID": {"userid": "testUserID", "name": "Test User"}
+    "testUserID": {"userid": "testUserID", "name": "Test User"},
 }
 
 
@@ -28,6 +28,7 @@ class Item(BaseModel):
 class User(BaseModel):
     userid: int
     name: str
+
 
 # TODO: Add sqlalchemy
 # def create_test_database(engine):
@@ -115,5 +116,3 @@ def get_app():
             return FileResponse(fp.name)
 
     return app
-
-

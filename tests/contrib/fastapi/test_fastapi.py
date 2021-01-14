@@ -97,7 +97,7 @@ def test_read_item_success(client, tracer):
 def test_read_item_bad_token(client, tracer):
     response = client.get("/items/bar", headers={"X-Token": "DataDoge"})
     assert response.status_code == 401
-    assert response.json() == {'detail': 'Invalid X-Token header'}
+    assert response.json() == {"detail": "Invalid X-Token header"}
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -115,7 +115,7 @@ def test_read_item_bad_token(client, tracer):
 def test_read_item_nonexistent_item(client, tracer):
     response = client.get("/items/foobar", headers={"X-Token": "DataDog"})
     assert response.status_code == 404
-    assert response.json() == {'detail': 'Item not found'}
+    assert response.json() == {"detail": "Item not found"}
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 1
@@ -153,8 +153,7 @@ def test_read_item_query_string(client, tracer):
 
 def test_200_multi_query_string(client, tracer):
     with override_http_config("fastapi", dict(trace_query_string=True)):
-        r = client.get("/items/foo?name=Foo&q=query",
-                       headers={"X-Token": "DataDog"})
+        r = client.get("/items/foo?name=Foo&q=query", headers={"X-Token": "DataDog"})
 
     assert r.status_code == 200
     assert r.json() == {"id": "foo", "name": "Foo", "description": "This item's description is foo."}
@@ -174,8 +173,11 @@ def test_200_multi_query_string(client, tracer):
 
 
 def test_create_item_success(client, tracer):
-    response = client.post("/items/", headers={"X-Token": "DataDog"},
-                           json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"})
+    response = client.post(
+        "/items/",
+        headers={"X-Token": "DataDog"},
+        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+    )
     assert response.status_code == 200
     assert response.json() == {"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"}
 
@@ -195,8 +197,11 @@ def test_create_item_success(client, tracer):
 
 
 def test_create_item_bad_token(client, tracer):
-    response = client.post("/items/", headers={"X-Token": "DataDoged"},
-                           json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"})
+    response = client.post(
+        "/items/",
+        headers={"X-Token": "DataDoged"},
+        json={"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"},
+    )
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid X-Token header"}
 
@@ -216,8 +221,11 @@ def test_create_item_bad_token(client, tracer):
 
 
 def test_create_item_duplicate_item(client, tracer):
-    response = client.post("/items/", headers={"X-Token": "DataDog"},
-                           json={"id": "foo", "name": "Foo", "description": "Duplicate Foo Item"})
+    response = client.post(
+        "/items/",
+        headers={"X-Token": "DataDog"},
+        json={"id": "foo", "name": "Foo", "description": "Duplicate Foo Item"},
+    )
     assert response.status_code == 400
     assert response.json() == {"detail": "Item already exists"}
 
@@ -368,12 +376,11 @@ def test_multi_path_param_aggregate(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-
 def test_distributed_tracing(client, tracer):
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID, "5555"),
         (http_propagation.HTTP_HEADER_TRACE_ID, "9999"),
-        ("sleep", "False")
+        ("sleep", "False"),
     ]
     response = client.get("http://testserver/", headers=dict(headers))
 
@@ -428,6 +435,3 @@ async def test_multiple_requests(application, tracer):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.duration < 2
-
-
-
