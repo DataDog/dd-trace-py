@@ -702,7 +702,7 @@ def _patch(django):
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
-    trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response_async", traced_get_response_async_async(django))
+    trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response_async", traced_get_response_async(django))
 
 
     # DEV: this check will be replaced with import hooks in the future
