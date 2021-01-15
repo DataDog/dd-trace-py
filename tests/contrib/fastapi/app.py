@@ -5,8 +5,6 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 
 from pydantic import BaseModel
-import sqlalchemy  # noqa: F401
-import databases  # noqa: F401
 from tempfile import NamedTemporaryFile
 
 
@@ -28,20 +26,6 @@ class Item(BaseModel):
 class User(BaseModel):
     userid: int
     name: str
-
-
-# TODO: Add sqlalchemy
-# def create_test_database(engine):
-#     engine.execute("DROP TABLE IF EXISTS notes;")
-#     metadata = sqlalchemy.MetaData()
-#     sqlalchemy.Table(
-#         "notes",
-#         metadata,
-#         sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
-#         sqlalchemy.Column("text", sqlalchemy.String),
-#         sqlalchemy.Column("completed", sqlalchemy.Boolean),
-#     )
-#     metadata.create_all(engine)
 
 
 def get_app():

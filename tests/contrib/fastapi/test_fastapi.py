@@ -3,28 +3,17 @@ import sys
 
 import httpx
 import pytest
-import sqlalchemy  # noqa: F401
 
 import ddtrace
-from ddtrace import Pin  # noqa: F401
-from ddtrace import config  # noqa: F401
 from ddtrace.contrib.fastapi import patch as fastapi_patch, unpatch as fastapi_unpatch
-from ddtrace.contrib.sqlalchemy import patch as sql_patch, unpatch as sql_unpatch  # noqa: F401
 from ddtrace.propagation import http as http_propagation
 
 from fastapi.testclient import TestClient
-from tests import override_http_config, snapshot  # noqa: F401
+from tests import override_http_config
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
 from . import app
-
-# @pytest.fixture
-# def engine():
-# 	sql_patch()
-# 	engine = sqlalchemy.create_engine("sqlite:///test.db")
-# 	yield engine
-# 	sql_unpatch()
 
 
 @pytest.fixture
@@ -35,7 +24,6 @@ def tracer():
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
 
-        # Pin.override(tracer=tracer)
         tracer.configure(context_provider=AsyncioContextProvider())
 
     setattr(ddtrace, "tracer", tracer)
@@ -426,7 +414,7 @@ async def test_multiple_requests(application, tracer):
     assert r1_span.resource == "GET /"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
-    assert r1_span.duration > 2
+    assert r1_span.duration > 2  # Called sleep(2) with this get request
 
     r2_span = spans[1][0]
     assert r2_span.service == "fastapi"
@@ -434,4 +422,4 @@ async def test_multiple_requests(application, tracer):
     assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
-    assert r2_span.duration < 2
+    assert r2_span.duration < 2  # Did not use sleep() with this get request
