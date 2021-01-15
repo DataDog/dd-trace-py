@@ -22,7 +22,7 @@ config._add(
 )
 
 
-def traced_init(wrapped, instance, args, kwargs):
+def traced_init(wrapped, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.fastapi, span_modifier=span_modifier))
     kwargs.update({"middleware": mw})
