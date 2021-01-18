@@ -115,7 +115,14 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def _next(self):
+        # While an iterator ObjectProxy requires only __iter__ and __next__, we
+        # make sure to also proxy the grpc._channel._Rendezvous._next method in
+        # case it is being called directly as in google.api_core.grpc_helpers
+        # and grpc_gcp._channel.
+        # https://github.com/grpc/grpc/blob/5195a06ddea8da6603c6672e0ed09fec9b5c16ac/src/python/grpcio/grpc/_channel.py#L418-L419
+        # https://github.com/googleapis/python-api-core/blob/35e87e0aca52167029784379ca84e979098e1d6c/google/api_core/grpc_helpers.py#L84
+        # https://github.com/GoogleCloudPlatform/grpc-gcp-python/blob/5a2cd9807bbaf1b85402a2a364775e5b65853df6/src/grpc_gcp/_channel.py#L102
         try:
             return next(self.__wrapped__)
         except StopIteration:
@@ -135,8 +142,10 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             self._span.finish()
             raise
 
-    def next(self):
-        return self.__next__()
+    def __next__(self):
+        return self._next()
+
+    next = __next__
 
 
 class _ClientInterceptor(

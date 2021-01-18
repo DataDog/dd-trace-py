@@ -79,7 +79,6 @@ exclude = '''
        | system.py
     )
     | http/
-    | opentracer/
     | profiling/exporter/pprof_pb2.py$
     | propagation/
     | vendor/
