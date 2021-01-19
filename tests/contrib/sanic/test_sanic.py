@@ -54,10 +54,10 @@ def app(tracer):
         await random_sleep()
         return json({"hello": first_name})
 
-    @app.route("/hello/<first_name>/<surname>/<year:int>")
-    async def hello_multiple_params(request, first_name, surname, year):
+    @app.route("/hello/<first_name>/<surname>")
+    async def hello_multiple_params(request, first_name, surname):
         await random_sleep()
-        return json({"hello": f"{first_name} {surname} {year}"})
+        return json({"hello": f"{first_name} {surname}"})
 
     @app.route("/stream_response")
     async def stream_response(request):
@@ -186,7 +186,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     "url, expected_json, expected_resource",
     [
         ("/hello/foo", {"hello": "foo"}, "GET /hello/<first_name>"),
-        ("/hello/foo/bar/2020", {"hello": "foo bar 2020"}, "GET /hello/<first_name>/<surname>/<year>"),
+        ("/hello/foo/bar", {"hello": "foo bar"}, "GET /hello/<first_name>/<surname>"),
     ],
 )
 async def test_resource_name(tracer, client, url, expected_json, expected_resource):
