@@ -1,5 +1,6 @@
 import asyncio
 import ddtrace
+import re
 import sanic
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -54,14 +55,17 @@ def _wrap_response_callback(span, callback):
 
 def _get_path(request):
     """Get path and replace path parameter values with names if route exists."""
-    path = request.path
     try:
-        match_info = request.match_info
-    except sanic.exceptions.SanicException:
+        try:
+            match_info = request.match_info
+        except sanic.exceptions.SanicException:
+            return request.path
+        path = request.path
+        for key, value in match_info.items():
+            path = re.sub(f'/{value}(/(?=.+)|/?$)', f'/<{key}>\\1', path, count=1)
         return path
-    for key, value in match_info.items():
-        path = path.replace(str(value), f"<{key}>")
-    return path
+    except Exception:
+        return request.path
 
 
 def patch():
