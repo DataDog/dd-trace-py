@@ -35,6 +35,7 @@ def get_app():
     async def read_homepage(sleep: str = Header(...)):
         if sleep == "True":
             time.sleep(2)
+            return {"Homepage Read": "Sleep"}
         return {"Homepage Read": "Success"}
 
     @app.get("/items/{item_id}", response_model=Item)

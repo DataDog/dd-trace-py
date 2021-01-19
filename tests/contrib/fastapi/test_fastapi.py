@@ -401,7 +401,7 @@ async def test_multiple_requests(application, tracer):
 
     assert len(responses) == 2
     assert [r.status_code for r in responses] == [200] * 2
-    assert [r.json() for r in responses] == [{"Homepage Read": "Success"}] * 2
+    assert [r.json() for r in responses] == [{"Homepage Read": "Sleep"}, {"Homepage Read": "Success"}]
 
     spans = tracer.writer.pop_traces()
     assert len(spans) == 2
@@ -414,7 +414,6 @@ async def test_multiple_requests(application, tracer):
     assert r1_span.resource == "GET /"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
-    assert r1_span.duration > 2  # Called sleep(2) with this get request
 
     r2_span = spans[1][0]
     assert r2_span.service == "fastapi"
@@ -422,4 +421,3 @@ async def test_multiple_requests(application, tracer):
     assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
-    assert r2_span.duration < 2  # Did not use sleep() with this get request
