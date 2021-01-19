@@ -308,11 +308,7 @@ venv = Venv(
                         "httpx": latest,
                         "pytest-asyncio": latest,
                         "requests": latest,
-                        "aiofiles": latest,
-                        "sqlalchemy": latest,
-                        "aiosqlite": latest,
-                        "databases": latest,
-                        "starlette": latest,
+                        "aiofiles": latest
                     },
                 ),
             ],

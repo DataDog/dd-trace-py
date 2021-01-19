@@ -421,3 +421,4 @@ async def test_multiple_requests(application, tracer):
     assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
+    assert r1_span.trace_id != r2_span.trace_id

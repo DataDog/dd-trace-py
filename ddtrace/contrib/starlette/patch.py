@@ -35,9 +35,9 @@ def get_resource(scope):
     return path
 
 
-def span_modifier(span, scope, integration_config):
+def span_modifier(span, scope):
     resource = get_resource(scope)
-    if integration_config["aggregate_resources"] and resource:
+    if config.starlette["aggregate_resources"] and resource:
         span.resource = "{} {}".format(scope["method"], resource)
 
 

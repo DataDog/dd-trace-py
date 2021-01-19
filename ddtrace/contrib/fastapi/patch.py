@@ -4,7 +4,7 @@ from fastapi.middleware import Middleware
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.starlette.patch import span_modifier
+from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.internal.logger import get_logger
 
@@ -20,6 +20,12 @@ config._add(
         aggregate_resources=True,
     ),
 )
+
+
+def span_modifier(span, scope):
+    resource = get_resource(scope)
+    if config.fastapi["aggregate_resources"] and resource:
+        span.resource = "{} {}".format(scope["method"], resource)
 
 
 def traced_init(wrapped, instance, args, kwargs):

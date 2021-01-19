@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    fastapi: aggregates endpoints to fastapi application resource that was accessed.
+    fastapi: add integration.
