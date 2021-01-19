@@ -60,7 +60,7 @@ def _get_path(request):
     except sanic.exceptions.SanicException:
         return path
     for key, value in match_info.items():
-        path = path.replace(str(value), f"<{key}>")
+        path = path.replace(value, f"<{key}>")
     return path
 
 
