@@ -308,7 +308,8 @@ venv = Venv(
                         "httpx": latest,
                         "pytest-asyncio": latest,
                         "requests": latest,
-                        "aiofiles": latest
+                        "aiofiles": latest,
+                        "starlette": latest
                     },
                 ),
             ],
