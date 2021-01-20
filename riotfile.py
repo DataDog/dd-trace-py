@@ -167,14 +167,14 @@ venv = Venv(
         ),
         Venv(
             name="djangorestframework",
-            command="pytest tests/contrib/djangorestframework",
+            command="pytest {cmdargs} tests/contrib/djangorestframework",
+            pkgs={"pytest-django": "==3.10.0"},
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.6),
                     pkgs={
                         "django": "==1.11",
                         "djangorestframework": [">=3.4,<3.5", ">=3.7,<3.8"],
-                        "pytest-django": "==3.10.0",
                     },
                 ),
                 Venv(
@@ -182,7 +182,6 @@ venv = Venv(
                     pkgs={
                         "django": ">=2.2,<2.3",
                         "djangorestframework": [">=3.8,<3.9", ">=3.9,<3.10", latest],
-                        "pytest-django": "==3.10.0",
                     },
                 ),
                 Venv(
@@ -190,15 +189,13 @@ venv = Venv(
                     pkgs={
                         "django": ">=3.0,<3.1",
                         "djangorestframework": ">=3.10,<3.11",
-                        "pytest-django": "==3.10.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version=3.6),
                     pkgs={
                         "django": latest,
-                        "djangorestframework": ">=3.11,<3.12",
-                        "pytest-django": "==3.10.0",
+                        "djangorestframework": [">=3.11,<3.12", latest],
                     },
                 ),
             ],

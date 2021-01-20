@@ -31,3 +31,39 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert err_span.error == 1
     assert err_span.get_tag("error.msg") == "Authentication credentials were not provided."
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
+
+
+@pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
+@pytest.mark.django_db
+def test_action_decorator(client, test_spans):  # noqa
+    response = client.get("/no-auth-users/recent_users/")
+    assert response.status_code == 200
+
+    sp = test_spans.get_root_span()
+    assert sp.name == "django.request"
+    if django.VERSION >= (2, 2, 0):
+        assert sp.resource == "GET ^no-auth-users/recent_users/$"
+    else:
+        assert sp.resource == "GET tests.contrib.djangorestframework.app.views.NoAuthUserViewSet"
+    assert sp.error == 0
+    assert sp.span_type == "web"
+    assert_span_http_status_code(sp, 200)
+    assert sp.get_tag("http.method") == "GET"
+
+
+@pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
+@pytest.mark.django_db
+def test_action_decorator_pk(client, test_spans, django_user_model):
+    response = client.post("/no-auth-users/0/set_password/", {"password": "test"})
+    assert response.status_code == 200
+
+    sp = test_spans.get_root_span()
+    assert sp.name == "django.request"
+    if django.VERSION >= (2, 2, 0):
+        assert sp.resource == "POST ^no-auth-users/(?P<pk>[^/.]+)/set_password/$"
+    else:
+        assert sp.resource == "GET tests.contrib.djangorestframework.app.views.NoAuthUserViewSet"
+    assert sp.error == 0
+    assert sp.span_type == "web"
+    assert_span_http_status_code(sp, 200)
+    assert sp.get_tag("http.method") == "POST"
