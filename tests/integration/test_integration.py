@@ -355,7 +355,7 @@ def test_bad_encoder():
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
-    calls = [mock.call("failed to encode trace with encoder %r" % (t.writer._encoder))]
+    calls = [mock.call("failed to encode trace with encoder %r", t.writer._encoder, exc_info=True)]
     log.error.assert_has_calls(calls)
 
 
