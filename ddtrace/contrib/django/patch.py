@@ -308,6 +308,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     """
 
     request = kwargs.get("request", args[0])
+    
+    log.warn('traced_get_response()')
+
     if request is None:
         return func(*args, **kwargs)
 
@@ -451,6 +454,9 @@ async def traced_get_response_async(django, pin, func, instance, args, kwargs):
     """
 
     request = kwargs.get("request", args[0])
+
+    log.warn('traced_get_response_async()')
+
     if request is None:
         return func(*args, **kwargs)
 
@@ -701,7 +707,10 @@ def _patch(django):
     if config.django.instrument_middleware:
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
+    log.warn("Patching get_response()")
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
+
+    log.warn("Patching get_response_async()")
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response_async", traced_get_response_async(django))
 
 
