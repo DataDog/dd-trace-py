@@ -444,10 +444,16 @@ def test_table_query_snapshot(snapshot_client):
         json={"id": "test_id", "name": "Test Name", "description": "This request adds a new entry to the test db"},
     )
     assert r_post.status_code == 200
-    assert r_post.json() == {"id": "test_id", "name": "Test Name",
-                             "description": "This request adds a new entry to the test db"}
+    assert r_post.json() == {
+        "id": "test_id",
+        "name": "Test Name",
+        "description": "This request adds a new entry to the test db",
+    }
 
     r_get = snapshot_client.get("/items/test_id", headers={"X-Token": "DataDog"})
     assert r_get.status_code == 200
-    assert r_get.json() == {"id": "test_id", "name": "Test Name",
-                            "description": "This request adds a new entry to the test db"}
+    assert r_get.json() == {
+        "id": "test_id",
+        "name": "Test Name",
+        "description": "This request adds a new entry to the test db",
+    }
