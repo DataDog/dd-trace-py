@@ -9,7 +9,7 @@ from ddtrace.contrib.fastapi import patch as fastapi_patch, unpatch as fastapi_u
 from ddtrace.propagation import http as http_propagation
 
 from fastapi.testclient import TestClient
-from tests import override_http_config, snapshot
+from tests import override_http_config, snapshot, override_config
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -434,6 +434,18 @@ async def test_multiple_requests(application, tracer):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.trace_id != r2_span.trace_id
+
+
+def test_service_can_be_overridden(client, tracer):
+    with override_config("fastapi", dict(service_name="test-override-service")):
+        response = client.get("/", headers={"sleep": "False"})
+        assert response.status_code == 200
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) > 0
+
+    span = spans[0][0]
+    assert span.service == "test-override-service"
 
 
 @snapshot()

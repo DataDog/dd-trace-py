@@ -44,9 +44,9 @@ def patch():
 
 
 def unpatch():
-    if getattr(fastapi, "_datadog_patch", False):
+    if not getattr(fastapi, "_datadog_patch", False):
         return
 
     setattr(fastapi, "_datadog_patch", False)
 
-    _u("fastapi.applications", "FastAPI.__init__")
+    _u(fastapi.applications.FastAPI, "__init__")
