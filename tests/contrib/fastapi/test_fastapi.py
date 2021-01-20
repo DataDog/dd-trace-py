@@ -9,7 +9,7 @@ from ddtrace.contrib.fastapi import patch as fastapi_patch, unpatch as fastapi_u
 from ddtrace.propagation import http as http_propagation
 
 from fastapi.testclient import TestClient
-from tests import override_http_config
+from tests import override_http_config, snapshot
 from tests.tracer.test_tracer import get_dummy_tracer
 
 
@@ -42,6 +42,18 @@ def application(tracer):
 @pytest.fixture
 def client(tracer):
     with TestClient(app.get_app()) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def snapshot_app():
+    application = app.get_app()
+    yield application
+
+
+@pytest.fixture
+def snapshot_client(snapshot_app):
+    with TestClient(snapshot_app) as test_client:
         yield test_client
 
 
@@ -422,3 +434,20 @@ async def test_multiple_requests(application, tracer):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.trace_id != r2_span.trace_id
+
+
+@snapshot()
+def test_table_query_snapshot(snapshot_client):
+    r_post = snapshot_client.post(
+        "/items/",
+        headers={"X-Token": "DataDog"},
+        json={"id": "test_id", "name": "Test Name", "description": "This request adds a new entry to the test db"},
+    )
+    assert r_post.status_code == 200
+    assert r_post.json() == {"id": "test_id", "name": "Test Name",
+                             "description": "This request adds a new entry to the test db"}
+
+    r_get = snapshot_client.get("/items/test_id", headers={"X-Token": "DataDog"})
+    assert r_get.status_code == 200
+    assert r_get.json() == {"id": "test_id", "name": "Test Name",
+                            "description": "This request adds a new entry to the test db"}
