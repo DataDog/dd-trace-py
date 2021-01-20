@@ -341,6 +341,24 @@ def test_bad_payload():
     log.error.assert_has_calls(calls)
 
 
+def test_bad_encoder():
+    t = Tracer()
+
+    class BadEncoder:
+        def encode_trace(self, spans):
+            raise Exception()
+
+        def join_encoded(self, traces):
+            pass
+
+    t.writer._encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        t.trace("asdf").finish()
+        t.shutdown()
+    calls = [mock.call("failed to encode trace with encoder %r" % (t.writer._encoder))]
+    log.error.assert_has_calls(calls)
+
+
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support v0.3")
 def test_downgrade():
     t = Tracer()
