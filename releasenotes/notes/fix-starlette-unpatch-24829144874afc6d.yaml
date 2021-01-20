@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    starlette: unpatch() calls correctly.
+    starlette: unpatch calls correctly.
