@@ -7,13 +7,13 @@ on:
       - published
 
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+  build_wheels_x86_64:
+    name: Build ${{ matrix.arch}} wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-18.04, windows-latest, macos-latest]
-
+        arch: [x86_64]
     steps:
       - uses: actions/checkout@v2
         # Include all history and tags
@@ -27,12 +27,46 @@ jobs:
 
       - name: Install cibuildwheel
         run: |
-          python -m pip install cibuildwheel==1.6.4
+          python -m pip install "git+https://github.com/joerick/cibuildwheel@master#egg-info=cibuildwheel==1.7.4"
 
       - name: Build wheels
         run: |
           python -m cibuildwheel --output-dir wheelhouse
         env:
+          CIBW_ARCHS_LINUX: ${{ matrix.arch }}
+          CIBW_SKIP: pp* cp27-win*
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  build_wheels_i686:
+    name: Build ${{ matrix.arch}} wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, windows-latest, macos-latest]
+        arch: [i686]
+    steps:
+      - uses: actions/checkout@v2
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.8'
+
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install "git+https://github.com/joerick/cibuildwheel@master#egg-info=cibuildwheel==1.7.4"
+
+      - name: Build wheels
+        run: |
+          python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: ${{ matrix.arch }}
           CIBW_SKIP: pp* cp27-win*
 
       - uses: actions/upload-artifact@v2
@@ -40,73 +74,40 @@ jobs:
           path: ./wheelhouse/*.whl
 
   build_wheels_aarch64:
-    name: Build wheels on linux ${{ matrix.arch }}
+    name: Build ${{ matrix.arch}} wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-18.04]
         arch: [aarch64]
-      fail-fast: false
-    runs-on: ubuntu-18.04
-    env:
-      img: quay.io/pypa/manylinux2014_${{ matrix.arch }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
+      - uses: actions/checkout@v2
+        # Include all history and tags
+        with:
+          fetch-depth: 0
 
-    - name: Set up QEMU
-      id: qemu
-      uses: docker/setup-qemu-action@v1
+      - uses: docker/setup-qemu-action@v1
+        name: Set up QEMU
 
-    - name: Available platforms
-      run: echo ${{ steps.qemu.outputs.platforms }}
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.8'
 
-    - name: Setup environment
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-        ${{ env.img }} bash -c \
-        '
-        for pyv in `which /opt/python/*/bin/python`; do
-          pyenv=.pyenv`echo $pyv | grep -o -E '[0-9]+' | head -1 | sed -e 's/^0\+//'`;
-          $pyv -m venv $pyenv;
-        done
-        '
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install "git+https://github.com/joerick/cibuildwheel@master#egg-info=cibuildwheel==1.7.4"
 
-    - name: Install tools
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-        ${{ env.img }} bash -c \
-        '
-        for pyenv in `find . -name activate`; do
-          source $pyenv;
-          pip install -U setuptools wheel Cython;
-          deactivate;
-        done
-        '
+      - name: Build wheels
+        run: |
+          python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_ARCHS_LINUX: ${{ matrix.arch }}
+          CIBW_SKIP: pp* cp27-win*
 
-    - name: Make wheel
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-        ${{ env.img }} bash -c \
-        '
-        for pyenv in `find . -name activate`; do
-          source $pyenv;
-          python setup.py bdist_wheel;
-          deactivate;
-        done
-        '
-
-    - name: Repair wheel wheel
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-          ${{ env.img }} bash -c \
-        '
-        for whl in `find dist -name "*whl"`; do
-          auditwheel repair $whl --wheel-dir wheelhouse/
-        done
-        '
-
-    - uses: actions/upload-artifact@v2
-      with:
-        path: ./wheelhouse/*.whl
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
 
   build_sdist:
     name: Build source distribution
@@ -132,7 +133,7 @@ jobs:
           path: dist/*.tar.gz
 
   upload_pypi:
-    needs: [build_wheels, build_sdist, build_wheels_aarch64]
+    needs: [build_wheels_x86_64, build_wheels_i686, build_wheels_aarch64, build_sdist]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
