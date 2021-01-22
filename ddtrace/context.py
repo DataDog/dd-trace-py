@@ -5,7 +5,7 @@ log = get_logger(__name__)
 
 class Context(object):
     """Represents a remote trace and active span in order to perform distributed
-     tracing.
+    tracing.
     """
 
     __slots__ = [

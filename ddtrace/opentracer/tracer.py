@@ -3,7 +3,7 @@ from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
-from ddtrace import Tracer as DatadogTracer
+from ddtrace import Tracer as DatadogTracer, Span as DatadogSpan
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
@@ -164,6 +164,7 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
+        self._dd_tracer.activate(otspan._dd_span)
         return scope
 
     def start_span(
@@ -234,14 +235,18 @@ class Tracer(opentracing.Tracer):
             scope = self._scope_manager.active
             parent_span = getattr(scope, "span", None)
             ot_parent_context = getattr(parent_span, "context", None)
-            # we want the ddcontext of the active span in order to maintain the
-            # ddspan hierarchy
-            dd_parent = getattr(ot_parent_context, "_dd_context", None)
 
-            # if we cannot get the context then try getting it from the DD tracer
-            # this emulates the behaviour of tracer.trace()
-            if dd_parent is None:
-                dd_parent = self._dd_tracer.get_call_context()
+            # Compare the active ot and dd spans. Using the one which
+            # was created later as the parent.
+            active_dd_parent = self._dd_tracer.active()
+            if parent_span and isinstance(active_dd_parent, DatadogSpan):
+                dd_parent_span = parent_span._dd_span
+                if active_dd_parent.start_ns >= dd_parent_span.start_ns:
+                    dd_parent = active_dd_parent
+                else:
+                    dd_parent = dd_parent_span
+            else:
+                dd_parent = active_dd_parent
         elif ot_parent is not None and isinstance(ot_parent, Span):
             # a span is given to use as a parent
             ot_parent_context = ot_parent.context
@@ -262,6 +267,7 @@ class Tracer(opentracing.Tracer):
             name=operation_name,
             child_of=dd_parent,
             service=self._service_name,
+            activate=False,  # activation is done only in start_active_span
         )
 
         # set the start time if one is specified

@@ -38,9 +38,7 @@ from . import _hooks
 
 
 log = get_logger(__name__)
-
 debug_mode = asbool(get_env("trace", "debug", default=False))
-
 partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
 partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
@@ -229,7 +227,7 @@ class Tracer(object):
         trace = _get_or_create_trace(span.trace_id)
         trace.add_span(span)
 
-        if span._parent is None:
+        if span.parent_id is None:
             # Duplicate root spans in a trace is an error.
             if trace.local_root_span:
                 raise NotImplementedError
