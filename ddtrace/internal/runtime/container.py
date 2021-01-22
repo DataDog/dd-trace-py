@@ -1,17 +1,24 @@
-import os
+import errno
 import re
 
+from ...vendor import attr
 from ..logger import get_logger
 
 log = get_logger(__name__)
 
 
+@attr.s(slots=True)
 class CGroupInfo(object):
     """
     CGroup class for container information parsed from a group cgroup file
     """
 
-    __slots__ = ("id", "groups", "path", "container_id", "controllers", "pod_id")
+    id = attr.ib(default=None)
+    groups = attr.ib(default=None)
+    path = attr.ib(default=None)
+    container_id = attr.ib(default=None)
+    controllers = attr.ib(default=None)
+    pod_id = attr.ib(default=None)
 
     UUID_SOURCE_PATTERN = r"[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}"
     CONTAINER_SOURCE_PATTERN = r"[0-9a-f]{64}"
@@ -19,12 +26,6 @@ class CGroupInfo(object):
     LINE_RE = re.compile(r"^(\d+):([^:]*):(.+)$")
     POD_RE = re.compile(r"pod({0})(?:\.slice)?$".format(UUID_SOURCE_PATTERN))
     CONTAINER_RE = re.compile(r"({0}|{1})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN))
-
-    def __init__(self, **kwargs):
-        # Initialize all attributes in __slots__ to `None`
-        # DEV: Otherwise we'll get `AttributeError` when trying to access if they are unset
-        for attr in self.__slots__:
-            setattr(self, attr, kwargs.get(attr))
 
     @classmethod
     def from_line(cls, line):
@@ -45,45 +46,31 @@ class CGroupInfo(object):
         if not match:
             return None
 
-        # Create our new `CGroupInfo` and set attributes from the line
-        info = cls()
-        info.id, info.groups, info.path = match.groups()
+        id_, groups, path = match.groups()
 
         # Parse the controllers from the groups
-        info.controllers = [c.strip() for c in info.groups.split(",") if c.strip()]
+        controllers = [c.strip() for c in groups.split(",") if c.strip()]
 
         # Break up the path to grab container_id and pod_id if available
         # e.g. /docker/<container_id>
         # e.g. /kubepods/test/pod<pod_id>/<container_id>
-        parts = [p for p in info.path.split("/")]
+        parts = [p for p in path.split("/")]
 
         # Grab the container id from the path if a valid id is present
+        container_id = None
         if len(parts):
             match = cls.CONTAINER_RE.match(parts.pop())
             if match:
-                info.container_id = match.group(1)
+                container_id = match.group(1)
 
         # Grab the pod id from the path if a valid id is present
+        pod_id = None
         if len(parts):
             match = cls.POD_RE.match(parts.pop())
             if match:
-                info.pod_id = match.group(1)
+                pod_id = match.group(1)
 
-        return info
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return "{}(id={!r}, groups={!r}, path={!r}, container_id={!r}, controllers={!r}, pod_id={!r})".format(
-            self.__class__.__name__,
-            self.id,
-            self.groups,
-            self.path,
-            self.container_id,
-            self.controllers,
-            self.pod_id,
-        )
+        return cls(id=id_, groups=groups, path=path, container_id=container_id, controllers=controllers, pod_id=pod_id)
 
 
 def get_container_info(pid="self"):
@@ -102,16 +89,14 @@ def get_container_info(pid="self"):
 
     cgroup_file = "/proc/{0}/cgroup".format(pid)
 
-    if not os.path.exists(cgroup_file):
-        # If the cgroup file does not exist then this is likely not a container
-        # which is a valid use-case so pass.
-        return
-
     try:
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and info.container_id:
                     return info
+    except IOError as e:
+        if e.errno != errno.ENOENT:
+            log.debug("Failed to open cgroup file for pid %r", pid, exc_info=True)
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)

@@ -1,13 +1,13 @@
 import ddtrace
 from ddtrace import config
-from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
+from .. import trace_utils
 
 log = get_logger(__name__)
 
@@ -86,9 +86,6 @@ def _wrap_send(func, instance, args, kwargs):
             propagator = HTTPPropagator()
             propagator.inject(span.context, request.headers)
 
-        # Storing request headers in the span
-        store_request_headers(request.headers, span, config.requests)
-
         response = None
         try:
             response = func(*args, **kwargs)
@@ -96,22 +93,29 @@ def _wrap_send(func, instance, args, kwargs):
             # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
             # requests custom structure, that we convert to a dict
             if hasattr(response, "headers"):
-                store_response_headers(dict(response.headers), span, config.requests)
+                response_headers = response.headers
+            else:
+                response_headers = None
+            trace_utils.set_http_meta(
+                span, config.requests, request_headers=request.headers, response_headers=response_headers
+            )
             return response
         finally:
             try:
-                span.set_tag(http.METHOD, request.method.upper())
-                span.set_tag(http.URL, sanitized_url)
-                if config.requests.trace_query_string:
-                    span.set_tag(http.QUERY_STRING, parsed_uri.query)
+                status = None
                 if response is not None:
-                    span.set_tag(http.STATUS_CODE, response.status_code)
-                    # `span.error` must be an integer
-                    span.error = int(500 <= response.status_code)
+                    status = response.status_code
                     # Storing response headers in the span.
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
-                    store_response_headers(response_headers, span, config.requests)
+                trace_utils.set_http_meta(
+                    span,
+                    config.requests,
+                    method=request.method.upper(),
+                    url=sanitized_url,
+                    status_code=status,
+                    query=parsed_uri.query,
+                )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

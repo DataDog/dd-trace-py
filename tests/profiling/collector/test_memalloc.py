@@ -32,7 +32,7 @@ def test_start_wrong_arg():
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 65535\\]"):
         _memalloc.start(-1, 1000)
 
-    with pytest.raises(ValueError, match="the number of events must be in range \\[1; 4294967295\\]"):
+    with pytest.raises(ValueError, match="the number of events must be in range \\[1; 65535\\]"):
         _memalloc.start(64, -1)
 
 
@@ -69,9 +69,9 @@ def test_iter_events():
         assert 0 < len(stack) <= max_nframe
         assert nframe >= len(stack)
         last_call = stack[0]
-        assert thread_id == _nogevent.main_thread_id
         assert size >= 1  # size depends on the object size
         if last_call[2] == "_allocate_1k" and last_call[1] == _ALLOC_LINE_NUMBER:
+            assert thread_id == _nogevent.main_thread_id
             assert last_call[0] == __file__
             assert stack[1][0] == __file__
             assert stack[1][1] == 60

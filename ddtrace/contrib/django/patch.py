@@ -15,7 +15,6 @@ from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
-from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
@@ -43,7 +42,8 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        use_handler_resource_format=get_env("django", "use_handler_resource_format", default=False),
+        use_handler_resource_format=asbool(get_env("django", "use_handler_resource_format", default=False)),
+        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
     ),
 )
 
@@ -92,18 +92,6 @@ def instrument_dbs(django):
 
 def _set_request_tags(django, span, request):
     span.set_tag("django.request.class", func_name(request))
-    span.set_tag(http.METHOD, request.method)
-
-    if django.VERSION >= (2, 2, 0):
-        headers = request.headers
-    else:
-        headers = {}
-        for header, value in request.META.items():
-            name = from_wsgi_header(header)
-            if name:
-                headers[name] = value
-
-    store_request_headers(headers, span, config.django)
 
     user = getattr(request, "user", None)
     if user is not None:
@@ -215,11 +203,14 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     return ret
 
 
-def traced_func(django, name, resource=None):
+def traced_func(django, name, resource=None, ignored_excs=None):
     """Returns a function to trace Django functions."""
 
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource):
+        with pin.tracer.trace(name, resource=resource) as s:
+            if ignored_excs:
+                for exc in ignored_excs:
+                    s._ignore_exception(exc)
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -338,6 +329,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             if config.django.use_handler_resource_format:
                 resource_format = "{method} {handler}"
+            elif config.django.use_legacy_resource_format:
+                resource_format = "{handler}"
             else:
                 # In Django >= 2.2.0 we can access the original route or regex pattern
                 # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
@@ -377,9 +370,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-            if config.django.http.trace_query_string:
-                span.set_tag(http.QUERY_STRING, request_headers["QUERY_STRING"])
-
             # Not a 404 request
             if resolver_match:
                 span.set_tag("django.view", resolver_match.view_name)
@@ -393,8 +383,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 span.set_tag("http.route", route)
 
             # Set HTTP Request tags
-            span.set_tag(http.URL, utils.get_request_uri(request))
-
             response = func(*args, **kwargs)
 
             # Note: this call must be done after the function call because
@@ -403,9 +391,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             _set_request_tags(django, span, request)
 
             if response:
-                span.set_tag(http.STATUS_CODE, response.status_code)
-                if 500 <= response.status_code < 600:
-                    span.error = 1
+                status = response.status_code
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
                     # template_name is a bit of a misnomer, as it could be any of:
@@ -434,8 +420,28 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
                     utils.set_tag_array(span, "django.response.template", template_names)
 
-                headers = dict(response.items())
-                store_response_headers(headers, span, config.django)
+                url = utils.get_request_uri(request)
+
+                if django.VERSION >= (2, 2, 0):
+                    request_headers = request.headers
+                else:
+                    request_headers = {}
+                    for header, value in request.META.items():
+                        name = from_wsgi_header(header)
+                        if name:
+                            request_headers[name] = value
+
+                response_headers = dict(response.items())
+                trace_utils.set_http_meta(
+                    span,
+                    config.django,
+                    method=request.method,
+                    url=url,
+                    status_code=status,
+                    query=request.META["QUERY_STRING"],
+                    request_headers=request_headers,
+                    response_headers=response_headers,
+                )
 
             return response
 
@@ -512,7 +518,9 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+        view = wrapt.FunctionWrapper(
+            view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
+        )
     return view
 
 

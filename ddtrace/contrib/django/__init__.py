@@ -105,10 +105,23 @@ Configuration
 
 .. py:data:: ddtrace.config.django['use_handler_resource_format']
 
-   Whether or not to use the legacy resource format `"{method} {handler}"`.
+   Whether or not to use the resource format `"{method} {handler}"`. Can also be
+   enabled with the ``DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT`` environment
+   variable.
 
    The default resource format for Django >= 2.2.0 is otherwise `"{method} {urlpattern}"`.
 
+   Default: ``False``
+
+.. py:data:: ddtrace.config.django['use_legacy_resource_format']
+
+   Whether or not to use the legacy resource format `"{handler}"`. Can also be
+   enabled with the ``DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT`` environment
+   variable.
+
+   The default resource format for Django >= 2.2.0 is otherwise `"{method} {urlpattern}"`.
+
+   Default: ``False``
 
 Example::
 
@@ -137,8 +150,13 @@ latter.
 3. Remove ``TraceMiddleware`` or ``TraceExceptionMiddleware`` if used in
    ``settings.py``.
 
-3. Enable Django tracing automatically via `ddtrace-run`` or manually by
+4. Enable Django tracing automatically via `ddtrace-run`` or manually by
    adding ``ddtrace.patch_all()`` to ``settings.py``.
+
+5. Set environment variable ``DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT`` or
+   ``ddtrace.config.django['use_legacy_resource_format']`` to continue using the
+   legacy resource format `"{handler}"` rather than the new default resource
+   format `"{method} {urlpattern}"`.
 
 The mapping from old configuration settings to new ones.
 

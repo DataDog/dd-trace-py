@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 tests for Tracer and utilities.
 """
@@ -533,25 +534,25 @@ class TracerTestCases(TracerTestCase):
 
 def test_tracer_url():
     t = ddtrace.Tracer()
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 8126
+    assert t.writer._hostname == "localhost"
+    assert t.writer._port == 8126
 
     t = ddtrace.Tracer(url="http://foobar:12")
-    assert t.writer.api.hostname == "foobar"
-    assert t.writer.api.port == 12
+    assert t.writer._hostname == "foobar"
+    assert t.writer._port == 12
 
     t = ddtrace.Tracer(url="unix:///foobar")
-    assert t.writer.api.uds_path == "/foobar"
+    assert t.writer._uds_path == "/foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 80
-    assert not t.writer.api.https
+    assert t.writer._hostname == "localhost"
+    assert t.writer._port == 80
+    assert not t.writer._https
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.api.hostname == "localhost"
-    assert t.writer.api.port == 443
-    assert t.writer.api.https
+    assert t.writer._hostname == "localhost"
+    assert t.writer._port == 443
+    assert t.writer._https
 
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(url="foo://foobar:12")
@@ -648,18 +649,17 @@ def test_tracer_fork():
 
     def task(t, errors):
         # Start a new span to trigger process checking
-        with t.trace("test", service="test") as span:
+        with t.trace("test", service="test"):
 
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid
                 assert t.writer != original_writer
-                assert t.writer._trace_queue != original_writer._trace_queue
+                assert t.writer._buffer != original_writer._buffer
 
         # Assert the trace got written into the correct queue
-        assert len(original_writer._trace_queue) == 0
-        assert len(t.writer._trace_queue) == 1
-        assert [[span]] == list(t.writer._trace_queue.get())
+        assert len(original_writer._buffer) == 0
+        assert len(t.writer._buffer) == 1
 
     # Assert tracer in a new process correctly recreates the writer
     errors = multiprocessing.Queue()
@@ -672,15 +672,14 @@ def test_tracer_fork():
     assert errors.empty(), errors.get()
 
     # Ensure writing into the tracer in this process still works as expected
-    with t.trace("test", service="test") as span:
+    with t.trace("test", service="test"):
         assert t._pid == original_pid
         assert t.writer == original_writer
-        assert t.writer._trace_queue == original_writer._trace_queue
+        assert t.writer._buffer == original_writer._buffer
 
     # Assert the trace got written into the correct queue
-    assert len(original_writer._trace_queue) == 1
-    assert len(t.writer._trace_queue) == 1
-    assert [[span]] == list(t.writer._trace_queue.get())
+    assert len(original_writer._buffer) == 1
+    assert len(t.writer._buffer) == 1
 
 
 def test_tracer_trace_across_fork():
@@ -945,12 +944,6 @@ class EnvTracerTestCase(TracerTestCase):
             assert s.get_tag("version") == "0.123"
 
 
-def test_tracer_custom_max_traces(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
-    tracer = ddtrace.Tracer()
-    assert tracer.writer._trace_queue.maxsize == 2000
-
-
 def test_tracer_set_runtime_tags():
     t = ddtrace.Tracer()
     span = t.start_span("foobar")
@@ -1138,6 +1131,36 @@ def test_filters():
         assert s.get_tag("boop") == "beep"
         assert s.get_tag("mats") == "sundin"
 
+    class FilterBroken(object):
+        def process_trace(self, trace):
+            _ = 1 / 0
+
+    t.configure(
+        settings={"FILTERS": [FilterBroken()],}
+    )
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 2
+
+    t.configure(
+        settings={"FILTERS": [FilterMutate("boop", "beep"), FilterBroken()],}
+    )
+    t.writer = DummyWriter()
+
+    with t.trace("root"):
+        with t.trace("child"):
+            pass
+
+    spans = t.writer.pop()
+    assert len(spans) == 2
+    for s in spans:
+        assert s.get_tag("boop") == "beep"
+
 
 def test_early_exit():
     t = ddtrace.Tracer()
@@ -1155,3 +1178,68 @@ def test_early_exit():
     s1 = t.trace("1-2")
     s1.finish()
     assert s1.parent_id is None
+
+
+class TestPartialFlush(TracerTestCase):
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+    )
+    def test_partial_flush(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 5
+        assert [s.name for s in traces[0]] == ["child0","child1","child2","child3","child4"]
+
+        root.finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "root"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="1")
+    )
+    def test_partial_flush_too_many(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 5
+        for t in traces:
+            assert len(t) == 1
+        assert [t[0].name for t in traces] == ["child0", "child1", "child2", "child3", "child4"]
+
+        root.finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert traces[0][0].name == "root"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+    )
+    def test_partial_flush_too_few(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 0
+        root.finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert [s.name for s in traces[0]] == ["root", "child0","child1","child2","child3","child4"]
+
+
+def test_unicode_config_vals():
+    t = ddtrace.Tracer()
+
+    with override_global_config(dict(version=u"😇", env=u"😇")):
+        with t.trace("1"):
+            pass
+    t.shutdown()

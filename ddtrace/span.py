@@ -1,6 +1,7 @@
 import math
 import sys
 import traceback
+from typing import Optional, List
 
 from .vendor import six
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
@@ -42,6 +43,7 @@ class Span(object):
         # Internal attributes
         "_context",
         "_parent",
+        "_ignored_exceptions",
         "__weakref__",
     ]
 
@@ -104,6 +106,14 @@ class Span(object):
 
         self._context = context
         self._parent = None
+        self._ignored_exceptions = None  # type: Optional[List[Exception]]
+
+    def _ignore_exception(self, exc):
+        # type: (Exception) -> None
+        if self._ignored_exceptions is None:
+            self._ignored_exceptions = [exc]
+        else:
+            self._ignored_exceptions.append(exc)
 
     @property
     def start(self):
@@ -165,17 +175,9 @@ class Span(object):
             self.duration_ns = ft - (self.start_ns or ft)
 
         if self._context:
-            try:
-                self._context.close_span(self)
-            except Exception:
-                log.exception("error recording finished trace")
-            else:
-                # if a tracer is available to process the current context
-                if self.tracer:
-                    try:
-                        self.tracer.record(self._context)
-                    except Exception:
-                        log.exception("error recording finished trace")
+            trace, sampled = self._context.close_span(self)
+            if self.tracer and trace and sampled:
+                self.tracer.write(trace)
 
     def set_tag(self, key, value=None):
         """Set a tag key/value pair on the span.
@@ -257,6 +259,10 @@ class Span(object):
                 del self.metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+
+    def _set_str_tag(self, key, value):
+        # (str, str) -> None
+        self.meta[key] = stringify(value)
 
     def _remove_tag(self, key):
         if key in self.meta:
@@ -371,6 +377,9 @@ class Span(object):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
+
+        if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):
+            return
 
         self.error = 1
 

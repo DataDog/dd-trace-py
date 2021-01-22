@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import mock
 import time
 
@@ -525,3 +526,78 @@ def test_span_finished():
     span.finished = True
     assert span.finished is True
     assert span.duration_ns != duration
+
+
+def test_span_unicode_set_tag():
+    span = Span(None, None)
+    span.set_tag("key", u"😌")
+    span.set_tag("😐", u"😌")
+    span._set_str_tag("key", u"😌")
+    span._set_str_tag(u"😐", u"😌")
+
+
+def test_span_ignored_exceptions():
+    s = Span(None, None)
+    s._ignore_exception(ValueError)
+
+    with pytest.raises(ValueError):
+        with s:
+            raise ValueError()
+
+    assert s.error == 0
+    assert s.get_tag(errors.ERROR_MSG) is None
+    assert s.get_tag(errors.ERROR_TYPE) is None
+    assert s.get_tag(errors.ERROR_STACK) is None
+
+    s = Span(None, None)
+    s._ignore_exception(ValueError)
+
+    with pytest.raises(ValueError):
+        with s:
+            raise ValueError()
+
+    with pytest.raises(RuntimeError):
+        with s:
+            raise RuntimeError()
+
+    assert s.error == 1
+    assert s.get_tag(errors.ERROR_MSG) is not None
+    assert "RuntimeError" in s.get_tag(errors.ERROR_TYPE)
+    assert s.get_tag(errors.ERROR_STACK) is not None
+
+
+def test_span_ignored_exception_multi():
+    s = Span(None, None)
+    s._ignore_exception(ValueError)
+    s._ignore_exception(RuntimeError)
+
+    with pytest.raises(ValueError):
+        with s:
+            raise ValueError()
+
+    with pytest.raises(RuntimeError):
+        with s:
+            raise RuntimeError()
+
+    assert s.error == 0
+    assert s.get_tag(errors.ERROR_MSG) is None
+    assert s.get_tag(errors.ERROR_TYPE) is None
+    assert s.get_tag(errors.ERROR_STACK) is None
+
+
+def test_span_ignored_exception_subclass():
+    s = Span(None, None)
+    s._ignore_exception(Exception)
+
+    with pytest.raises(ValueError):
+        with s:
+            raise ValueError()
+
+    with pytest.raises(RuntimeError):
+        with s:
+            raise RuntimeError()
+
+    assert s.error == 0
+    assert s.get_tag(errors.ERROR_MSG) is None
+    assert s.get_tag(errors.ERROR_TYPE) is None
+    assert s.get_tag(errors.ERROR_STACK) is None

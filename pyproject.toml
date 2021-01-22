@@ -30,24 +30,15 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    (?!(compat|monkey|span|__init__|_hooks)\.py$)[^/]+\.py$
-    | commands/
-    | contrib/
+    contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
-      | algoliasearch
       | boto
       | botocore
-      | bottle
       | cassandra
       | celery
-      | consul
       | dbapi
-      | dogpile_cache
-      | falcon
-      | flask
       | flask_cache
       | futures
       | gevent
@@ -59,39 +50,22 @@ exclude = '''
         | server_interceptor.py
         | utils.py
       )
-      | httplib
       | jinja2
       | kombu
       | mako
-      | molten
-      | mongoengine
-      | mysql
-      | mysqldb
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pymysql
-      | pyramid
       | rediscluster
-      | requests/
-      (
-        __init__.py
-        | constants.py
-        | legacy.py
-        | patch.py
-        | session.py
-      )
       | sqlalchemy
-      | sqlite3
       | tornado
       | util.py
     )
     | ext/
     (
        cassandra.py
-       | consul.py
        | db.py
        | elasticsearch.py
        | errors.py
@@ -105,7 +79,6 @@ exclude = '''
        | system.py
     )
     | http/
-    | opentracer/
     | profiling/exporter/pprof_pb2.py$
     | propagation/
     | vendor/
@@ -115,56 +88,36 @@ exclude = '''
     contrib/
     (
       aiobotocore
-      | aiohttp
       | aiopg
-      | algoliasearch
       | boto
       | botocore
-      | bottle
       | cassandra
       | config.py
-      | consul
       | dbapi
-      | falcon
-      | flask
       | flask_autopatch
       | flask_cache
       | futures
       | gevent
       | grpc
-      | httplib
       | jinja2
       | kombu
       | mako
-      | molten
-      | mongoengine
-      | mysql
-      | mysqldb
       | patch.py
       | psycopg
       | pylibmc
       | pylons
       | pymemcache
       | pymongo
-      | pymysql
-      | pyramid/
-      (
-        app/web.py
-        | __init__.py
-        | test_pyramid.py
-        | test_pyramid_autopatch.py
-      )
       | rediscluster
-      | requests
       | sqlalchemy
-      | sqlite3
       | test_utils.py
       | tornado
     )
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
-    | tracer/
+    | tracer/fixtures
+    | tracer/[^/]+\.py$
     | vendor
     | wait-for-services.py
   )

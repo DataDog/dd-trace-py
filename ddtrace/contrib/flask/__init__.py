@@ -63,14 +63,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.flask['extra_error_codes']
-
-   A list of response codes that should get marked as errors.
-
-   *5xx codes are always considered an error.*
-
-   Default: ``[]``
-
 
 Example::
 
@@ -83,7 +75,7 @@ Example::
     config.flask['service_name'] = 'custom-service-name'
 
     # Report 401, and 403 responses as errors
-    config.flask['extra_error_codes'] = [401, 403]
+    config.http_server.error_statuses = '401,403'
 
 .. __: http://flask.pocoo.org/
 """
@@ -91,7 +83,7 @@ Example::
 from ...utils.importlib import require_modules
 
 
-required_modules = ['flask']
+required_modules = ["flask"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -102,4 +94,4 @@ with require_modules(required_modules) as missing_modules:
         patch = _patch.patch
         unpatch = _patch.unpatch
 
-        __all__ = ['TraceMiddleware', 'patch', 'unpatch']
+        __all__ = ["TraceMiddleware", "patch", "unpatch"]
