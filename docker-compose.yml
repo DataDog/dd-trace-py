@@ -73,8 +73,15 @@ services:
         image: rabbitmq:3.7-alpine
         ports:
             - "127.0.0.1:5672:5672"
+    ddagent5:
+      image: datadog/docker-dd-agent:latest
+      environment:
+        - DD_BIND_HOST=0.0.0.0
+        - DD_API_KEY=invalid_but_this_is_fine
+      ports:
+        - "127.0.0.1:8126:8126"
     ddagent:
-        image: datadog/agent-dev:gbbr-apm-build
+        image: datadog/agent:latest
         environment:
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
@@ -82,7 +89,7 @@ services:
         ports:
             - "127.0.0.1:8126:8126"
         volumes:
-          - ddagent:/tmp/ddagent
+          - ddagent:/tmp/ddagent:rw
     testagent:
         image: kyleverhoog/dd-trace-test-agent
         ports:
@@ -103,32 +110,14 @@ services:
 
     testrunner:
         image: datadog/dd-trace-py:latest
+        command: bash
         environment:
             - TOX_SKIP_DIST=True
-            - TEST_DATADOG_INTEGRATION=1
-            - TEST_DATADOG_INTEGRATION_UDS=1
         network_mode: host
         working_dir: /root/project/
         volumes:
-            - ddagent:/tmp/ddagent
-            # DEV: Make ddtrace rw so setup.py can build C-extensions
-            - ./ddtrace:/root/project/ddtrace:rw
-            - ./tests:/root/project/tests:ro
-            - ./setup.cfg:/root/project/setup.cfg:ro
-            - ./setup.py:/root/project/setup.py:ro
-            - ./conftest.py:/root/project/conftest.py:ro
-            - ./tox.ini:/root/project/tox.ini:ro
-            - ./riotfile.py:/root/project/riotfile.py:ro
-            - ./docs:/root/project/docs:rw
-            - ./pyproject.toml:/root/project/pyproject.toml:ro
-            - ./.riot:/root/project/.riot
-            - ./.ddtox:/root/project/.tox
-            - ./scripts:/root/project/scripts
-            # setuptools_scm needs `.git` to figure out what version we are on
-            # DEV: We could use `SETUPTOOLS_SCM_PRETEND_VERSION` but prefer `.git`
-            #      to get the same behavior as during releases
-            - ./.git:/root/project/.git:ro
-        command: bash
+          - ddagent:/tmp/ddagent
+          - "./:/root/project"
 
     localstack:
         image: localstack/localstack:0.12.1

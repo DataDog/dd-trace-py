@@ -70,10 +70,10 @@ def collect(tracer):
             agent_url = "AGENTLESS"
             hostname = port = uds_path = None
         else:
-            hostname = tracer.writer.api.hostname
-            port = tracer.writer.api.port
-            uds_path = tracer.writer.api.uds_path
-            https = tracer.writer.api.https
+            hostname = tracer.writer._hostname
+            port = tracer.writer._port
+            uds_path = tracer.writer._uds_path
+            https = tracer.writer._https
 
             # If all specified, uds_path will take precedence
             if uds_path:
@@ -88,6 +88,7 @@ def collect(tracer):
         agent_url = "http://%s:%s" % (hostname, port)
 
     if (hostname and port) or uds_path:
+        loc = "%s:%s" % (hostname, port) if hostname and port else uds_path
         resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
         if isinstance(resp, ddtrace.api.Response):
             if resp.status == 200:
@@ -96,7 +97,7 @@ def collect(tracer):
                 agent_error = "HTTP code %s, reason %s, message %s" % (resp.status, resp.reason, resp.msg)
         else:
             # There was an exception
-            agent_error = "Agent not reachable. Exception raised: %s" % str(resp)
+            agent_error = "Agent not reachable at %s. Exception raised: %s" % (loc, str(resp))
     else:
         # Serverless case
         agent_error = None

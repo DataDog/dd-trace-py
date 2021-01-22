@@ -3,8 +3,7 @@ import ddtrace
 import sanic
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import SpanTypes, http
-from ddtrace.http import store_request_headers, store_response_headers
+from ddtrace.ext import SpanTypes
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
@@ -18,40 +17,19 @@ log = get_logger(__name__)
 config._add("sanic", dict(_default_service="sanic", distributed_tracing=True))
 
 
-def _extract_tags_from_request(request):
-    tags = {}
-    tags[http.METHOD] = request.method
-
-    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
-    tags[http.URL] = url
-
-    query_string = None
-    if config.sanic.trace_query_string:
-        query_string = request.query_string
-        if isinstance(query_string, bytes):
-            query_string = query_string.decode()
-        tags[http.QUERY_STRING] = query_string
-
-    return tags
-
-
 def _wrap_response_callback(span, callback):
     # wrap response callbacks (either sync or async function) to set span tags
     # based on response and finish span before returning response
 
     def update_span(response):
-        error = 0
         if isinstance(response, sanic.response.BaseHTTPResponse):
             status_code = response.status
-            if 500 <= response.status < 600:
-                error = 1
-            store_response_headers(response.headers, span, config.sanic)
+            response_headers = response.headers
         else:
             # invalid response causes ServerError exception which must be handled
             status_code = 500
-            error = 1
-        span.set_tag(http.STATUS_CODE, status_code)
-        span.error = error
+            response_headers = None
+        trace_utils.set_http_meta(span, config.sanic, status_code=status_code, response_headers=response_headers)
         span.finish()
 
     @wrapt.function_wrapper
@@ -72,6 +50,18 @@ def _wrap_response_callback(span, callback):
         return wrap_async(callback)
 
     return wrap_sync(callback)
+
+
+def _get_path(request):
+    """Get path and replace path parameter values with names if route exists."""
+    path = request.path
+    try:
+        match_info = request.match_info
+    except sanic.exceptions.SanicException:
+        return path
+    for key, value in match_info.items():
+        path = path.replace(value, f"<{key}>")
+    return path
 
 
 def patch():
@@ -99,7 +89,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     if request.scheme not in ("http", "https"):
         return await wrapped(request, write_callback, stream_callback, **kwargs)
 
-    resource = "{} {}".format(request.method, request.path)
+    resource = "{} {}".format(request.method, _get_path(request))
 
     headers = request.headers.copy()
 
@@ -119,10 +109,12 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     if sample_rate is not None:
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-    tags = _extract_tags_from_request(request=request)
-    span.set_tags(tags)
-
-    store_request_headers(headers, span, config.sanic)
+    method = request.method
+    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
+    query_string = request.query_string
+    if isinstance(query_string, bytes):
+        query_string = query_string.decode()
+    trace_utils.set_http_meta(span, config.sanic, method=method, url=url, query=query_string, request_headers=headers)
 
     if write_callback is not None:
         write_callback = _wrap_response_callback(span, write_callback)

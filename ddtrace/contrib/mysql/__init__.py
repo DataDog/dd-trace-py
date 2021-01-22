@@ -57,11 +57,11 @@ https://dev.mysql.com/doc/connector-python/en/
 from ...utils.importlib import require_modules
 
 # check `mysql-connector` availability
-required_modules = ['mysql.connector']
+required_modules = ["mysql.connector"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
         from .tracers import get_traced_mysql_connection
 
-        __all__ = ['get_traced_mysql_connection', 'patch']
+        __all__ = ["get_traced_mysql_connection", "patch"]

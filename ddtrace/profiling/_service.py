@@ -19,8 +19,8 @@ class ServiceAlreadyRunning(RuntimeError):
 class Service(object):
     """A service that can be started or stopped."""
 
-    status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False)
-    _service_lock = attr.ib(factory=threading.Lock, repr=False, init=False)
+    status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False, eq=False)
+    _service_lock = attr.ib(factory=threading.Lock, repr=False, init=False, eq=False)
 
     def __enter__(self):
         self.start()

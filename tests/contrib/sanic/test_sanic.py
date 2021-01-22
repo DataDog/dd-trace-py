@@ -5,6 +5,8 @@ import re
 import pytest
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.propagation import http as http_propagation
+from ddtrace import config
+
 from sanic import Sanic
 from sanic.server import HttpProtocol
 from sanic.exceptions import ServerError
@@ -46,6 +48,16 @@ def app(tracer):
     async def hello(request):
         await random_sleep()
         return json({"hello": "world"})
+
+    @app.route("/hello/<first_name>")
+    async def hello_single_param(request, first_name):
+        await random_sleep()
+        return json({"hello": first_name})
+
+    @app.route("/hello/<first_name>/<surname>")
+    async def hello_multiple_params(request, first_name, surname):
+        await random_sleep()
+        return json({"hello": f"{first_name} {surname}"})
 
     @app.route("/stream_response")
     async def stream_response(request):
@@ -140,6 +152,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     assert request_span.get_tag("http.method") == "GET"
     assert re.search("/hello$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.resource == "GET /hello"
 
     sleep_span = spans[0][1]
     assert sleep_span.name == "tests.contrib.sanic.test_sanic.random_sleep"
@@ -167,6 +180,23 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     else:
         assert request_span.parent_id is None
         assert request_span.trace_id is not None and request_span.trace_id != 5678
+
+
+@pytest.mark.parametrize(
+    "url, expected_json, expected_resource",
+    [
+        ("/hello/foo", {"hello": "foo"}, "GET /hello/<first_name>"),
+        ("/hello/foo/bar", {"hello": "foo bar"}, "GET /hello/<first_name>/<surname>"),
+    ],
+)
+async def test_resource_name(tracer, client, url, expected_json, expected_resource):
+    response = await client.get(url)
+    assert _response_status(response) == 200
+    assert await _response_json(response) == expected_json
+
+    spans = tracer.writer.pop_traces()
+    request_span = spans[0][0]
+    assert request_span.resource == expected_resource
 
 
 async def test_streaming_response(tracer, client):
@@ -282,3 +312,21 @@ async def test_invalid_response_type_empty(tracer, client):
     assert re.search("/empty$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "500"
+
+
+async def test_http_request_header_tracing(tracer, client):
+    config.sanic.http.trace_headers(["my-header"])
+
+    response = await client.get(
+        "/hello",
+        headers={
+            "my-header": "my_value",
+        },
+    )
+    assert _response_status(response) == 200
+
+    spans = tracer.writer.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.get_tag("http.request.headers.my-header") == "my_value"
