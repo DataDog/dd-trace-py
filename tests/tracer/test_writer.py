@@ -2,6 +2,7 @@ import mock
 
 from ddtrace.span import Span
 from ddtrace.internal.writer import AgentWriter, LogWriter, _human_size
+from ddtrace._worker import BaseStrategy
 from tests import BaseTestCase, AnyInt
 
 
@@ -24,6 +25,34 @@ class FailingAPI(object):
 
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
+
+    def test_basic_strategy(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234, strategy=BaseStrategy())
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+
+        assert 11 == len(writer._buffer)
+        writer._strategy()
+        assert 0 == len(writer._buffer)
+
+        writer.stop()
+        writer.join()
+
+    def test_basic_strategy_stop_should_flush(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234, strategy=BaseStrategy())
+        for i in range(10):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
+            )
+
+        assert 11 == len(writer._buffer)
+        writer.stop()
+        writer.join()
+        assert 0 == len(writer._buffer)
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()

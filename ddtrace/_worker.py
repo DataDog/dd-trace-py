@@ -7,6 +7,36 @@ from .internal.logger import get_logger
 _LOG = get_logger(__name__)
 
 
+class BaseStrategy(object):
+    """Manual strategy for Datadog Agent writer."""
+
+    def __init__(self):
+        self.started = False
+        self._func = None
+
+    def __call__(self):
+        if self._func is not None:
+            return self._func()
+
+    def register(self, func):
+        self._func = func
+
+    def start(self):
+        """Start the periodic worker."""
+        self.started = True
+
+    def stop(self):
+        """Stop the worker."""
+        self()
+        self.started = False
+
+    def is_alive(self):
+        return self._func is not None and self.started
+
+    def join(self, timeout=None):
+        """Join is not necessary for manual strategy."""
+
+
 class PeriodicWorkerThread(object):
     """Periodic worker thread.
 
@@ -36,6 +66,9 @@ class PeriodicWorkerThread(object):
         self.interval = interval
         self.exit_timeout = exit_timeout
         atexit.register(self._atexit)
+
+    def register(self, func):
+        self.run_periodic = func
 
     def _atexit(self):
         self.stop()

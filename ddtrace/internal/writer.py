@@ -58,7 +58,7 @@ class LogWriter:
         self.out.flush()
 
 
-class AgentWriter(_worker.PeriodicWorkerThread):
+class AgentWriter:
     """Writer to the Datadog Agent.
 
     The Datadog Agent supports (at the time of writing this) receiving trace
@@ -84,10 +84,17 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         timeout=2,
         dogstatsd=None,
         report_metrics=False,
+        strategy=None,
     ):
-        super(AgentWriter, self).__init__(
-            interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
-        )
+        if strategy is None:
+            self._strategy = _worker.PeriodicWorkerThread(
+                interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
+            )
+        else:
+            self._strategy = strategy
+
+        self._strategy.register(self.flush_queue)
+
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
@@ -241,6 +248,18 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                             result_traces_json["rate_by_service"],
                         )
 
+    def start(self):
+        return self._strategy.start()
+
+    def stop(self):
+        return self._strategy.stop()
+
+    def join(self, **kwargs):
+        return self._strategy.join(**kwargs)
+
+    def is_alive(self, **kwargs):
+        return self._strategy.is_alive(**kwargs)
+
     def write(self, spans):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
@@ -304,7 +323,4 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             finally:
                 self._metrics_reset()
 
-    def run_periodic(self):
-        self.flush_queue()
-
-    on_shutdown = run_periodic
+    on_shutdown = flush_queue
