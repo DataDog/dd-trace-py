@@ -256,31 +256,31 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         try:
             encoded = self._encoder.encode_trace(spans)
         except Exception:
-            log.warning("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-
-        try:
-            self._buffer.put(encoded)
-        except BufferItemTooLarge:
-            log.warning(
-                "trace (%db) larger than payload limit (%db), dropping",
-                len(encoded),
-                self._max_payload_size,
-            )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-            self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:t_too_big"])
-        except BufferFull:
-            log.warning(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
-                len(self._buffer),
-                self._buffer.size,
-                self._buffer.max_size,
-                len(encoded),
-            )
-            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-            self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:full"])
+            log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
         else:
-            self._metrics_dist("buffer.accepted.traces", 1)
-            self._metrics_dist("buffer.accepted.spans", len(spans))
+            try:
+                self._buffer.put(encoded)
+            except BufferItemTooLarge:
+                log.warning(
+                    "trace (%db) larger than payload limit (%db), dropping",
+                    len(encoded),
+                    self._max_payload_size,
+                )
+                self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
+                self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:t_too_big"])
+            except BufferFull:
+                log.warning(
+                    "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                    len(self._buffer),
+                    self._buffer.size,
+                    self._buffer.max_size,
+                    len(encoded),
+                )
+                self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
+                self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:full"])
+            else:
+                self._metrics_dist("buffer.accepted.traces", 1)
+                self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self):
         enc_traces = self._buffer.get()
