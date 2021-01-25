@@ -10,8 +10,10 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
 ## Checklist
 - [ ] Usage and configuration documentation added in `__init__.py`.
 - [ ] [Corp docs](https://github.com/Datadog/documentation) are updated.
-- [ ] Entry added to release notes using [reno](https://docs.openstack.org/reno/latest/user/usage.html).
 - [ ] Distributed tracing propagation is implemented (if applicable).
+- [ ] Span metadata
+  - [ ] Span type
+  - [ ] Resource
 - [ ] Global configuration
   - [ ] Inherits `DD_SERVICE` (if applicable).
   - [ ] Environment variables are provided for config options.
@@ -24,9 +26,8 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
   - [ ] Context propagation across async boundaries.
 - [ ] HTTP (if applicable)
   - [ ] 500-level responses are tagged as errors.
-- [ ] Web (if applicable) 
+- [ ] Web (if applicable)
   - [ ] Request headers specified in the config are stored.
-  - [ ] Use SpanTypes.WEB for request span of trace.
 - [ ] Tests
   - [ ] Tests are provided for all of the above.
   - [ ] Tests are added to CI (`.circleci/config.yml`).

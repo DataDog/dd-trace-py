@@ -1,6 +1,8 @@
+import mock
+
 import pytest
 
-from ddtrace import Pin, Tracer
+from ddtrace import Pin, Tracer, config
 from ddtrace.settings import Config
 from ddtrace.ext import http
 from ddtrace.compat import stringify
@@ -123,3 +125,28 @@ def test_set_http_meta(span, int_config, method, url, status_code, query, reques
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
+
+
+@mock.patch("ddtrace.contrib.trace_utils.log")
+@pytest.mark.parametrize(
+    "error_codes,status_code,error,log_call",
+    [
+        ("404-400", 400, 1, None),
+        ("400-404", 400, 1, None),
+        ("400-404", 500, 0, None),
+        ("500-520", 530, 0, None),
+        ("500-550         ", 530, 1, None),
+        ("400-404,419", 419, 1, None),
+        ("400,401,403", 401, 1, None),
+        ("400-404,X", 0, 0, ("Error status codes was not a number %s", ["X"])),
+        ("500-599", 200, 0, None),
+    ],
+)
+def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, status_code, error, log_call):
+    config.http_server.error_statuses = error_codes
+    trace_utils.set_http_meta(span, int_config, status_code=status_code)
+    assert span.error == error
+    if log_call:
+        mock_log.exception.assert_called_once_with(*log_call)
+    else:
+        mock_log.exception.assert_not_called()

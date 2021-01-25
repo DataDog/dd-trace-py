@@ -79,7 +79,6 @@ exclude = '''
        | system.py
     )
     | http/
-    | opentracer/
     | profiling/exporter/pprof_pb2.py$
     | propagation/
     | vendor/
@@ -117,7 +116,8 @@ exclude = '''
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
-    | tracer/.*py
+    | tracer/fixtures
+    | tracer/[^/]+\.py$
     | vendor
     | wait-for-services.py
   )

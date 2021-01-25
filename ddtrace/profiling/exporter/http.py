@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import binascii
 import datetime
+import itertools
 import gzip
 import os
 import platform
@@ -44,9 +45,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
     service = attr.ib(default=None)
     env = attr.ib(default=None)
     version = attr.ib(default=None)
+    tags = attr.ib(factory=dict)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    _retry_upload = attr.ib(init=None, default=None)
+    _retry_upload = attr.ib(init=None, default=None, eq=False)
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
@@ -59,6 +61,30 @@ class PprofHTTPExporter(pprof.PprofExporter):
             retry_error_cls=UploadFailed,
             retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
         )
+        tags = {
+            k: six.ensure_binary(v)
+            for k, v in itertools.chain(
+                parse_tags_str(os.environ.get("DD_TAGS")).items(),
+                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+            )
+        }
+        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
+        tags.update(
+            {
+                "host": HOSTNAME.encode("utf-8"),
+                "language": b"python",
+                "runtime": PYTHON_IMPLEMENTATION,
+                "runtime_version": PYTHON_VERSION,
+                "profiler_version": ddtrace.__version__.encode("ascii"),
+            }
+        )
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
+
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
+
+        self.tags = tags
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -97,23 +123,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
     def _get_tags(self, service):
         tags = {
             "service": service.encode("utf-8"),
-            "host": HOSTNAME.encode("utf-8"),
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "language": b"python",
-            "runtime": PYTHON_IMPLEMENTATION,
-            "runtime_version": PYTHON_VERSION,
-            "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
 
-        if self.version:
-            tags["version"] = self.version.encode("utf-8")
+        tags.update(self.tags)
 
-        if self.env:
-            tags["env"] = self.env.encode("utf-8")
-
-        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
-        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
-        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
     def export(self, events, start_time_ns, end_time_ns):
