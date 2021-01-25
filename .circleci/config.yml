@@ -642,6 +642,13 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
+  fastapi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "fastapi"
+          snapshot: true
+
   flask:
     <<: *contrib_job
     docker:
@@ -999,6 +1006,7 @@ requires_tests: &requires_tests
     - djangorestframework
     - elasticsearch
     - falcon
+    - fastapi
     - flask
     - futures
     - gevent
@@ -1104,6 +1112,7 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
+      - fastapi: *requires_pre_test
       - flask: *requires_pre_test
       - futures: *requires_pre_test
       - gevent: *requires_pre_test
