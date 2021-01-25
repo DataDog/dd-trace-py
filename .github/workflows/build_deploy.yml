@@ -27,7 +27,7 @@ jobs:
 
       - name: Install cibuildwheel
         run: |
-          python -m pip install "git+https://github.com/joerick/cibuildwheel@master#egg-info=cibuildwheel==1.7.4"
+          python -m pip install cibuildwheel~=1.8.0
 
       - name: Build wheels
         run: |
@@ -60,7 +60,7 @@ jobs:
 
       - name: Install cibuildwheel
         run: |
-          python -m pip install "git+https://github.com/joerick/cibuildwheel@master#egg-info=cibuildwheel==1.7.4"
+          python -m pip install cibuildwheel~=1.8.0
 
       - name: Build wheels
         run: |
@@ -96,7 +96,7 @@ jobs:
 
       - name: Install cibuildwheel
         run: |
-          python -m pip install "git+https://github.com/joerick/cibuildwheel@master#egg-info=cibuildwheel==1.7.4"
+          python -m pip install cibuildwheel~=1.8.0
 
       - name: Build wheels
         run: |
