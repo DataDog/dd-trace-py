@@ -86,6 +86,8 @@ class AgentWriter(object):
         report_metrics=False,
         strategy=None,
     ):
+        self.interval = processing_interval
+
         if strategy is None:
             self._strategy = _worker.PeriodicWorkerThread(
                 interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
