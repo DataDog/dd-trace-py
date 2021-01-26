@@ -58,7 +58,7 @@ class LogWriter:
         self.out.flush()
 
 
-class AgentWriter:
+class AgentWriter(object):
     """Writer to the Datadog Agent.
 
     The Datadog Agent supports (at the time of writing this) receiving trace
