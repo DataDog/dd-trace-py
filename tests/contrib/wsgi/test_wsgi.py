@@ -2,16 +2,16 @@ import pytest
 from webtest import TestApp
 
 from ddtrace.vendor import six
-
+from ddtrace import config
 from ddtrace.compat import PY2, PY3
 from ddtrace.contrib.wsgi import wsgi
 
-from tests import snapshot, override_config
+from tests import snapshot, override_config, override_http_config
 
 
 def chunked_response(start_response):
-    status = '200 OK'
-    headers = [('Content-type', 'text/plain')]
+    status = "200 OK"
+    headers = [("Content-type", "text/plain")]
     start_response(status, headers)
     for i in range(1000):
         yield b"%d" % i
@@ -24,7 +24,11 @@ def application(environ, start_response):
         return chunked_response(start_response)
     else:
         body = six.b("<html><body><h1>Hello World</h1></body></html>")
-        headers = [("Content-Type", "text/html; charset=utf8"), ("Content-Length", str(len(body)))]
+        headers = [
+            ("Content-Type", "text/html; charset=utf8"),
+            ("Content-Length", str(len(body))),
+            ("my-response-header", "test_response_value"),
+        ]
         start_response("200 OK", headers)
         return [body]
 
@@ -48,6 +52,8 @@ def test_middleware(tracer):
 def test_distributed_tracing(tracer):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
+
+    assert config.wsgi["distributed_tracing"] is True
     assert resp.status == "200 OK"
     assert resp.status_int == 200
 
@@ -59,8 +65,59 @@ def test_distributed_tracing(tracer):
     assert root.parent_id == 1234
 
 
+def test_query_string_tracing(tracer):
+    with override_http_config("wsgi", dict(trace_query_string=True)):
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        response = app.get("/?foo=bar&x=y")
+
+        assert response.status_int == 200
+        assert response.status == "200 OK"
+
+        spans = tracer.writer.pop_traces()
+        assert len(spans) == 1
+        assert len(spans[0]) == 4
+        request_span = spans[0][0]
+        assert request_span.service == "wsgi"
+        assert request_span.name == "wsgi.request"
+        assert request_span.resource == "GET /"
+        assert request_span.error == 0
+        assert request_span.get_tag("http.method") == "GET"
+        assert request_span.get_tag("http.status_code") == "200"
+        assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
+
+        assert spans[0][1].name == "wsgi.application"
+        assert spans[0][2].name == "wsgi.start_response"
+        assert spans[0][3].name == "wsgi.response"
+
+
+def test_http_request_header_tracing(tracer):
+    config.wsgi.http.trace_headers(["my-header"])
+    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+    resp = app.get("/", headers={"my-header": "test_value"})
+
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+    spans = tracer.writer.pop()
+    assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
+
+
+def test_http_response_header_tracing(tracer):
+    config.wsgi.http.trace_headers(["my-response-header"])
+    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+    resp = app.get("/", headers={"my-header": "test_value"})
+
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+    spans = tracer.writer.pop()
+    import pdb
+
+    pdb.set_trace()
+
+    assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
+
+
 def test_service_name_can_be_overriden(tracer):
-    with override_config("wsgi", dict(service_name='test-override-service')):
+    with override_config("wsgi", dict(service_name="test-override-service")):
         app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
         response = app.get("/")
         assert response.status_code == 200
@@ -98,5 +155,3 @@ def test_500():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     with pytest.raises(Exception):
         app.get("/error")
-
-
