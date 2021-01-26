@@ -1,5 +1,16 @@
 import sys
-import builtins
+
+from ddtrace.compat import PY2
+
+if PY2:
+    import exceptions
+
+    GeneratorExit = exceptions.GeneratorExit
+else:
+    import builtins
+
+    GeneratorExit = builtins.GeneratorExit
+
 
 from ddtrace.vendor import six
 
@@ -115,7 +126,7 @@ class DDWSGIMiddleware(object):
             service=trace_utils.int_service(None, config.wsgi),
             span_type=SpanTypes.WEB,
         ) as span:
-            span._ignore_exception(builtins.GeneratorExit)
+            span._ignore_exception(GeneratorExit)
             with self.tracer.trace("wsgi.application"):
                 result = self.app(environ, intercept_start_response)
 
