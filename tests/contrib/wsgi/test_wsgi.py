@@ -108,11 +108,8 @@ def test_http_response_header_tracing(tracer):
 
     assert resp.status == "200 OK"
     assert resp.status_int == 200
+
     spans = tracer.writer.pop()
-    import pdb
-
-    pdb.set_trace()
-
     assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
 
 
