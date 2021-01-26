@@ -28,7 +28,9 @@ class AgentWriterTests(BaseTestCase):
 
     def test_basic_strategy(self):
         statsd = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234, strategy=BaseStrategy())
+        writer = AgentWriter(
+            dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234, strategy=BaseStrategy()
+        )
         for i in range(10):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
@@ -43,7 +45,9 @@ class AgentWriterTests(BaseTestCase):
 
     def test_basic_strategy_stop_should_flush(self):
         statsd = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234, strategy=BaseStrategy())
+        writer = AgentWriter(
+            dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234, strategy=BaseStrategy()
+        )
         for i in range(10):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
