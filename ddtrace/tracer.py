@@ -4,7 +4,7 @@ import json
 from os import environ, getpid
 import sys
 import threading
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from ddtrace.vendor import attr
 from ddtrace.vendor import debtcollector
@@ -233,11 +233,10 @@ class Tracer(object):
                 raise NotImplementedError
             trace.local_root_span = span
 
-        self.context_provider.activate(span)
         return trace
 
     def _close_span(self, span):
-        # type: (Span) -> List[Span]
+        # type: (Span) -> Tuple[List[Span], bool]
 
         # It's possible that a span can be created from a trace that has already
         # been finished and deleted. So _get_or_create_trace has to be used instead
@@ -263,9 +262,9 @@ class Tracer(object):
 
             if len(trace) == 0:
                 del _traces[span.trace_id]
-            return spans
+            return spans, trace.sampled
 
-        return []
+        return [], False
 
     def on_start_span(self, func):
         """Register a function to execute when a span start.
@@ -627,12 +626,15 @@ class Tracer(object):
                         sampling_priority = AUTO_REJECT
             else:
                 sampling_priority = AUTO_KEEP if sampled else AUTO_REJECT
-                # We must always mark the span as sampled so it is forwarded to the agent
+                # The trace must be marked as sampled so it is forwarded to the agent.
                 sampled = True
 
             trace = self._add_span(span)
             trace.sampling_priority = sampling_priority
             trace.sampled = sampled
+
+        if activate:
+            self.context_provider.activate(span)
 
         # Apply default global tags.
         if self.tags:
@@ -666,8 +668,9 @@ class Tracer(object):
 
     def _finish_span(self, span):
         # type: (Span) -> None
-        spans = self._close_span(span)
-        self.write(spans)
+        spans, sampled = self._close_span(span)
+        if spans and sampled:
+            self.write(spans)
 
     def _update_dogstatsd_constant_tags(self):
         """Prepare runtime tags for ddstatsd."""
