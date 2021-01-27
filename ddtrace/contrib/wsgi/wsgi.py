@@ -69,7 +69,7 @@ def get_request_headers(environ):
     """
     Manually grab the request headers from the environ dictionary.
     """
-    request_headers = dict()
+    request_headers = {}
     for key in environ.keys():
         if key.startswith("HTTP"):
             request_headers[from_wsgi_header(key)] = environ[key]
@@ -80,20 +80,13 @@ def default_wsgi_span_modifier(span, environ):
     span.resource = "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"])
 
 
-class DDTraceWrite(object):
-    def __init__(self, write, tracer):
-        self._write = write
-        self._tracer = tracer
-
-    def __call__(self, data):
-        self._write(data)
-
-
 class DDWSGIMiddleware(object):
     """WSGI middleware providing tracing around an application.
 
     :param application: The WSGI application to apply the middleware to.
     :param tracer: Tracer instance to use the middleware with. Defaults to the global tracer.
+    :param span_modifier: Span modifier that can add tags to the root span.
+                            Defaults to using the request method and url in the resource.
     """
 
     def __init__(self, application, tracer=None, span_modifier=default_wsgi_span_modifier):
@@ -113,7 +106,7 @@ class DDWSGIMiddleware(object):
                 span_type=SpanTypes.WEB,
             ):
                 write = start_response(status, response_headers, exc_info)
-            return DDTraceWrite(write, self.tracer)
+            return write
 
         if config.wsgi.distributed_tracing:
             ctx = propagator.extract(environ)
@@ -134,13 +127,12 @@ class DDWSGIMiddleware(object):
 
             with self.tracer.trace("wsgi.response") as resp_span:
                 if hasattr(result, "__class__"):
-                    resp_span.meta["result_class"] = getattr(getattr(result, "__class__", None), "__name__")
+                    resp_class = getattr(getattr(result, "__class__"), "__name__", None)
+                    if resp_class:
+                        resp_span.meta["result_class"] = resp_class
 
                 for chunk in result:
                     yield chunk
-
-            if self.span_modifier:
-                self.span_modifier(span, environ)
 
             url = construct_url(environ)
             method = environ.get("REQUEST_METHOD")
@@ -149,6 +141,9 @@ class DDWSGIMiddleware(object):
             trace_utils.set_http_meta(
                 span, config.wsgi, method=method, url=url, query=query_string, request_headers=request_headers
             )
+
+            if self.span_modifier:
+                self.span_modifier(span, environ)
 
             if hasattr(result, "close"):
                 try:

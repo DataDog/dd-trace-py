@@ -2,19 +2,10 @@
 The Datadog WSGI middleware traces all WSGI requests.
 
 
-Enabling
-~~~~~~~~
-
-The WSGI instrumentation will be automatically added to a Django or Flask
-application when using :ref:`ddtrace-run<ddtracerun>` or
-:ref:`patch_all()<patch_all>`.
-
-
 Usage
 ~~~~~
 
-If the auto instrumentation does not work or finer grained control is desired,
-the middleware can be used manually::
+The middleware can be used manually via the following command::
 
 
     from ddtrace.contrib.wsgi import DDTraceMiddleware
@@ -34,6 +25,13 @@ Global Configuration
    variable.
 
    Default: ``"wsgi"``
+
+.. py:data:: ddtrace.config.wsgi["distributed_tracing"]
+
+   Configuration that allows distributed tracing to be enabled.
+
+   Default: ``True``
+
 """
 from .wsgi import DDWSGIMiddleware
 

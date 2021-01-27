@@ -161,6 +161,17 @@ def test_service_name_can_be_overriden(tracer):
         assert span.service == "test-override-service"
 
 
+def test_generator_exit_ignored_in_top_level_span(tracer):
+    with pytest.raises(generatorExit):
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        app.get("/generatorError")
+
+    spans = tracer.writer.pop()
+    assert spans[2].error == 1
+    assert "GeneratorExit" in spans[2].get_tag("error.type")
+    assert spans[0].error == 0
+
+
 def test_chunked_response(tracer):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/chunked")
@@ -175,15 +186,14 @@ def test_chunked_response(tracer):
     assert span.name == "wsgi.request"
 
 
-def test_generator_exit_ignored_in_top_level_span(tracer):
-    with pytest.raises(generatorExit):
-        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
-        app.get("/generatorError")
-
-    spans = tracer.writer.pop()
-    assert spans[2].error == 1
-    assert "GeneratorExit" in spans[2].get_tag("error.type")
-    assert spans[0].error == 0
+@snapshot()
+def test_chunked():
+    app = TestApp(wsgi.DDWSGIMiddleware(application))
+    resp = app.get("/chunked")
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+    assert resp.text.startswith("0123456789")
+    assert resp.text.endswith("999")
 
 
 @snapshot()
