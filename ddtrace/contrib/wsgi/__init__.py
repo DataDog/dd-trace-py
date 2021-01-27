@@ -32,6 +32,9 @@ Global Configuration
 
    Default: ``True``
 
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 from .wsgi import DDWSGIMiddleware
 
