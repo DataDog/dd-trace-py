@@ -1,5 +1,4 @@
 from __future__ import division
-import contextlib
 import mock
 import re
 import unittest
@@ -232,9 +231,6 @@ def test_sampling_rule_init_defaults():
 
 def test_sampling_rule_init():
     name_regex = re.compile(r"\.request$")
-
-    def resource_check(resource):
-        return "healthcheck" in resource
 
     rule = SamplingRule(
         sample_rate=0.0,
@@ -705,7 +701,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     assert dummy_tracer.sampler is sampler_spy
 
     with dummy_tracer.trace("parent.span") as parent:
-        with dummy_tracer.trace("child.span") as child:
+        with dummy_tracer.trace("child.span"):
             # Assert all of our expected functions were called
             # DEV: `assert_called_once_with` ensures we didn't also call with the child span
             sampler_spy.sample.assert_called_once_with(parent)
