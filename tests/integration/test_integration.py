@@ -7,9 +7,14 @@ import pytest
 from ddtrace.vendor import six
 
 import ddtrace
+from ddtrace.constants import (
+    MANUAL_DROP_KEY,
+    MANUAL_KEEP_KEY,
+)
 from ddtrace import Tracer, tracer
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.runtime import container
+from ddtrace.sampler import DatadogSampler, RateSampler, SamplingRule
 
 from tests import TracerTestCase, snapshot, AnyInt, override_global_config
 
@@ -441,4 +446,55 @@ class TestTraces(TracerTestCase):
         with tracer.trace("root"):
             with tracer.trace("child"):
                 pass
+        tracer.shutdown()
+
+    @snapshot(include_tracer=True)
+    def test_sampling(self, tracer):
+        with tracer.trace("trace1"):
+            with tracer.trace("child"):
+                pass
+
+        sampler = DatadogSampler(default_sample_rate=1.0)
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        with tracer.trace("trace2"):
+            with tracer.trace("child"):
+                pass
+
+        sampler = DatadogSampler(default_sample_rate=0.000001)
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        with tracer.trace("trace3"):
+            with tracer.trace("child"):
+                pass
+
+        sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1.0)])
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        with tracer.trace("trace4"):
+            with tracer.trace("child"):
+                pass
+
+        sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)])
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        with tracer.trace("trace5"):
+            with tracer.trace("child"):
+                pass
+
+        sampler = DatadogSampler(default_sample_rate=1)
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        with tracer.trace("trace6"):
+            with tracer.trace("child") as span:
+                span.set_tag(MANUAL_DROP_KEY)
+
+        sampler = DatadogSampler(default_sample_rate=1)
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        with tracer.trace("trace7"):
+            with tracer.trace("child") as span:
+                span.set_tag(MANUAL_KEEP_KEY)
+
+        sampler = RateSampler(0.0000000001)
+        tracer.configure(sampler=sampler, writer=tracer.writer)
+        # This trace should not appear in the snapshot
+        with tracer.trace("trace8"):
+            with tracer.trace("child"):
+                pass
+
         tracer.shutdown()
