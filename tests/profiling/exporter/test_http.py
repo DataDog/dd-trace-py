@@ -372,6 +372,20 @@ def test_get_tags_override(monkeypatch):
     assert tags["version"] == b"123"
     assert tags["env"] == b"prod"
 
+    tags = http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
+    _check_tags_types(tags)
+    assert len(tags) == 11
+    assert tags["service"] == u"🤣".encode("utf-8")
+    assert len(tags["host"])
+    assert len(tags["runtime-id"])
+    assert tags["language"] == b"python"
+    assert tags["runtime"] == b"CPython"
+    assert tags["foobar"] == b"baz"
+    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["version"] == b"123"
+    assert tags["env"] == b"prod"
+    assert tags["mytag"] == b"123"
+
 
 def test_get_tags_legacy(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:baz")

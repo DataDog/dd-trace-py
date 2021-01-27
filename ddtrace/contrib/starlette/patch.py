@@ -59,9 +59,9 @@ def patch():
 
 
 def unpatch():
-    if getattr(starlette, "_datadog_patch", False):
+    if not getattr(starlette, "_datadog_patch", False):
         return
 
     setattr(starlette, "_datadog_patch", False)
 
-    _u("starlette.applications", "Starlette.__init__")
+    _u(starlette.applications.Starlette, "__init__")

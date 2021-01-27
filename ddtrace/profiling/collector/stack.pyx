@@ -456,9 +456,9 @@ class StackCollector(collector.PeriodicCollector):
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
     tracer = attr.ib(default=None)
-    _thread_time = attr.ib(init=False, repr=False)
-    _last_wall_time = attr.ib(init=False, repr=False)
-    _thread_span_links = attr.ib(default=None, init=False, repr=False)
+    _thread_time = attr.ib(init=False, repr=False, eq=False)
+    _last_wall_time = attr.ib(init=False, repr=False, eq=False)
+    _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):

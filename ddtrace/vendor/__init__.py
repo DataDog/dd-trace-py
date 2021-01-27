@@ -47,6 +47,7 @@ Notes:
   `datadog/util/format.py` was copied to `dogstatsd/format.py`
   version fixed to 8e11af2
   removed type imports
+  removed unnecessary compat utils
 
 
 monotonic

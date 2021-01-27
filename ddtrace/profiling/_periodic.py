@@ -71,6 +71,12 @@ class _GeventPeriodicThread(PeriodicThread):
         """
         super(_GeventPeriodicThread, self).__init__(interval, target, name, on_shutdown)
         self._tident = None
+        self._periodic_started = False
+        self._periodic_stopped = False
+
+    def _reset_internal_locks(self, is_alive=False):
+        # Called by Python via `threading._after_fork`
+        self._periodic_stopped = True
 
     @property
     def ident(self):
@@ -79,14 +85,22 @@ class _GeventPeriodicThread(PeriodicThread):
     def start(self):
         """Start the thread."""
         self.quit = False
-        self.has_quit = False
+        if self._tident is not None:
+            raise RuntimeError("threads can only be started once")
         self._tident = _nogevent.start_new_thread(self.run, tuple())
         if _nogevent.threading_get_native_id:
             self._native_id = _nogevent.threading_get_native_id()
 
+        # Wait for the thread to be started to avoid race conditions
+        while not self._periodic_started:
+            time.sleep(self.SLEEP_INTERVAL)
+
+    def is_alive(self):
+        return not self._periodic_stopped and self._periodic_started
+
     def join(self, timeout=None):
         # FIXME: handle the timeout argument
-        while not self.has_quit:
+        while self.is_alive():
             time.sleep(self.SLEEP_INTERVAL)
 
     def stop(self):
@@ -97,6 +111,9 @@ class _GeventPeriodicThread(PeriodicThread):
         """Run the target function periodically."""
         # Do not use the threading._active_limbo_lock here because it's a gevent lock
         threading._active[self._tident] = self
+
+        self._periodic_started = True
+
         try:
             while self.quit is False:
                 self._target()
@@ -114,8 +131,8 @@ class _GeventPeriodicThread(PeriodicThread):
                 raise
         finally:
             try:
+                self._periodic_stopped = True
                 del threading._active[self._tident]
-                self.has_quit = True
             except Exception:
                 # Exceptions might happen during interpreter shutdown.
                 # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.

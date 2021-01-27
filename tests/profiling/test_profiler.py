@@ -1,10 +1,14 @@
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
 import ddtrace
+from ddtrace.profiling import collector
+from ddtrace.profiling import event
+from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.exporter import http
@@ -12,11 +16,11 @@ from ddtrace.profiling.exporter import http
 
 def test_status():
     p = profiler.Profiler()
-    assert repr(p.status) == "STOPPED"
+    assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
     p.start()
-    assert repr(p.status) == "RUNNING"
+    assert repr(p.status) == "<ServiceStatus.RUNNING: 'running'>"
     p.stop(flush=False)
-    assert repr(p.status) == "STOPPED"
+    assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
 
 
 def test_restart():
@@ -47,9 +51,9 @@ def test_default_from_env(service_name_var, monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")
     monkeypatch.setenv(service_name_var, "foobar")
     prof = profiler.Profiler()
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.service == "foobar"
+    for exp in prof._profiler._scheduler.exporters:
+        if isinstance(exp, http.PprofHTTPExporter):
+            assert exp.service == "foobar"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -59,9 +63,9 @@ def test_service_api(monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler(service="foobar")
     assert prof.service == "foobar"
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.service == "foobar"
+    for exp in prof._profiler._scheduler.exporters:
+        if isinstance(exp, http.PprofHTTPExporter):
+            assert exp.service == "foobar"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -71,9 +75,9 @@ def test_tracer_api(monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler(tracer=ddtrace.tracer)
     assert prof.tracer == ddtrace.tracer
-    for collector in prof._profiler._collectors:
-        if isinstance(collector, stack.StackCollector):
-            assert collector.tracer == ddtrace.tracer
+    for col in prof._profiler._collectors:
+        if isinstance(col, stack.StackCollector):
+            assert col.tracer == ddtrace.tracer
             break
     else:
         pytest.fail("Unable to find stack collector")
@@ -87,10 +91,10 @@ def test_env_default(monkeypatch):
     assert prof.env == "staging"
     assert prof.version == "123"
     assert prof.url is None
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.env == "staging"
-            assert exporter.version == "123"
+    for exp in prof._profiler._scheduler.exporters:
+        if isinstance(exp, http.PprofHTTPExporter):
+            assert exp.env == "staging"
+            assert exp.version == "123"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -101,10 +105,26 @@ def test_env_api():
     assert prof.env == "staging"
     assert prof.version == "123"
     assert prof.url is None
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.env == "staging"
-            assert exporter.version == "123"
+    for exp in prof._profiler._scheduler.exporters:
+        if isinstance(exp, http.PprofHTTPExporter):
+            assert exp.env == "staging"
+            assert exp.version == "123"
+            break
+    else:
+        pytest.fail("Unable to find HTTP exporter")
+
+
+def test_tags_api():
+    prof = profiler.Profiler(env="staging", version="123", tags={"foo": "bar"})
+    assert prof.env == "staging"
+    assert prof.version == "123"
+    assert prof.url is None
+    assert prof.tags["foo"] == "bar"
+    for exp in prof._profiler._scheduler.exporters:
+        if isinstance(exp, http.PprofHTTPExporter):
+            assert exp.env == "staging"
+            assert exp.version == "123"
+            assert exp.tags["foo"] == b"bar"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -117,7 +137,7 @@ def test_env_api():
 def test_env_api_key(name_var, monkeypatch):
     monkeypatch.setenv(name_var, "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.com/v1/input", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
 
 
 def test_url():
@@ -126,11 +146,11 @@ def test_url():
 
 
 def _check_url(prof, url, api_key=None, endpoint_path="/profiling/v1/input"):
-    for exporter in prof._profiler._scheduler.exporters:
-        if isinstance(exporter, http.PprofHTTPExporter):
-            assert exporter.api_key == api_key
-            assert exporter.endpoint == url
-            assert exporter.endpoint_path == endpoint_path
+    for exp in prof._profiler._scheduler.exporters:
+        if isinstance(exp, http.PprofHTTPExporter):
+            assert exp.api_key == api_key
+            assert exp.endpoint == url
+            assert exp.endpoint_path == endpoint_path
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -189,16 +209,18 @@ def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu/v1/input", "123", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "123", endpoint_path="/v1/input")
 
 
 def test_copy():
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()
+    assert c == p
     assert p.env == c.env
     assert p.version == c.version
     assert p.service == c.service
     assert p.tracer == c.tracer
+    assert p.tags == c.tags
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
@@ -215,3 +237,32 @@ def test_gevent_warning(monkeypatch):
     assert subp.wait() == 0
     assert subp.stdout.read() == b""
     assert b"RuntimeWarning: Starting the profiler before using gevent" in subp.stderr.read()
+
+
+def test_snapshot(monkeypatch):
+    class SnapCollect(collector.Collector):
+        @staticmethod
+        def collect():
+            pass
+
+        @staticmethod
+        def snapshot():
+            return [[event.Event()]]
+
+    all_events = {}
+
+    class Exporter(exporter.Exporter):
+        def export(self, events, *args, **kwargs):
+            all_events["EVENTS"] = events
+
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self, *args, **kargs):
+            return [Exporter()]
+
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    p = TestProfiler()
+    p._collectors = [SnapCollect(p._recorder)]
+    p.start()
+    time.sleep(2)
+    p.stop()
+    assert len(all_events["EVENTS"][event.Event]) == 1

@@ -2,7 +2,7 @@
 import atexit
 import logging
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, AnyStr
 import warnings
 import sys
 
@@ -16,15 +16,13 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling import _service
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 
 
 LOG = logging.getLogger(__name__)
-
-
-ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
 
 
 def _get_api_key():
@@ -40,21 +38,6 @@ def _get_service_name():
         service_name = os.environ.get(service_name_var)
         if service_name is not None:
             return service_name
-
-
-# This ought to use `enum.Enum`, but since it's not available in Python 2, we just use a dumb class.
-@attr.s(repr=False)
-class ProfilerStatus(object):
-    """A Profiler status."""
-
-    status = attr.ib()
-
-    def __repr__(self):
-        return self.status.upper()
-
-
-ProfilerStatus.STOPPED = ProfilerStatus("stopped")
-ProfilerStatus.RUNNING = ProfilerStatus("running")
 
 
 def gevent_patch_all(event):
@@ -101,7 +84,7 @@ class Profiler(object):
     def stop(self, flush=True):
         """Stop the profiler.
 
-        :param flush: Wait for the flush of the remaining events before stopping.
+        :param flush: Flush last profile.
         """
         self._profiler.stop(flush)
 
@@ -135,6 +118,13 @@ class Profiler(object):
     @property
     def url(self):
         return self._profiler.url
+
+    @property
+    def tags(self):
+        return self._profiler.tags
+
+
+ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
 
 def _get_default_url(
@@ -187,7 +177,7 @@ def _get_default_url(
 
 
 @attr.s
-class _ProfilerInstance(object):
+class _ProfilerInstance(_service.Service):
     """A instance of the profiler.
 
     Each process must manage its own instance.
@@ -197,6 +187,7 @@ class _ProfilerInstance(object):
     # User-supplied values
     url = attr.ib(default=None)
     service = attr.ib(factory=_get_service_name)
+    tags = attr.ib(factory=dict)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
@@ -204,12 +195,12 @@ class _ProfilerInstance(object):
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
-    status = attr.ib(init=False, type=ProfilerStatus, default=ProfilerStatus.STOPPED)
 
     @staticmethod
     def _build_default_exporters(
         tracer,  # type: Optional[ddtrace.Tracer]
         url,  # type: Optional[str]
+        tags,  # type: Dict[str, AnyStr]
         service,  # type: Optional[str]
         env,  # type: Optional[str]
         version,  # type: Optional[str]
@@ -235,6 +226,7 @@ class _ProfilerInstance(object):
             http.PprofHTTPExporter(
                 service=service,
                 env=env,
+                tags=tags,
                 version=version,
                 api_key=api_key,
                 endpoint=endpoint,
@@ -270,16 +262,33 @@ class _ProfilerInstance(object):
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
-        exporters = self._build_default_exporters(self.tracer, self.url, self.service, self.env, self.version)
+        exporters = self._build_default_exporters(
+            self.tracer, self.url, self.tags, self.service, self.env, self.version
+        )
 
         if exporters:
-            self._scheduler = scheduler.Scheduler(recorder=r, exporters=exporters)
+            self._scheduler = scheduler.Scheduler(
+                recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
+            )
+
+    def _collectors_snapshot(self):
+        for c in self._collectors:
+            try:
+                snapshot = c.snapshot()
+                if snapshot:
+                    for events in snapshot:
+                        self._recorder.push_events(events)
+            except Exception:
+                LOG.error("Error while snapshoting collector %r", c, exc_info=True)
 
     def copy(self):
-        return self.__class__(service=self.service, env=self.env, version=self.version, tracer=self.tracer)
+        return self.__class__(
+            service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
+        )
 
     def start(self):
         """Start the profiler."""
+        super(_ProfilerInstance, self).start()
         for col in self._collectors:
             try:
                 col.start()
@@ -290,15 +299,22 @@ class _ProfilerInstance(object):
         if self._scheduler is not None:
             self._scheduler.start()
 
-        self.status = ProfilerStatus.RUNNING
-
     def stop(self, flush=True):
         """Stop the profiler.
 
-        :param flush: Wait for the flush of the remaining events before stopping.
+        :param flush: Flush a last profile.
         """
+        if self.status != _service.ServiceStatus.RUNNING:
+            return
+
         if self._scheduler:
             self._scheduler.stop()
+            # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
+            # collectors before the possibly running flush is finished.
+            self._scheduler.join()
+            if flush:
+                # Do not stop the collectors before flushing, they might be needed (snapshot)
+                self._scheduler.flush()
 
         for col in reversed(self._collectors):
             col.stop()
@@ -306,12 +322,9 @@ class _ProfilerInstance(object):
         for col in reversed(self._collectors):
             col.join()
 
-        if self._scheduler and flush:
-            self._scheduler.join()
-
-        self.status = ProfilerStatus.STOPPED
-
         # Python 2 does not have unregister
         if hasattr(atexit, "unregister"):
             # You can unregister a method that was not registered, so no need to do any other check
             atexit.unregister(self.stop)
+
+        super(_ProfilerInstance, self).stop()
