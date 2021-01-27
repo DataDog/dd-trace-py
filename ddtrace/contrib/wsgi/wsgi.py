@@ -21,7 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
 
-from urllib.parse import quote
+from six.moves.urllib.parse import quote
 
 from .. import trace_utils
 
@@ -104,8 +104,7 @@ class DDWSGIMiddleware(object):
     def __call__(self, environ, start_response):
         def intercept_start_response(status, response_headers, exc_info=None):
             span = self.tracer.current_root_span()
-            print(status)
-            status_code, status_msg = status.split(" ", maxsplit=1)
+            status_code, status_msg = status.split(" ", 1)
             span.set_tag("http.status_msg", status_msg)
             trace_utils.set_http_meta(span, config.wsgi, status_code=status_code, response_headers=response_headers)
             with self.tracer.trace(
