@@ -172,6 +172,13 @@ def test_generator_exit_ignored_in_top_level_span(tracer):
     assert spans[0].error == 0
 
 
+@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
+def test_generator_exit_ignored_in_top_level_span_snapshot():
+    with pytest.raises(generatorExit):
+        app = TestApp(wsgi.DDWSGIMiddleware(application))
+        app.get("/generatorError")
+
+
 def test_chunked_response(tracer):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/chunked")
