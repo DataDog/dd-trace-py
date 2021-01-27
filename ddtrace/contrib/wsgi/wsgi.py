@@ -5,11 +5,11 @@ from ddtrace.compat import PY2
 if PY2:
     import exceptions
 
-    GeneratorExit = exceptions.GeneratorExit
+    generatorExit = exceptions.GeneratorExit
 else:
     import builtins
 
-    GeneratorExit = builtins.GeneratorExit
+    generatorExit = builtins.GeneratorExit
 
 
 from ddtrace.vendor import six
@@ -104,8 +104,8 @@ class DDWSGIMiddleware(object):
     def __call__(self, environ, start_response):
         def intercept_start_response(status, response_headers, exc_info=None):
             span = self.tracer.current_root_span()
-
-            status_code, status_msg = status.split(" ")
+            print(status)
+            status_code, status_msg = status.split(" ", maxsplit=1)
             span.set_tag("http.status_msg", status_msg)
             trace_utils.set_http_meta(span, config.wsgi, status_code=status_code, response_headers=response_headers)
             with self.tracer.trace(
@@ -116,17 +116,20 @@ class DDWSGIMiddleware(object):
                 write = start_response(status, response_headers, exc_info)
             return DDTraceWrite(write, self.tracer)
 
-        ctx = propagator.extract(environ)
-
-        if ctx.trace_id:
-            self.tracer.context_provider.activate(ctx)
+        if config.wsgi.distributed_tracing:
+            ctx = propagator.extract(environ)
+            if ctx.trace_id:
+                self.tracer.context_provider.activate(ctx)
 
         with self.tracer.trace(
             "wsgi.request",
             service=trace_utils.int_service(None, config.wsgi),
             span_type=SpanTypes.WEB,
         ) as span:
-            span._ignore_exception(GeneratorExit)
+            # This prevents GeneratorExit exceptions from being propagated to the top-level span.
+            # This can occur if a streaming response exits abruptly leading to a broken pipe.
+            # Note: The wsgi.response span will still have the error information included.
+            span._ignore_exception(generatorExit)
             with self.tracer.trace("wsgi.application"):
                 result = self.app(environ, intercept_start_response)
 

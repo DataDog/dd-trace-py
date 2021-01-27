@@ -6,6 +6,15 @@ from ddtrace import config
 from ddtrace.compat import PY2, PY3
 from ddtrace.contrib.wsgi import wsgi
 
+if PY2:
+    import exceptions
+
+    generatorExit = exceptions.GeneratorExit
+else:
+    import builtins
+
+    generatorExit = builtins.GeneratorExit
+
 from tests import snapshot, override_config, override_http_config
 
 
@@ -17,11 +26,24 @@ def chunked_response(start_response):
         yield b"%d" % i
 
 
+def chunked_response_generator_error(start_response):
+    status = "200 OK"
+    headers = [("Content-type", "text/plain")]
+    start_response(status, headers)
+    for i in range(1000):
+        if i < 999:
+            yield b"%d" % i
+        else:
+            raise generatorExit()
+
+
 def application(environ, start_response):
     if environ["PATH_INFO"] == "/error":
         raise Exception("Oops!")
     elif environ["PATH_INFO"] == "/chunked":
         return chunked_response(start_response)
+    elif environ["PATH_INFO"] == "/generatorError":
+        return chunked_response_generator_error(start_response)
     else:
         body = six.b("<html><body><h1>Hello World</h1></body></html>")
         headers = [
@@ -53,7 +75,7 @@ def test_distributed_tracing(tracer):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
-    assert config.wsgi["distributed_tracing"] is True
+    assert config.wsgi.distributed_tracing is True
     assert resp.status == "200 OK"
     assert resp.status_int == 200
 
@@ -63,6 +85,20 @@ def test_distributed_tracing(tracer):
     assert root.name == "wsgi.request"
     assert root.trace_id == 4321
     assert root.parent_id == 1234
+
+    with override_config("wsgi", dict(distributed_tracing=False)):
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
+        assert config.wsgi.distributed_tracing is False
+        assert resp.status == "200 OK"
+        assert resp.status_int == 200
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 4
+        root = spans[0]
+        assert root.name == "wsgi.request"
+        assert root.trace_id != 4321
+        assert root.parent_id != 1234
 
 
 def test_query_string_tracing(tracer):
@@ -137,6 +173,17 @@ def test_chunked_response(tracer):
     span = spans[0][0]
     assert span.resource == "GET /chunked"
     assert span.name == "wsgi.request"
+
+
+def test_generator_exit_ignored_in_top_level_span(tracer):
+    with pytest.raises(generatorExit):
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        app.get("/generatorError")
+
+    spans = tracer.writer.pop()
+    assert spans[2].error == 1
+    assert "GeneratorExit" in spans[2].get_tag("error.type")
+    assert spans[0].error == 0
 
 
 @snapshot()
