@@ -258,6 +258,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="wsgi",
+            command="pytest tests/contrib/wsgi",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "WebTest": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="boto",
             command="pytest tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version=3.6), pkgs={"boto": latest, "moto": ["<1.0"]})],

@@ -43,6 +43,9 @@ to the ``request`` object, so that it can be used in the application code::
     async def home_handler(request):
         ctx = request['datadog_context']
         # do something with the tracing Context
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 from ...utils.importlib import require_modules
 
