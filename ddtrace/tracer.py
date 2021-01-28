@@ -365,11 +365,6 @@ class Tracer(object):
     @debtcollector.removals.removed_kwarg(
         "dogstatsd_port", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
     )
-    @debtcollector.removals.removed_kwarg(
-        "context_provider",
-        "context_provider is no longer needed",
-        removal_version="0.48",
-    )
     def configure(
         self,
         enabled=None,
