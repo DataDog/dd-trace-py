@@ -7,7 +7,6 @@ import multiprocessing
 import os
 from os import getpid
 import warnings
-
 from unittest.case import SkipTest
 
 import mock
