@@ -17,10 +17,10 @@ def test_flatten_dict():
 
 def _ci_fixtures():
     basepath = os.path.join(os.path.dirname(__file__), "fixtures", "ci")
-    for filename in glob.glob(os.path.join(basepath, '*.json')):
+    for filename in glob.glob(os.path.join(basepath, "*.json")):
         with open(filename) as fp:
             for i, item in enumerate(json.load(fp)):
-                yield os.path.basename(filename)[:-5] + ':' + str(i), item[0], item[1]
+                yield os.path.basename(filename)[:-5] + ":" + str(i), item[0], item[1]
 
 
 def _updateenv(monkeypatch, env):
