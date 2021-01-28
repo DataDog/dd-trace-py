@@ -101,3 +101,4 @@ username
 uvicorn
 vertica
 whitelist
+wsgi

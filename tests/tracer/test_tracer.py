@@ -7,7 +7,6 @@ import multiprocessing
 import os
 from os import getpid
 import warnings
-
 from unittest.case import SkipTest
 
 import mock
@@ -92,7 +91,11 @@ class TracerTestCases(TracerTestCase):
         self.assert_span_count(1)
         span = self.get_root_span()
         span.assert_matches(
-            name="decorated_function", service="s", resource="r", span_type="t", meta=dict(a="b"),
+            name="decorated_function",
+            service="s",
+            resource="r",
+            span_type="t",
+            meta=dict(a="b"),
         )
 
     def test_tracer_pid(self):
@@ -127,7 +130,10 @@ class TracerTestCases(TracerTestCase):
                 dict(
                     name="tests.test_tracer.f",
                     error=1,
-                    meta={"error.msg": ex.message, "error.type": ex.__class__.__name__,},
+                    meta={
+                        "error.msg": ex.message,
+                        "error.type": ex.__class__.__name__,
+                    },
                 ),
             )
 
@@ -175,7 +181,8 @@ class TracerTestCases(TracerTestCase):
 
         self.assert_span_count(3)
         self.assert_structure(
-            dict(name="outer"), ((dict(name="mid"), (dict(name="inner"),)),),
+            dict(name="outer"),
+            ((dict(name="mid"), (dict(name="inner"),)),),
         )
 
     def test_tracer_wrap_class(self):
@@ -224,7 +231,8 @@ class TracerTestCases(TracerTestCase):
 
         self.assert_span_count(1)
         self.spans[0].assert_matches(
-            name="wrap.overwrite", meta=dict(args="(42,)", kwargs="{'kw_param': 42}"),
+            name="wrap.overwrite",
+            meta=dict(args="(42,)", kwargs="{'kw_param': 42}"),
         )
 
     def test_tracer_wrap_factory_nested(self):
@@ -353,7 +361,10 @@ class TracerTestCases(TracerTestCase):
         # it should create a root Span
         span = self.start_span("web.request")
         span.assert_matches(
-            name="web.request", tracer=self.tracer, _parent=None, parent_id=None,
+            name="web.request",
+            tracer=self.tracer,
+            _parent=None,
+            parent_id=None,
         )
         self.assertIsNotNone(span._context)
         self.assertEqual(span._context._current_span, span)
@@ -362,7 +373,10 @@ class TracerTestCases(TracerTestCase):
         # it should create a root Span with arguments
         span = self.start_span("web.request", service="web", resource="/", span_type="http")
         span.assert_matches(
-            name="web.request", service="web", resource="/", span_type="http",
+            name="web.request",
+            service="web",
+            resource="/",
+            span_type="http",
         )
 
     def test_start_span_service_default(self):
@@ -374,7 +388,8 @@ class TracerTestCases(TracerTestCase):
             child = self.start_span("child", child_of=parent)
 
         child.assert_matches(
-            name="child", service="mysvc",
+            name="child",
+            service="mysvc",
         )
 
     def test_start_span_service_global_config(self):
@@ -390,7 +405,8 @@ class TracerTestCases(TracerTestCase):
                 child = self.start_span("child", child_of=parent)
 
         child.assert_matches(
-            name="child", service="parentsvc",
+            name="child",
+            service="parentsvc",
         )
 
     def test_start_child_span(self):
@@ -399,10 +415,18 @@ class TracerTestCases(TracerTestCase):
         child = self.start_span("web.worker", child_of=parent)
 
         parent.assert_matches(
-            name="web.request", parent_id=None, _context=child._context, _parent=None, tracer=self.tracer,
+            name="web.request",
+            parent_id=None,
+            _context=child._context,
+            _parent=None,
+            tracer=self.tracer,
         )
         child.assert_matches(
-            name="web.worker", parent_id=parent.span_id, _context=parent._context, _parent=parent, tracer=self.tracer,
+            name="web.worker",
+            parent_id=parent.span_id,
+            _context=parent._context,
+            _parent=parent,
+            tracer=self.tracer,
         )
 
         self.assertEqual(child._context._current_span, child)
@@ -814,8 +838,7 @@ def test_tracer_with_env():
 
 
 class EnvTracerTestCase(TracerTestCase):
-    """Tracer test cases requiring environment variables.
-    """
+    """Tracer test cases requiring environment variables."""
 
     @run_in_subprocess(env_overrides=dict(DATADOG_SERVICE_NAME="mysvc"))
     def test_service_name_legacy_DATADOG_SERVICE_NAME(self):
@@ -850,20 +873,28 @@ class EnvTracerTestCase(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env(self):
         span = self.start_span("")
-        span.assert_matches(service="mysvc",)
+        span.assert_matches(
+            service="mysvc",
+        )
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env_global_config(self):
         # Global config should have higher precedence than the environment variable
         with self.override_global_config(dict(service="overridesvc")):
             span = self.start_span("")
-        span.assert_matches(service="overridesvc",)
+        span.assert_matches(
+            service="overridesvc",
+        )
 
     @run_in_subprocess(env_overrides=dict(DD_VERSION="0.1.2"))
     def test_version_no_global_service(self):
         # Version should be set if no service name is present
         with self.trace("") as span:
-            span.assert_matches(meta={VERSION_KEY: "0.1.2",},)
+            span.assert_matches(
+                meta={
+                    VERSION_KEY: "0.1.2",
+                },
+            )
 
         # The version will not be tagged if the service is not globally
         # configured.
@@ -924,7 +955,12 @@ class EnvTracerTestCase(TracerTestCase):
             assert s.get_tag("version") == "myvers"
 
     @run_in_subprocess(
-        env_overrides=dict(DD_TAGS="service:s,env:e,version:v", DD_ENV="env", DD_SERVICE="svc", DD_VERSION="0.123",)
+        env_overrides=dict(
+            DD_TAGS="service:s,env:e,version:v",
+            DD_ENV="env",
+            DD_SERVICE="svc",
+            DD_VERSION="0.123",
+        )
     )
     def test_tags_from_DD_TAGS_precedence(self):
         t = ddtrace.Tracer()
@@ -1080,7 +1116,9 @@ def test_filters():
             return None
 
     t.configure(
-        settings={"FILTERS": [FilterAll()],}
+        settings={
+            "FILTERS": [FilterAll()],
+        }
     )
     t.writer = DummyWriter()
 
@@ -1102,7 +1140,9 @@ def test_filters():
             return trace
 
     t.configure(
-        settings={"FILTERS": [FilterMutate("boop", "beep")],}
+        settings={
+            "FILTERS": [FilterMutate("boop", "beep")],
+        }
     )
     t.writer = DummyWriter()
 
@@ -1118,7 +1158,9 @@ def test_filters():
 
     # Test multiple filters
     t.configure(
-        settings={"FILTERS": [FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")],}
+        settings={
+            "FILTERS": [FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")],
+        }
     )
     t.writer = DummyWriter()
 
@@ -1137,7 +1179,9 @@ def test_filters():
             _ = 1 / 0
 
     t.configure(
-        settings={"FILTERS": [FilterBroken()],}
+        settings={
+            "FILTERS": [FilterBroken()],
+        }
     )
     t.writer = DummyWriter()
 
@@ -1149,7 +1193,9 @@ def test_filters():
     assert len(spans) == 2
 
     t.configure(
-        settings={"FILTERS": [FilterMutate("boop", "beep"), FilterBroken()],}
+        settings={
+            "FILTERS": [FilterMutate("boop", "beep"), FilterBroken()],
+        }
     )
     t.writer = DummyWriter()
 
@@ -1182,7 +1228,6 @@ def test_early_exit():
 
 
 class TestPartialFlush(TracerTestCase):
-
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
     )
@@ -1194,7 +1239,7 @@ class TestPartialFlush(TracerTestCase):
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 5
-        assert [s.name for s in traces[0]] == ["child0","child1","child2","child3","child4"]
+        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
 
         root.finish()
         traces = self.tracer.writer.pop_traces()
@@ -1234,7 +1279,7 @@ class TestPartialFlush(TracerTestCase):
         root.finish()
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 1
-        assert [s.name for s in traces[0]] == ["root", "child0","child1","child2","child3","child4"]
+        assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
 
 
 def test_unicode_config_vals():
