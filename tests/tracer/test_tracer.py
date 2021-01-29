@@ -328,8 +328,11 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_current_span(self):
         # the current span is in the local Context()
         span = self.trace("fake_span")
-        self.assertEqual(self.tracer.current_span(), span)
+        assert self.tracer.current_span() == span
         span.finish()
+
+        with self.trace("fake_span") as span:
+            assert self.tracer.current_span() == span
 
     def test_tracer_current_span_missing_context(self):
         self.assertIsNone(self.tracer.current_span())
