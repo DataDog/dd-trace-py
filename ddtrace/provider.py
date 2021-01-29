@@ -1,11 +1,32 @@
 import abc
+from typing import Optional
 
 from ddtrace.vendor import six
 
-from ddtrace.compat import contextvars
+from ddtrace.compat import contextvars, current_thread, asyncio_current_task
+from ddtrace.internal import _rand
 
 
-_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
+_DD_CONTEXTVAR = contextvars.ContextVar("datadog_tracing_contextvar", default=None)
+
+
+def current_execution_id():
+    # type: () -> Optional[int]
+    """Return a unique identifier for the current execution.
+    """
+    obj = asyncio_current_task()
+    if not obj:
+        obj = current_thread()
+
+    if obj:
+        ident = getattr(obj, "__dd_id", None)
+        if ident:
+            return ident
+        else:
+            ident = _rand.rand64bits(check_pid=False)
+            setattr(obj, "__dd_id", ident)
+            return ident
+    return None
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):

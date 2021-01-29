@@ -1,16 +1,19 @@
 import logging
 import mock
 import threading
+import time
 
 import pytest
 
 from ddtrace.span import Span
+from ddtrace.compat import PYTHON_VERSION_INFO
 from ddtrace.context import Context
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
+from ddtrace.provider import current_execution_id
 
 from .test_tracer import get_dummy_tracer
-from tests import BaseTestCase
+from tests import BaseTestCase, execute
 
 
 @pytest.fixture
@@ -266,3 +269,102 @@ class TestTracingContext(BaseTestCase):
         assert cloned_ctx._dd_origin == ctx._dd_origin
         assert cloned_ctx._current_span == ctx._current_span
         assert cloned_ctx._trace == []
+
+
+def test_executor_id_same_thread():
+    i = current_execution_id()
+    assert i is not None
+    for _ in range(100):
+        assert i == current_execution_id()
+
+
+def test_executor_id_same_successive_threads():
+    ids = []
+
+    def target():
+        ids.append(current_execution_id())
+
+    for _ in range(100):
+        t = threading.Thread(target=target)
+        t.start()
+        t.join()
+
+    # No duplicates
+    assert len(set(ids)) == len(ids) == 100
+
+
+def test_executor_id_same_simultaneous_threads():
+    ids = []
+
+    def target():
+        ids.append(current_execution_id())
+        time.sleep(0.01)
+
+    for _ in range(20):
+        ts = []
+        for _ in range(10):
+            ts.append(threading.Thread(target=target))
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+    assert len(set(ids)) == len(ids) == 200
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 6, 0), reason="async/await keyword not supported")
+def test_executor_id_asyncio_same_task():
+    import asyncio  # noqa
+
+    ids = []
+    execute(
+        """
+async def main():
+    for _ in range(1000):
+        ids.append(current_execution_id())
+asyncio.run(main())
+""",
+        {**globals(), **locals()},
+    )
+    assert len(ids) == 1000
+    assert len(set(ids)) == 1
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 6, 0), reason="async/await keyword not supported")
+def test_executor_id_asyncio_successive_tasks():
+    import asyncio  # noqa
+
+    ids = []
+    execute(
+        """
+async def task():
+    ids.append(current_execution_id())
+
+async def main():
+    for _ in range(1000):
+        await asyncio.create_task(task())
+
+asyncio.run(main())
+""",
+        {**globals(), **locals()},
+    )
+    assert len(set(ids)) == len(ids) == 1000
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 6, 0), reason="async/await keyword not supported")
+def test_executor_id_asyncio_concurrent_tasks():
+    import asyncio  # noqa
+
+    ids = []
+    execute(
+        """
+async def task():
+    ids.append(current_execution_id())
+
+async def main():
+    await asyncio.gather(*[task() for _ in range(1000)])
+
+asyncio.run(main())
+""",
+        {**globals(), **locals()},
+    )
+    assert len(set(ids)) == len(ids) == 1000
