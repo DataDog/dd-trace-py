@@ -353,27 +353,24 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_span(self):
         # it should create a root Span
-        span = self.start_span("web.request")
-        span.assert_matches(
-            name="web.request",
-            tracer=self.tracer,
-            _parent=None,
-            parent_id=None,
-        )
-        assert self.tracer.active_span() == span
-        assert self.tracer.active_root_span() == span
+        span = self.tracer.start_span("web.request")
+        assert span.name == "web.request"
+        assert span.parent_id is None
         span.finish()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0] is span
 
     def test_start_span_optional(self):
         # it should create a root Span with arguments
-        span = self.start_span("web.request", service="web", resource="/", span_type="http")
+        with self.start_span("web.request", service="web", resource="/", span_type="http") as span:
+            pass
         span.assert_matches(
             name="web.request",
             service="web",
             resource="/",
             span_type="http",
         )
-        span.finish()
 
     def test_start_span_service_default(self):
         span = self.start_span("")
@@ -382,8 +379,8 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_span_service_from_parent(self):
         with self.start_span("parent", service="mysvc") as parent:
-            child = self.start_span("child", child_of=parent)
-
+            with self.start_span("child", child_of=parent) as child:
+                pass
         child.assert_matches(
             name="child",
             service="mysvc",
@@ -392,17 +389,15 @@ class TracerTestCases(TracerTestCase):
     def test_start_span_service_global_config(self):
         # When no service is provided a default
         with self.override_global_config(dict(service="mysvc")):
-            span = self.start_span("")
-            span.assert_matches(service="mysvc")
-            span.finish()
+            with self.start_span("") as span:
+                span.assert_matches(service="mysvc")
 
     def test_start_span_service_global_config_parent(self):
         # Parent should have precedence over global config
         with self.override_global_config(dict(service="mysvc")):
             with self.start_span("parent", service="parentsvc") as parent:
-                child = self.start_span("child", child_of=parent)
-                child.finish()
-
+                with self.start_span("child", child_of=parent) as child:
+                    pass
         child.assert_matches(
             name="child",
             service="parentsvc",
@@ -410,8 +405,10 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_child_span(self):
         # it should create a child Span for the given parent
-        parent = self.start_span("web.request")
-        child = self.start_span("web.worker", child_of=parent)
+        with self.start_span("web.request") as parent:
+            assert self.tracer.current_span() is None
+            with self.start_span("web.worker", child_of=parent) as child:
+                assert self.tracer.current_span() is None
 
         parent.assert_matches(
             name="web.request",
@@ -425,25 +422,33 @@ class TracerTestCases(TracerTestCase):
             _parent=parent,
             tracer=self.tracer,
         )
-        assert self.tracer.current_span() == child
-        parent.finish()
-        child.finish()
 
     def test_start_child_span_attributes(self):
         # it should create a child Span with parent's attributes
-        parent = self.start_span("web.request", service="web", resource="/", span_type="http")
-        child = self.start_span("web.worker", child_of=parent)
-        child.assert_matches(name="web.worker", service="web")
-        parent.finish()
-        child.finish()
+        with self.start_span("web.request", service="web", resource="/", span_type="http") as parent:
+            with self.start_span("web.worker", child_of=parent) as child:
+                child.assert_matches(name="web.worker", service="web")
+
+    def test_start_child_from_context(self):
+        # it should create a child span with a populated Context
+        with self.start_span("web.request") as root:
+            with self.start_span("web.worker", child_of=root.context) as child:
+                pass
+        child.assert_matches(
+            name="web.worker",
+            parent_id=root.span_id,
+            trace_id=root.trace_id,
+            _parent=root,
+            tracer=self.tracer,
+        )
 
     def test_adding_services(self):
         assert self.tracer._services == set()
-        root = self.start_span("root", service="one")
-        assert self.tracer._services == set(["one"])
-        self.start_span("child", service="two", child_of=root).finish()
+        with self.start_span("root", service="one") as root:
+            assert self.tracer._services == set(["one"])
+            with self.start_span("child", service="two", child_of=root):
+                pass
         assert self.tracer._services == set(["one", "two"])
-        root.finish()
 
     def test_configure_runtime_worker(self):
         # by default runtime worker not started though runtime id is set
@@ -495,26 +500,22 @@ class TracerTestCases(TracerTestCase):
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
 
-        root = self.start_span("root")
-        context = root.context
-        child = self.start_span("child", child_of=context)
+        with self.start_span("root") as root:
+            with self.start_span("child", child_of=root.context) as child:
+                pass
 
         self.assertIsNone(root.get_tag("language"))
         self.assertIsNone(child.get_tag("language"))
-        root.finish()
-        child.finish()
 
     def test_only_root_span_runtime_internal_span_types(self):
         self.tracer.configure(collect_metrics=True)
 
         for span_type in ("custom", "template", "web", "worker"):
-            root = self.start_span("root", span_type=span_type)
-            child = self.start_span("child", child_of=root)
-
+            with self.start_span("root", span_type=span_type) as root:
+                with self.start_span("child", child_of=root) as child:
+                    pass
             assert root.get_tag("language") == "python"
             assert child.get_tag("language") is None
-            root.finish()
-            child.finish()
 
     def test_only_root_span_runtime_external_span_types(self):
         self.tracer.configure(collect_metrics=True)
@@ -533,13 +534,11 @@ class TracerTestCases(TracerTestCase):
             "sql",
             "vertica",
         ):
-            root = self.start_span("root", span_type=span_type)
-            child = self.start_span("child", child_of=root)
-
+            with self.start_span("root", span_type=span_type) as root:
+                with self.start_span("child", child_of=root) as child:
+                    pass
             assert root.get_tag("language") is None
             assert child.get_tag("language") is None
-            root.finish()
-            child.finish()
 
 
 def test_tracer_url():
@@ -857,18 +856,18 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env(self):
-        span = self.start_span("")
+        with self.start_span("") as span:
+            pass
         span.assert_matches(
             service="mysvc",
         )
-        span.finish()
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env_global_config(self):
         # Global config should have higher precedence than the environment variable
         with self.override_global_config(dict(service="overridesvc")):
-            span = self.start_span("")
-            span.finish()
+            with self.start_span("") as span:
+                pass
         span.assert_matches(
             service="overridesvc",
         )
@@ -970,14 +969,14 @@ class EnvTracerTestCase(TracerTestCase):
 
 def test_tracer_set_runtime_tags():
     t = ddtrace.Tracer()
-    span = t.start_span("foobar")
-    span.finish()
+    with t.start_span("foobar") as span:
+        pass
 
     assert len(span.get_tag("runtime-id"))
 
     t2 = ddtrace.Tracer()
-    span2 = t2.start_span("foobaz")
-    span2.finish()
+    with t2.start_span("foobaz") as span2:
+        pass
 
     assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
 
@@ -1028,7 +1027,8 @@ def test_deregister_start_span_hooks():
 
     t.deregister_on_start_span(store_span)
 
-    t.start_span("hello").finish()
+    with t.start_span("hello"):
+        pass
 
     assert result == {}
 
