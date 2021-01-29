@@ -1,3 +1,4 @@
+from collections import defaultdict
 import functools
 import logging
 import json
@@ -26,7 +27,7 @@ from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
 from .internal import _rand
-from .provider import DefaultContextProvider
+from .provider import DefaultContextProvider, current_execution_id
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .settings import config
 from .span import Span
@@ -57,36 +58,60 @@ if debug_mode and not hasHandlers(log):
 class _Trace(object):
     trace_id = attr.ib(type=int)  # type: int
     sampled = attr.ib(type=bool, default=True)  # type: bool
-    num_finished = attr.ib(type=int, default=0)  # type: int
     sampling_priority = attr.ib(default=None)  # type: Optional[int]
     dd_origin = attr.ib(default=None)  # type: Optional[str]
-    local_root_span = attr.ib(default=None)  # type: Optional[Span]
-    _spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
+    _fragments = attr.ib(default=attr.Factory(lambda: defaultdict(lambda: [])))  # type: Dict[int, List[Span]]
+    _num_finished = attr.ib(type=int, default=defaultdict(lambda: 0))  # type: Dict[int, int]
+    _lock = attr.ib(type=threading.Lock, default=attr.Factory(threading.Lock))
 
     def __len__(self):
-        return len(self._spans)
+        with self._lock:
+            return sum(len(s) for s in self._fragments.values())
 
     def add_span(self, span):
         # type: (Span) -> None
-        self._spans.append(span)
+        with self._lock:
+            self._fragments[span._exec_id].append(span)
 
-    def pop_finished_spans(self):
-        # type: () -> List[Span]
-        local_root_span = self.local_root_span
-        if local_root_span:
+    def pop_finished_spans(self, exec_id):
+        # type: (int) -> List[Span]
+        with self._lock:
+            finished_spans = [s for s in self._fragments[exec_id] if s.finished]
+
+            root_span = finished_spans[0]
             if self.sampling_priority is not None and self.sampled:
-                local_root_span.set_metric(SAMPLING_PRIORITY_KEY, self.sampling_priority)
+                root_span.set_metric(SAMPLING_PRIORITY_KEY, self.sampling_priority)
             if self.dd_origin:
-                local_root_span.meta[ORIGIN_KEY] = str(self.dd_origin)
+                root_span.meta[ORIGIN_KEY] = str(self.dd_origin)
 
-        finished_spans = [span for span in self._spans if span.finished]
-        self._spans = [span for span in self._spans if not span.finished]
-        self.num_finished -= len(finished_spans)
-        return finished_spans
+            self._fragments[exec_id] = [s for s in self._fragments[exec_id] if not s.finished]
+            self._num_finished[exec_id] -= len(finished_spans)
+            return finished_spans
+
+    def num_spans(self, exec_id):
+        # type: (int) -> int
+        with self._lock:
+            return len(self._fragments[exec_id])
+
+    def num_finished(self, exec_id):
+        # type: (int) -> int
+        with self._lock:
+            return self._num_finished[exec_id]
+
+    def finish_span(self, span):
+        # type: (Span) -> bool
+        with self._lock:
+            self._num_finished[span._exec_id] += 1
+
+    @property
+    def root_span(self):
+        # type: () -> Optional[Span]
+        with self._lock:
+            exec_id = current_execution_id()
+            return self._fragments[exec_id][0] if len(self._fragments) > 0 else None
 
 
 _traces = {}  # type: Dict[int, _Trace]
-_traces_lock = threading.Lock()
 
 
 def _get_trace(trace_id):
@@ -226,13 +251,6 @@ class Tracer(object):
         # type: (Span) -> _Trace
         trace = _get_or_create_trace(span.trace_id)
         trace.add_span(span)
-
-        if span.parent_id is None:
-            # Duplicate root spans in a trace is an error.
-            if trace.local_root_span:
-                raise NotImplementedError
-            trace.local_root_span = span
-
         return trace
 
     def _close_span(self, span):
@@ -242,7 +260,7 @@ class Tracer(object):
         # been finished and deleted. So _get_or_create_trace has to be used instead
         # of _get_trace.
         trace = _get_or_create_trace(span.trace_id)
-        trace.num_finished += 1
+        trace.finish_span(span)
 
         # Safe-guard: only set the next active span to the parent if it is not
         # finished.
@@ -251,10 +269,10 @@ class Tracer(object):
         else:
             self.context_provider.activate(None)
 
-        if trace.num_finished == len(trace) or (
-            partial_flush_enabled and trace.num_finished >= partial_flush_min_spans
+        if trace.num_spans(span._exec_id) == trace.num_finished(span._exec_id) or (
+            partial_flush_enabled and trace.num_finished(span._exec_id) >= partial_flush_min_spans
         ):
-            spans = trace.pop_finished_spans()
+            spans = trace.pop_finished_spans(span._exec_id)
             root_span = spans[0]
 
             if root_span.parent_id is not None:
@@ -786,7 +804,7 @@ class Tracer(object):
                 root_span.set_tag('host', '127.0.0.1')
         """
         trace = self._active_trace()
-        return trace.local_root_span if trace else None
+        return trace.root_span if trace else None
 
     current_root_span = active_root_span
 

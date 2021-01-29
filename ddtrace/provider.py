@@ -12,8 +12,7 @@ _DD_CONTEXTVAR = contextvars.ContextVar("datadog_tracing_contextvar", default=No
 
 def current_execution_id():
     # type: () -> Optional[int]
-    """Return a unique identifier for the current execution.
-    """
+    """Return a unique identifier for the current execution."""
     obj = asyncio_current_task()
     if not obj:
         obj = current_thread()
@@ -26,7 +25,7 @@ def current_execution_id():
             ident = _rand.rand64bits(check_pid=False)
             setattr(obj, "__dd_id", ident)
             return ident
-    return None
+    raise RuntimeError("Unable to get an execution id")
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
