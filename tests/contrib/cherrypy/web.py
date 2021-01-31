@@ -9,7 +9,6 @@ import sys
 
 # Import CherryPy global namespace
 import cherrypy
-from cherrypy._cpcompat import ntob, ntou
 
 import logging
 

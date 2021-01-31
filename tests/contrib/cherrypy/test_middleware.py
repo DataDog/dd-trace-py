@@ -9,7 +9,6 @@ from ddtrace import config
 
 import cherrypy
 from cherrypy.test import helper
-from cherrypy._cpcompat import ntob, ntou
 from .web import TestApp
 from tests.tracer.test_tracer import get_dummy_tracer
 from ... import assert_span_http_status_code
@@ -237,7 +236,7 @@ class TestCherrypy(helper.CPWebCase):
         start = time.time()
         # Encoded utf8 query strings MUST be parsed correctly.
         # Here, the URL is encoded in utf8 and then %HEX
-        # See https://docs.cherrypy.org/en/latest/_modules/cherrypy/test/test_encoding.html#EncodingTests.test_query_string_decoding for more
+        # See https://docs.cherrypy.org/en/latest/_modules/cherrypy/test/test_encoding.html for more
         self.getPage(url_quote(u"/üŋïĉóđē".encode("utf-8")))
         time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
