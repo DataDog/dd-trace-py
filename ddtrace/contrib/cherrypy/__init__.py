@@ -30,10 +30,10 @@ Here is the end result, in a sample app::
 
 from ..util import require_modules
 
-required_modules = ['cherrypy']
+required_modules = ["cherrypy"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
 
-        __all__ = ['TraceMiddleware']
+        __all__ = ["TraceMiddleware"]
