@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    cherrypy: introduce TraceMiddleware for the CherryPy web framework.
