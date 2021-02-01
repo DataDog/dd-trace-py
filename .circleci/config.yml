@@ -642,6 +642,13 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
+  fastapi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "fastapi"
+          snapshot: true
+
   flask:
     <<: *contrib_job
     docker:
@@ -890,6 +897,13 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
+
   kombu:
     <<: *contrib_job
     docker:
@@ -999,6 +1013,7 @@ requires_tests: &requires_tests
     - djangorestframework
     - elasticsearch
     - falcon
+    - fastapi
     - flask
     - futures
     - gevent
@@ -1045,6 +1060,7 @@ requires_tests: &requires_tests
     - tracer
     - tornado
     - vertica
+    - wsgi
     - build-docker-ci-image
 
 workflows:
@@ -1104,6 +1120,7 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
+      - fastapi: *requires_pre_test
       - flask: *requires_pre_test
       - futures: *requires_pre_test
       - gevent: *requires_pre_test
@@ -1144,6 +1161,7 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
       - deploy_master:

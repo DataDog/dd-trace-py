@@ -22,7 +22,7 @@ def test_rate_limiter_rate_limit_0():
     assert limiter.max_tokens == 0
 
     now = compat.monotonic()
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         for i in range(10000):
             # Make sure the time is different for every check
             mock_time.return_value = now + i
@@ -36,14 +36,14 @@ def test_rate_limiter_rate_limit_negative():
     assert limiter.max_tokens == -1
 
     now = compat.monotonic()
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         for i in range(10000):
             # Make sure the time is different for every check
             mock_time.return_value = now + i
             assert limiter.is_allowed() is True
 
 
-@pytest.mark.parametrize('rate_limit', [1, 10, 50, 100, 500, 1000])
+@pytest.mark.parametrize("rate_limit", [1, 10, 50, 100, 500, 1000])
 def test_rate_limiter_is_allowed(rate_limit):
     limiter = RateLimiter(rate_limit=rate_limit)
 
@@ -61,7 +61,7 @@ def test_rate_limiter_is_allowed(rate_limit):
 
     # Check the limit for 5 time frames
     for i in range(5):
-        with mock.patch('ddtrace.compat.monotonic') as mock_time:
+        with mock.patch("ddtrace.compat.monotonic") as mock_time:
             # Keep the same timeframe
             mock_time.return_value = now + i
 
@@ -73,7 +73,7 @@ def test_rate_limiter_is_allowed_large_gap():
 
     # Start time
     now = compat.monotonic()
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         # Keep the same timeframe
         mock_time.return_value = now
 
@@ -81,7 +81,7 @@ def test_rate_limiter_is_allowed_large_gap():
             assert limiter.is_allowed() is True
 
     # Large gap before next call to `is_allowed()`
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         mock_time.return_value = now + 100
 
         for _ in range(100):
@@ -95,7 +95,7 @@ def test_rate_limiter_is_allowed_small_gaps():
     now = compat.monotonic()
     gap = 1.0 / 100.0
     # Keep incrementing by a gap to keep us at our rate limit
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         for i in range(10000):
             # Keep the same timeframe
             mock_time.return_value = now + (gap * i)
@@ -108,7 +108,7 @@ def test_rate_liimter_effective_rate_rates():
 
     # Static rate limit window
     starting_window = compat.monotonic()
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         mock_time.return_value = starting_window
 
         for _ in range(100):
@@ -123,7 +123,7 @@ def test_rate_liimter_effective_rate_rates():
             assert limiter.current_window == starting_window
 
     prev_rate = 0.5
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         window = starting_window + 1.0
         mock_time.return_value = window
 
@@ -143,7 +143,7 @@ def test_rate_liimter_effective_rate_starting_rate():
     limiter = RateLimiter(rate_limit=1)
 
     now = compat.monotonic()
-    with mock.patch('ddtrace.compat.monotonic') as mock_time:
+    with mock.patch("ddtrace.compat.monotonic") as mock_time:
         mock_time.return_value = now
 
         # Default values

@@ -18,14 +18,14 @@ below:
    * - ``DD_ENV``
      - String
      -
-     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``.
+     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
    * - ``DD_SERVICE``
      - String
      - (autodetected)
      - Set the service name to be used for this application. A default is
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
-       :ref:`falcon`. Added in ``v0.36.0``.
+       :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
    * - ``DD_TAGS``
      - String
      -
@@ -34,7 +34,7 @@ below:
      - String
      -
      - Set an application's version in traces and logs e.g. ``1.2.3``,
-       ``6c44da20``, ``2020.02.13``. Added in ``v0.36.0``.
+       ``6c44da20``, ``2020.02.13``. Generally set along with ``DD_SERVICE``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
    * - ``DD_SITE``
      - String
      - datadoghq.com
@@ -116,3 +116,5 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
+
+.. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

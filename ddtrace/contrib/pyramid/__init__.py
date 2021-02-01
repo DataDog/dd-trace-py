@@ -36,6 +36,8 @@ explicitly to the list. For example::
     # use your config as normal.
     config.add_route('index', '/')
 
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules

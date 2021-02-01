@@ -39,13 +39,13 @@ class PayloadTestCase(TracerTestCase):
         payload = Payload()
 
         # Add falsey traces
-        for val in (False, None, 0, '', [], dict()):
+        for val in (False, None, 0, "", [], dict()):
             payload.add_trace(val)
         self.assertEqual(payload.length, 0)
         self.assertTrue(payload.empty)
 
         # Add a single trace to the payload
-        trace = [Span(self.tracer, name='root.span'), Span(self.tracer, name='child.span')]
+        trace = [Span(self.tracer, name="root.span"), Span(self.tracer, name="child.span")]
         payload.add_trace(trace)
 
         self.assertEqual(payload.length, 1)
@@ -69,7 +69,7 @@ class PayloadTestCase(TracerTestCase):
 
         # Add traces to the payload
         for _ in range(5):
-            trace = [Span(self.tracer, name='root.span'), Span(self.tracer, name='child.span')]
+            trace = [Span(self.tracer, name="root.span"), Span(self.tracer, name="child.span")]
             payload.add_trace(trace)
 
         self.assertEqual(payload.length, 5)
@@ -81,8 +81,8 @@ class PayloadTestCase(TracerTestCase):
         self.assertEqual(len(decoded_data), 5)
         for trace in decoded_data:
             self.assertEqual(len(trace), 2)
-            self.assertEqual(trace[0][b'name'], b'root.span')
-            self.assertEqual(trace[1][b'name'], b'child.span')
+            self.assertEqual(trace[0][b"name"], b"root.span")
+            self.assertEqual(trace[1][b"name"], b"child.span")
 
     def test_full(self):
         payload = Payload()
@@ -91,7 +91,7 @@ class PayloadTestCase(TracerTestCase):
         self.assertTrue(payload.empty)
 
         # Trace and it's size in bytes
-        trace = [Span(self.tracer, 'root.span'), Span(self.tracer, 'child.span')]
+        trace = [Span(self.tracer, "root.span"), Span(self.tracer, "child.span")]
         trace_size = len(payload.encoder.encode_trace(trace))
 
         # Number of traces before we hit the max size limit and are considered full

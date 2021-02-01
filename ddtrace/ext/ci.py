@@ -6,6 +6,12 @@ import re
 
 from . import git
 
+# Stage Name
+STAGE_NAME = "ci.stage.name"
+
+# Job Name
+JOB_NAME = "ci.job.name"
+
 # Job URL
 JOB_URL = "ci.job.url"
 
@@ -53,7 +59,6 @@ def tags(env=None):
     if tags.get(git.TAG) and git.BRANCH in tags:
         del tags[git.BRANCH]
     tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
-    tags[git.DEPRECATED_COMMIT_SHA] = tags.get(git.COMMIT_SHA)
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     # Expand ~
@@ -203,6 +208,8 @@ def extract_gitlab(env):
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
         git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         git.TAG: env.get("CI_COMMIT_TAG"),
+        STAGE_NAME: env.get("CI_JOB_STAGE"),
+        JOB_NAME: env.get("CI_JOB_NAME"),
         JOB_URL: env.get("CI_JOB_URL"),
         PIPELINE_ID: env.get("CI_PIPELINE_ID"),
         PIPELINE_NAME: env.get("CI_PROJECT_PATH"),

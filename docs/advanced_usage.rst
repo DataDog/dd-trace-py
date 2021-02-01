@@ -204,8 +204,10 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-HTTP layer
-----------
+..  _http-tagging:
+
+HTTP tagging
+------------
 
 Query String Tracing
 ^^^^^^^^^^^^^^^^^^^^
@@ -277,6 +279,8 @@ structure like in the following example::
       status_code  200
       url  https://api.github.com/events
     }
+
+..  _http-custom-error:
 
 Custom Error Codes
 ^^^^^^^^^^^^^^^^^^

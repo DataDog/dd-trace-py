@@ -258,6 +258,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="wsgi",
+            command="pytest tests/contrib/wsgi",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "WebTest": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="boto",
             command="pytest tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version=3.6), pkgs={"boto": latest, "moto": ["<1.0"]})],
@@ -296,6 +308,22 @@ venv = Venv(
             },
             pys=select_pys(min_version=3.6),
             command="pytest tests/contrib/asgi",
+        ),
+        Venv(
+            name="fastapi",
+            command="pytest {cmdargs} tests/contrib/fastapi",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version=3.6),
+                    pkgs={
+                        "fastapi": [">=0.51,<0.52", ">=0.55,<0.56", ">=0.60,<0.61", latest],
+                        "httpx": latest,
+                        "pytest-asyncio": latest,
+                        "requests": latest,
+                        "aiofiles": latest,
+                    },
+                ),
+            ],
         ),
     ],
 )
