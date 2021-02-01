@@ -123,7 +123,10 @@ def _set_request_tags(django, span, request):
 
 @sync_to_async
 def load_user_from_db_async(user):
-    user._setup()
+    # From https://stackoverflow.com/questions/11314905/request-user-returns-a-simplelazyobject-how-do-i-wake-it
+    if hasattr(user, '_wrapped') and hasattr(user, '_setup'):
+        if user._wrapped.__class__ == object:
+            user._setup()
 
 
 async def _set_request_tags_async(django, span, request):
