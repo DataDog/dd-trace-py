@@ -8,30 +8,31 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
 - Corp docs PR: <!-- add link here -->
 
 ## Checklist
+<!-- Delete any entries that are not applicable to the integration -->
+
 - [ ] Usage and configuration documentation added in `__init__.py`.
-- [ ] [Corp docs](https://github.com/Datadog/documentation) are updated.
-- [ ] Distributed tracing propagation is implemented (if applicable).
+- [ ] [Corp docs](https://github.com/Datadog/documentation) PR to add new integration to documentation.
 - [ ] Span metadata
-  - [ ] Span type
+  - [ ] Service (use [`int_service`](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/contrib/trace_utils.py#L55) or [`ext_service`](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/contrib/trace_utils.py#L87).
+  - [ ] Span type should be one of [these](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/ext/__init__.py#L7).
   - [ ] Resource
 - [ ] Global configuration
-  - [ ] Inherits `DD_SERVICE` (if applicable).
+  - [ ] Inherits `DD_SERVICE` (if the integration is internal).
   - [ ] Environment variables are provided for config options.
   - [ ] `ddtrace.config`.
 - [ ] Instance configuration
   - [ ] Pin overriding.
   - [ ] Service name override (if applicable).
-- [ ] Async (if applicable)
+- [ ] Async
   - [ ] Span parenting behaves as expected.
-  - [ ] Context propagation across async boundaries.
-- [ ] HTTP (if applicable)
-  - [ ] 500-level responses are tagged as errors.
-- [ ] Web (if applicable)
-  - [ ] Request headers specified in the config are stored.
+  - [ ] Context propagation across async contexts.
+- [ ] HTTP
+  - [ ] Distributed tracing propagation is implemented.
+  - [ ] Use [`trace_utils.set_http_meta`](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/contrib/trace_utils.py#L143-L152) to set http tags
 - [ ] Tests
   - [ ] Tests are provided for all of the above.
   - [ ] Tests are added to CI (`.circleci/config.yml`).
   - [ ] Functionality is maintained from original library.
   - [ ] Patch test cases are added (see `test_django_patch.py` for an example).
   - [ ] All Python versions that the library supports are tested.
-  - [ ] All relevant library versions (including the latest) are tested.
+  - [ ] All significant library versions (including the latest) are tested. This typically includes every minor release going back a few years.
