@@ -17,9 +17,8 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
   - [ ] Span type should be one of [these](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/ext/__init__.py#L7).
   - [ ] Resource
 - [ ] Global configuration
-  - [ ] Inherits `DD_SERVICE` (if the integration is internal).
+  - [ ] `ddtrace.config` entry is specified.
   - [ ] Environment variables are provided for config options.
-  - [ ] `ddtrace.config`.
 - [ ] Instance configuration
   - [ ] Pin overriding.
   - [ ] Service name override (if applicable).
