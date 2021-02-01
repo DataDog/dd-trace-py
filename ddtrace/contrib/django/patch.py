@@ -25,6 +25,8 @@ from .. import trace_utils
 from .compat import get_resolver, user_is_authenticated
 from . import utils, conf
 
+from asgiref.sync import sync_to_async
+
 
 log = get_logger(__name__)
 
@@ -117,6 +119,43 @@ def _set_request_tags(django, span, request):
             username = getattr(user, "username", None)
             if username:
                 span.set_tag("django.user.name", username)
+
+
+@sync_to_async
+def load_user_from_db_async(user):
+    user._setup()
+
+
+async def _set_request_tags_async(django, span, request):
+    span.set_tag("django.request.class", func_name(request))
+
+    if django.VERSION >= (2, 2, 0):
+        headers = request.headers
+    else:
+        headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                headers[name] = value
+
+    store_request_headers(headers, span, config.django)
+
+    user = getattr(request, "user", None)
+    if user is not None:
+        await load_user_from_db_async(user)
+
+        if hasattr(user, "is_authenticated"):
+            span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
+
+        uid = getattr(user, "pk", None)
+        if uid:
+            span.set_tag("django.user.id", uid)
+
+        if config.django.include_user_name:
+            username = getattr(user, "username", None)
+            if username:
+                span.set_tag("django.user.name", username)
+
 
 
 @trace_utils.with_traced_module
@@ -545,7 +584,7 @@ async def traced_get_response_async(django, pin, func, instance, args, kwargs):
             # Note: this call must be done after the function call because
             # some attributes (like `user`) are added to the request through
             # the middleware chain
-            _set_request_tags(django, span, request)
+            await _set_request_tags_async(django, span, request)
             
 
             if response:
