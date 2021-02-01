@@ -360,6 +360,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         log.debug("Failed to trace django request %r", args, exc_info=True)
         return func(*args, **kwargs)
     else:
+        root_span = pin.tracer.current_root_span()
+        if root_span:
+            root_span.resource = resource
+            root_span.service = trace_utils.int_service(pin, config.django)
         with pin.tracer.trace(
             "django.request",
             resource=resource,
@@ -555,6 +559,8 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_get_wsgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.wsgi import DDWSGIMiddleware
+
+    config.django["distributed_tracing"] = False
 
     return DDWSGIMiddleware(func(*args, **kwargs))
 
