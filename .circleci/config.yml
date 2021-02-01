@@ -594,6 +594,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^celery_contrib-'
 
+  cherrypy:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^cherrypy_contrib-'
+
   consul:
     <<: *contrib_job
     docker:
@@ -1005,6 +1011,7 @@ requires_tests: &requires_tests
     - bottle
     - cassandra
     - celery
+    - cherrypy
     - consul
     - dbapi
     - ddtracerun
@@ -1112,6 +1119,7 @@ workflows:
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       - celery: *requires_pre_test
+      - cherrypy: *requires_pre_test
       - consul: *requires_pre_test
       - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
