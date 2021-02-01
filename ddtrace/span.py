@@ -18,7 +18,6 @@ from .constants import (
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
 from .internal import _rand
-from .provider import current_execution_id
 
 log = get_logger(__name__)
 
@@ -41,7 +40,6 @@ class Span(object):
         "duration_ns",
         "tracer",
         # Internal attributes
-        "_exec_id",
         "_parent",
         "_ignored_exceptions",
         "__weakref__",
@@ -100,7 +98,6 @@ class Span(object):
         self.tracer = tracer
 
         self._parent = None
-        self._exec_id = current_execution_id()  # type: int
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
 
     @property
