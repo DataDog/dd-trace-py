@@ -2,6 +2,14 @@
 The Datadog WSGI middleware traces all WSGI requests.
 
 
+Enabling
+~~~~~~~~
+
+The WSGI instrumentation will be automatically added to a Django or Flask
+application when using :ref:`ddtrace-run<ddtracerun>` or
+:ref:`patch_all()<patch_all>`.
+
+
 Usage
 ~~~~~
 
