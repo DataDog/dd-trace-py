@@ -1,10 +1,14 @@
 import asyncio
 
-from ddtrace.provider import DefaultContextProvider
+import pytest
+
+from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
+from ddtrace.provider import DefaultContextProvider
 from .utils import AsyncioTestCase, mark_asyncio
 
 
+@pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="No configuration is necessary when contextvars available.")
 class TestAsyncioSafety(AsyncioTestCase):
     """
     Ensure that if the ``AsyncioTracer`` is not properly configured,
@@ -48,13 +52,14 @@ class TestAsyncioSafety(AsyncioTestCase):
             with self.tracer.trace("coroutine"):
                 yield from asyncio.sleep(0.01)
 
-        ctx = self.tracer.get_call_context()
         futures = [asyncio.ensure_future(coro()) for x in range(1000)]
         for future in futures:
             yield from future
 
-        # the trace is wrong but the Context is finished
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
-        assert 1000 == len(traces[0])
-        assert 0 == len(ctx._trace)
+        spans = traces[0]
+        assert 1000 == len(spans)
+        for s in spans:
+            assert s.name == "coroutine"
+            assert s.finished

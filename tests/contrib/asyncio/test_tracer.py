@@ -1,7 +1,5 @@
 import asyncio
 
-import pytest
-from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
 
 from .utils import AsyncioTestCase, mark_asyncio
@@ -11,19 +9,6 @@ class TestAsyncioTracer(AsyncioTestCase):
     """Ensure that the tracer works with asynchronous executions within
     the same ``IOLoop``.
     """
-
-    @mark_asyncio
-    @pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
-    def test_get_call_context(self):
-        # it should return the context attached to the current Task
-        # or create a new one
-        task = asyncio_current_task()
-        ctx = getattr(task, "__datadog_context", None)
-        assert ctx is None
-        # get the context from the loop creates a new one that
-        # is attached to the Task object
-        ctx = self.tracer.get_call_context()
-        assert ctx == getattr(task, "__datadog_context", None)
 
     @mark_asyncio
     def test_get_call_context_twice(self):

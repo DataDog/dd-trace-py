@@ -1,6 +1,5 @@
 import asyncio
 
-from ...context import Context
 from ...provider import DefaultContextProvider
 
 # Task attribute used to set/get the Context instance
@@ -23,11 +22,12 @@ class AsyncioContextProvider(DefaultContextProvider):
         """Sets the scoped ``Context`` for the current running ``Task``."""
         loop = self._get_loop(loop)
         if not loop:
-            self._local.set(context)
+            super(AsyncioContextProvider, self).activate(context)
             return context
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
+        print(task)
         setattr(task, CONTEXT_ATTR, context)
         return context
 
@@ -65,7 +65,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """
         loop = self._get_loop(loop=loop)
         if not loop:
-            return self._local.get()
+            return super(AsyncioContextProvider, self).active()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
@@ -73,14 +73,6 @@ class AsyncioContextProvider(DefaultContextProvider):
             # providing a detached Context from the current Task, may lead to
             # wrong traces. This defensive behavior grants that a trace can
             # still be built without raising exceptions
-            return Context()
+            return None
 
-        ctx = getattr(task, CONTEXT_ATTR, None)
-        if ctx is not None:
-            # return the active Context for this task (if any)
-            return ctx
-
-        # create a new Context using the Task as a Context carrier
-        ctx = Context()
-        setattr(task, CONTEXT_ATTR, ctx)
-        return ctx
+        return getattr(task, CONTEXT_ATTR, None)

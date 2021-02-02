@@ -27,17 +27,16 @@ class TestAsyncioHelpers(AsyncioTestCase):
         # the wrapper should create a new Future that has the Context attached
         @asyncio.coroutine
         def future_work():
-            # the ctx is available in this task
-            ctx = self.tracer.get_call_context()
-            assert 1 == len(ctx._trace)
-            assert "coroutine" == ctx._trace[0].name
-            return ctx._trace[0].name
+            return self.tracer.trace("child")
 
-        self.tracer.trace("coroutine")
+        s1 = self.tracer.trace("coroutine")
         # schedule future work and wait for a result
         delayed_task = helpers.ensure_future(future_work(), tracer=self.tracer)
-        result = yield from asyncio.wait_for(delayed_task, timeout=1)
-        assert "coroutine" == result
+        s2 = yield from asyncio.wait_for(delayed_task, timeout=1)
+        s2.finish()
+        s1.finish()
+        assert s1.parent_id is None
+        assert s2.parent_id is s1.span_id
 
     @mark_asyncio
     def test_run_in_executor_proxy(self):
@@ -52,32 +51,10 @@ class TestAsyncioHelpers(AsyncioTestCase):
         assert result
 
     @mark_asyncio
-    def test_run_in_executor_traces(self):
-        # the wrapper should create a different Context when the Thread
-        # is started; the new Context creates a new trace
-        def future_work():
-            # the Context is empty but the reference to the latest
-            # span is here to keep the parenting
-            ctx = self.tracer.get_call_context()
-            assert 0 == len(ctx._trace)
-            assert "coroutine" == ctx._current_span.name
-            return True
-
-        span = self.tracer.trace("coroutine")
-        future = helpers.run_in_executor(self.loop, None, future_work, tracer=self.tracer)
-        # we close the Context
-        span.finish()
-        result = yield from future
-        assert result
-
-    @mark_asyncio
     def test_create_task(self):
         # the helper should create a new Task that has the Context attached
         @asyncio.coroutine
         def future_work():
-            # the ctx is available in this task
-            ctx = self.tracer.get_call_context()
-            assert 0 == len(ctx._trace)
             child_span = self.tracer.trace("child_task")
             return child_span
 

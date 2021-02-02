@@ -17,8 +17,6 @@ __all__ = [
     "urlencode",
     "parse",
     "reraise",
-    "current_thread",
-    "asyncio_current_task",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -206,31 +204,3 @@ except ImportError:
     CONTEXTVARS_IS_AVAILABLE = False
 else:
     CONTEXTVARS_IS_AVAILABLE = True
-
-
-if sys.version_info.major < 3:
-    current_thread = threading.currentThread
-else:
-    current_thread = threading.current_thread
-
-try:
-    import asyncio
-
-    if hasattr(asyncio, "current_task"):
-
-        def asyncio_current_task():
-            try:
-                return asyncio.current_task()
-            except RuntimeError:
-                return None
-
-    else:
-
-        def asyncio_current_task():
-            return asyncio.Task.current_task()
-
-
-except ImportError:
-
-    def asyncio_current_task():
-        return None

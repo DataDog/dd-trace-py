@@ -52,12 +52,12 @@ class TestAsyncioPropagation(AsyncioTestCase):
         yield from coro_1()
 
         traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 3
-        assert len(traces[0]) == 1
-        assert len(traces[1]) == 1
-        main_task = traces[-1][0]
-        spawn_task1 = traces[0][0]
-        spawn_task2 = traces[1][0]
+        assert len(traces) == 1
+        spans = traces[0]
+        assert len(spans) == 3
+        main_task = spans[0]
+        spawn_task1 = spans[1]
+        spawn_task2 = spans[2]
         # check if the context has been correctly propagated
         assert spawn_task1.trace_id == main_task.trace_id
         assert spawn_task1.parent_id == main_task.span_id
@@ -87,14 +87,13 @@ class TestAsyncioPropagation(AsyncioTestCase):
                 time.sleep(0.01)
 
         traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 3
-        assert len(traces[0]) == 1
-        assert len(traces[1]) == 1
-        assert len(traces[2]) == 2
-        child_1 = traces[0][0]
-        child_2 = traces[1][0]
-        main_task = traces[2][0]
-        main_task_child = traces[2][1]
+        assert len(traces) == 1
+        spans = traces[0]
+        assert len(spans) == 4
+        main_task = spans[0]
+        child_1 = spans[1]
+        child_2 = spans[2]
+        main_task_child = spans[3]
         # check if the context has been correctly propagated
         assert child_1.trace_id == main_task.trace_id
         assert child_1.parent_id == main_task.span_id

@@ -8,7 +8,6 @@ import ddtrace
 
 from .provider import CONTEXT_ATTR
 from .wrappers import wrapped_create_task
-from ...context import Context
 
 
 def set_call_context(task, ctx):
@@ -52,12 +51,10 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
 
     """
     tracer = tracer or ddtrace.tracer
-    ctx = Context()
     current_ctx = tracer.get_call_context()
-    ctx._current_span = current_ctx._current_span
 
     # prepare the future using an executor wrapper
-    future = loop.run_in_executor(executor, _wrap_executor, func, args, tracer, ctx)
+    future = loop.run_in_executor(executor, _wrap_executor, func, args, tracer, current_ctx)
     return future
 
 
