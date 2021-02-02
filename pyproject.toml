@@ -40,7 +40,6 @@ exclude = '''
       | celery
       | dbapi
       | flask_cache
-      | futures
       | gevent
       | grpc/
       (
@@ -96,7 +95,6 @@ exclude = '''
       | dbapi
       | flask_autopatch
       | flask_cache
-      | futures
       | gevent
       | grpc
       | jinja2
