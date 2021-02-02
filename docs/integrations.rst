@@ -78,7 +78,7 @@ Celery
 .. automodule:: ddtrace.contrib.celery
 
 
-.. cherrypy:
+.. _cherrypy:
 
 CherryPy
 ^^^^^^^^
