@@ -1,6 +1,5 @@
 import gevent
 
-from ...context import Context
 from ...provider import BaseContextProvider
 
 
@@ -41,15 +40,4 @@ class GeventContextProvider(BaseContextProvider):
         is created it receives the "parent" context.
         """
         ctx = self._get_current_context()
-        if ctx is not None:
-            # return the active Context for this greenlet (if any)
-            return ctx
-
-        # the Greenlet doesn't have a Context so it's created and attached
-        # even to the main greenlet. This is required in Distributed Tracing
-        # when a new arbitrary Context is provided.
-        current_g = gevent.getcurrent()
-        if current_g:
-            ctx = Context()
-            setattr(current_g, CONTEXT_ATTR, ctx)
-            return ctx
+        return ctx
