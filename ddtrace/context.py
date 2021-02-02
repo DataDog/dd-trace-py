@@ -11,7 +11,7 @@ class Context(object):
     __slots__ = [
         "trace_id",
         "span_id",
-        "sampling_priority",
+        "_sampling_priority",
         "_dd_origin",
     ]
 
@@ -19,7 +19,7 @@ class Context(object):
         # type (Optional[int], Optional[int], Optional[int], Optional[str]) -> None
         self.trace_id = trace_id
         self.span_id = span_id
-        self.sampling_priority = sampling_priority
+        self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
 
     def __eq__(self, other):
@@ -29,3 +29,16 @@ class Context(object):
             and self.sampling_priority == other.sampling_priority
             and self._dd_origin == other._dd_origin
         )
+
+    @property
+    def sampling_priority(self):
+        return self._sampling_priority
+
+    @sampling_priority.setter
+    def sampling_priority(self, value):
+        self._sampling_priority = value
+        from ddtrace.tracer import _get_or_create_trace
+
+        trace = _get_or_create_trace(self.trace_id)
+        if trace:
+            trace.sampling_priority = self._sampling_priority
