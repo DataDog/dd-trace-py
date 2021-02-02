@@ -34,17 +34,3 @@ def simple_tracer(name, span_type=None):
             return wrapped(*args, **kwargs)
 
     return wrapper
-
-
-def get_current_span(pin, root=False):
-    """Helper to get the current span from the provided pins current call context"""
-    if not pin or not pin.enabled():
-        return None
-
-    ctx = pin.tracer.get_call_context()
-    if not ctx:
-        return None
-
-    if root:
-        return ctx.get_current_root_span()
-    return ctx.get_current_span()
