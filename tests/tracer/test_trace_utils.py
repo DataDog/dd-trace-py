@@ -126,8 +126,7 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         assert http.STATUS_CODE not in span.meta
 
     if status_msg is not None:
-        assert span.meta[http.STATUS_MSG] == status_msg
-        assert isinstance(span.meta[http.STATUS_MSG], str)
+        assert span.meta[http.STATUS_MSG] == stringify(status_msg)
 
     if query is not None and int_config.trace_query_string:
         assert span.meta[http.QUERY_STRING] == query
