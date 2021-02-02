@@ -43,13 +43,14 @@ class MemoryCollector(collector.PeriodicCollector):
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
     _max_events = attr.ib(factory=_attr.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
     max_nframe = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    heap_sample_size = attr.ib(factory=_attr.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", 0, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
     def start(self):
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise RuntimeError("memalloc is unavailable")
-        _memalloc.start(self.max_nframe, self._max_events)
+        _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
         super(MemoryCollector, self).start()
 
     def stop(self):

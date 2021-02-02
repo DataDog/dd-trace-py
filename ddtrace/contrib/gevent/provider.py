@@ -5,7 +5,7 @@ from ...provider import BaseContextProvider
 
 
 # Greenlet attribute used to set/get the Context instance
-CONTEXT_ATTR = '__datadog_context'
+CONTEXT_ATTR = "__datadog_context"
 
 
 class GeventContextProvider(BaseContextProvider):
@@ -15,6 +15,7 @@ class GeventContextProvider(BaseContextProvider):
     in the ``gevent`` library. Framework instrumentation that uses the
     gevent WSGI server (or gevent in general), can use this provider.
     """
+
     def _get_current_context(self):
         """Helper to get the current context from the current greenlet"""
         current_g = gevent.getcurrent()
@@ -27,8 +28,7 @@ class GeventContextProvider(BaseContextProvider):
         return self._get_current_context() is not None
 
     def activate(self, context):
-        """Sets the scoped ``Context`` for the current running ``Greenlet``.
-        """
+        """Sets the scoped ``Context`` for the current running ``Greenlet``."""
         current_g = gevent.getcurrent()
         if current_g is not None:
             setattr(current_g, CONTEXT_ATTR, context)

@@ -204,8 +204,10 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-HTTP layer
-----------
+..  _http-tagging:
+
+HTTP tagging
+------------
 
 Query String Tracing
 ^^^^^^^^^^^^^^^^^^^^
