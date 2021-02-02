@@ -43,12 +43,12 @@ class TestTracerCompatibility(object):
         assert len(spans) == 2
 
         # confirm the ordering
-        assert spans[0] is ot_span._dd_span
-        assert spans[1] is dd_span
+        assert spans[1] is ot_span._dd_span
+        assert spans[0] is dd_span
 
         # check the parenting
         assert spans[0].parent_id is None
-        assert spans[1].parent_id == spans[0].span_id
+        assert spans[1].parent_id is None
 
     def test_dd_ot_nested_trace(self, ot_tracer, dd_tracer, writer):
         """Ensure intertwined usage of the opentracer and ddtracer."""
@@ -68,26 +68,26 @@ class TestTracerCompatibility(object):
 
     def test_ot_dd_ot_dd_nested_trace(self, ot_tracer, dd_tracer, writer):
         """Ensure intertwined usage of the opentracer and ddtracer."""
-        with ot_tracer.start_span("my_ot_span") as ot_span:
-            with dd_tracer.trace("my_dd_span") as dd_span:
-                with ot_tracer.start_span("my_ot_span") as ot_span2:
-                    with dd_tracer.trace("my_dd_span") as dd_span2:
+        with ot_tracer.start_active_span("ot_span") as ot_scope:
+            with dd_tracer.trace("dd_span") as dd_span:
+                with ot_tracer.start_active_span("ot_span2") as ot_scope2:
+                    with dd_tracer.trace("dd_span2") as dd_span2:
                         pass
 
         spans = writer.pop()
         assert len(spans) == 4
 
-        # confirm the ordering
-        assert spans[0] is ot_span._dd_span
-        assert spans[1] is dd_span
-        assert spans[2] is ot_span2._dd_span
-        assert spans[3] is dd_span2
+        spans = {span.name: span for span in spans}
+        assert spans["ot_span"] == ot_scope.span._dd_span
+        assert spans["dd_span"] == dd_span
+        assert spans["ot_span2"] == ot_scope2.span._dd_span
+        assert spans["dd_span2"] == dd_span2
 
         # check the parenting
-        assert spans[0].parent_id is None
-        assert spans[1].parent_id is spans[0].span_id
-        assert spans[2].parent_id is spans[1].span_id
-        assert spans[3].parent_id is spans[2].span_id
+        assert spans["ot_span"].parent_id is None
+        assert spans["dd_span"].parent_id is spans["ot_span"].span_id
+        assert spans["ot_span2"].parent_id is spans["dd_span"].span_id
+        assert spans["dd_span2"].parent_id is spans["ot_span2"].span_id
 
     def test_ot_ot_dd_ot_dd_nested_trace_active(self, ot_tracer, dd_tracer, writer):
         """Ensure intertwined usage of the opentracer and ddtracer."""

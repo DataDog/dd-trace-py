@@ -60,33 +60,42 @@ class _Trace(object):
     num_finished = attr.ib(type=int, default=0)  # type: int
     sampling_priority = attr.ib(default=None)  # type: Optional[int]
     dd_origin = attr.ib(default=None)  # type: Optional[str]
-    local_root_span = attr.ib(default=None)  # type: Optional[Span]
     _spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
+    _lock = attr.ib(type=threading.Lock, default=attr.Factory(threading.Lock))  # type: threading.Lock
 
     def __len__(self):
-        return len(self._spans)
+        with self._lock:
+            return len(self._spans)
+
+    @property
+    def root_span(self):
+        # type: () -> Optional[Span]
+        """Returns the first span created in a trace."""
+        with self._lock:
+            return self._spans[0] if len(self._spans) else None
 
     def add_span(self, span):
         # type: (Span) -> None
-        self._spans.append(span)
+        with self._lock:
+            self._spans.append(span)
 
     def pop_finished_spans(self):
         # type: () -> List[Span]
-        local_root_span = self.local_root_span
-        if local_root_span:
-            if self.sampling_priority is not None and self.sampled:
-                local_root_span.set_metric(SAMPLING_PRIORITY_KEY, self.sampling_priority)
-            if self.dd_origin:
-                local_root_span.meta[ORIGIN_KEY] = str(self.dd_origin)
+        with self._lock:
+            finished_spans = [span for span in self._spans if span.finished]
+            chunk_root = finished_spans[0]
+            if chunk_root:
+                if self.sampling_priority is not None and self.sampled:
+                    chunk_root.set_metric(SAMPLING_PRIORITY_KEY, self.sampling_priority)
+                if self.dd_origin:
+                    chunk_root.meta[ORIGIN_KEY] = str(self.dd_origin)
 
-        finished_spans = [span for span in self._spans if span.finished]
-        self._spans = [span for span in self._spans if not span.finished]
-        self.num_finished -= len(finished_spans)
-        return finished_spans
+            self._spans = [span for span in self._spans if not span.finished]
+            self.num_finished -= len(finished_spans)
+            return finished_spans
 
 
 _traces = {}  # type: Dict[int, _Trace]
-_traces_lock = threading.Lock()
 
 
 def _get_trace(trace_id):
@@ -151,6 +160,7 @@ class Tracer(object):
         "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
     )
     DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
+    _traces = _traces
 
     def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
         """
@@ -165,7 +175,6 @@ class Tracer(object):
         self.priority_sampler = None
         self._runtime_worker = None
         self._filters = []
-        self._traces = _traces
 
         uds_path = None
         https = None
@@ -226,13 +235,6 @@ class Tracer(object):
         # type: (Span) -> _Trace
         trace = _get_or_create_trace(span.trace_id)
         trace.add_span(span)
-
-        if span.parent_id is None:
-            # Duplicate root spans in a trace is an error.
-            if trace.local_root_span:
-                raise NotImplementedError
-            trace.local_root_span = span
-
         return trace
 
     def _close_span(self, span):
@@ -314,14 +316,17 @@ class Tracer(object):
 
     def activate(self, span_or_ctx):
         # type: (Union[Context, Span]) -> None
+        """Activate a span or context for the current execution context."""
         self.context_provider.activate(span_or_ctx)
 
     def active(self):
         # type: () -> Optional[Union[Context, Span]]
+        """Return the active span or context for the current execution context."""
         return self.context_provider.active()
 
     def active_span(self):
         # type: () -> Optional[Span]
+        """Return the active span in the current execution context."""
         active = self.context_provider.active()
         return active if isinstance(active, Span) else None
 
@@ -786,7 +791,7 @@ class Tracer(object):
                 root_span.set_tag('host', '127.0.0.1')
         """
         trace = self._active_trace()
-        return trace.local_root_span if trace else None
+        return trace.root_span if trace else None
 
     current_root_span = active_root_span
 

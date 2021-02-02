@@ -20,6 +20,6 @@ def wrapped_create_task(wrapped, instance, args, kwargs):
 
     ctx = getattr(current_task, CONTEXT_ATTR, None)
     if ctx:
-        setattr(new_task, CONTEXT_ATTR, ctx.clone())
+        setattr(new_task, CONTEXT_ATTR, ctx)
 
     return new_task

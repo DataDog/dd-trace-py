@@ -1381,7 +1381,7 @@ def test_ctx_distributed():
 
     with tracer.trace("test2") as s2:
         assert tracer.active_span() == s2
-        assert tracer.active_root_span() == s2
+        assert tracer.active_root_span() is s2
         assert tracer.get_call_context().trace_id == s2.trace_id == 4321
         assert tracer.get_call_context().span_id == s2.span_id
         assert s2.parent_id == 1234

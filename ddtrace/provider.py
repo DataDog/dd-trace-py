@@ -12,8 +12,7 @@ _DD_CONTEXTVAR = contextvars.ContextVar("datadog_tracing_contextvar", default=No
 
 def current_execution_id():
     # type: () -> Optional[int]
-    """Return a unique identifier for the current execution.
-    """
+    """Return a unique identifier for the current execution."""
     obj = asyncio_current_task()
     if not obj:
         obj = current_thread()
