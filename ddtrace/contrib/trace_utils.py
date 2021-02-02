@@ -146,6 +146,7 @@ def set_http_meta(
     method=None,
     url=None,
     status_code=None,
+    status_msg=None,
     query=None,
     request_headers=None,
     response_headers=None,
@@ -160,6 +161,9 @@ def set_http_meta(
         span._set_str_tag(http.STATUS_CODE, status_code)
         if is_error_code(status_code):
             span.error = 1
+
+    if status_msg is not None:
+        span._set_str_tag(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
