@@ -17,6 +17,7 @@ backend
 bikeshedding
 boto
 botocore
+cherrypy
 config
 coroutine
 coroutines

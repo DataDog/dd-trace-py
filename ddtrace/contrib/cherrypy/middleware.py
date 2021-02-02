@@ -67,7 +67,7 @@ class TraceTool(cherrypy.Tool):
         if self.use_distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(cherrypy.request.headers)
-            # Only need to active the new context if something was propagated
+            # Only need to activate the new context if something was propagated
             if context.trace_id:
                 self._tracer.context_provider.activate(context)
 

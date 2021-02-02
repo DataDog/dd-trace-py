@@ -36,7 +36,6 @@ Configuration
 
 
 Example::
-
 Here is the end result, in a sample app::
 
     import cherrypy
