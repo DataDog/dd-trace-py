@@ -26,7 +26,7 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.cherrypy['service_name']
+.. py:data:: ddtrace.config.cherrypy['service']
 
    The service name reported for your CherryPy app.
 

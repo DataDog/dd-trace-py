@@ -35,7 +35,7 @@ class TraceTool(cherrypy.Tool):
     def __init__(self, app, tracer, service, use_distributed_tracing):
         self.app = app
         self._tracer = tracer
-        self.service_name = service
+        self.service = service
         self.use_distributed_tracing = use_distributed_tracing
 
         # CherryPy uses priority to determine which tools act first on each event. The lower the number, the higher
@@ -51,12 +51,12 @@ class TraceTool(cherrypy.Tool):
         config.cherrypy["distributed_tracing"] = asbool(use_distributed_tracing)
 
     @property
-    def service_name(self):
-        return config.cherrypy.get("service_name", "cherrypy")
+    def service(self):
+        return config.cherrypy.get("service", "cherrypy")
 
-    @service_name.setter
-    def service_name(self, service_name):
-        config.cherrypy["service_name"] = service_name
+    @service.setter
+    def service(self, service):
+        config.cherrypy["service"] = service
 
     def _setup(self):
         cherrypy.Tool._setup(self)

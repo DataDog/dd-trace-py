@@ -58,7 +58,7 @@ class TestCherrypy(helper.CPWebCase):
         # ensure CherryPy uses the last set configuration to be sure
         # there are no breaking changes for who uses `ddtrace-run`
         # with the `TraceMiddleware`
-        assert cherrypy.tools.tracer.service_name == "test.cherrypy.service"
+        assert cherrypy.tools.tracer.service == "test.cherrypy.service"
         TraceMiddleware(
             cherrypy,
             self.tracer,
@@ -73,7 +73,7 @@ class TestCherrypy(helper.CPWebCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
 
-        assert cherrypy.tools.tracer.service_name == "new-intake"
+        assert cherrypy.tools.tracer.service == "new-intake"
 
     def test_child(self):
         start = time.time()
@@ -472,8 +472,8 @@ class TestCherrypy(helper.CPWebCase):
         assert s.meta.get(http.METHOD) == "POST"
 
     def test_service_configuration_config(self):
-        previous_service = config.cherrypy.get("service_name", "test.cherrypy.service")
-        config.cherrypy["service_name"] = "my_cherrypy_service"
+        previous_service = config.cherrypy.get("service", "test.cherrypy.service")
+        config.cherrypy["service"] = "my_cherrypy_service"
         start = time.time()
         self.getPage("/")
         time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
@@ -497,11 +497,11 @@ class TestCherrypy(helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
 
-        config.cherrypy["service_name"] = previous_service
+        config.cherrypy["service"] = previous_service
 
     def test_service_configuration_middleware(self):
-        previous_service = cherrypy.tools.tracer.service_name
-        cherrypy.tools.tracer.service_name = "my_cherrypy_service2"
+        previous_service = cherrypy.tools.tracer.service
+        cherrypy.tools.tracer.service = "my_cherrypy_service2"
         start = time.time()
         self.getPage("/")
         time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
@@ -525,4 +525,4 @@ class TestCherrypy(helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
 
-        cherrypy.tools.tracer.service_name = previous_service
+        cherrypy.tools.tracer.service = previous_service
