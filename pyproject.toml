@@ -40,7 +40,6 @@ exclude = '''
       | celery
       | dbapi
       | flask_cache
-      | gevent
       | grpc/
       (
         __init__.py
@@ -95,7 +94,6 @@ exclude = '''
       | dbapi
       | flask_autopatch
       | flask_cache
-      | gevent
       | grpc
       | jinja2
       | kombu

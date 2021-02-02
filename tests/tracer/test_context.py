@@ -25,32 +25,6 @@ def tracer_with_debug_logging():
         tracer.log.setLevel(level)
 
 
-@mock.patch("logging.Logger.debug")
-def test_log_unfinished_spans(log, tracer_with_debug_logging):
-    # when the root parent is finished, notify if there are spans still pending
-    tracer = tracer_with_debug_logging
-    ctx = Context()
-    # manually create a root-child trace
-    root = Span(tracer=tracer, name="root")
-    child_1 = Span(tracer=tracer, name="child_1", trace_id=root.trace_id, parent_id=root.span_id)
-    child_2 = Span(tracer=tracer, name="child_2", trace_id=root.trace_id, parent_id=root.span_id)
-    child_1._parent = root
-    child_2._parent = root
-    ctx.add_span(root)
-    ctx.add_span(child_1)
-    ctx.add_span(child_2)
-    # close only the parent
-    root.finish()
-    unfinished_spans_log = log.call_args_list[-3][0][2]
-    child_1_log = log.call_args_list[-2][0][1]
-    child_2_log = log.call_args_list[-1][0][1]
-    assert 2 == unfinished_spans_log
-    assert "name child_1" in child_1_log
-    assert "name child_2" in child_2_log
-    assert "duration 0.000000s" in child_1_log
-    assert "duration 0.000000s" in child_2_log
-
-
 class TestTracingContext(BaseTestCase):
     """
     Tests related to the ``Context`` class that hosts the trace for the
