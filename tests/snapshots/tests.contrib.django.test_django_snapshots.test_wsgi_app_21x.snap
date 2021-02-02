@@ -1,6 +1,6 @@
 [[{"name" "wsgi.request"
-   "service" "wsgi"
-   "resource" "wsgi.request"
+   "service" "django"
+   "resource" "GET /"
    "type" "web"
    "error" 0
    "span_id" 0
@@ -8,7 +8,11 @@
    "parent_id" nil
    "start" 1605666061507808000
    "duration" 1417000
-   "meta" {"runtime-id" "edb63c79c08c458e8046cd3a8d8978bc"}
+   "meta" {"runtime-id" "edb63c79c08c458e8046cd3a8d8978bc"
+           "http.status_msg" "OK"
+           "http.status_code" "200"
+           "http.method" "GET"
+           "http.url" "http://localhost:80/"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
               "system.pid" 247362}}
