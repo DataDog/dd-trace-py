@@ -6,6 +6,7 @@ import contextlib
 import multiprocessing
 import os
 from os import getpid
+import threading
 import warnings
 from unittest.case import SkipTest
 
@@ -15,7 +16,7 @@ import pytest
 import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
-from ddtrace.constants import VERSION_KEY, ENV_KEY
+from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
 from ddtrace.vendor import six
 
 from tests.subprocesstest import run_in_subprocess
@@ -36,6 +37,7 @@ class TracerTestCases(TracerTestCase):
 
         span = self.trace("a")
         span.assert_matches(name="a", service=None, resource="a", span_type=None)
+        span.finish()
 
     def test_tracer(self):
         def _mix():
@@ -320,13 +322,17 @@ class TracerTestCases(TracerTestCase):
         # the tracer uses a global thread-local Context
         span = self.trace("fake_span")
         ctx = self.tracer.get_call_context()
-        self.assertEqual(len(ctx._trace), 1)
-        self.assertEqual(ctx._trace[0], span)
+        assert ctx.trace_id == span.trace_id
+        assert ctx.span_id == span.span_id
 
     def test_tracer_current_span(self):
         # the current span is in the local Context()
         span = self.trace("fake_span")
-        self.assertEqual(self.tracer.current_span(), span)
+        assert self.tracer.current_span() == span
+        span.finish()
+
+        with self.trace("fake_span") as span:
+            assert self.tracer.current_span() == span
 
     def test_tracer_current_span_missing_context(self):
         self.assertIsNone(self.tracer.current_span())
@@ -338,8 +344,7 @@ class TracerTestCases(TracerTestCase):
         # Tracer Context Provider must return a Context object
         # even if empty
         ctx = self.tracer.context_provider.active()
-        self.assertTrue(isinstance(ctx, Context))
-        self.assertEqual(len(ctx._trace), 0)
+        assert isinstance(ctx, Context)
 
     def test_default_provider_set(self):
         # The Context Provider can set the current active Context;
@@ -349,29 +354,20 @@ class TracerTestCases(TracerTestCase):
         span = self.trace("web.request")
         span.assert_matches(name="web.request", trace_id=42, parent_id=100)
 
-    def test_default_provider_trace(self):
-        # Context handled by a default provider must be used
-        # when creating a trace
-        span = self.trace("web.request")
-        ctx = self.tracer.context_provider.active()
-        self.assertEqual(len(ctx._trace), 1)
-        self.assertEqual(span._context, ctx)
-
     def test_start_span(self):
         # it should create a root Span
-        span = self.start_span("web.request")
-        span.assert_matches(
-            name="web.request",
-            tracer=self.tracer,
-            _parent=None,
-            parent_id=None,
-        )
-        self.assertIsNotNone(span._context)
-        self.assertEqual(span._context._current_span, span)
+        span = self.tracer.start_span("web.request")
+        assert span.name == "web.request"
+        assert span.parent_id is None
+        span.finish()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0] is span
 
     def test_start_span_optional(self):
         # it should create a root Span with arguments
-        span = self.start_span("web.request", service="web", resource="/", span_type="http")
+        with self.start_span("web.request", service="web", resource="/", span_type="http") as span:
+            pass
         span.assert_matches(
             name="web.request",
             service="web",
@@ -382,11 +378,12 @@ class TracerTestCases(TracerTestCase):
     def test_start_span_service_default(self):
         span = self.start_span("")
         span.assert_matches(service=None)
+        span.finish()
 
     def test_start_span_service_from_parent(self):
         with self.start_span("parent", service="mysvc") as parent:
-            child = self.start_span("child", child_of=parent)
-
+            with self.start_span("child", child_of=parent) as child:
+                pass
         child.assert_matches(
             name="child",
             service="mysvc",
@@ -395,15 +392,15 @@ class TracerTestCases(TracerTestCase):
     def test_start_span_service_global_config(self):
         # When no service is provided a default
         with self.override_global_config(dict(service="mysvc")):
-            span = self.start_span("")
-            span.assert_matches(service="mysvc")
+            with self.start_span("") as span:
+                span.assert_matches(service="mysvc")
 
     def test_start_span_service_global_config_parent(self):
         # Parent should have precedence over global config
         with self.override_global_config(dict(service="mysvc")):
             with self.start_span("parent", service="parentsvc") as parent:
-                child = self.start_span("child", child_of=parent)
-
+                with self.start_span("child", child_of=parent) as child:
+                    pass
         child.assert_matches(
             name="child",
             service="parentsvc",
@@ -411,55 +408,50 @@ class TracerTestCases(TracerTestCase):
 
     def test_start_child_span(self):
         # it should create a child Span for the given parent
-        parent = self.start_span("web.request")
-        child = self.start_span("web.worker", child_of=parent)
+        with self.start_span("web.request") as parent:
+            assert self.tracer.current_span() is None
+            with self.start_span("web.worker", child_of=parent) as child:
+                assert self.tracer.current_span() is None
 
         parent.assert_matches(
             name="web.request",
             parent_id=None,
-            _context=child._context,
             _parent=None,
             tracer=self.tracer,
         )
         child.assert_matches(
             name="web.worker",
             parent_id=parent.span_id,
-            _context=parent._context,
             _parent=parent,
             tracer=self.tracer,
         )
 
-        self.assertEqual(child._context._current_span, child)
-
     def test_start_child_span_attributes(self):
         # it should create a child Span with parent's attributes
-        parent = self.start_span("web.request", service="web", resource="/", span_type="http")
-        child = self.start_span("web.worker", child_of=parent)
-        child.assert_matches(name="web.worker", service="web")
+        with self.start_span("web.request", service="web", resource="/", span_type="http") as parent:
+            with self.start_span("web.worker", child_of=parent) as child:
+                child.assert_matches(name="web.worker", service="web")
 
     def test_start_child_from_context(self):
         # it should create a child span with a populated Context
-        root = self.start_span("web.request")
-        context = root.context
-        child = self.start_span("web.worker", child_of=context)
-
+        with self.start_span("web.request") as root:
+            with self.start_span("web.worker", child_of=root.context) as child:
+                pass
         child.assert_matches(
             name="web.worker",
             parent_id=root.span_id,
             trace_id=root.trace_id,
-            _context=root._context,
             _parent=root,
             tracer=self.tracer,
         )
-        self.assertEqual(child._context._current_span, child)
 
     def test_adding_services(self):
-        self.assertEqual(self.tracer._services, set())
-        root = self.start_span("root", service="one")
-        context = root.context
-        self.assertSetEqual(self.tracer._services, set(["one"]))
-        self.start_span("child", service="two", child_of=context)
-        self.assertSetEqual(self.tracer._services, set(["one", "two"]))
+        assert self.tracer._services == set()
+        with self.start_span("root", service="one") as root:
+            assert self.tracer._services == set(["one"])
+            with self.start_span("child", service="two", child_of=root):
+                pass
+        assert self.tracer._services == set(["one", "two"])
 
     def test_configure_runtime_worker(self):
         # by default runtime worker not started though runtime id is set
@@ -511,25 +503,22 @@ class TracerTestCases(TracerTestCase):
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
 
-        root = self.start_span("root")
-        context = root.context
-        child = self.start_span("child", child_of=context)
+        with self.start_span("root") as root:
+            with self.start_span("child", child_of=root.context) as child:
+                pass
 
         self.assertIsNone(root.get_tag("language"))
-
         self.assertIsNone(child.get_tag("language"))
 
     def test_only_root_span_runtime_internal_span_types(self):
         self.tracer.configure(collect_metrics=True)
 
         for span_type in ("custom", "template", "web", "worker"):
-            root = self.start_span("root", span_type=span_type)
-            context = root.context
-            child = self.start_span("child", child_of=context)
-
-            self.assertEqual(root.get_tag("language"), "python")
-
-            self.assertIsNone(child.get_tag("language"))
+            with self.start_span("root", span_type=span_type) as root:
+                with self.start_span("child", child_of=root) as child:
+                    pass
+            assert root.get_tag("language") == "python"
+            assert child.get_tag("language") is None
 
     def test_only_root_span_runtime_external_span_types(self):
         self.tracer.configure(collect_metrics=True)
@@ -548,13 +537,11 @@ class TracerTestCases(TracerTestCase):
             "sql",
             "vertica",
         ):
-            root = self.start_span("root", span_type=span_type)
-            context = root.context
-            child = self.start_span("child", child_of=context)
-
-            self.assertIsNone(root.get_tag("language"))
-
-            self.assertIsNone(child.get_tag("language"))
+            with self.start_span("root", span_type=span_type) as root:
+                with self.start_span("child", child_of=root) as child:
+                    pass
+            assert root.get_tag("language") is None
+            assert child.get_tag("language") is None
 
 
 def test_tracer_url():
@@ -580,7 +567,7 @@ def test_tracer_url():
     assert t.writer._https
 
     with pytest.raises(ValueError) as e:
-        t = ddtrace.Tracer(url="foo://foobar:12")
+        ddtrace.Tracer(url="foo://foobar:12")
         assert str(e) == "Unknown scheme `https` for agent URL"
 
 
@@ -872,7 +859,8 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env(self):
-        span = self.start_span("")
+        with self.start_span("") as span:
+            pass
         span.assert_matches(
             service="mysvc",
         )
@@ -881,7 +869,8 @@ class EnvTracerTestCase(TracerTestCase):
     def test_service_name_env_global_config(self):
         # Global config should have higher precedence than the environment variable
         with self.override_global_config(dict(service="overridesvc")):
-            span = self.start_span("")
+            with self.start_span("") as span:
+                pass
         span.assert_matches(
             service="overridesvc",
         )
@@ -983,12 +972,14 @@ class EnvTracerTestCase(TracerTestCase):
 
 def test_tracer_set_runtime_tags():
     t = ddtrace.Tracer()
-    span = t.start_span("foobar")
+    with t.start_span("foobar") as span:
+        pass
 
     assert len(span.get_tag("runtime-id"))
 
     t2 = ddtrace.Tracer()
-    span2 = t2.start_span("foobaz")
+    with t2.start_span("foobaz") as span2:
+        pass
 
     assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
 
@@ -999,8 +990,10 @@ def test_tracer_runtime_tags_fork():
     def task(tracer, q):
         span = tracer.start_span("foobaz")
         q.put(span.get_tag("runtime-id"))
+        span.finish()
 
     span = tracer.start_span("foobar")
+    span.finish()
 
     q = multiprocessing.Queue()
     p = multiprocessing.Process(target=task, args=(tracer, q))
@@ -1023,6 +1016,7 @@ def test_start_span_hooks():
     span = t.start_span("hello")
 
     assert span == result["span"]
+    span.finish()
 
 
 def test_deregister_start_span_hooks():
@@ -1036,7 +1030,8 @@ def test_deregister_start_span_hooks():
 
     t.deregister_on_start_span(store_span)
 
-    t.start_span("hello")
+    with t.start_span("hello"):
+        pass
 
     assert result == {}
 
@@ -1066,6 +1061,7 @@ def test_runtime_id_parent_only():
 
     # Parent spans should have runtime-id
     s = tracer.trace("test")
+    s.finish()
     rtid = s.get_tag("runtime-id")
     assert isinstance(rtid, six.string_types)
 
@@ -1211,12 +1207,17 @@ def test_filters():
 
 def test_early_exit():
     t = ddtrace.Tracer()
+    t.writer = DummyWriter()
     s1 = t.trace("1")
     s2 = t.trace("2")
     s1.finish()
     s2.finish()
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
+
+    traces = t.writer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 2
 
     s1 = t.trace("1-1")
     s1.finish()
@@ -1289,3 +1290,125 @@ def test_unicode_config_vals():
         with t.trace("1"):
             pass
     t.shutdown()
+
+
+def test_ctx():
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    with tracer.trace("test") as s1:
+        assert tracer.current_span() == s1
+        assert tracer.current_root_span() == s1
+        assert tracer.get_call_context().trace_id == s1.trace_id
+        assert tracer.get_call_context().span_id == s1.span_id
+
+        with tracer.trace("test2") as s2:
+            assert tracer.current_span() == s2
+            assert tracer.current_root_span() == s1
+            assert tracer.get_call_context().trace_id == s1.trace_id
+            assert tracer.get_call_context().span_id == s2.span_id
+
+            with tracer.trace("test3") as s3:
+                assert tracer.current_span() == s3
+                assert tracer.current_root_span() == s1
+                assert tracer.get_call_context().trace_id == s1.trace_id
+                assert tracer.get_call_context().span_id == s3.span_id
+
+            assert tracer.get_call_context().trace_id == s1.trace_id
+            assert tracer.get_call_context().span_id == s2.span_id
+
+        with tracer.trace("test4") as s4:
+            assert tracer.current_span() == s4
+            assert tracer.current_root_span() == s1
+            assert tracer.get_call_context().trace_id == s1.trace_id
+            assert tracer.get_call_context().span_id == s4.span_id
+
+        assert tracer.current_span() == s1
+        assert tracer.current_root_span() == s1
+
+    assert tracer.current_span() is None
+    assert tracer.current_root_span() is None
+    assert s1.parent_id is None
+    assert s2.parent_id == s1.span_id
+    assert s3.parent_id == s2.span_id
+    assert s4.parent_id == s1.span_id
+    assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
+    assert s1.metrics[SAMPLING_PRIORITY_KEY] == 1
+    assert SAMPLING_PRIORITY_KEY not in s2.metrics
+    assert ORIGIN_KEY not in s1.meta
+
+    t = tracer.writer.pop_traces()
+    assert len(t) == 1
+    assert len(t[0]) == 4
+    _s1, _s2, _s3, _s4 = t[0]
+    assert s1 == _s1
+    assert s2 == _s2
+    assert s3 == _s3
+    assert s4 == _s4
+
+    with tracer.trace("s") as s:
+        assert s.parent_id is None
+        assert s.trace_id != s1.trace_id
+
+
+def test_multithreaded():
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    def target():
+        with tracer.trace("s1"):
+            with tracer.trace("s2"):
+                pass
+            with tracer.trace("s3"):
+                pass
+
+    for i in range(1000):
+        ts = [threading.Thread(target=target) for _ in range(10)]
+        for t in ts:
+            t.start()
+
+        for t in ts:
+            t.join()
+
+        traces = tracer.writer.pop_traces()
+        assert len(traces) == 10
+
+        for trace in traces:
+            assert len(trace) == 3
+
+
+def test_ctx_distributed():
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    # Test activating an invalid context.
+    ctx = Context(span_id=None, trace_id=None)
+    tracer.context_provider.activate(ctx)
+    assert tracer.current_span() is None
+
+    with tracer.trace("test") as s1:
+        assert tracer.current_span() == s1
+        assert tracer.current_root_span() == s1
+        assert tracer.get_call_context().trace_id == s1.trace_id
+        assert tracer.get_call_context().span_id == s1.span_id
+        assert s1.parent_id is None
+
+    trace = tracer.writer.pop_traces()
+    assert len(trace) == 1
+
+    # Test activating a valid context.
+    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, _dd_origin="somewhere")
+    tracer.context_provider.activate(ctx)
+    assert tracer.current_span() is None
+
+    with tracer.trace("test2") as s2:
+        assert tracer.current_span() == s2
+        assert tracer.current_root_span() == s2
+        assert tracer.get_call_context().trace_id == s2.trace_id == 4321
+        assert tracer.get_call_context().span_id == s2.span_id
+        assert s2.parent_id == 1234
+
+    trace = tracer.writer.pop_traces()
+    assert len(trace) == 1
+    assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
+    assert s2.meta[ORIGIN_KEY] == "somewhere"
