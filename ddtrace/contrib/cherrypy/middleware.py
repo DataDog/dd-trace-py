@@ -35,12 +35,28 @@ class TraceTool(cherrypy.Tool):
     def __init__(self, app, tracer, service, use_distributed_tracing):
         self.app = app
         self._tracer = tracer
-        self._service = service
-        self._use_distributed_tracing = use_distributed_tracing
+        self.service_name = service
+        self.use_distributed_tracing = use_distributed_tracing
 
         # CherryPy uses priority to determine which tools act first on each event. The lower the number, the higher
         # the priority. See: https://docs.cherrypy.org/en/latest/extend.html#tools-ordering
         cherrypy.Tool.__init__(self, "on_start_resource", self._on_start_resource, priority=95)
+
+    @property
+    def use_distributed_tracing(self):
+        return config.cherrypy.get("distributed_tracing", True)
+
+    @use_distributed_tracing.setter
+    def use_distributed_tracing(self, use_distributed_tracing):
+        config.cherrypy["distributed_tracing"] = asbool(use_distributed_tracing)
+
+    @property
+    def service_name(self):
+        return config.cherrypy.get("service_name", "cherrypy")
+
+    @service_name.setter
+    def service_name(self, service_name):
+        config.cherrypy["service_name"] = service_name
 
     def _setup(self):
         cherrypy.Tool._setup(self)
@@ -48,7 +64,7 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        if config.cherrypy.get("distributed_tracing", False) or self._use_distributed_tracing:
+        if self.use_distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(cherrypy.request.headers)
             # Only need to active the new context if something was propagated
@@ -57,7 +73,7 @@ class TraceTool(cherrypy.Tool):
 
         cherrypy.request._datadog_span = self._tracer.trace(
             SPAN_NAME,
-            service=trace_utils.int_service(None, config.cherrypy, default=self._service),
+            service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
             span_type=SpanTypes.WEB,
         )
 
@@ -127,13 +143,7 @@ class TraceTool(cherrypy.Tool):
 
 
 class TraceMiddleware(object):
-    def __init__(self, app, tracer, service="cherrypy", use_signals=True, distributed_tracing=True):
+    def __init__(self, app, tracer, service="cherrypy", distributed_tracing=True):
         self.app = app
 
-        # save our traces.
-        self._tracer = tracer
-        self._service = service
-        self._use_distributed_tracing = distributed_tracing
-        self.use_signals = use_signals
-
-        self.app.tools.tracer = TraceTool(self.app, self._tracer, self._service, self._use_distributed_tracing)
+        self.app.tools.tracer = TraceTool(app, tracer, service, distributed_tracing)

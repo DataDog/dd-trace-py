@@ -2,6 +2,9 @@
 The Cherrypy trace middleware will track request timings.
 It uses the cherrypy hooks and creates a tool to track requests and errors
 
+
+Usage
+~~~~~
 To install the middleware, add::
 
     from ddtrace import tracer
@@ -10,6 +13,29 @@ To install the middleware, add::
 and create a `TraceMiddleware` object::
 
     traced_app = TraceMiddleware(cherrypy, tracer, service="my-cherrypy-app")
+
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.cherrypy['distributed_tracing']
+
+   Whether to parse distributed tracing headers from requests received by your CherryPy app.
+
+   Can also be enabled with the ``DD_CHERRYPY_DISTRIBUTED_TRACING`` environment variable.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.cherrypy['service_name']
+
+   The service name reported for your CherryPy app.
+
+   Can also be configured via the ``DD_SERVICE`` environment variable.
+
+   Default: ``'cherrypy'``
+
+
+Example::
 
 Here is the end result, in a sample app::
 

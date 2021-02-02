@@ -58,7 +58,7 @@ class TestCherrypy(helper.CPWebCase):
         # ensure CherryPy uses the last set configuration to be sure
         # there are no breaking changes for who uses `ddtrace-run`
         # with the `TraceMiddleware`
-        assert cherrypy.tools.tracer._service == "test.cherrypy.service"
+        assert cherrypy.tools.tracer.service_name == "test.cherrypy.service"
         TraceMiddleware(
             cherrypy,
             self.tracer,
@@ -73,7 +73,7 @@ class TestCherrypy(helper.CPWebCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
 
-        assert cherrypy.tools.tracer._service == "new-intake"
+        assert cherrypy.tools.tracer.service_name == "new-intake"
 
     def test_child(self):
         start = time.time()
@@ -136,10 +136,6 @@ class TestCherrypy(helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
 
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
-
     def test_alias(self):
         start = time.time()
         self.getPage("/aliases")
@@ -163,10 +159,6 @@ class TestCherrypy(helper.CPWebCase):
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
-
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
 
     def test_handleme(self):
         start = time.time()
@@ -213,9 +205,6 @@ class TestCherrypy(helper.CPWebCase):
         assert s.meta.get(http.METHOD) == "GET"
 
     def test_fatal(self):
-        if not self.traced_app.use_signals:
-            return
-
         start = time.time()
         self.getPage("/fatal")
         time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
@@ -316,6 +305,68 @@ class TestCherrypy(helper.CPWebCase):
         assert s.parent_id == 4567
         assert s.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
+    def test_disabled_distrobuted_tracing_config(self):
+        previous_distrobuted_tracing = config.cherrypy["distributed_tracing"]
+        config.cherrypy["distributed_tracing"] = False
+        self.getPage(
+            "/",
+            headers=[
+                ("x-datadog-trace-id", "1234"),
+                ("x-datadog-parent-id", "4567"),
+                ("x-datadog-sampling-priority", "2"),
+            ],
+        )
+        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+
+        # ensure request worked
+        self.assertStatus("200 OK")
+        self.assertHeader("Content-Type", "text/html;charset=utf-8")
+        self.assertBody("Hello world!")
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        # ensure the propagation worked well
+        assert s.trace_id != 1234
+        assert s.parent_id != 4567
+        assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
+
+        config.cherrypy["distributed_tracing"] = previous_distrobuted_tracing
+
+    def test_disabled_distrobuted_tracing_middleware(self):
+        previous_distrobuted_tracing = cherrypy.tools.tracer.use_distributed_tracing
+        cherrypy.tools.tracer.use_distributed_tracing = False
+        self.getPage(
+            "/",
+            headers=[
+                ("x-datadog-trace-id", "1234"),
+                ("x-datadog-parent-id", "4567"),
+                ("x-datadog-sampling-priority", "2"),
+            ],
+        )
+        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+
+        # ensure request worked
+        self.assertStatus("200 OK")
+        self.assertHeader("Content-Type", "text/html;charset=utf-8")
+        self.assertBody("Hello world!")
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+
+        # ensure the propagation worked well
+        assert s.trace_id != 1234
+        assert s.parent_id != 4567
+        assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
+
+        cherrypy.tools.tracer.use_distributed_tracing = previous_distrobuted_tracing
+
     def test_custom_span(self):
         self.getPage(u"/custom_span")
         time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
@@ -396,10 +447,6 @@ class TestCherrypy(helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
 
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
-
     def test_post(self):
         start = time.time()
         self.getPage("/", method="POST")
@@ -424,6 +471,58 @@ class TestCherrypy(helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "POST"
 
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
+    def test_service_configuration_config(self):
+        previous_service = config.cherrypy.get("service_name", "test.cherrypy.service")
+        config.cherrypy["service_name"] = "my_cherrypy_service"
+        start = time.time()
+        self.getPage("/")
+        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+        end = time.time()
+
+        # ensure request worked
+        self.assertStatus("200 OK")
+        self.assertHeader("Content-Type", "text/html;charset=utf-8")
+        self.assertBody("Hello world!")
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "my_cherrypy_service"
+        assert s.resource == "GET /"
+        assert s.start >= start
+        assert s.duration <= end - start
+        assert s.error == 0
+        assert_span_http_status_code(s, 200)
+        assert s.meta.get(http.METHOD) == "GET"
+
+        config.cherrypy["service_name"] = previous_service
+
+    def test_service_configuration_middleware(self):
+        previous_service = cherrypy.tools.tracer.service_name
+        cherrypy.tools.tracer.service_name = "my_cherrypy_service2"
+        start = time.time()
+        self.getPage("/")
+        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+        end = time.time()
+
+        # ensure request worked
+        self.assertStatus("200 OK")
+        self.assertHeader("Content-Type", "text/html;charset=utf-8")
+        self.assertBody("Hello world!")
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "my_cherrypy_service2"
+        assert s.resource == "GET /"
+        assert s.start >= start
+        assert s.duration <= end - start
+        assert s.error == 0
+        assert_span_http_status_code(s, 200)
+        assert s.meta.get(http.METHOD) == "GET"
+
+        cherrypy.tools.tracer.service_name = previous_service
