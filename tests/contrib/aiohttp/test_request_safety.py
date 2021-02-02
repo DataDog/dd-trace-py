@@ -69,7 +69,6 @@ class TestAiohttpSafety(TraceTestCase):
             responses.append(response)
 
         # blocking call executed in different threads
-        ctx = self.tracer.get_call_context()
         threads = [threading.Thread(target=make_requests) for _ in range(NUMBER_REQUESTS)]
         for t in threads:
             t.start()
@@ -84,7 +83,6 @@ class TestAiohttpSafety(TraceTestCase):
         for t in threads:
             t.join()
 
-        # the trace is wrong but the Context is finished
+        # the trace is wrong but the spans are finished
         spans = self.tracer.writer.pop()
         assert NUMBER_REQUESTS == len(spans)
-        assert 0 == len(ctx._trace)

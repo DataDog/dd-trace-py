@@ -27,7 +27,6 @@ class AsyncioContextProvider(DefaultContextProvider):
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
-        print(task)
         setattr(task, CONTEXT_ATTR, context)
         return context
 
