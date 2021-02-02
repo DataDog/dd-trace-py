@@ -361,7 +361,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
     else:
         root_span = pin.tracer.current_root_span()
-        if root_span:
+        if root_span and root_span.name == "wsgi.request":
             root_span.resource = resource
             root_span.service = trace_utils.int_service(pin, config.django)
         with pin.tracer.trace(
