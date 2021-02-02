@@ -458,7 +458,7 @@ class StackCollector(collector.PeriodicCollector):
     # no matter how fast the computer is.
     min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
+    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
     tracer = attr.ib(default=None)

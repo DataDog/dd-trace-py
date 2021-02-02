@@ -202,14 +202,14 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
 
 def test_new_interval():
     r = recorder.Recorder()
-    c = stack.StackCollector(r)
+    c = stack.StackCollector(r, max_time_usage_pct=2)
     new_interval = c._compute_new_interval(1000000)
     assert new_interval == 0.049
     new_interval = c._compute_new_interval(2000000)
