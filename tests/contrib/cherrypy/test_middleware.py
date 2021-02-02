@@ -22,7 +22,13 @@ logger.level = logging.DEBUG
 class TestCherrypy(helper.CPWebCase):
     @staticmethod
     def setup_server():
-        cherrypy.tree.mount(TestApp(), "/", {"/": {"tools.tracer.on": True}})
+        cherrypy.tree.mount(
+            TestApp(),
+            "/",
+            {
+                "/": {"tools.tracer.on": True},
+            },
+        )
 
     def setUp(self):
         self.tracer = get_dummy_tracer()
@@ -91,7 +97,7 @@ class TestCherrypy(helper.CPWebCase):
         assert s.trace_id
         assert not s.parent_id
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "/child"
+        assert s.resource == "GET /child"
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -123,7 +129,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "/"
+        assert s.resource == "GET /"
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -151,7 +157,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "/aliases"
+        assert s.resource == "GET /aliases"
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -177,7 +183,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "/handleme"
+        assert s.resource == "GET /handleme"
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -199,7 +205,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "/error"
+        assert s.resource == "GET /error"
         assert s.start >= start
         assert s.duration <= end - start
         assert_span_http_status_code(s, 500)
@@ -222,7 +228,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == "/fatal"
+        assert s.resource == "GET /fatal"
         assert s.start >= start
         assert s.duration <= end - start
         assert_span_http_status_code(s, 500)
@@ -252,7 +258,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == u"/üŋïĉóđē"
+        assert s.resource == u"GET /üŋïĉóđē"
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -275,7 +281,7 @@ class TestCherrypy(helper.CPWebCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
-        assert s.resource == u"/404/test"
+        assert s.resource == u"GET /404/test"
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -362,3 +368,62 @@ class TestCherrypy(helper.CPWebCase):
         span = traces[0][0]
 
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_variable_resource(self):
+        start = time.time()
+        self.getPage("/dispatch/abc123/")
+        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+        end = time.time()
+
+        # ensure request worked
+        self.assertStatus("200 OK")
+        self.assertHeader("Content-Type", "text/html;charset=utf-8")
+        self.assertBody("dispatch with abc123")
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "test.cherrypy.service"
+
+        # Once CherryPy returns sensible results for virtual path components, this
+        # can be: "GET /dispatch/{{test_value}}/"
+        assert s.resource == "GET /dispatch/abc123/"
+        assert s.start >= start
+        assert s.duration <= end - start
+        assert s.error == 0
+        assert_span_http_status_code(s, 200)
+        assert s.meta.get(http.METHOD) == "GET"
+
+        services = self.tracer.writer.pop_services()
+        expected = {}
+        assert services == expected
+
+    def test_post(self):
+        start = time.time()
+        self.getPage("/", method="POST")
+        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+        end = time.time()
+
+        # ensure request worked
+        self.assertStatus("200 OK")
+        self.assertHeader("Content-Type", "text/html;charset=utf-8")
+        self.assertBody("Hello world!")
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.service == "test.cherrypy.service"
+        assert s.resource == "POST /"
+        assert s.start >= start
+        assert s.duration <= end - start
+        assert s.error == 0
+        assert_span_http_status_code(s, 200)
+        assert s.meta.get(http.METHOD) == "POST"
+
+        services = self.tracer.writer.pop_services()
+        expected = {}
+        assert services == expected

@@ -33,6 +33,9 @@ else:
 class TestApp:
     """ Sample request handler class. """
 
+    def __init__(self):
+        self.dispatch = TestDispatch()
+
     @cherrypy.expose
     def index(self):
         return "Hello world!"
@@ -76,6 +79,13 @@ class TestApp:
     def response_headers(self):
         cherrypy.response.headers["my-response-header"] = "my_response_value"
         return "Hello CherryPy"
+
+
+@cherrypy.popargs("test_value")
+class TestDispatch:
+    @cherrypy.expose
+    def index(self, test_value):
+        return "dispatch with {test_value}".format(test_value=test_value)
 
 
 testconf = os.path.join(os.path.dirname(__file__), "test.conf")
