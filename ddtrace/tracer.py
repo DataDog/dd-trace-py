@@ -100,9 +100,7 @@ _traces = {}  # type: Dict[int, _Trace]
 
 def _get_trace(trace_id):
     # type: (int) -> Optional[_Trace]
-    if trace_id in _traces:
-        return _traces[trace_id]
-    return None
+    return _traces.get(trace_id, None)
 
 
 def _get_or_create_trace(trace_id):
