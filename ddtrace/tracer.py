@@ -39,7 +39,7 @@ from . import _hooks
 
 log = get_logger(__name__)
 debug_mode = asbool(get_env("trace", "debug", default=False))
-partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=True))
 partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
