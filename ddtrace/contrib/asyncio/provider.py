@@ -2,16 +2,15 @@ import asyncio
 
 from ...provider import DefaultContextProvider
 
-# Task attribute used to set/get the Context instance
+# Task attribute used to set/get the context
 CONTEXT_ATTR = "__datadog_context"
 
 
 class AsyncioContextProvider(DefaultContextProvider):
-    """
-    Context provider that retrieves all contexts for the current asyncio
-    execution. It must be used in asynchronous programming that relies
-    in the built-in ``asyncio`` library. Framework instrumentation that
-    is built on top of the ``asyncio`` library, can use this provider.
+    """Manages the active context for asyncio execution. Framework
+    instrumentation that is built on top of the ``asyncio`` library, should
+    use this provider when contextvars are not available (Python versions
+    less than 3.7).
 
     This Context Provider inherits from ``DefaultContextProvider`` because
     it uses a thread-local storage when the ``Context`` is propagated to
@@ -31,7 +30,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         return context
 
     def _get_loop(self, loop=None):
-        """Helper to try and resolve the current loop"""
+        """Helper to try and resolve the current loop."""
         try:
             return loop or asyncio.get_event_loop()
         except RuntimeError:
@@ -43,7 +42,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         return None
 
     def _has_active_context(self, loop=None):
-        """Helper to determine if we have a currently active context"""
+        """Helper to determine if we have a currently active context."""
         loop = self._get_loop(loop=loop)
         if loop is None:
             return self._local._has_active_context()
@@ -57,11 +56,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         return ctx is not None
 
     def active(self, loop=None):
-        """
-        Returns the scoped Context for this execution flow. The ``Context`` uses
-        the current task as a carrier so if a single task is used for the entire application,
-        the context must be handled separately.
-        """
+        """Returns the active context for the execution."""
         loop = self._get_loop(loop=loop)
         if not loop:
             return super(AsyncioContextProvider, self).active()
@@ -69,9 +64,6 @@ class AsyncioContextProvider(DefaultContextProvider):
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
         if task is None:
-            # providing a detached Context from the current Task, may lead to
-            # wrong traces. This defensive behavior grants that a trace can
-            # still be built without raising exceptions
             return None
 
         return getattr(task, CONTEXT_ATTR, None)

@@ -1,7 +1,10 @@
 import abc
+from typing import Optional
 
 from ddtrace.vendor import six
 
+from ddtrace import Span
+from ddtrace.context import Context
 from ddtrace.compat import contextvars
 
 
@@ -39,33 +42,26 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
 
 class DefaultContextProvider(BaseContextProvider):
     """
-    Default context provider that retrieves all contexts from the current
-    thread-local storage. It is suitable for synchronous programming and
-    Python WSGI frameworks.
+    Default context provider that retrieves all contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
     """
 
-    def __init__(self, reset_context_manager=True):
+    def __init__(self):
         pass
 
     def _has_active_context(self):
-        """
-        Check whether we have a currently active context.
-
-        :returns: Whether we have an active context
-        :rtype: bool
-        """
+        # type: () -> bool
+        """Returns whether there is an active context in the current execution."""
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
     def activate(self, context):
-        """Makes the given ``context`` active, so that the provider calls
-        the thread-local storage implementation.
-        """
-        return _DD_CONTEXTVAR.set(context)
+        # type: (Optional[Span, Context]) -> None
+        """Makes the given context active in the current execution."""
+        _DD_CONTEXTVAR.set(context)
 
     def active(self):
-        """Returns the current active ``Context`` for this tracer. Returned
-        ``Context`` must be thread-safe or thread-local for this specific
-        implementation.
-        """
+        """Returns the active context for the current execution."""
         return _DD_CONTEXTVAR.get()

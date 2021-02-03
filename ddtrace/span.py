@@ -101,35 +101,19 @@ class Span(object):
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
 
     @property
+    def sampled(self):
+        return self.tracer._is_sampled(self)
+
+    @property
     def context(self):
         # type: () -> Context
-        from .tracer import _get_trace
-
-        trace = _get_trace(self.trace_id)
+        trace = self.tracer._get_trace(self.trace_id)
         return Context(
             trace_id=self.trace_id,
             span_id=self.span_id,
             sampling_priority=trace.sampling_priority if trace else None,
-            _dd_origin=trace.dd_origin if trace else None,
+            dd_origin=trace.dd_origin if trace else None,
         )
-
-    @property
-    def sampled(self):
-        # Have to inline the import because of circular dependency.
-        from .tracer import _get_trace
-
-        # This is not thread-safe.
-        trace = _get_trace(self.trace_id)
-        return trace.sampled if trace else True
-
-    @sampled.setter
-    def sampled(self, sampled):
-        # Have to inline the import because of circular dependency.
-        from .tracer import _get_trace
-
-        # This is not thread-safe.
-        trace = _get_trace(self.trace_id)
-        trace.sampled = sampled
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -451,12 +435,9 @@ class Span(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            if exc_type:
-                self.set_exc_info(exc_type, exc_val, exc_tb)
-            self.finish()
-        except Exception:
-            log.exception("error closing trace")
+        if exc_type:
+            self.set_exc_info(exc_type, exc_val, exc_tb)
+        self.finish()
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (

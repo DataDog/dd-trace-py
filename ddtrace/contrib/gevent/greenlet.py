@@ -8,16 +8,15 @@ GEVENT_VERSION = gevent.version_info[0:3]
 
 class TracingMixin(object):
     def __init__(self, *args, **kwargs):
-        # get the current Context if available
+        # Get the active context/span if available.
         current_g = gevent.getcurrent()
         ctx = getattr(current_g, CONTEXT_ATTR, None)
 
-        # create the Greenlet as usual
+        # Create the Greenlet as usual
         super(TracingMixin, self).__init__(*args, **kwargs)
 
-        # the context is always available made exception of the main greenlet
+        # Copy the active span/context into the new greenlet
         if ctx:
-            # create a new context that inherits the current active span
             setattr(self, CONTEXT_ATTR, ctx)
 
 

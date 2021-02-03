@@ -15,6 +15,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.tracer import Tracer
 from ddtrace.ext import system
 from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
@@ -1374,10 +1375,14 @@ def test_ctx_distributed():
     assert len(trace) == 1
 
     # Test activating a valid context.
-    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, _dd_origin="somewhere")
+    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     tracer.activate(ctx)
     assert tracer.active_span() is None
-    assert tracer.active() == Context(span_id=1234, trace_id=4321, sampling_priority=2, _dd_origin="somewhere")
+    assert (
+        tracer.get_call_context()
+        == tracer.active()
+        == Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
+    )
 
     with tracer.trace("test2") as s2:
         assert tracer.active_span() == s2
@@ -1390,3 +1395,28 @@ def test_ctx_distributed():
     assert len(trace) == 1
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
+
+
+def test_non_active_span():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with tracer.start_span("test", activate=False):
+        assert tracer.active_span() is None
+        assert tracer.active_root_span() is None
+
+    assert tracer.active_span() is None
+    assert tracer.active_root_span() is None
+    traces = tracer.writer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+
+    with tracer.start_span("test1", activate=False):
+        with tracer.start_span("test2", activate=False):
+            assert tracer.active_span() is None
+            assert tracer.active_root_span() is None
+
+    assert tracer.active_span() is None
+    assert tracer.active_root_span() is None
+    traces = tracer.writer.pop_traces()
+    assert len(traces) == 2
