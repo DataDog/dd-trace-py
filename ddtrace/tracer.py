@@ -6,10 +6,10 @@ import sys
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY, HOSTNAME_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal import debug
+from .internal import debug, hostname
 from .internal.logger import get_logger, hasHandlers
 from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
 from .internal.writer import AgentWriter, LogWriter
@@ -446,6 +446,14 @@ class Tracer(object):
                 span_type=span_type,
                 _check_pid=False,
             )
+            span.metrics[system.PID] = self._pid or getpid()
+            span.meta["runtime-id"] = get_runtime_id()
+            if config.report_hostname:
+                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
+            # add tags to root span to correlate trace with runtime metrics
+            # only applied to spans with types that are internal to applications
+            if self._runtime_worker and self._is_span_internal(span):
+                span.meta["language"] = "python"
 
             span.sampled = self.sampler.sample(span)
             # Old behavior
@@ -474,11 +482,6 @@ class Tracer(object):
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
-            # add tags to root span to correlate trace with runtime metrics
-            # only applied to spans with types that are internal to applications
-            if self._runtime_worker and self._is_span_internal(span):
-                span.meta["language"] = "python"
-
         # Apply default global tags.
         if self.tags:
             span.set_tags(self.tags)
@@ -497,10 +500,6 @@ class Tracer(object):
                 root_span and root_span.service == service and VERSION_KEY in root_span.meta
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
-
-        if not span._parent:
-            span.metrics[system.PID] = self._pid or getpid()
-            span.meta["runtime-id"] = get_runtime_id()
 
         # add it to the current context
         context.add_span(span)
