@@ -2,7 +2,7 @@
 """
 from ddtrace import config, Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ddtrace.ext import http, SpanTypes, errors
+from ddtrace.ext import SpanTypes, errors
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from .. import trace_utils
@@ -60,15 +60,20 @@ def traced_requesthandler_on_finish(cyclone, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     try:
-        span.set_tag("http.method", req.method)
         status_code = instance.get_status()
         if 500 <= int(status_code) < 600:
             span.error = 1
-        span.set_tag("http.status_code", status_code)
-        span.set_tag("http.url", req.full_url().rsplit("?", 1)[0])
+        url = req.full_url().rsplit("?", 1)[0]
         trace_utils.store_response_headers(instance._headers, span, config.cyclone)
-        if config.cyclone.http.trace_query_string:
-            span.set_tag(http.QUERY_STRING, req.query)
+        trace_utils.set_http_meta(
+            span,
+            config.cyclone,
+            method=req.method,
+            status_code=status_code,
+            url=url,
+            query=req.query,
+            response_headers=instance._headers,
+        )
     except Exception:
         log.warning("error occurred in instrumentation", exc_info=True)
     finally:
