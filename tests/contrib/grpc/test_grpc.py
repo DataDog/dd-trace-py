@@ -54,7 +54,7 @@ class GrpcTestCase(TracerTestCase):
         return spans
 
     def _start_server(self):
-        self._server_pool = logging_pool.pool(2)
+        self._server_pool = logging_pool.pool(1)
         self._server = grpc.server(self._server_pool)
         self._server.add_insecure_port('[::]:%d' % (_GRPC_PORT))
         add_HelloServicer_to_server(_HelloServicer(), self._server)

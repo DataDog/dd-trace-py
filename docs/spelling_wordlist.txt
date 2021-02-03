@@ -17,6 +17,7 @@ backend
 bikeshedding
 boto
 botocore
+cherrypy
 config
 coroutine
 coroutines
@@ -101,3 +102,4 @@ username
 uvicorn
 vertica
 whitelist
+wsgi

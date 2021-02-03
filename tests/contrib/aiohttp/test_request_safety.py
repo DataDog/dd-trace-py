@@ -83,6 +83,6 @@ class TestAiohttpSafety(TraceTestCase):
         for t in threads:
             t.join()
 
-        # the trace is wrong but the spans are finished
+        # the trace is wrong but the spans are finished and written
         spans = self.tracer.writer.pop()
         assert NUMBER_REQUESTS == len(spans)

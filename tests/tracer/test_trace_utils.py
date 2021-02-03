@@ -84,20 +84,27 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 
 @pytest.mark.parametrize(
-    "method,url,status_code,query,request_headers",
+    "method,url,status_code,status_msg,query,request_headers",
     [
-        ("GET", "http://localhost/", 0, None, None),
-        ("GET", "http://localhost/", 200, None, None),
-        (None, None, None, None, None),
-        ("GET", "http://localhost/", 200, None, {"my-header": "value1"}),
-        ("GET", "http://localhost/", 200, "search?q=test+query", {"my-header": "value1"}),
+        ("GET", "http://localhost/", 0, None, None, None),
+        ("GET", "http://localhost/", 200, "OK", None, None),
+        (None, None, None, None, None, None),
+        ("GET", "http://localhost/", 200, "OK", None, {"my-header": "value1"}),
+        ("GET", "http://localhost/", 200, "OK", "search?q=test+query", {"my-header": "value1"}),
     ],
 )
-def test_set_http_meta(span, int_config, method, url, status_code, query, request_headers):
+def test_set_http_meta(span, int_config, method, url, status_code, status_msg, query, request_headers):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
     trace_utils.set_http_meta(
-        span, int_config, method=method, url=url, status_code=status_code, query=query, request_headers=request_headers
+        span,
+        int_config,
+        method=method,
+        url=url,
+        status_code=status_code,
+        status_msg=status_msg,
+        query=query,
+        request_headers=request_headers,
     )
     if method is not None:
         assert span.meta[http.METHOD] == method
@@ -117,6 +124,9 @@ def test_set_http_meta(span, int_config, method, url, status_code, query, reques
             assert span.error == 0
     else:
         assert http.STATUS_CODE not in span.meta
+
+    if status_msg is not None:
+        assert span.meta[http.STATUS_MSG] == stringify(status_msg)
 
     if query is not None and int_config.trace_query_string:
         assert span.meta[http.QUERY_STRING] == query

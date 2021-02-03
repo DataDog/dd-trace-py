@@ -103,7 +103,6 @@ class TestGeventTracer(TracerTestCase):
                 # Use a list to force evaluation
                 list(func(greenlet, [0, 1, 2]))
             traces = self.tracer.writer.pop_traces()
-
             assert 1 == len(traces)
             spans = traces[0]
             assert len(spans) == 4

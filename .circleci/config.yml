@@ -594,6 +594,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^celery_contrib-'
 
+  cherrypy:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^cherrypy_contrib-'
+
   consul:
     <<: *contrib_job
     docker:
@@ -897,6 +903,13 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
+
   kombu:
     <<: *contrib_job
     docker:
@@ -998,6 +1011,7 @@ requires_tests: &requires_tests
     - bottle
     - cassandra
     - celery
+    - cherrypy
     - consul
     - dbapi
     - ddtracerun
@@ -1053,6 +1067,7 @@ requires_tests: &requires_tests
     - tracer
     - tornado
     - vertica
+    - wsgi
     - build-docker-ci-image
 
 workflows:
@@ -1104,6 +1119,7 @@ workflows:
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       - celery: *requires_pre_test
+      - cherrypy: *requires_pre_test
       - consul: *requires_pre_test
       - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
@@ -1153,6 +1169,7 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
       - deploy_master:
