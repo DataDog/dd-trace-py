@@ -136,8 +136,8 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("a", Foo())
 
     def test_finish(self):
-        # ensure finish will record a span
-        s = Span(self.tracer, "test.span")
+        # ensure span.finish() marks the end time of the span
+        s = Span(None, "test.span")
         sleep = 0.05
         time.sleep(sleep)
         s.finish()
