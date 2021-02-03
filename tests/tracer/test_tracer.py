@@ -14,9 +14,10 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.tracer import Tracer
 from ddtrace.ext import system
 from ddtrace.context import Context
-from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, HOSTNAME_KEY
 from ddtrace.vendor import six
 
 from tests.subprocesstest import run_in_subprocess
@@ -1412,3 +1413,57 @@ def test_ctx_distributed():
     assert len(trace) == 1
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_enabled(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=True)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) == "test-hostname"
+    assert child.get_tag(HOSTNAME_KEY) is None
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_disabled(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=False)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) is None
+    assert child.get_tag(HOSTNAME_KEY) is None
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_default(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=False)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) is None
+    assert child.get_tag(HOSTNAME_KEY) is None

@@ -29,9 +29,6 @@ class PropagationTestCase(TracerTestCase):
         # it must propagate the tracing context if available
 
         def fn():
-            # an active context must be available
-            # DEV: With `ContextManager` `.active()` will never be `None`
-            self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace("executor.thread"):
                 return 42
 
@@ -53,8 +50,6 @@ class PropagationTestCase(TracerTestCase):
         # instrumentation must proxy arguments if available
 
         def fn(value, key=None):
-            # an active context must be available
-            self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace("executor.thread"):
                 return value, key
 
@@ -78,8 +73,6 @@ class PropagationTestCase(TracerTestCase):
         unpatch()
 
         def fn():
-            # an active context must be available
-            self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace("executor.thread"):
                 return 42
 
@@ -300,7 +293,7 @@ class PropagationTestCase(TracerTestCase):
                 future = executor.submit(fn)
                 time.sleep(0.01)
 
-        # assert main thread span is fniished first
+        # assert main thread span is finished first
         self.assert_span_count(1)
         self.assert_structure(dict(name="main.thread"))
 
