@@ -23,7 +23,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """Sets the scoped ``Context`` for the current running ``Task``."""
         loop = self._get_loop(loop)
         if not loop:
-            self._local.set(context)
+            super(AsyncioContextProvider, self).activate(context)
             return context
 
         # the current unit of work (if tasks are used)
@@ -47,7 +47,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """Helper to determine if we have a currently active context"""
         loop = self._get_loop(loop=loop)
         if loop is None:
-            return self._local._has_active_context()
+            return super(AsyncioContextProvider, self)._has_active_context()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
@@ -65,7 +65,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """
         loop = self._get_loop(loop=loop)
         if not loop:
-            return self._local.get()
+            return super(AsyncioContextProvider, self).active()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
