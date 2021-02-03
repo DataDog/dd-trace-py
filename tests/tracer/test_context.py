@@ -187,6 +187,6 @@ class TestTracingContext(BaseTestCase):
         assert cloned_ctx._parent_trace_id == ctx._parent_trace_id
         assert cloned_ctx._parent_span_id == ctx._parent_span_id
         assert cloned_ctx._sampling_priority == ctx._sampling_priority
-        assert cloned_ctx._dd_origin == ctx._dd_origin
+        assert cloned_ctx.dd_origin == ctx.dd_origin
         assert cloned_ctx._current_span == ctx._current_span
         assert cloned_ctx._trace == []
