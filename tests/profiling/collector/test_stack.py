@@ -9,7 +9,10 @@ import pytest
 from ddtrace.vendor import six
 
 from ddtrace.profiling import _nogevent
+from ddtrace.profiling import collector
+from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
+from ddtrace.profiling import _service
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import _threading
 
@@ -48,8 +51,7 @@ def test_collect_truncate():
     c.stop()
     for e in r.events[stack.StackSampleEvent]:
         if e.thread_name == "MainThread":
-            assert e.nframes > c.nframes
-            assert len(e.frames) == c.nframes
+            assert len(e.frames) <= c.nframes
             break
     else:
         pytest.fail("Unable to find the main thread")
@@ -90,7 +92,7 @@ def _fib(n):
 
 
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
-def test_collect_thread():
+def test_collect_gevent_thread_task():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
 
@@ -99,26 +101,21 @@ def test_collect_thread():
     def _dofib():
         for _ in range(10):
             # spend some time in CPU so the profiler can catch something
-            _fib(29)
-            # allow to switch
-            time.sleep(0.1)
+            _fib(28)
+            # Just make sure gevent switches threads/greenlets
+            time.sleep(0)
 
     threads = []
-    for i in range(10):
-        # Just make sure gevent switches threads/greenlets
-        t = threading.Thread(target=_dofib, name="TestThread %d" % i)
-        t.start()
-        threads.append(t)
-
     with s:
-        time.sleep(2)
-
-    for t in threads:
-        t.join()
+        for i in range(10):
+            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
 
     for event in r.events[stack.StackSampleEvent]:
-        if event.thread_name == "MainThread" and event.task_name is not None:
-            assert event.task_id in {thread.ident for thread in threads}
+        if event.thread_name == "MainThread" and event.task_id in {thread.ident for thread in threads}:
             assert event.task_name.startswith("TestThread ")
             # This test is not uber-reliable as it has timing issue, therefore if we find one of our TestThread with the
             # correct info, we're happy enough to stop here.
@@ -139,18 +136,58 @@ def test_max_time_usage_over():
         stack.StackCollector(r, max_time_usage_pct=200)
 
 
-def test_ignore_profiler():
+def test_ignore_profiler_single():
     r, c, thread_id = test_collector._test_collector_collect(stack.StackCollector, stack.StackSampleEvent)
     events = r.events[stack.StackSampleEvent]
     assert thread_id not in {e.thread_id for e in events}
 
 
-def test_no_ignore_profiler():
+def test_no_ignore_profiler_single():
     r, c, thread_id = test_collector._test_collector_collect(
         stack.StackCollector, stack.StackSampleEvent, ignore_profiler=False
     )
     events = r.events[stack.StackSampleEvent]
     assert thread_id in {e.thread_id for e in events}
+
+
+class CollectorTest(collector.PeriodicCollector):
+    def collect(self):
+        _fib(20)
+        return []
+
+
+def test_ignore_profiler_gevent_task(profiler):
+    # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
+    # sure to catch it with the StackProfiler and that it's ignored.
+    c = CollectorTest(profiler._profiler._recorder, interval=0.00001)
+    c.start()
+    events = profiler._profiler._recorder.events[stack.StackSampleEvent]
+    collector_thread_ids = {
+        col._worker.ident
+        for col in profiler._profiler._collectors
+        if (isinstance(col, collector.PeriodicCollector) and col.status == _service.ServiceStatus.RUNNING)
+    }
+    collector_thread_ids.add(c._worker.ident)
+    time.sleep(3)
+    c.stop()
+    assert collector_thread_ids.isdisjoint({e.task_id for e in events})
+
+
+@pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
+def test_not_ignore_profiler_gevent_task(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    p = profiler.Profiler()
+    p.start()
+    # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
+    # sure to catch it with the StackProfiler and that it's ignored.
+    c = CollectorTest(p._profiler._recorder, interval=0.00001)
+    c.start()
+    events = p._profiler._recorder.events[stack.StackSampleEvent]
+    time.sleep(3)
+    c.stop()
+    p.stop()
+    assert c._worker.ident in {e.task_id for e in events}
 
 
 def test_collect():
@@ -296,7 +333,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 290, "test_exception_collection")]
+    assert e.frames == [(__file__, 327, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 

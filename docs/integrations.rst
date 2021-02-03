@@ -114,6 +114,13 @@ Falcon
 .. automodule:: ddtrace.contrib.falcon
 
 
+.. _fastapi:
+
+Fastapi
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.fastapi
+
+
 .. _flask:
 
 Flask

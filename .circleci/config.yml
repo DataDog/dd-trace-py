@@ -82,11 +82,22 @@ commands:
             S3_DIR: << parameters.s3_dir >>
             S3_BUCKET: << parameters.s3_bucket >>
 
-  save_codecov:
-    description: "Push code coverage results to codecov.io"
+  save_coverage:
+    description: "Save coverage.py results to workspace"
     steps:
-      - run: pip install coverage
-      - run: bash <(curl -s https://codecov.io/bash)
+      - run: |
+          set -ex
+          mkdir coverage
+          if [ -f .coverage ];
+          then
+            cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
+          fi
+      - persist_to_workspace:
+          root: coverage
+          paths:
+            - "*.coverage"
+      - store_artifacts:
+          path: coverage
 
   setup_tox:
     description: "Install tox"
@@ -134,6 +145,9 @@ commands:
       docker_services:
         type: string
         default: ""
+      store_coverage:
+        type: boolean
+        default: true
     steps:
       - attach_workspace:
           at: .
@@ -163,7 +177,15 @@ commands:
             - setup_riot
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
-            - save_codecov
+      - when:
+          condition:
+            << parameters.store_coverage >>
+          steps:
+            - save_coverage
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -173,6 +195,9 @@ commands:
       wait:
         type: string
         default: ""
+      store_coverage:
+        type: boolean
+        default: true
     steps:
       - checkout
       - setup_tox
@@ -188,7 +213,15 @@ commands:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
-      - save_codecov
+      - when:
+          condition:
+            << parameters.store_coverage >>
+          steps:
+            - save_coverage
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
@@ -281,8 +314,9 @@ jobs:
   black:
     executor: python38
     steps:
-      - run_test:
-          pattern: "black"
+      - checkout
+      - setup_riot
+      - run: riot run -s black --check .
 
   ccheck:
     executor: cimg_base
@@ -296,8 +330,45 @@ jobs:
   flake8:
     executor: python38
     steps:
-      - run_test:
-          pattern: "flake8"
+      - checkout
+      - setup_riot
+      - run: riot run -s flake8
+
+  coverage_report:
+    executor: python38
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: pip install coverage diff_cover
+      - run: ls -hal *.coverage
+      # Combine all job coverage reports into one
+      - run: coverage combine *.coverage
+      # Upload coverage report to Codecov
+      - run: bash <(curl -s https://codecov.io/bash)
+      # Generate and save xml report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage xml --ignore-errors
+      - store_artifacts:
+          path: coverage.xml
+      # Generate and save JSON report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage json --ignore-errors
+      - store_artifacts:
+          path: coverage.json
+      # Generate and save HTML report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage html --ignore-errors
+      - store_artifacts:
+          path: htmlcov
+      # Print ddtrace/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=tests/
+      # Print tests/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=ddtrace/
+      # Print diff-cover report to stdout (compares against origin/master)
+      - run: diff-cover coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -461,6 +532,7 @@ jobs:
       - image: *redis_image
     steps:
       - run_tox_scenario:
+          store_coverage: false
           pattern: '^py..-ddtracerun$'
 
   test_logging:
@@ -577,6 +649,13 @@ jobs:
           pattern: 'djangorestframework'
           snapshot: true
           docker_services: "memcached redis"
+
+  fastapi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "fastapi"
+          snapshot: true
 
   flask:
     <<: *contrib_job
@@ -826,6 +905,13 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
+
   kombu:
     <<: *contrib_job
     docker:
@@ -843,16 +929,11 @@ jobs:
           pattern: '^sqlite3_contrib-'
 
   benchmarks:
-    executor: ddtrace_dev
+    <<: *contrib_job
     steps:
-      - checkout
-      - setup_tox
-      - restore_tox_cache
-      - run:
-          command: |
-            mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
-      - save_tox_cache
+      - run_test:
+          store_coverage: false
+          pattern: '^benchmarks'
 
   deploy_master:
     # build the master branch releasing development docs and wheels
@@ -919,73 +1000,77 @@ requires_pre_test: &requires_pre_test
     - build_base_venvs
 
 requires_tests: &requires_tests
-  - build_docs
-  - aiobotocore
-  - aiohttp
-  - aiopg
-  - asyncio
-  - algoliasearch
-  - asgi
-  - benchmarks
-  - boto
-  - bottle
-  - cassandra
-  - celery
-  - consul
-  - cyclone
-  - dbapi
-  - ddtracerun
-  - dogpile_cache
-  - django
-  - djangorestframework
-  - elasticsearch
-  - falcon
-  - flask
-  - futures
-  - gevent
-  - grpc
-  - httplib
-  - integration_agent5
-  - integration_agent
-  - integration_testagent
-  - vendor
-  - profile
-  - jinja2
-  - kombu
-  - mako
-  - molten
-  - mongoengine
-  - mysqlconnector
-  - mysqldb
-  - mysqlpython
-  - opentracer
-  - psycopg
-  - pylibmc
-  - pylons
-  - pymemcache
-  - pymongo
-  - pymysql
-  - pynamodb
-  - pyodbc
-  - pyramid
-  - pytest
-  - redis
-  - rediscluster
-  - requests
-  - sqlalchemy
-  - sqlite3
-  - starlette
-  - test_build_alpine
-  - test_build_py38
-  - test_build_py37
-  - test_build_py36
-  - test_build_py35
-  - test_build_py27
-  - test_logging
-  - tracer
-  - tornado
-  - vertica
-  - build-docker-ci-image
+  requires:
+    - build_docs
+    - aiobotocore
+    - aiohttp
+    - aiopg
+    - asyncio
+    - algoliasearch
+    - asgi
+    - benchmarks
+    - boto
+    - bottle
+    - cassandra
+    - celery
+    - consul
+    - cyclone
+    - dbapi
+    - ddtracerun
+    - dogpile_cache
+    - django
+    - djangorestframework
+    - elasticsearch
+    - falcon
+    - fastapi
+    - flask
+    - futures
+    - gevent
+    - grpc
+    - httplib
+    - integration_agent5
+    - integration_agent
+    - integration_testagent
+    - vendor
+    - profile
+    - jinja2
+    - kombu
+    - mako
+    - molten
+    - mongoengine
+    - mysqlconnector
+    - mysqldb
+    - mysqlpython
+    - opentracer
+    - psycopg
+    - pylibmc
+    - pylons
+    - pymemcache
+    - pymongo
+    - pymysql
+    - pynamodb
+    - pyodbc
+    - pyramid
+    - pytest
+    - redis
+    - rediscluster
+    - requests
+    - sanic
+    - sqlalchemy
+    - sqlite3
+    - starlette
+    - test_build_alpine
+    - test_build_py38
+    - test_build_py37
+    - test_build_py36
+    - test_build_py35
+    - test_build_py27
+    - test_logging
+    - tracer
+    - tornado
+    - vertica
+    - wsgi
+    - build-docker-ci-image
 
 workflows:
   version: 2
@@ -1045,6 +1130,7 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
+      - fastapi: *requires_pre_test
       - flask: *requires_pre_test
       - futures: *requires_pre_test
       - gevent: *requires_pre_test
@@ -1085,7 +1171,9 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
+      - coverage_report: *requires_tests
       - deploy_master:
           filters:
             branches:

@@ -60,8 +60,10 @@ def client(app):
 
 @pytest.fixture
 def snapshot_app(engine):
+    starlette_patch()
     app = get_app(engine)
     yield app
+    starlette_unpatch()
 
 
 @pytest.fixture

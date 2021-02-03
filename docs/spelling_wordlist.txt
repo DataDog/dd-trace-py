@@ -31,6 +31,7 @@ elasticsearch
 enqueue
 entrypoint
 entrypoints
+fastapi
 gRPC
 gevent
 greenlet
@@ -92,6 +93,7 @@ timestamp
 tweens
 uWSGI
 unix
+unpatch
 unregister
 url
 urls
@@ -99,3 +101,4 @@ username
 uvicorn
 vertica
 whitelist
+wsgi

@@ -108,7 +108,8 @@ class HTTPPropagator(object):
             def my_controller(url, headers):
                 propagator = HTTPPropagator()
                 context = propagator.extract(headers)
-                tracer.context_provider.activate(context)
+                if context:
+                    tracer.context_provider.activate(context)
 
                 with tracer.trace('my_controller') as span:
                     span.set_meta('http.url', url)

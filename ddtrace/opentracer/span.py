@@ -14,8 +14,7 @@ class Span(OpenTracingSpan):
 
     def __init__(self, tracer, context, operation_name):
         if context is not None:
-            context = SpanContext(ddcontext=context._dd_context,
-                                  baggage=context.baggage)
+            context = SpanContext(ddcontext=context._dd_context, baggage=context.baggage)
         else:
             context = SpanContext()
 
@@ -24,8 +23,7 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
-                                    context=context._dd_context)
+        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name, context=context._dd_context)
 
     def finish(self, finish_time=None):
         """Finish the span.
@@ -95,15 +93,15 @@ class Span(OpenTracingSpan):
         # match opentracing defined keys to datadog functionality
         # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
         for key, val in key_values.items():
-            if key == 'event' and val == 'error':
+            if key == "event" and val == "error":
                 # TODO: not sure if it's actually necessary to set the error manually
                 self._dd_span.error = 1
-                self.set_tag('error', 1)
-            elif key == 'error' or key == 'error.object':
+                self.set_tag("error", 1)
+            elif key == "error" or key == "error.object":
                 self.set_tag(errors.ERROR_TYPE, val)
-            elif key == 'message':
+            elif key == "message":
                 self.set_tag(errors.ERROR_MSG, val)
-            elif key == 'stack':
+            elif key == "stack":
                 self.set_tag(errors.ERROR_STACK, val)
             else:
                 pass

@@ -65,7 +65,11 @@ class TestUtils(unittest.TestCase):
 
     def test_deprecation_formatter(self):
         # ensure the formatter returns the proper message
-        msg = format_message("deprecated_function", "use something else instead", "1.0.0",)
+        msg = format_message(
+            "deprecated_function",
+            "use something else instead",
+            "1.0.0",
+        )
         expected = (
             "'deprecated_function' is deprecated and will be remove in future versions (1.0.0). "
             "use something else instead"

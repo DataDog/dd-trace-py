@@ -1,7 +1,7 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
@@ -52,7 +52,7 @@ def with_traced_module(func):
     return with_mod
 
 
-def int_service(pin, config, default=None):
+def int_service(pin, int_config, default=None):
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -60,7 +60,7 @@ def int_service(pin, config, default=None):
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
-    config = config or {}
+    int_config = int_config or {}
 
     # Pin has top priority since it is user defined in code
     if pin and pin.service:
@@ -69,41 +69,75 @@ def int_service(pin, config, default=None):
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
-    if "service" in config and config.service is not None:
-        return config.service
-    if "service_name" in config and config.service_name is not None:
-        return config.service_name
+    if "service" in int_config and int_config.service is not None:
+        return int_config.service
+    if "service_name" in int_config and int_config.service_name is not None:
+        return int_config.service_name
 
-    global_service = config.global_config._get_service()
+    global_service = int_config.global_config._get_service()
     if global_service:
         return global_service
 
-    if "_default_service" in config and config._default_service is not None:
-        return config._default_service
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return int_config._default_service
 
     return default
 
 
-def ext_service(pin, config, default=None):
+def ext_service(pin, int_config, default=None):
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
     """
-    config = config or {}
+    int_config = int_config or {}
 
     if pin and pin.service:
         return pin.service
 
-    if "service" in config and config.service is not None:
-        return config.service
-    if "service_name" in config and config.service_name is not None:
-        return config.service_name
+    if "service" in int_config and int_config.service is not None:
+        return int_config.service
+    if "service_name" in int_config and int_config.service_name is not None:
+        return int_config.service_name
 
-    if "_default_service" in config and config._default_service is not None:
-        return config._default_service
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return int_config._default_service
 
     # A default is required since it's an external service.
     return default
+
+
+def get_error_ranges(error_range_str):
+    error_ranges = []
+    error_range_str = error_range_str.strip()
+    error_ranges_str = error_range_str.split(",")
+    for error_range in error_ranges_str:
+        values = error_range.split("-")
+        try:
+            values = [int(v) for v in values]
+        except ValueError:
+            log.exception("Error status codes was not a number %s", values)
+            continue
+        error_range = [min(values), max(values)]
+        error_ranges.append(error_range)
+    return error_ranges
+
+
+def is_error_code(status_code):
+    """Returns a boolean representing whether or not a status code is an error code.
+    Error status codes by default are 500-599.
+    You may also enable custom error codes::
+
+        from ddtrace import config
+        config.http_server.error_statuses = '401-404,419'
+
+    Ranges and singular error codes are permitted and can be separated using commas.
+    """
+
+    error_ranges = get_error_ranges(config.http_server.error_statuses)
+    for error_range in error_ranges:
+        if error_range[0] <= int(status_code) <= error_range[1]:
+            return True
+    return False
 
 
 def set_http_meta(
@@ -124,7 +158,7 @@ def set_http_meta(
 
     if status_code is not None:
         span._set_str_tag(http.STATUS_CODE, status_code)
-        if 500 <= int(status_code) <= 599:
+        if is_error_code(status_code):
             span.error = 1
 
     if query is not None and integration_config.trace_query_string:

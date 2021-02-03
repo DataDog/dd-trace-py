@@ -8,7 +8,7 @@ from .propagator import Propagator
 
 log = get_logger(__name__)
 
-HTTP_BAGGAGE_PREFIX = 'ot-baggage-'
+HTTP_BAGGAGE_PREFIX = "ot-baggage-"
 HTTP_BAGGAGE_PREFIX_LEN = len(HTTP_BAGGAGE_PREFIX)
 
 
@@ -20,7 +20,7 @@ class HTTPPropagator(Propagator):
     outstanding OpenTracing-defined functionality.
     """
 
-    __slots__ = ['_dd_propagator']
+    __slots__ = ["_dd_propagator"]
 
     def __init__(self):
         self._dd_propagator = DDHTTPPropagator()
@@ -39,7 +39,7 @@ class HTTPPropagator(Propagator):
         :param carrier: carrier to inject into.
         """
         if not isinstance(carrier, dict):
-            raise InvalidCarrierException('propagator expects carrier to be a dict')
+            raise InvalidCarrierException("propagator expects carrier to be a dict")
 
         self._dd_propagator.inject(span_context._dd_context, carrier)
 
@@ -61,7 +61,7 @@ class HTTPPropagator(Propagator):
         :return: extracted span context.
         """
         if not isinstance(carrier, dict):
-            raise InvalidCarrierException('propagator expects carrier to be a dict')
+            raise InvalidCarrierException("propagator expects carrier to be a dict")
 
         ddspan_ctx = self._dd_propagator.extract(carrier)
 
@@ -69,7 +69,7 @@ class HTTPPropagator(Propagator):
         # context (with trace_id=None), we however want to raise an exception
         # if this occurs.
         if not ddspan_ctx.trace_id:
-            raise SpanContextCorruptedException('failed to extract span context')
+            raise SpanContextCorruptedException("failed to extract span context")
 
         baggage = {}
         for key in carrier:

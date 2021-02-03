@@ -2,6 +2,8 @@ import requests
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ddtrace import config, Pin
+
 from .connection import _wrap_send
 
 
@@ -16,3 +18,4 @@ class TracedSession(requests.Session):
 
 # always patch our `TracedSession` when imported
 _w(TracedSession, "send", _wrap_send)
+Pin(_config=config.requests).onto(TracedSession)

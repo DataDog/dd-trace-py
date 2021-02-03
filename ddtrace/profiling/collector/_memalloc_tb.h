@@ -5,6 +5,8 @@
 
 #include <Python.h>
 
+#include "_utils.h"
+
 typedef struct
 #ifdef __GNUC__
   __attribute__((packed))
@@ -16,6 +18,9 @@ typedef struct
     PyObject* name;
     unsigned int lineno;
 } frame_t;
+#if defined(_MSC_VER)
+#pragma pack(pop)
+#endif
 
 typedef struct
 {
@@ -36,20 +41,6 @@ typedef struct
 /* The maximum number of frames we can store in `traceback_t.nframe` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
 
-/* List of tracebacks */
-typedef struct
-{
-    /* List of traceback */
-    traceback_t** tracebacks;
-    /* Number of traceback in the list of traceback */
-    uint16_t count;
-    /* Total number of allocations */
-    uint64_t alloc_count;
-} traceback_list_t;
-
-/* The maximum number of events we can store in `traceback_list_t.count` */
-#define TRACEBACK_LIST_MAX_COUNT UINT16_MAX
-
 int
 memalloc_tb_init(uint16_t max_nframe);
 void
@@ -60,5 +51,11 @@ traceback_free(traceback_t* tb);
 
 traceback_t*
 memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size);
+
+#define TRACEBACK_ARRAY_COUNT_TYPE uint16_t
+/* The maximum number of events we can store in `traceback_array_t.count` */
+#define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
+
+DO_ARRAY(traceback_t *, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
 
 #endif

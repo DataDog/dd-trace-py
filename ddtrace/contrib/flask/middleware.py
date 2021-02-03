@@ -125,7 +125,6 @@ class TraceMiddleware(object):
 
         code = response.status_code if response else ""
         trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=response.headers)
-        span.set_tag(http.STATUS_CODE, code)
 
     def _request_exception(self, *args, **kwargs):
         exception = kwargs.get("exception", None)

@@ -12,6 +12,7 @@ class TestDefaultContextManager(BaseTestCase):
     Ensures that a ``ContextManager`` makes the Context
     local to each thread or task.
     """
+
     def test_get_or_create(self):
         # asking the Context multiple times should return
         # always the same instance
@@ -33,7 +34,7 @@ class TestDefaultContextManager(BaseTestCase):
 
         def _fill_ctx():
             ctx = ctxm.get()
-            span = Span(tracer=None, name='fake_span')
+            span = Span(tracer=None, name="fake_span")
             ctx.add_span(span)
             assert 1 == len(ctx._trace)
 

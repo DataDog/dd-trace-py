@@ -76,15 +76,3 @@ def test_join_encoded_custom(benchmark):
     benchmark(
         trace_encoder.join_encoded, [trace_encoder.encode_trace(trace_large), trace_encoder.encode_trace(trace_small)]
     )
-
-
-# import pstats, cProfile
-#
-# from ddtrace.encoding import TraceMsgPackEncoder
-# encoder = TraceMsgPackEncoder()
-# trace = gen_trace(nspans=10000)
-# traces = [trace]
-# cProfile.runctx("encoder.encode_traces(traces)", globals(), locals(), "Profile.prof")
-#
-# s = pstats.Stats("Profile.prof")
-# s.strip_dirs().sort_stats("time").print_stats()

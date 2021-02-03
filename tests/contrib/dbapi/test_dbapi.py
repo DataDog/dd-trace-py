@@ -535,6 +535,24 @@ class TestFetchTracedCursor(TracerTestCase):
             span = self.tracer.writer.pop()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
+    def test_unknown_rowcount(self):
+        class Unknown(object):
+            pass
+
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = Unknown()
+        pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.get_metric('db.rowcount') is None
+        assert span.get_metric('sql.rows') is None
+
 
 class TestTracedConnection(TracerTestCase):
     def setUp(self):
