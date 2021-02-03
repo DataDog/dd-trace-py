@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from ddtrace.context import Context
 from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.propagation.http import (
     HTTPPropagator,
@@ -20,9 +21,9 @@ class TestHttpPropagation(TestCase):
     def test_inject(self):
         tracer = get_dummy_tracer()
 
+        ctx = Context(trace_id=1234, sampling_priority=2, _dd_origin="synthetics")
+        tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
-            span.context.sampling_priority = 2
-            span.context._dd_origin = "synthetics"
             headers = {}
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
