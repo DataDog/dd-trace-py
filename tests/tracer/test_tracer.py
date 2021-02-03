@@ -1398,7 +1398,7 @@ def test_ctx_distributed():
     assert len(trace) == 1
 
     # Test activating a valid context.
-    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, _dd_origin="somewhere")
+    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     tracer.context_provider.activate(ctx)
     assert tracer.current_span() is None
 
