@@ -1,7 +1,12 @@
 import abc
+
 from ddtrace.vendor import six
 
-from .internal.context_manager import DefaultContextManager
+from .compat import contextvars
+from .context import Context
+
+
+_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -40,8 +45,8 @@ class DefaultContextProvider(BaseContextProvider):
     Python WSGI frameworks.
     """
 
-    def __init__(self, reset_context_manager=True):
-        self._local = DefaultContextManager(reset=reset_context_manager)
+    def __init__(self):
+        _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
         """
@@ -50,17 +55,23 @@ class DefaultContextProvider(BaseContextProvider):
         :returns: Whether we have an active context
         :rtype: bool
         """
-        return self._local._has_active_context()
+        ctx = _DD_CONTEXTVAR.get()
+        return ctx is not None
 
-    def activate(self, context):
+    def activate(self, ctx):
         """Makes the given ``context`` active, so that the provider calls
         the thread-local storage implementation.
         """
-        return self._local.set(context)
+        _DD_CONTEXTVAR.set(ctx)
 
     def active(self):
         """Returns the current active ``Context`` for this tracer. Returned
         ``Context`` must be thread-safe or thread-local for this specific
         implementation.
         """
-        return self._local.get()
+        ctx = _DD_CONTEXTVAR.get()
+        if not ctx:
+            ctx = Context()
+            self.activate(ctx)
+
+        return ctx

@@ -79,3 +79,10 @@ def test_fork(tmp_path, monkeypatch):
     child_pid = stdout.decode().strip()
     check_pprof_file(filename + "." + str(pid) + ".1")
     check_pprof_file(filename + "." + str(child_pid) + ".1")
+
+
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
+def test_fork_gevent(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"))
+    assert exitcode == 0

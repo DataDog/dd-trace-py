@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from ddtrace.context import Context
 from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.propagation.http import (
     HTTPPropagator,
@@ -20,9 +21,9 @@ class TestHttpPropagation(TestCase):
     def test_inject(self):
         tracer = get_dummy_tracer()
 
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
+        tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
-            span.context.sampling_priority = 2
-            span.context._dd_origin = "synthetics"
             headers = {}
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
@@ -30,7 +31,7 @@ class TestHttpPropagation(TestCase):
             assert int(headers[HTTP_HEADER_TRACE_ID]) == span.trace_id
             assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
             assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
-            assert headers[HTTP_HEADER_ORIGIN] == span.context._dd_origin
+            assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
 
     def test_extract(self):
         tracer = get_dummy_tracer()
@@ -50,7 +51,7 @@ class TestHttpPropagation(TestCase):
             assert span.trace_id == 1234
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
-            assert span.context._dd_origin == "synthetics"
+            assert span.context.dd_origin == "synthetics"
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
@@ -71,7 +72,7 @@ class TestHttpPropagation(TestCase):
             assert span.trace_id == 1234
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
-            assert span.context._dd_origin == "synthetics"
+            assert span.context.dd_origin == "synthetics"
 
 
 class TestPropagationUtils(object):

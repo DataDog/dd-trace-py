@@ -1,4 +1,3 @@
-import inspect
 import functools
 import sys
 
@@ -36,26 +35,8 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
 
     # Only create traces for deferreds when there is an active span
     # or there is a name in the context.
-    if ddctx.get_current_span() and ddctx.get_ctx_item("trace_deferreds", default=config.twisted.trace_all_deferreds):
-        resource = ddctx.get_ctx_item("deferred_resource", None)
-
-        if not resource:
-            # Go up two frames to get to the function that created the deferred
-            # in order to extract the class name (if any) and method/    function.
-            # <fn we care about that creates the deferred>
-            # wrapper (from with_traced_module)
-            # Deferred.__init__
-            # This wrapper (currentframe())
-            stack = inspect.stack()
-            f_locals = stack[2][0].f_locals
-            method_name = stack[2][0].f_code.co_name
-            if "self" in f_locals:
-                cls = f_locals["self"].__class__.__name__
-                resource = "%s.%s" % (cls, method_name)
-            else:
-                resource = "%s" % method_name
-
-        span = pin.tracer.trace("deferred", resource=resource, service=trace_utils.int_service(pin, config.twisted))
+    if ddctx.get_current_span():
+        span = pin.tracer.trace("deferred", service=trace_utils.int_service(pin, config.twisted))
         instance.__ddspan = span
 
     return func(*args, **kwargs)

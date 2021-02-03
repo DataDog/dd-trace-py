@@ -63,14 +63,6 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.flask['extra_error_codes']
-
-   A list of response codes that should get marked as errors.
-
-   *5xx codes are always considered an error.*
-
-   Default: ``[]``
-
 
 Example::
 
@@ -83,9 +75,12 @@ Example::
     config.flask['service_name'] = 'custom-service-name'
 
     # Report 401, and 403 responses as errors
-    config.flask['extra_error_codes'] = [401, 403]
+    config.http_server.error_statuses = '401,403'
 
 .. __: http://flask.pocoo.org/
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules

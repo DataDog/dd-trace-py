@@ -68,6 +68,7 @@ PATCH_MODULES = {
     "pynamodb": True,
     "pyodbc": True,
     "twisted": True,
+    "fastapi": True,
 }
 
 _LOCK = threading.Lock()

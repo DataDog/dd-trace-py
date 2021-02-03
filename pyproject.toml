@@ -40,8 +40,6 @@ exclude = '''
       | celery
       | dbapi
       | flask_cache
-      | futures
-      | gevent
       | grpc/
       (
         __init__.py
@@ -79,7 +77,6 @@ exclude = '''
        | system.py
     )
     | http/
-    | opentracer/
     | profiling/exporter/pprof_pb2.py$
     | propagation/
     | vendor/
@@ -97,8 +94,6 @@ exclude = '''
       | dbapi
       | flask_autopatch
       | flask_cache
-      | futures
-      | gevent
       | grpc
       | jinja2
       | kombu
@@ -117,7 +112,7 @@ exclude = '''
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
-    | tracer/.*py
+    | tracer/fixtures
     | vendor
     | wait-for-services.py
   )

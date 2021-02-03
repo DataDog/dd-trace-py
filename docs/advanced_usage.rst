@@ -204,8 +204,10 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-HTTP layer
-----------
+..  _http-tagging:
+
+HTTP tagging
+------------
 
 Query String Tracing
 ^^^^^^^^^^^^^^^^^^^^
@@ -278,6 +280,24 @@ structure like in the following example::
       url  https://api.github.com/events
     }
 
+..  _http-custom-error:
+
+Custom Error Codes
+^^^^^^^^^^^^^^^^^^
+It is possible to have a custom mapping of which HTTP status codes are considered errors.
+By default, 500-599 status codes are considered errors.
+Configuration is provided both at the global level.
+
+Examples::
+
+    from ddtrace import config
+
+    config.http_server.error_statuses = '500-599'
+
+Certain status codes can be excluded by providing a list of ranges. Valid options:
+    - ``400-400``
+    - ``400-403,405-499``
+    - ``400,401,403``
 
 .. _adv_opentracing:
 

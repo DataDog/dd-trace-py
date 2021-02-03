@@ -1,17 +1,18 @@
 import flask
 import werkzeug
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import compat
 from ddtrace import config, Pin
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
 from .. import trace_utils
-from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
+from .helpers import get_current_app, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
 log = get_logger(__name__)
@@ -307,11 +308,20 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                 if not s.get_tag(FLASK_ENDPOINT) and not s.get_tag(FLASK_URL_RULE):
                     s.resource = u"{} {}".format(request.method, code)
 
-                s.set_tag(http.STATUS_CODE, code)
-                if 500 <= code < 600:
-                    s.error = 1
-                elif code in config.flask.get("extra_error_codes", set()):
-                    s.error = 1
+                trace_utils.set_http_meta(s, config.flask, status_code=code, response_headers=headers)
+
+                extra_error_codes = config.flask.get("extra_error_codes")
+                if extra_error_codes:
+                    debtcollector.deprecate(
+                        (
+                            "ddtrace.config.flask['extra_error_codes'] is now deprecated, "
+                            "use ddtrace.config.http_server.error_statuses"
+                        ),
+                        removal_version="0.47.0",
+                    )
+                    if code in extra_error_codes:
+                        s.error = 1
+
                 return func(status_code, headers)
 
             return traced_start_response
@@ -320,10 +330,14 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
-        s.set_tag(http.URL, request.base_url)
-        s.set_tag(http.METHOD, request.method)
-        if config.flask.trace_query_string:
-            s.set_tag(http.QUERY_STRING, compat.to_unicode(request.query_string))
+        trace_utils.set_http_meta(
+            s,
+            config.flask,
+            method=request.method,
+            url=request.base_url,
+            query=compat.to_unicode(request.query_string),
+            request_headers=request.headers,
+        )
 
         return wrapped(environ, start_response)
 
@@ -418,9 +432,9 @@ def traced_render(wrapped, instance, args, kwargs):
     This method is called for render_template or render_template_string
     """
     pin = Pin._find(wrapped, instance, get_current_app())
-    # DEV: `get_current_span` will verify `pin` is valid and enabled first
-    span = get_current_span(pin)
-    if not span:
+    span = pin.tracer.current_span()
+
+    if not pin.enabled or not span:
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
@@ -450,8 +464,8 @@ def request_tracer(name):
 
         This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
         """
-        span = get_current_span(pin)
-        if not span:
+        span = pin.tracer.current_span()
+        if not pin.enabled or not span:
             return wrapped(*args, **kwargs)
 
         try:

@@ -16,19 +16,15 @@ cpdef get_thread_name(thread_id):
     if thread_id == _nogevent.main_thread_id:
         return "MainThread"
 
-    # Try to look if this is one of our periodic threads
+    # We don't want to bother to lock anything here, especially with eventlet involved 😓. We make a best effort to
+    # get the thread name; if we fail, it'll just be an anonymous thread because it's either starting or dying.
     try:
-        return _periodic.PERIODIC_THREADS[thread_id].name
+        return threading._active[thread_id].name
     except KeyError:
-        # We don't want to bother to lock anything here, especially with eventlet involved 😓. We make a best effort to
-        # get the thread name; if we fail, it'll just be an anonymous thread because it's either starting or dying.
         try:
-            return threading._active[thread_id].name
+            return threading._limbo[thread_id].name
         except KeyError:
-            try:
-                return threading._limbo[thread_id].name
-            except KeyError:
-                return None
+            return None
 
 
 cpdef get_thread_native_id(thread_id):

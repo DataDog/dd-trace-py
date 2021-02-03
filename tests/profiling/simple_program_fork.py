@@ -5,16 +5,17 @@ import threading
 import ddtrace.profiling.auto
 import ddtrace.profiling.bootstrap
 import ddtrace.profiling.profiler
+from ddtrace.profiling import _service
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading as cthreading
 
 
 lock = threading.Lock()
 lock.acquire()
-test_lock_name = "simple_program_fork.py:12"
+test_lock_name = "simple_program_fork.py:13"
 
 
-assert ddtrace.profiling.bootstrap.profiler.status == ddtrace.profiling.profiler.ProfilerStatus.RUNNING
+assert ddtrace.profiling.bootstrap.profiler.status == _service.ServiceStatus.RUNNING
 
 parent_recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 
@@ -37,7 +38,7 @@ if child_pid == 0:
 
     # We track this one though
     lock = threading.Lock()
-    test_lock_name = "simple_program_fork.py:39"
+    test_lock_name = "simple_program_fork.py:40"
     assert test_lock_name not in set(e.lock_name for e in recorder.events[cthreading.LockAcquireEvent])
     lock.acquire()
     assert test_lock_name in set(e.lock_name for e in recorder.events[cthreading.LockAcquireEvent])
@@ -59,7 +60,7 @@ else:
     assert test_lock_name not in set(e.lock_name for e in recorder.events[cthreading.LockReleaseEvent])
     lock.release()
     assert test_lock_name in set(e.lock_name for e in recorder.events[cthreading.LockReleaseEvent])
-    assert ddtrace.profiling.bootstrap.profiler.status == ddtrace.profiling.profiler.ProfilerStatus.RUNNING
+    assert ddtrace.profiling.bootstrap.profiler.status == _service.ServiceStatus.RUNNING
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
     sys.exit(os.WEXITSTATUS(status))

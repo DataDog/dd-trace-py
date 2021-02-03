@@ -1,0 +1,158 @@
+[[{"name" "trace1"
+   "service" nil
+   "resource" "trace1"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1611739614070324000
+   "duration" 69000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 10144}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611739614070374000
+       "duration" 10000}]
+ [{"name" "trace2"
+   "service" nil
+   "resource" "trace2"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1611739614070713000
+   "duration" 63000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_dd.limit_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 10144
+              "_dd.rule_psr" 1.0}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 1
+       "parent_id" 0
+       "start" 1611739614070760000
+       "duration" 9000}]
+ [{"name" "trace3"
+   "service" nil
+   "resource" "trace3"
+   "error" 0
+   "span_id" 0
+   "trace_id" 2
+   "parent_id" nil
+   "start" 1611739614070850000
+   "duration" 41000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_sampling_priority_v1" 0
+              "system.pid" 10144
+              "_dd.rule_psr" 1.0E-6}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 2
+       "parent_id" 0
+       "start" 1611739614070878000
+       "duration" 8000}]
+ [{"name" "trace4"
+   "service" nil
+   "resource" "trace4"
+   "error" 0
+   "span_id" 0
+   "trace_id" 3
+   "parent_id" nil
+   "start" 1611739614070959000
+   "duration" 50000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_dd.limit_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 10144
+              "_dd.rule_psr" 1.0}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 3
+       "parent_id" 0
+       "start" 1611739614070996000
+       "duration" 8000}]
+ [{"name" "trace5"
+   "service" nil
+   "resource" "trace5"
+   "error" 0
+   "span_id" 0
+   "trace_id" 4
+   "parent_id" nil
+   "start" 1611739614071075000
+   "duration" 41000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_sampling_priority_v1" 0
+              "system.pid" 10144
+              "_dd.rule_psr" 0}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 4
+       "parent_id" 0
+       "start" 1611739614071103000
+       "duration" 7000}]
+ [{"name" "trace6"
+   "service" nil
+   "resource" "trace6"
+   "error" 0
+   "span_id" 0
+   "trace_id" 5
+   "parent_id" nil
+   "start" 1611739614071176000
+   "duration" 55000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_dd.limit_psr" 1.0
+              "_sampling_priority_v1" -1
+              "system.pid" 10144
+              "_dd.rule_psr" 1}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 5
+       "parent_id" 0
+       "start" 1611739614071208000
+       "duration" 17000}]
+ [{"name" "trace7"
+   "service" nil
+   "resource" "trace7"
+   "error" 0
+   "span_id" 0
+   "trace_id" 6
+   "parent_id" nil
+   "start" 1611739614071293000
+   "duration" 48000
+   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "metrics" {"_dd.limit_psr" 1.0
+              "_sampling_priority_v1" 2
+              "system.pid" 10144
+              "_dd.rule_psr" 1}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 6
+       "parent_id" 0
+       "start" 1611739614071323000
+       "duration" 13000}]]

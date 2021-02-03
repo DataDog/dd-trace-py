@@ -7,11 +7,12 @@ from tests import TracerTestCase, override_global_tracer
 
 class HelpersTestCase(TracerTestCase):
     """Test suite for ``ddtrace`` helpers"""
+
     def test_correlation_identifiers(self):
         # ensures the right correlation identifiers are
         # returned when a Trace is active
         with override_global_tracer(self.tracer):
-            span = self.tracer.trace('MockSpan')
+            span = self.tracer.trace("MockSpan")
             active_trace_id, active_span_id = span.trace_id, span.span_id
             trace_id, span_id = helpers.get_correlation_ids()
 
@@ -30,7 +31,7 @@ class HelpersTestCase(TracerTestCase):
         # ensures `None` is returned if tracer is disabled
         with override_global_tracer(self.tracer):
             self.tracer.enabled = False
-            self.tracer.trace('MockSpan')
+            self.tracer.trace("MockSpan")
             trace_id, span_id = helpers.get_correlation_ids()
 
         self.assertIsNone(trace_id)
