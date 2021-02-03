@@ -10,7 +10,7 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
 ## Checklist
 <!-- Delete any entries that are not applicable to the integration -->
 
-- [ ] Usage and configuration documentation added in `__init__.py`.
+- [ ] Usage and configuration documentation added in `__init__.py`, `docs/index.rst` and `docs/integrations.rst`.
 - [ ] [Corp docs](https://github.com/Datadog/documentation) PR to add new integration to documentation.
 - [ ] Span metadata
   - [ ] Service (use [`int_service`](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/contrib/trace_utils.py#L55) or [`ext_service`](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/contrib/trace_utils.py#L87)).
