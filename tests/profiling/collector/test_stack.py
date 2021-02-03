@@ -4,6 +4,7 @@ import threading
 import time
 import timeit
 
+from flaky import flaky
 import pytest
 
 from ddtrace.vendor import six
@@ -173,6 +174,7 @@ def test_ignore_profiler_gevent_task(profiler):
     assert collector_thread_ids.isdisjoint({e.task_id for e in events})
 
 
+@flaky(max_runs=4, min_passes=1)
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
 def test_not_ignore_profiler_gevent_task(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")

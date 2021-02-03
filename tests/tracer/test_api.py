@@ -8,6 +8,7 @@ import warnings
 
 from unittest import TestCase
 
+from flaky import flaky
 import pytest
 
 from ddtrace.api import API, Response
@@ -272,6 +273,7 @@ def test_flush_connection_reset(endpoint_test_reset_server):
         assert isinstance(response, httplib.BadStatusLine)
 
 
+@flaky
 def test_flush_connection_uds(endpoint_uds_server):
     payload = mock.Mock()
     payload.get_payload.return_value = "foobar"
