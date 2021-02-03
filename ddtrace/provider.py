@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import Optional, Union
 
 from ddtrace.vendor import six
 
@@ -8,7 +8,7 @@ from ddtrace.context import Context
 from ddtrace.compat import contextvars
 
 
-_DD_CONTEXTVAR = contextvars.ContextVar("datadog_tracing_contextvar", default=None)
+_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -49,7 +49,7 @@ class DefaultContextProvider(BaseContextProvider):
     """
 
     def __init__(self):
-        pass
+        _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
         # type: () -> bool
@@ -63,5 +63,6 @@ class DefaultContextProvider(BaseContextProvider):
         _DD_CONTEXTVAR.set(context)
 
     def active(self):
+        # type: () -> Optional[Union[Context, Span]]
         """Returns the active context for the current execution."""
         return _DD_CONTEXTVAR.get()

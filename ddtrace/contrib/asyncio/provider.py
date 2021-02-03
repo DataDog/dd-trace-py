@@ -45,7 +45,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """Helper to determine if we have a currently active context."""
         loop = self._get_loop(loop=loop)
         if loop is None:
-            return self._local._has_active_context()
+            return super(AsyncioContextProvider, self)._has_active_context()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)

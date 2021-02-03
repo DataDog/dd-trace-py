@@ -35,8 +35,10 @@ class TestAsyncioHelpers(AsyncioTestCase):
         s2 = yield from asyncio.wait_for(delayed_task, timeout=1)
         s2.finish()
         s1.finish()
+        assert s2.name == "child"
         assert s1.parent_id is None
-        assert s2.parent_id is s1.span_id
+        assert s2.parent_id == s1.span_id
+        assert s1.trace_id == s2.trace_id
 
     @mark_asyncio
     def test_run_in_executor_proxy(self):
@@ -51,6 +53,25 @@ class TestAsyncioHelpers(AsyncioTestCase):
         assert result
 
     @mark_asyncio
+    def test_run_in_executor_traces(self):
+        # the wrapper should create a different Context when the Thread
+        # is started; the new Context creates a new trace
+        def future_work():
+            # the Context is empty but the reference to the latest
+            # span is here to keep the parenting
+            return self.tracer.trace("child")
+
+        span = self.tracer.trace("coroutine")
+        future = helpers.run_in_executor(self.loop, None, future_work, tracer=self.tracer)
+        span.finish()
+        s2 = yield from future
+        s2.finish()
+        assert s2.name == "child"
+        assert s2.trace_id == span.trace_id
+        assert span.parent_id is None
+        assert s2.parent_id == span.span_id
+
+    @mark_asyncio
     def test_create_task(self):
         # the helper should create a new Task that has the Context attached
         @asyncio.coroutine
@@ -62,5 +83,6 @@ class TestAsyncioHelpers(AsyncioTestCase):
         # schedule future work and wait for a result
         task = helpers.create_task(future_work())
         result = yield from task
+        assert result.name == "child_task"
         assert root_span.trace_id == result.trace_id
         assert root_span.span_id == result.parent_id

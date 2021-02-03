@@ -40,37 +40,6 @@ class TestGeventTracer(TracerTestCase):
         # untrace gevent
         unpatch()
 
-    def test_spawn_greenlet_no_context(self):
-        # a greenlet will not have a context if the tracer is not used
-        def greenlet():
-            gevent.sleep(0.01)
-
-        g = gevent.spawn(greenlet)
-        g.join()
-        ctx = getattr(g, "__datadog_context", None)
-        assert ctx is None
-
-    def test_spawn_greenlet(self):
-        # a greenlet will have a context if the tracer is used
-        def greenlet():
-            self.tracer.get_call_context()
-
-        g = gevent.spawn(greenlet)
-        g.join()
-        ctx = getattr(g, "__datadog_context", None)
-        assert ctx is None
-
-    def test_spawn_later_greenlet(self):
-        # a greenlet will have a context if the tracer is used even
-        # if it's spawned later
-        def greenlet():
-            self.tracer.get_call_context()
-
-        g = gevent.spawn_later(0.01, greenlet)
-        g.join()
-        ctx = getattr(g, "__datadog_context", None)
-        assert ctx is None
-
     def test_trace_greenlet(self):
         # a greenlet can be traced using the trace API
         def greenlet():
@@ -83,6 +52,24 @@ class TestGeventTracer(TracerTestCase):
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
         assert "base" == traces[0][0].resource
+
+    def test_trace_greenlet_twice(self):
+        # a greenlet can be traced using the trace API
+        def greenlet():
+            with self.tracer.trace("greenlet") as span:
+                span.resource = "base"
+
+            with self.tracer.trace("greenlet2") as span:
+                span.resource = "base2"
+
+        gevent.spawn(greenlet).join()
+        traces = self.tracer.writer.pop_traces()
+        assert 2 == len(traces)
+        assert 1 == len(traces[0]) == len(traces[1])
+        assert "greenlet" == traces[0][0].name
+        assert "base" == traces[0][0].resource
+        assert "greenlet2" == traces[1][0].name
+        assert "base2" == traces[1][0].resource
 
     def test_trace_map_greenlet(self):
         # a greenlet can be traced using the trace API

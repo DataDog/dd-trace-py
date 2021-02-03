@@ -5,7 +5,6 @@ import time
 import pytest
 from unittest.case import SkipTest
 
-from ddtrace.context import Context
 from ddtrace.constants import (
     ANALYTICS_SAMPLE_RATE_KEY,
     VERSION_KEY,
@@ -14,7 +13,7 @@ from ddtrace.constants import (
     ENV_KEY,
 )
 from ddtrace.span import Span
-from ddtrace.ext import SpanTypes, errors, priority
+from ddtrace.ext import SpanTypes, errors
 from tests import TracerTestCase, assert_is_measured, assert_is_not_measured
 
 
@@ -137,18 +136,12 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("a", Foo())
 
     def test_finish(self):
-        # ensure finish will record a span
-        ctx = Context()
-        s = Span(self.tracer, "test.span", context=ctx)
-        ctx.add_span(s)
-        assert s.duration is None
-
+        # ensure span.finish() marks the end time of the span
+        s = Span(None, "test.span")
         sleep = 0.05
-        with s as s1:
-            assert s is s1
-            time.sleep(sleep)
+        time.sleep(sleep)
+        s.finish()
         assert s.duration >= sleep, "%s < %s" % (s.duration, sleep)
-        self.assert_span_count(1)
 
     def test_finish_no_tracer(self):
         # ensure finish works with no tracer without raising exceptions
@@ -157,12 +150,9 @@ class SpanTestCase(TracerTestCase):
 
     def test_finish_called_multiple_times(self):
         # we should only record a span the first time finish is called on it
-        ctx = Context()
-        s = Span(self.tracer, "bar", context=ctx)
-        ctx.add_span(s)
+        s = Span(self.tracer, "bar")
         s.finish()
         s.finish()
-        self.assert_span_count(1)
 
     def test_finish_set_span_duration(self):
         # If set the duration on a span, the span should be recorded with this
@@ -313,54 +303,6 @@ class SpanTestCase(TracerTestCase):
         d = s.to_dict()
         assert d
         assert "metrics" not in d
-
-    def test_set_tag_manual_keep(self):
-        ctx = Context()
-        s = Span(tracer=None, name="root.span", service="s", resource="r", context=ctx)
-
-        assert s.context == ctx
-        assert ctx.sampling_priority != priority.USER_KEEP
-        assert s.context.sampling_priority != priority.USER_KEEP
-        assert s.meta == dict()
-
-        s.set_tag("manual.keep")
-        assert ctx.sampling_priority == priority.USER_KEEP
-        assert s.context.sampling_priority == priority.USER_KEEP
-        assert s.meta == dict()
-
-        ctx.sampling_priority = priority.AUTO_REJECT
-        assert ctx.sampling_priority == priority.AUTO_REJECT
-        assert s.context.sampling_priority == priority.AUTO_REJECT
-        assert s.meta == dict()
-
-        s.set_tag("manual.keep")
-        assert ctx.sampling_priority == priority.USER_KEEP
-        assert s.context.sampling_priority == priority.USER_KEEP
-        assert s.meta == dict()
-
-    def test_set_tag_manual_drop(self):
-        ctx = Context()
-        s = Span(tracer=None, name="root.span", service="s", resource="r", context=ctx)
-
-        assert s.context == ctx
-        assert ctx.sampling_priority != priority.USER_REJECT
-        assert s.context.sampling_priority != priority.USER_REJECT
-        assert s.meta == dict()
-
-        s.set_tag("manual.drop")
-        assert ctx.sampling_priority == priority.USER_REJECT
-        assert s.context.sampling_priority == priority.USER_REJECT
-        assert s.meta == dict()
-
-        ctx.sampling_priority = priority.AUTO_REJECT
-        assert ctx.sampling_priority == priority.AUTO_REJECT
-        assert s.context.sampling_priority == priority.AUTO_REJECT
-        assert s.meta == dict()
-
-        s.set_tag("manual.drop")
-        assert ctx.sampling_priority == priority.USER_REJECT
-        assert s.context.sampling_priority == priority.USER_REJECT
-        assert s.meta == dict()
 
     def test_set_tag_none(self):
         s = Span(tracer=None, name="root.span", service="s", resource="r")

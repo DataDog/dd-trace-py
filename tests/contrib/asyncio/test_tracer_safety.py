@@ -14,6 +14,10 @@ class TestAsyncioSafety(AsyncioTestCase):
     Ensure that if the ``AsyncioTracer`` is not properly configured,
     bad traces are produced but the ``Context`` object will not
     leak memory.
+
+    These tests are only applicable when contextvars is not available
+    since DefaultContextProvider fully supports asyncio through
+    contextvars.
     """
 
     def setUp(self):
@@ -63,3 +67,4 @@ class TestAsyncioSafety(AsyncioTestCase):
         for s in spans:
             assert s.name == "coroutine"
             assert s.finished
+        assert 1000 == len(traces[0])

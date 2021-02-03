@@ -1,7 +1,6 @@
 import asyncio
 
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
-
 from .utils import AsyncioTestCase, mark_asyncio
 
 
