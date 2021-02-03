@@ -181,8 +181,6 @@ class Span(object):
             # be defensive so we don't die if start isn't set
             self.duration_ns = ft - (self.start_ns or ft)
 
-        # FIXME: self.tracer should always be defined, only reason it's
-        # optional seems to be for testing.
         if self.tracer:
             self.tracer._finish_span(self)
 

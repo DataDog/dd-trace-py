@@ -515,7 +515,6 @@ class Tracer(object):
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
         :param activate: Whether or not to activate the span once it is created.
-            Activating a span will make it available to
 
         To start a new root span, simply::
 
@@ -528,7 +527,7 @@ class Tracer(object):
             span = tracer.start_span('web.decoder', child_of=root_span)
             span.finish()
 
-        Ensure to finish all spans to avoid memory leaks and incorrect
+        Be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
         self._check_new_process()
@@ -762,8 +761,8 @@ class Tracer(object):
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 
-        The returned span *must* be `finish`'d or spans will accumulate in
-        memory indefinitely::
+        The returned span *must* be `finish`'d or it will remain in memory
+        indefinitely::
 
             >>> span = tracer.trace('web.request')
                 try:
