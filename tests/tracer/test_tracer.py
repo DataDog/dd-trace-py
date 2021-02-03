@@ -13,12 +13,21 @@ from unittest.case import SkipTest
 import mock
 import pytest
 
+from ddtrace.vendor import six
+
 import ddtrace
 from ddtrace.tracer import Tracer
-from ddtrace.ext import system
+from ddtrace.ext import system, priority
 from ddtrace.context import Context
-from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, HOSTNAME_KEY
-from ddtrace.vendor import six
+from ddtrace.constants import (
+    VERSION_KEY,
+    ENV_KEY,
+    SAMPLING_PRIORITY_KEY,
+    ORIGIN_KEY,
+    HOSTNAME_KEY,
+    MANUAL_KEEP_KEY,
+    MANUAL_DROP_KEY,
+)
 
 from tests.subprocesstest import run_in_subprocess
 from tests import TracerTestCase, DummyWriter, DummyTracer, override_global_config
@@ -1413,6 +1422,55 @@ def test_ctx_distributed():
     assert len(trace) == 1
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
+
+
+def test_manual_keep():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    # On a root span
+    with tracer.trace("asdf") as s:
+        s.set_tag(MANUAL_KEEP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+
+    # On a child span
+    with tracer.trace("asdf"):
+        with tracer.trace("child") as s:
+            s.set_tag(MANUAL_KEEP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+
+
+def test_manual_keep_then_drop():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    # Test changing the value before finish.
+    with tracer.trace("asdf") as root:
+        with tracer.trace("child") as child:
+            child.set_tag(MANUAL_KEEP_KEY)
+        root.set_tag(MANUAL_DROP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+
+
+def test_manual_drop():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    # On a root span
+    with tracer.trace("asdf") as s:
+        s.set_tag(MANUAL_DROP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+
+    # On a child span
+    with tracer.trace("asdf"):
+        with tracer.trace("child") as s:
+            s.set_tag(MANUAL_DROP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
