@@ -33,6 +33,7 @@ class TracedGreenlet(TracingMixin, gevent.Greenlet):
     through the ``patch()`` method. After the patch, extending the gevent
     ``Greenlet`` class means extending automatically ``TracedGreenlet``.
     """
+
     def __init__(self, *args, **kwargs):
         super(TracedGreenlet, self).__init__(*args, **kwargs)
 
@@ -48,6 +49,8 @@ if GEVENT_VERSION >= (1, 3) or GEVENT_VERSION < (1, 1):
     class TracedIMap(TracingMixin, gpool.IMap):
         def __init__(self, *args, **kwargs):
             super(TracedIMap, self).__init__(*args, **kwargs)
+
+
 else:
     # For gevent >=1.1 and <1.3, IMap derives from IMapUnordered, so we derive
     # from TracedIMapUnordered and get tracing that way
