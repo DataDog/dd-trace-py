@@ -19,7 +19,15 @@ import ddtrace
 from ddtrace.tracer import Tracer
 from ddtrace.ext import system, priority
 from ddtrace.context import Context
-from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, MANUAL_KEEP_KEY, MANUAL_DROP_KEY
+from ddtrace.constants import (
+    VERSION_KEY,
+    ENV_KEY,
+    SAMPLING_PRIORITY_KEY,
+    ORIGIN_KEY,
+    HOSTNAME_KEY,
+    MANUAL_KEEP_KEY,
+    MANUAL_DROP_KEY,
+)
 
 from tests.subprocesstest import run_in_subprocess
 from tests import TracerTestCase, DummyWriter, DummyTracer, override_global_config
@@ -1463,3 +1471,57 @@ def test_manual_drop():
             s.set_tag(MANUAL_DROP_KEY)
     spans = tracer.writer.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_enabled(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=True)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) == "test-hostname"
+    assert child.get_tag(HOSTNAME_KEY) is None
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_disabled(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=False)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) is None
+    assert child.get_tag(HOSTNAME_KEY) is None
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_default(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=False)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) is None
+    assert child.get_tag(HOSTNAME_KEY) is None
