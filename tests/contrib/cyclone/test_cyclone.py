@@ -102,11 +102,11 @@ def mk_app():
     return app
 
 
-class TestCylcone(CycloneTestCase, TracerTestCase):
+class TestCyclone(CycloneTestCase, TracerTestCase):
     app_builder = staticmethod(mk_app)
 
     def setUp(self):
-        super(TestCylcone, self).setUp()
+        super(TestCyclone, self).setUp()
 
         patch()
         pin = Pin.get_from(cyclone)
