@@ -310,6 +310,15 @@ venv = Venv(
             command="pytest tests/contrib/asgi",
         ),
         Venv(
+            name="twisted",
+            pys=select_pys(min_version=2.7),
+            pkgs={
+                "mysqlclient": [">=1.4,<1.5"],
+                "twisted": [">=18.9,<18.10", ">=19.7,<19.8", ">=20.3,<20.4", latest],
+            },
+            command="pytest {cmdargs} tests/contrib/twisted",
+        ),
+        Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             venvs=[

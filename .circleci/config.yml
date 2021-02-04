@@ -563,6 +563,15 @@ jobs:
       - run_tox_scenario:
           pattern: '^tornado_contrib-'
 
+  twisted:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'twisted'
+          snapshot: true
+          docker_services: 'mysql'
+
   bottle:
     <<: *contrib_job
     steps:
@@ -1066,6 +1075,7 @@ requires_tests: &requires_tests
     - test_logging
     - tracer
     - tornado
+    - twisted
     - vertica
     - wsgi
     - build-docker-ci-image
@@ -1167,6 +1177,7 @@ workflows:
       - sqlite3: *requires_pre_test
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
+      - twisted: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
       - wsgi: *requires_pre_test

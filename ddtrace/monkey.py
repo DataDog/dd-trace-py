@@ -67,6 +67,7 @@ PATCH_MODULES = {
     "logging": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
+    "twisted": True,
     "fastapi": True,
 }
 

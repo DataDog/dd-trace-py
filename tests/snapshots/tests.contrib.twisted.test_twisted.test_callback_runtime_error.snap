@@ -1,0 +1,17 @@
+[[{"name" "deferred"
+   "service" "twisted"
+   "resource" "deferLater"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1601601850592148000
+   "duration" 520000
+   "meta" {"runtime-id" "a184f8d4fe6240df81c4bf72d9abfb4e"
+           "errback.1" "twisted.internet.defer.passthru"
+           "errback.0" "twisted.internet.defer.passthru"
+           "callback.1" "tests.contrib.twisted.test_twisted.fn2"
+           "callback.0" "twisted.internet.task.<lambda>"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 30725}}]]
