@@ -21,7 +21,7 @@ class TestTwistedPatch(PatchTestCase.Base):
         self.assert_not_wrapped(twisted.internet.defer.Deferred.errback)
 
     def assert_not_module_double_patched(self, twisted):
-        self.assert_not_double_wrapped(twisted.internet.defer.double_Deferred.__init__)
+        self.assert_not_double_wrapped(twisted.internet.defer.Deferred.__init__)
         self.assert_not_double_wrapped(twisted.internet.defer.Deferred.addCallbacks)
         self.assert_not_double_wrapped(twisted.internet.defer.Deferred.callback)
         self.assert_not_double_wrapped(twisted.internet.defer.Deferred.errback)

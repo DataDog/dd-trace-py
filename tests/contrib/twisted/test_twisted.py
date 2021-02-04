@@ -121,10 +121,9 @@ class TestTwisted(TracerTestCase):
         assert len(spans) == 3
 
         s1, s2, s3 = spans
-        # traces should have separate contexts
-        assert s1.trace_id != s2.trace_id
-        assert s2.trace_id != s3.trace_id
-        assert s1.trace_id != s3.trace_id
+        assert s1.trace_id == s2.trace_id == s3.trace_id
+        assert s2.parent_id == s1.span_id
+        assert s3.parent_id == s1.span_id
 
     @TracerTestCase.run_in_subprocess
     def test_propagation_2_callbacks_separate_traces(self):

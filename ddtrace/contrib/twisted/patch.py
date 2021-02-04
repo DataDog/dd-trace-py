@@ -8,8 +8,8 @@ from ddtrace.compat import contextvars
 from ddtrace.contrib import func_name
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import errors
-from ddtrace.utils.formats import asbool, get_env
 from ddtrace.propagation import http as http_prop
+from ddtrace.utils.formats import asbool, get_env
 
 from .. import trace_utils
 
@@ -20,31 +20,22 @@ config._add(
         _default_service="twisted",
         distributed_tracing=asbool(get_env("twisted", "distributed_tracing", default=True)),
         split_by_domain=asbool(get_env("twisted", "split_by_domain", default=False)),
-        trace_all_deferreds=asbool(get_env("twisted", "trace_all_deferreds", default=False)),
     ),
 )
 
 
 @trace_utils.with_traced_module
 def deferred_init(twisted, pin, func, instance, args, kwargs):
-    # Create a new context for this Deferred
+    # Create a new context for this Deferred.
     ctx = contextvars.copy_context()
-    ddctx = pin.tracer.get_call_context()
     instance.__ctx = ctx
-    instance.__ddctx = ddctx
-
-    # Only create traces for deferreds when there is an active span
-    # or there is a name in the context.
-    if ddctx.get_current_span():
-        span = pin.tracer.trace("deferred", service=trace_utils.int_service(pin, config.twisted))
-        instance.__ddspan = span
-
     return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def deferred_callback(twisted, pin, func, instance, args, kwargs):
     span = getattr(instance, "__ddspan", None)
+
     if span and not span.finished:
         for n, cb in enumerate(instance.callbacks):
             # cb is a tuple of
@@ -54,7 +45,6 @@ def deferred_callback(twisted, pin, func, instance, args, kwargs):
             # )
             span.set_tag("callback.%d" % n, func_name(cb[0][0]))
             span.set_tag("errback.%d" % n, func_name(cb[1][0]))
-        span.finish()
 
     return func(*args, **kwargs)
 
@@ -73,7 +63,6 @@ def deferred_errback(twisted, pin, func, instance, args, kwargs):
             if hasattr(f, "type"):
                 span.set_tag(errors.ERROR_TYPE, f.type)
         span.error = 1
-        span.finish()
 
     return func(*args, **kwargs)
 
@@ -85,7 +74,6 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
     @functools.wraps(callback)
     def _callback(*args, **kwargs):
         ctx = instance.__ctx
-        ddctx = instance.__ddctx
 
         # ctx.run could raise a RuntimeError if the context is already
         # activated. This should not happen in practice even if there
@@ -103,13 +91,7 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
         # Regardless, let's safe-guard it as to not interfere with the
         # original code.
         try:
-            # Need to wrap the callback again to copy the datadog context
-            # once the contextvars context is activated.
-            def fn(*args, **kwargs):
-                pin.tracer.context_provider.activate(ddctx.clone())
-                return callback(*args, **kwargs)
-
-            return ctx.run(fn, *args, **kwargs)
+            return ctx.run(callback, *args, **kwargs)
         except RuntimeError as e:
             if "cannot enter context" in str(e):
                 return callback(*args, **kwargs)
@@ -124,31 +106,15 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def threadpool_callInThreadWithCallback(twisted, pin, func, instance, args, kwargs):
     f = args[1]
-
-    ctx = pin.tracer.get_call_context().clone()
-
-    # Due to an oversight in Context, whenever a span is closed
-    # the parent is set as the active. However in async tracing the child
-    # can outlive the parent...
-
-    # In this case the handler method will probably close, setting the parent
-    # to the request span. However there may be child spans still open
-    # (like runQuery).
-    # To get around this we have to clone the context and handle them
-    # separately.
+    ctx = contextvars.copy_context()
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        prev_ctx = pin.tracer.get_call_context()
-        try:
-            pin.tracer.context_provider.activate(ctx)
-            return f(*args, **kwargs)
-        finally:
-            pin.tracer.context_provider.activate(prev_ctx)
+        return ctx.run(f, *args, **kwargs)
 
     newargs = list(args)
     newargs[1] = wrapper
-    return func(*tuple(newargs), **kwargs)
+    return func(*newargs, **kwargs)
 
 
 @trace_utils.with_traced_module
@@ -165,31 +131,36 @@ def connectionpool___init__(twisted, pin, func, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
-def connectionpool_runquery(twisted, pin, func, instance, args, kwargs):
-    ctx = pin.tracer.get_call_context()
-    with ctx.override_ctx_item("trace_deferreds", True):
-        with ctx.override_ctx_item("deferred_resource", "ConnectionPool.runQuery"):
-            return func(*args, **kwargs)
+def connectionpool_runinteraction(twisted, pin, func, instance, args, kwargs):
+    with pin.tracer.trace("twisted.db"):
+        return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
-    ctx = pin.tracer.get_call_context()
-    try:
-        with ctx.override_ctx_item("trace_deferreds", True):
-            return func(*args, **kwargs)
-    finally:
-        # Note that HTTPClientFactory creates a Deferred in its init
-        # so we want that to be the active span for when we set the distributed
-        # tracing headers.
+    func(*args, **kwargs)
+
+    if hasattr(instance, "deferred"):
+        span = pin.tracer.start_span("twisted.http", child_of=pin.tracer.active(), activate=False)
+        instance.__ddspan = span
+
         if config.twisted.distributed_tracing:
             propagator = http_prop.HTTPPropagator()
-            propagator.inject(ctx, instance.headers)
+            propagator.inject(span.context, instance.headers)
+
+        def fin(_):
+            span.finish()
+
+        def err(_):
+            span.error = 1
+            span.finish()
+
+        instance.deferred.addCallbacks(fin, err)
 
 
 @trace_utils.with_traced_module
 def agent_request(twisted, pin, func, instance, args, kwargs):
-    s = pin.tracer.trace("twisted.agent.request")
+    span = pin.tracer.trace("twisted.agent.request")
     ctx = pin.tracer.get_call_context()
     if len(args) > 2:
         headers = args[2]
@@ -212,36 +183,17 @@ def agent_request(twisted, pin, func, instance, args, kwargs):
 
     if ctx.sampling_priority:
         headers.addRawHeader(http_prop.HTTP_HEADER_SAMPLING_PRIORITY, str(ctx.sampling_priority))
-    if ctx._dd_origin:
-        headers.addRawHeader(http_prop.HTTP_HEADER_ORIGIN, str(ctx._dd_origin))
+    if ctx.dd_origin:
+        headers.addRawHeader(http_prop.HTTP_HEADER_ORIGIN, str(ctx.dd_origin))
 
     d = func(*args, **kwargs)
 
     def finish_span(_):
-        s.finish()
+        span.finish()
         return _
 
     d.addCallback(finish_span)
     return d
-
-
-@trace_utils.with_traced_module
-def reactor_callLater(twisted, pin, func, instance, args, kwargs):
-    ctx = pin.tracer.get_call_context().clone()
-
-    fn = args[1]
-
-    def traced_fn(*args, **kwargs):
-        try:
-            prev_ctx = pin.tracer.get_call_context()
-            pin.tracer.context_provider.activate(ctx)
-            return fn(*args, **kwargs)
-        finally:
-            pin.tracer.context_provider.activate(prev_ctx)
-
-    newargs = list(args)
-    newargs[1] = traced_fn
-    return func(*tuple(newargs), **kwargs)
 
 
 def patch():
@@ -256,14 +208,15 @@ def patch():
     trace_utils.wrap("twisted.internet.defer", "Deferred.callback", deferred_callback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.errback", deferred_errback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_addCallbacks(twisted))
-    trace_utils.wrap("twisted.enterprise.adbapi", "ConnectionPool.__init__", connectionpool___init__(twisted))
-    trace_utils.wrap("twisted.enterprise.adbapi", "ConnectionPool.runQuery", connectionpool_runquery(twisted))
     trace_utils.wrap(
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
     )
+    trace_utils.wrap("twisted.enterprise.adbapi", "ConnectionPool.__init__", connectionpool___init__(twisted))
+    trace_utils.wrap(
+        "twisted.enterprise.adbapi", "ConnectionPool._runInteraction", connectionpool_runinteraction(twisted)
+    )
     trace_utils.wrap("twisted.web.client", "HTTPClientFactory.__init__", httpclientfactory___init__(twisted))
     trace_utils.wrap("twisted.web.client", "Agent.request", agent_request(twisted))
-    trace_utils.wrap("twisted.internet", "reactor.callLater", reactor_callLater(twisted))
 
     setattr(twisted, "__datadog_patch", True)
 
@@ -278,11 +231,9 @@ def unpatch():
     trace_utils.unwrap(twisted.internet.defer.Deferred, "callback")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "errback")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "addCallbacks")
-    trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "__init__")
-    trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "runQuery")
     trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
+    trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "__init__")
     trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
     trace_utils.unwrap(twisted.web.client.Agent, "request")
-    trace_utils.unwrap(twisted.internet.reactor, "callLater")
 
     setattr(twisted, "__datadog_patch", False)
