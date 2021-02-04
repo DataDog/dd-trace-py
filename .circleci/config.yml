@@ -576,9 +576,18 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
-          pattern: 'twisted'
+    pattern: 'twisted'
+    snapshot: true
+    docker_services: 'mysql'
+
+  txredisapi:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'txredisapi'
           snapshot: true
-          docker_services: 'mysql'
+          docker_services: 'redis'
 
   bottle:
     <<: *contrib_job

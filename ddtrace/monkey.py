@@ -70,6 +70,7 @@ PATCH_MODULES = {
     "pyodbc": True,
     "twisted": True,
     "fastapi": True,
+    "txredisapi": True,
 }
 
 _LOCK = threading.Lock()
