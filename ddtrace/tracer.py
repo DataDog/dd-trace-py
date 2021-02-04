@@ -666,11 +666,14 @@ class Tracer(object):
     def _finish_span(self, span):
         # type: (Span) -> None
 
-        # Safe-guard: only set the next active span to the parent if span is active
+        # Only set the next active span to the parent if the span is active
         # and the parent is not finished.
-        if self.active() is span and span._parent and not span._parent.finished:
+        active = self.active()
+        if active is span and span._parent and not span._parent.finished:
             self.context_provider.activate(span._parent)
-        else:
+        # Else if the span is the active span and there is no suitable parent,
+        # activate nothing so future spans do not inherit from it.
+        elif active is span:
             self.context_provider.activate(None)
 
         # It's possible that a span can be created from a trace that has already

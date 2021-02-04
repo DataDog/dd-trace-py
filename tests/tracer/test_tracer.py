@@ -1547,7 +1547,6 @@ def test_non_active_span():
     with tracer.start_span("test", activate=False):
         assert tracer.active_span() is None
         assert tracer.active_root_span() is None
-
     assert tracer.active_span() is None
     assert tracer.active_root_span() is None
     traces = tracer.writer.pop_traces()
@@ -1558,8 +1557,17 @@ def test_non_active_span():
         with tracer.start_span("test2", activate=False):
             assert tracer.active_span() is None
             assert tracer.active_root_span() is None
-
     assert tracer.active_span() is None
     assert tracer.active_root_span() is None
     traces = tracer.writer.pop_traces()
     assert len(traces) == 2
+
+    with tracer.start_span("active", activate=True) as active:
+        with tracer.start_span("non active", child_of=active, activate=False):
+            assert tracer.active() is active
+            assert tracer.active_root_span() is active
+        assert tracer.active() is active
+        assert tracer.active_root_span() is active
+    traces = tracer.writer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 2
