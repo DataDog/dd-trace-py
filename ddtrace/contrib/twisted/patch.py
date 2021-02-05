@@ -26,82 +26,88 @@ config._add(
 
 @trace_utils.with_traced_module
 def deferred_init(twisted, pin, func, instance, args, kwargs):
-    # Create a new context for this Deferred.
-    ctx = contextvars.copy_context()
-    instance.__ctx = ctx
+    """Patch the Deferred initializer to add contextvars support.
 
+    Tracing deferreds is tricky as usually the deferred itself has little
+    meaning. Instead it usually _represents_ work that is done outside of
+    the deferred.
+
+    In order to trace deferreds the context is copied when the deferred is
+    initialized. This context will contain any span that was active at the
+    time the deferred was created.
+
+    The context is then used to run the callbacks of the deferred. This
+    enables a trace to continue through deferred callback chains which can
+    be thought of as synchronous execution.
+    """
+    ctx = contextvars.copy_context()
+    setattr(instance, "__ctx", ctx)
     return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def deferred_callback(twisted, pin, func, instance, args, kwargs):
-    ctx = instance.__ctx
-    span = getattr(instance, "__ddspan", None)
-    ctx.run(lambda: pin.tracer.activate(span))
+    """Patch the Deferred.callback method.
 
-    if span and not span.finished:
-        for n, cb in enumerate(instance.callbacks):
-            # cb is a tuple of
-            # (
-            #   (callback, callbackArgs, callbackKWArgs),
-            #   (errback, errbackArgs, errbackKWArgs)
-            # )
-            span.set_tag("callback.%d" % n, func_name(cb[0][0]))
-            span.set_tag("errback.%d" % n, func_name(cb[1][0]))
+    This method is used to invoke the callbacks of the deferred. For tracing
+    this is used as the opportunity to activate the context stored in the
+    initializer. This can be done as all callbacks are executed synchronously.
+
+    Any span attached to the deferred is finished.
+
+    From the Twisted docstring for callback::
+        An instance of L{Deferred} may only have either L{callback} or
+        L{errback} called on it, and only once.
+
+    So span.finish() must be called in both the callback and errback patches.
+    """
+    ctx = instance.__ctx
+    if hasattr(instance, "__ddspan"):
+        span = instance.__ddspan
+        ctx.run(pin.tracer.activate, span)
+
+        if span and not span.finished:
+            for n, cb in enumerate(instance.callbacks):
+                # cb is a tuple of tuples:
+                # (
+                #   (callback, callbackArgs, callbackKWArgs),
+                #   (errback, errbackArgs, errbackKWArgs)
+                # )
+                span.set_tag("callback.%d" % n, func_name(cb[0][0]))
+                span.set_tag("errback.%d" % n, func_name(cb[1][0]))
+
+            # Have to call span.finish in the context as that's where the span
+            # is active.
+            if getattr(instance, "__ddauto", True):
+                ctx.run(span.finish)
     return ctx.run(func, *args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def deferred_errback(twisted, pin, func, instance, args, kwargs):
-    span = getattr(instance, "__ddspan", None)
-    if span and not span.finished:
-        if len(args) > 0:
-            f = args[0]
-            if hasattr(f, "getTraceback"):
-                tb = f.getTraceback()
-                span.set_tag(errors.ERROR_STACK, tb)
-            if hasattr(f, "getErrorMessage"):
-                span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
-            if hasattr(f, "type"):
-                span.set_tag(errors.ERROR_TYPE, f.type)
-        span.error = 1
+    """Patch the Deferred.errback method.
 
+    This method is called when an exception is raised in the deferred. It
+    passes a Failure object to the errbacks of the deferred.
+    """
+    ctx = instance.__ctx
+    if hasattr(instance, "__ddspan"):
+        span = instance.__ddspan
+        ctx.run(pin.tracer.activate, span)
+        if span and not span.finished:
+            if len(args) > 0:
+                f = args[0]
+                if hasattr(f, "getTraceback"):
+                    tb = f.getTraceback()
+                    span.set_tag(errors.ERROR_STACK, tb)
+                if hasattr(f, "getErrorMessage"):
+                    span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
+                if hasattr(f, "type"):
+                    span.set_tag(errors.ERROR_TYPE, f.type)
+            span.error = 1
+            if getattr(instance, "__ddauto", True):
+                ctx.run(span.finish)
     return func(*args, **kwargs)
-
-
-@trace_utils.with_traced_module
-def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
-    callback = args[0] or kwargs.pop("callback")
-
-    @functools.wraps(callback)
-    def _callback(*args, **kwargs):
-        ctx = instance.__ctx
-        # ctx.run could raise a RuntimeError if the context is already
-        # activated. This should not happen in practice even if there
-        # is a recursive callback since the wrapper will not be called
-        # with the recursion call.
-        # eg.
-        # Consider the callback function
-        # def callback(n):
-        #     return callback(n-1) if n > 1 else 0
-        #
-        # this function will be intercepted and replaced with a wrapped
-        # version when addCallbacks is called.
-        # When the function is invoked the recursive callback(n-1) call
-        # will not call the wrapping code again.
-        # Regardless, let's safe-guard it as to not interfere with the
-        # original code.
-        try:
-            return ctx.run(_callback, *args, **kwargs)
-        except RuntimeError as e:
-            if "cannot enter context" in str(e):
-                return callback(*args, **kwargs)
-            exc_type, exc_val, exc_tb = sys.exc_info()
-            six.reraise(exc_type, exc_val, exc_tb)
-
-    newargs = list(args)
-    newargs[0] = _callback
-    return func(*tuple(newargs), **kwargs)
 
 
 @trace_utils.with_traced_module
@@ -143,7 +149,7 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
 
     d = getattr(instance, "deferred", None)
     if d:
-        span = d.__ddtrace("twisted.http", activate=False)
+        span = d.ddtrace("twisted.http")
         if config.twisted.distributed_tracing:
             propagator = http_prop.HTTPPropagator()
             propagator.inject(span.context, instance.headers)
@@ -201,42 +207,18 @@ def reactor_callLater(twisted, pin, func, instance, args, kwargs):
     return func(*newargs, **kwargs)
 
 
-def _deferred_trace_on_success(self, result):
-    span = getattr(self, "__ddspan", None)
-    if span:
-        self.__ddspan.finish()
-
-
-def _deferred_trace_on_error(self, f):
-    span = getattr(self, "__ddspan", None)
-    if span:
-        span.error = 1
-        if hasattr(f, "getTraceback"):
-            tb = f.getTraceback()
-            span.set_tag(errors.ERROR_STACK, tb)
-        if hasattr(f, "getErrorMessage"):
-            span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
-        if hasattr(f, "type"):
-            span.set_tag(errors.ERROR_TYPE, f.type)
-        span.finish()
-
-
 @trace_utils.with_traced_module
 def _deferred_trace(twisted, pin, func, self, args, kwargs):
     auto_finish = kwargs.pop("auto_finish", True)
     if "child_of" not in kwargs:
         kwargs["child_of"] = pin.tracer.active()
-
     # Activation is never desired when working with deferreds as the context in
     # which the deferred is created is not necessarily the context in which the
     # work is performed.
     kwargs["activate"] = False
-
-    span = pin.tracer.start_span(*args, **kwargs)
+    span = kwargs.pop("span", pin.tracer.start_span(*args, **kwargs))
     self.__ddspan = span
-
-    if auto_finish:
-        self.addCallbacks(self.__dd_on_success, self.__dd_on_error)
+    self.__ddauto = auto_finish
     return span
 
 
@@ -249,15 +231,13 @@ def patch():
     Pin().onto(twisted)
 
     import twisted.internet.defer
+
     # Bit of a hack so we can use the conventional trace_utils.wrap to define the method.
-    twisted.internet.defer.Deferred.__ddtrace = lambda self: None
-    twisted.internet.defer.Deferred.__dd_on_success = _deferred_trace_on_success
-    twisted.internet.defer.Deferred.__dd_on_error = _deferred_trace_on_error
-    trace_utils.wrap("twisted.internet.defer", "Deferred.__ddtrace", _deferred_trace(twisted))
+    twisted.internet.defer.Deferred.ddtrace = lambda self: None
+    trace_utils.wrap("twisted.internet.defer", "Deferred.ddtrace", _deferred_trace(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.__init__", deferred_init(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.callback", deferred_callback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.errback", deferred_errback(twisted))
-    trace_utils.wrap("twisted.internet.defer", "Deferred.addCallbacks", deferred_addCallbacks(twisted))
     trace_utils.wrap(
         "twisted.python.threadpool", "ThreadPool.callInThreadWithCallback", threadpool_callInThreadWithCallback(twisted)
     )
@@ -281,7 +261,6 @@ def unpatch():
     trace_utils.unwrap(twisted.internet.defer.Deferred, "__init__")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "callback")
     trace_utils.unwrap(twisted.internet.defer.Deferred, "errback")
-    trace_utils.unwrap(twisted.internet.defer.Deferred, "addCallbacks")
     trace_utils.unwrap(twisted.python.threadpool.ThreadPool, "callInThreadWithCallback")
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "__init__")
     trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
