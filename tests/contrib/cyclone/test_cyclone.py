@@ -8,7 +8,6 @@ import cyclone.web
 from cyclone import template
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
-import pytest
 
 from ddtrace import config, Pin
 from ddtrace.contrib.cyclone import patch, unpatch
@@ -251,7 +250,7 @@ class TestCyclone(CycloneTestCase, TracerTestCase):
     #     s1, s2, s3 = spans
     #     assert s1.trace_id == s2.trace_id == s3.trace_id
 
-    @pytest.mark.xfail(reason="twisted integration is required to get context propagation")
+    @TracerTestCase.run_in_subprocess
     def test_concurrent_requests(self):
         self.client.get("/async-sleep?k=1")
         self.client.get("/async-sleep?k=2")
