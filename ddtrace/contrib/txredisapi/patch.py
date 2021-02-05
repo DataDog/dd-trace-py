@@ -8,16 +8,18 @@ from ..redis.util import format_command_args
 from .. import trace_utils
 
 
-config._add("txredisapi", dict(_default_service="redis",))
+config._add(
+    "txredisapi",
+    dict(
+        _default_service="redis",
+    ),
+)
 
 
 @trace_utils.with_traced_module
 def traced_execute_command(txredisapi, pin, func, instance, args, kwargs):
-    ctx = pin.tracer.get_call_context()
-
-    with ctx.override_ctx_item("trace_deferreds", True):
-        d = func(*args, **kwargs)
-    s = getattr(d, "__ddspan", None)
+    d = func(*args, **kwargs)
+    s = d.trace("txredisapi.query")
 
     if s:
         s.name = redisx.CMD
