@@ -19,7 +19,7 @@ config._add(
 @trace_utils.with_traced_module
 def traced_execute_command(txredisapi, pin, func, instance, args, kwargs):
     d = func(*args, **kwargs)
-    s = d.__ddtrace("txredisapi.query")
+    s = d.ddtrace("txredisapi.query")
 
     if s:
         s.name = redisx.CMD
