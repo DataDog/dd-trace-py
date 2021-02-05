@@ -92,6 +92,7 @@ subdomains
 submodules
 timestamp
 tweens
+txredisapi
 uWSGI
 unix
 unpatch
