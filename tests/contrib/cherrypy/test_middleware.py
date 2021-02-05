@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import time
 import re
+import time
 
 from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -46,7 +46,6 @@ class TestCherrypy(helper.CPWebCase):
         # problem (the test scope must keep a strong reference)
         traced_app = TraceMiddleware(cherrypy, self.tracer)  # noqa: F841
         self.getPage("/")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertStatus("200 OK")
@@ -65,7 +64,6 @@ class TestCherrypy(helper.CPWebCase):
             service="new-intake",
         )
         self.getPage("/")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertStatus("200 OK")
@@ -78,7 +76,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_child(self):
         start = time.time()
         self.getPage("/child")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -115,7 +112,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_success(self):
         start = time.time()
         self.getPage("/")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -139,7 +135,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_alias(self):
         start = time.time()
         self.getPage("/aliases")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -163,7 +158,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_handleme(self):
         start = time.time()
         self.getPage("/handleme")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -185,7 +179,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_error(self):
         start = time.time()
         self.getPage("/error")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure the request itself worked
@@ -207,7 +200,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_fatal(self):
         start = time.time()
         self.getPage("/fatal")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         self.assertErrorPage(500)
@@ -233,7 +225,6 @@ class TestCherrypy(helper.CPWebCase):
         # Here, the URL is encoded in utf8 and then %HEX
         # See https://docs.cherrypy.org/en/latest/_modules/cherrypy/test/test_encoding.html for more
         self.getPage(url_quote(u"/üŋïĉóđē".encode("utf-8")))
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -258,7 +249,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_404(self):
         start = time.time()
         self.getPage(u"/404/test")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -287,7 +277,6 @@ class TestCherrypy(helper.CPWebCase):
                 ("x-datadog-sampling-priority", "2"),
             ],
         )
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         # ensure request worked
         self.assertStatus("200 OK")
@@ -305,8 +294,8 @@ class TestCherrypy(helper.CPWebCase):
         assert s.parent_id == 4567
         assert s.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
-    def test_disabled_distrobuted_tracing_config(self):
-        previous_distrobuted_tracing = config.cherrypy["distributed_tracing"]
+    def test_disabled_distributed_tracing_config(self):
+        previous_distributed_tracing = config.cherrypy["distributed_tracing"]
         config.cherrypy["distributed_tracing"] = False
         self.getPage(
             "/",
@@ -316,7 +305,6 @@ class TestCherrypy(helper.CPWebCase):
                 ("x-datadog-sampling-priority", "2"),
             ],
         )
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         # ensure request worked
         self.assertStatus("200 OK")
@@ -334,10 +322,10 @@ class TestCherrypy(helper.CPWebCase):
         assert s.parent_id != 4567
         assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
 
-        config.cherrypy["distributed_tracing"] = previous_distrobuted_tracing
+        config.cherrypy["distributed_tracing"] = previous_distributed_tracing
 
-    def test_disabled_distrobuted_tracing_middleware(self):
-        previous_distrobuted_tracing = cherrypy.tools.tracer.use_distributed_tracing
+    def test_disabled_distributed_tracing_middleware(self):
+        previous_distributed_tracing = cherrypy.tools.tracer.use_distributed_tracing
         cherrypy.tools.tracer.use_distributed_tracing = False
         self.getPage(
             "/",
@@ -347,7 +335,6 @@ class TestCherrypy(helper.CPWebCase):
                 ("x-datadog-sampling-priority", "2"),
             ],
         )
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         # ensure request worked
         self.assertStatus("200 OK")
@@ -365,11 +352,10 @@ class TestCherrypy(helper.CPWebCase):
         assert s.parent_id != 4567
         assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
 
-        cherrypy.tools.tracer.use_distributed_tracing = previous_distrobuted_tracing
+        cherrypy.tools.tracer.use_distributed_tracing = previous_distributed_tracing
 
     def test_custom_span(self):
         self.getPage(u"/custom_span")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         self.assertStatus("200 OK")
         self.assertBody("hiya")
@@ -395,8 +381,6 @@ class TestCherrypy(helper.CPWebCase):
                 ("x-datadog-sampling-priority", "2"),
             ],
         )
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
-
         traces = self.tracer.writer.pop_traces()
 
         assert len(traces) == 1
@@ -410,7 +394,6 @@ class TestCherrypy(helper.CPWebCase):
         config.cherrypy.http.trace_headers(["my-response-header"])
 
         self.getPage("/response_headers")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
 
         traces = self.tracer.writer.pop_traces()
 
@@ -423,7 +406,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_variable_resource(self):
         start = time.time()
         self.getPage("/dispatch/abc123/")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -450,7 +432,6 @@ class TestCherrypy(helper.CPWebCase):
     def test_post(self):
         start = time.time()
         self.getPage("/", method="POST")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -476,7 +457,6 @@ class TestCherrypy(helper.CPWebCase):
         config.cherrypy["service"] = "my_cherrypy_service"
         start = time.time()
         self.getPage("/")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
         end = time.time()
 
         # ensure request worked
@@ -504,7 +484,7 @@ class TestCherrypy(helper.CPWebCase):
         cherrypy.tools.tracer.service = "my_cherrypy_service2"
         start = time.time()
         self.getPage("/")
-        time.sleep(0.01)  # Without this here, span may not be ready for inspection, and timings can be incorrect.
+        time.sleep(0.01)
         end = time.time()
 
         # ensure request worked
