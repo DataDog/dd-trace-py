@@ -30,40 +30,14 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
     ctx = contextvars.copy_context()
     instance.__ctx = ctx
 
-    def _trace(*args, **kwargs):
-        auto_finish = kwargs.pop("auto_finish", True)
-        if "child_of" not in kwargs:
-            kwargs["child_of"] = pin.tracer.active()
-        kwargs["activate"] = False
-
-        span = pin.tracer.start_span(*args, **kwargs)
-        instance.__ddspan = span
-
-        def on_success(_):
-            span.finish()
-
-        def on_error(f):
-            span.error = 1
-            if hasattr(f, "getTraceback"):
-                tb = f.getTraceback()
-                span.set_tag(errors.ERROR_STACK, tb)
-            if hasattr(f, "getErrorMessage"):
-                span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
-            if hasattr(f, "type"):
-                span.set_tag(errors.ERROR_TYPE, f.type)
-            span.finish()
-
-        if auto_finish:
-            instance.addCallbacks(on_success, on_error)
-        return span
-
-    instance.trace = _trace
     return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def deferred_callback(twisted, pin, func, instance, args, kwargs):
+    ctx = instance.__ctx
     span = getattr(instance, "__ddspan", None)
+    ctx.run(lambda: pin.tracer.activate(span))
 
     if span and not span.finished:
         for n, cb in enumerate(instance.callbacks):
@@ -74,8 +48,7 @@ def deferred_callback(twisted, pin, func, instance, args, kwargs):
             # )
             span.set_tag("callback.%d" % n, func_name(cb[0][0]))
             span.set_tag("errback.%d" % n, func_name(cb[1][0]))
-
-    return func(*args, **kwargs)
+    return ctx.run(func, *args, **kwargs)
 
 
 @trace_utils.with_traced_module
@@ -119,14 +92,7 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
         # Regardless, let's safe-guard it as to not interfere with the
         # original code.
         try:
-            # FIXME: we don't need to do this for each callback, can probably do it once in deferred.callback
-            def _fn(*args, **kwargs):
-                span = getattr(instance, "__ddspan", None)
-                if span and not span.finished:
-                    pin.tracer.activate(span)
-                return callback(*args, **kwargs)
-
-            return ctx.run(_fn, *args, **kwargs)
+            return ctx.run(_callback, *args, **kwargs)
         except RuntimeError as e:
             if "cannot enter context" in str(e):
                 return callback(*args, **kwargs)
@@ -177,21 +143,10 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
 
     d = getattr(instance, "deferred", None)
     if d:
-        span = pin.tracer.start_span("twisted.http", child_of=pin.tracer.active(), activate=False)
-        d.__ddspan = span
-
+        span = d.__ddtrace("twisted.http", activate=False)
         if config.twisted.distributed_tracing:
             propagator = http_prop.HTTPPropagator()
             propagator.inject(span.context, instance.headers)
-
-        def fin(_):
-            span.finish()
-
-        def err(_):
-            span.error = 1
-            span.finish()
-
-        d.addCallbacks(fin, err)
 
 
 @trace_utils.with_traced_module
@@ -246,6 +201,45 @@ def reactor_callLater(twisted, pin, func, instance, args, kwargs):
     return func(*newargs, **kwargs)
 
 
+def _deferred_trace_on_success(self, result):
+    span = getattr(self, "__ddspan", None)
+    if span:
+        self.__ddspan.finish()
+
+
+def _deferred_trace_on_error(self, f):
+    span = getattr(self, "__ddspan", None)
+    if span:
+        span.error = 1
+        if hasattr(f, "getTraceback"):
+            tb = f.getTraceback()
+            span.set_tag(errors.ERROR_STACK, tb)
+        if hasattr(f, "getErrorMessage"):
+            span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
+        if hasattr(f, "type"):
+            span.set_tag(errors.ERROR_TYPE, f.type)
+        span.finish()
+
+
+@trace_utils.with_traced_module
+def _deferred_trace(twisted, pin, func, self, args, kwargs):
+    auto_finish = kwargs.pop("auto_finish", True)
+    if "child_of" not in kwargs:
+        kwargs["child_of"] = pin.tracer.active()
+
+    # Activation is never desired when working with deferreds as the context in
+    # which the deferred is created is not necessarily the context in which the
+    # work is performed.
+    kwargs["activate"] = False
+
+    span = pin.tracer.start_span(*args, **kwargs)
+    self.__ddspan = span
+
+    if auto_finish:
+        self.addCallbacks(self.__dd_on_success, self.__dd_on_error)
+    return span
+
+
 def patch():
     import twisted
 
@@ -254,6 +248,12 @@ def patch():
 
     Pin().onto(twisted)
 
+    import twisted.internet.defer
+    # Bit of a hack so we can use the conventional trace_utils.wrap to define the method.
+    twisted.internet.defer.Deferred.__ddtrace = lambda self: None
+    twisted.internet.defer.Deferred.__dd_on_success = _deferred_trace_on_success
+    twisted.internet.defer.Deferred.__dd_on_error = _deferred_trace_on_error
+    trace_utils.wrap("twisted.internet.defer", "Deferred.__ddtrace", _deferred_trace(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.__init__", deferred_init(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.callback", deferred_callback(twisted))
     trace_utils.wrap("twisted.internet.defer", "Deferred.errback", deferred_errback(twisted))
