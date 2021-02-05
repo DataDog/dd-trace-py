@@ -29,6 +29,35 @@ def deferred_init(twisted, pin, func, instance, args, kwargs):
     # Create a new context for this Deferred.
     ctx = contextvars.copy_context()
     instance.__ctx = ctx
+
+    def _trace(*args, **kwargs):
+        auto_finish = kwargs.pop("auto_finish", True)
+        if "child_of" not in kwargs:
+            kwargs["child_of"] = pin.tracer.active()
+        kwargs["activate"] = False
+
+        span = pin.tracer.start_span(*args, **kwargs)
+        instance.__ddspan = span
+
+        def on_success(_):
+            span.finish()
+
+        def on_error(f):
+            span.error = 1
+            if hasattr(f, "getTraceback"):
+                tb = f.getTraceback()
+                span.set_tag(errors.ERROR_STACK, tb)
+            if hasattr(f, "getErrorMessage"):
+                span.set_tag(errors.ERROR_MSG, f.getErrorMessage())
+            if hasattr(f, "type"):
+                span.set_tag(errors.ERROR_TYPE, f.type)
+            span.finish()
+
+        if auto_finish:
+            instance.addCallbacks(on_success, on_error)
+        return span
+
+    instance.trace = _trace
     return func(*args, **kwargs)
 
 
@@ -74,7 +103,6 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
     @functools.wraps(callback)
     def _callback(*args, **kwargs):
         ctx = instance.__ctx
-
         # ctx.run could raise a RuntimeError if the context is already
         # activated. This should not happen in practice even if there
         # is a recursive callback since the wrapper will not be called
@@ -91,7 +119,14 @@ def deferred_addCallbacks(twisted, pin, func, instance, args, kwargs):
         # Regardless, let's safe-guard it as to not interfere with the
         # original code.
         try:
-            return ctx.run(callback, *args, **kwargs)
+            # FIXME: we don't need to do this for each callback, can probably do it once in deferred.callback
+            def _fn(*args, **kwargs):
+                span = getattr(instance, "__ddspan", None)
+                if span and not span.finished:
+                    pin.tracer.activate(span)
+                return callback(*args, **kwargs)
+
+            return ctx.run(_fn, *args, **kwargs)
         except RuntimeError as e:
             if "cannot enter context" in str(e):
                 return callback(*args, **kwargs)
@@ -140,9 +175,10 @@ def connectionpool_runinteraction(twisted, pin, func, instance, args, kwargs):
 def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
 
-    if hasattr(instance, "deferred"):
+    d = getattr(instance, "deferred", None)
+    if d:
         span = pin.tracer.start_span("twisted.http", child_of=pin.tracer.active(), activate=False)
-        instance.__ddspan = span
+        d.__ddspan = span
 
         if config.twisted.distributed_tracing:
             propagator = http_prop.HTTPPropagator()
@@ -155,7 +191,7 @@ def httpclientfactory___init__(twisted, pin, func, instance, args, kwargs):
             span.error = 1
             span.finish()
 
-        instance.deferred.addCallbacks(fin, err)
+        d.addCallbacks(fin, err)
 
 
 @trace_utils.with_traced_module
@@ -196,6 +232,20 @@ def agent_request(twisted, pin, func, instance, args, kwargs):
     return d
 
 
+@trace_utils.with_traced_module
+def reactor_callLater(twisted, pin, func, instance, args, kwargs):
+    fn = args[1]
+    ctx = contextvars.copy_context()
+
+    @functools.wraps(fn)
+    def traced_fn(*args, **kwargs):
+        return ctx.run(fn, *args, **kwargs)
+
+    newargs = list(args)
+    newargs[1] = traced_fn
+    return func(*newargs, **kwargs)
+
+
 def patch():
     import twisted
 
@@ -217,6 +267,7 @@ def patch():
     )
     trace_utils.wrap("twisted.web.client", "HTTPClientFactory.__init__", httpclientfactory___init__(twisted))
     trace_utils.wrap("twisted.web.client", "Agent.request", agent_request(twisted))
+    trace_utils.wrap("twisted.internet", "reactor.callLater", reactor_callLater(twisted))
 
     setattr(twisted, "__datadog_patch", True)
 
@@ -235,5 +286,6 @@ def unpatch():
     trace_utils.unwrap(twisted.enterprise.adbapi.ConnectionPool, "__init__")
     trace_utils.unwrap(twisted.web.client.HTTPClientFactory, "__init__")
     trace_utils.unwrap(twisted.web.client.Agent, "request")
+    trace_utils.unwrap(twisted.internet.reactor, "callLater")
 
     setattr(twisted, "__datadog_patch", False)
