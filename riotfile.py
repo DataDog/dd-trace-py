@@ -208,7 +208,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/elasticsearch",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version=3.8),
                     pkgs={
                         "elasticsearch": [
                             "~=1.6.0",
@@ -227,6 +227,13 @@ venv = Venv(
                             "~=7.0.0",
                             "~=7.1.0",
                             "~=7.5.0",
+                        ]
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "elasticsearch": [
                             "~=7.6.0",
                             "~=7.8.0",
                             "~=7.10.0",
