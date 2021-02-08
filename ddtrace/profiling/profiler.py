@@ -7,6 +7,7 @@ import warnings
 import sys
 
 import ddtrace
+from ddtrace.internal import uwsgi
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.utils import deprecation
@@ -66,6 +67,13 @@ class Profiler(object):
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         :param profile_children: Whether to start a profiler in child processes.
         """
+
+        if profile_children:
+            try:
+                uwsgi.check_uwsgi(self.start, atexit=self.stop if stop_on_exit else None)
+            except uwsgi.uWSGIMasterProcess:
+                # Do nothing, the start() method will be called in each worker subprocess
+                return
 
         self._profiler.start()
 
