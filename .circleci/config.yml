@@ -623,8 +623,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
     steps:
-      - run_tox_scenario:
-          pattern: '^elasticsearch_contrib-'
+      - run_test:
+          pattern: 'elasticsearch'
 
   falcon:
     <<: *contrib_job

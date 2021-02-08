@@ -204,6 +204,51 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="elasticsearch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version=3.8),
+                    pkgs={
+                        "elasticsearch": [
+                            "~=1.6.0",
+                            "~=1.7.0",
+                            "~=1.8.0",
+                            "~=1.9.0",
+                            "~=2.3.0",
+                            "~=2.4.0",
+                            "~=5.1.0",
+                            "~=5.2.0",
+                            "~=5.3.0",
+                            "~=5.4.0",
+                            "~=6.3.0",
+                            "~=6.4.0",
+                            "~=6.8.0",
+                            "~=7.0.0",
+                            "~=7.1.0",
+                            "~=7.5.0",
+                        ]
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "elasticsearch": [
+                            "~=7.6.0",
+                            "~=7.8.0",
+                            "~=7.10.0",
+                            latest,
+                        ]
+                    },
+                ),
+                Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
+            ],
+        ),
+        Venv(
             name="pynamodb",
             command="pytest tests/contrib/pynamodb",
             venvs=[
