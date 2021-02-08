@@ -874,14 +874,13 @@ jobs:
           pattern: '^dbapi_contrib-'
 
   psycopg:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
-          wait: postgres
           pattern: "psycopg"
+          snapshot: true
+          docker_services: "postgres"
 
   aiobotocore:
     <<: *contrib_job
