@@ -208,7 +208,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/elasticsearch",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version=3.6),
+                    pys=select_pys(),
                     pkgs={
                         "elasticsearch": [
                             "~=1.6.0",
@@ -234,13 +234,11 @@ venv = Venv(
                         ]
                     },
                 ),
-                Venv(pys=select_pys(max_version=3.6), pkgs={"elasticsearch1": ["~=1.10.0"]}),
-                Venv(pys=select_pys(max_version=3.6), pkgs={"elasticsearch2": ["~=2.5.0"]}),
-                Venv(pys=select_pys(max_version=3.6), pkgs={"elasticsearch5": ["~=5.5.0"]}),
-                Venv(pys=select_pys(max_version=3.6), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
-                Venv(
-                    pys=select_pys(min_version=3.5), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}
-                ),
+                Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
             ],
         ),
         Venv(
