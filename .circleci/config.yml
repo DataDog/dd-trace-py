@@ -682,8 +682,8 @@ jobs:
   grpc:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+      - run_test:
+          pattern: "grpc"
 
   molten:
     <<: *contrib_job
