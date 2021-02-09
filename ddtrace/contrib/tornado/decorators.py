@@ -17,16 +17,16 @@ def _finish_span(future):
 
     if span:
         # `tornado.concurrent.Future` in PY3 tornado>=4.0,<5 has `exc_info`
-        if callable(getattr(future, 'exc_info', None)):
+        if callable(getattr(future, "exc_info", None)):
             # retrieve the exception from the coroutine object
             exc_info = future.exc_info()
             if exc_info:
                 span.set_exc_info(*exc_info)
-        elif callable(getattr(future, 'exception', None)):
+        elif callable(getattr(future, "exception", None)):
             # in tornado>=4.0,<5 with PY2 `concurrent.futures._base.Future`
             # `exception_info()` returns `(exception, traceback)` but
             # `exception()` only returns the first element in the tuple
-            if callable(getattr(future, 'exception_info', None)):
+            if callable(getattr(future, "exception_info", None)):
                 exc, exc_tb = future.exception_info()
                 if exc and exc_tb:
                     exc_type = type(exc)
@@ -38,9 +38,9 @@ def _finish_span(future):
                 exc = future.exception()
                 if exc:
                     # we expect exception object to have a traceback attached
-                    if hasattr(exc, '__traceback__'):
+                    if hasattr(exc, "__traceback__"):
                         exc_type = type(exc)
-                        exc_tb = getattr(exc, '__traceback__', None)
+                        exc_tb = getattr(exc, "__traceback__", None)
                         span.set_exc_info(exc_type, exc, exc_tb)
                     # if all else fails use currently handled exception for
                     # current thread
@@ -58,6 +58,7 @@ def _run_on_executor(run_on_executor, _, params, kw_params):
     is then executed within a `TracerStackContext` so that `tracer.trace()`
     can be used as usual, both with empty or existing `Context`.
     """
+
     def pass_context_decorator(fn):
         """
         Decorator that is used to wrap the original `run_on_executor_decorator`
@@ -67,16 +68,18 @@ def _run_on_executor(run_on_executor, _, params, kw_params):
         the original call with our `traced_wrapper`, we're sure that the `parent_span`
         is passed to our intermediate function and not to the user function.
         """
+
         @wraps(fn)
         def wrapper(*args, **kwargs):
             # from the current context, retrive the active span
             current_ctx = ddtrace.tracer.get_call_context()
-            parent_span = getattr(current_ctx, '_current_span', None)
+            parent_span = getattr(current_ctx, "_current_span", None)
 
             # pass the current parent span in the Future call so that
             # it can be retrieved later
             kwargs.update({PARENT_SPAN_KEY: parent_span})
             return fn(*args, **kwargs)
+
         return wrapper
 
     # we expect exceptions here if the `run_on_executor` is called with
@@ -87,12 +90,14 @@ def _run_on_executor(run_on_executor, _, params, kw_params):
     # `run_on_executor` can be called with arguments; in this case we
     # return an inner decorator that holds the real function that should be
     # called
-    if decorator.__module__ == 'tornado.concurrent':
+    if decorator.__module__ == "tornado.concurrent":
+
         def run_on_executor_decorator(deco_fn):
             def inner_traced_wrapper(*args, **kwargs):
                 # retrieve the parent span from the function kwargs
                 parent_span = kwargs.pop(PARENT_SPAN_KEY, None)
                 return run_executor_stack_context(deco_fn, args, kwargs, parent_span)
+
             return pass_context_decorator(decorator(inner_traced_wrapper))
 
         return run_on_executor_decorator
@@ -136,7 +141,7 @@ def wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=No
 
         # duck-typing: if it has `add_done_callback` it's a Future
         # object whatever is the underlying implementation
-        if callable(getattr(future, 'add_done_callback', None)):
+        if callable(getattr(future, "add_done_callback", None)):
             setattr(future, FUTURE_SPAN_KEY, span)
             future.add_done_callback(_finish_span)
         else:

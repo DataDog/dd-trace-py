@@ -7,9 +7,7 @@ from ...provider import DefaultContextProvider
 
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
 # instead use DefaultContextProvider with ContextVarContextManager for asyncio
-_USE_STACK_CONTEXT = not (
-    sys.version_info >= (3, 7) and tornado.version_info >= (5, 0)
-)
+_USE_STACK_CONTEXT = not (sys.version_info >= (3, 7) and tornado.version_info >= (5, 0))
 
 if _USE_STACK_CONTEXT:
     from tornado.stack_context import StackContextInconsistentError, _state
@@ -28,6 +26,7 @@ if _USE_STACK_CONTEXT:
         This implementation follows some suggestions provided here:
         https://github.com/tornadoweb/tornado/issues/1063
         """
+
         def __init__(self):
             self._active = True
             self._context = Context()
@@ -56,8 +55,8 @@ if _USE_STACK_CONTEXT:
 
             if final_contexts is not self.new_contexts:
                 raise StackContextInconsistentError(
-                    'stack_context inconsistency (may be caused by yield '
-                    'within a "with TracerStackContext" block)')
+                    "stack_context inconsistency (may be caused by yield " 'within a "with TracerStackContext" block)'
+                )
 
             # break the reference to allow faster GC on CPython
             self.new_contexts = None
@@ -67,7 +66,7 @@ if _USE_STACK_CONTEXT:
 
         def _has_io_loop(self):
             """Helper to determine if we are currently in an IO loop"""
-            return getattr(IOLoop._current, 'instance', None) is not None
+            return getattr(IOLoop._current, "instance", None) is not None
 
         def _has_active_context(self):
             """Helper to determine if we have an active context or not"""
@@ -118,6 +117,8 @@ if _USE_STACK_CONTEXT:
                     if isinstance(stack_ctx, self.__class__) and stack_ctx._active:
                         stack_ctx._context = ctx
             return ctx
+
+
 else:
     # no-op when not using stack_context
     class TracerStackContext(DefaultContextProvider):
