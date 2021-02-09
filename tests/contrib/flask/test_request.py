@@ -538,7 +538,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(res.status_code, 500)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 10)
 
         # Assert the order of the spans created
         self.assertListEqual(
@@ -550,6 +550,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 "tests.contrib.flask.test_request.fivehundred",
                 "flask.handle_user_exception",
                 "flask.handle_exception",
+                "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
             ],

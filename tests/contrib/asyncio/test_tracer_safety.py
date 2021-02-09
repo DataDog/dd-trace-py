@@ -61,10 +61,9 @@ class TestAsyncioSafety(AsyncioTestCase):
             yield from future
 
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        spans = traces[0]
-        assert 1000 == len(spans)
-        for s in spans:
+        assert len(traces) == 2
+        assert len(traces[0]) == 500
+        assert len(traces[1]) == 500
+        for s in traces[0] + traces[1]:
             assert s.name == "coroutine"
             assert s.finished
-        assert 1000 == len(traces[0])
