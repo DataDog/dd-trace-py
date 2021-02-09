@@ -183,11 +183,15 @@ def test_not_ignore_profiler_gevent_task(monkeypatch):
     # sure to catch it with the StackProfiler and that it's not ignored.
     c = CollectorTest(p._profiler._recorder, interval=0.00001)
     c.start()
-    time.sleep(3)
-    events = p._profiler._recorder.reset()
+    # Wait forever and stop when we finally find an event with our collector task id
+    while True:
+        events = p._profiler._recorder.reset()
+        if c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}:
+            break
+        # Give some time for gevent to switch greenlets
+        time.sleep(0.1)
     c.stop()
     p.stop(flush=False)
-    assert c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}
 
 
 def test_collect():
@@ -333,7 +337,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 327, "test_exception_collection")]
+    assert e.frames == [(__file__, 331, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
