@@ -630,10 +630,12 @@ jobs:
           pattern: '^celery_contrib-'
 
   cherrypy:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 6
     steps:
-      - run_tox_scenario:
-          pattern: '^cherrypy_contrib-'
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
 
   consul:
     <<: *contrib_job

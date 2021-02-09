@@ -45,6 +45,24 @@ venv = Venv(
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --no-cov {cmdargs} tests/benchmarks",
         ),
+        Venv(
+            name="cherrypy",
+            command="pytest {cmdargs} tests/contrib/cherrypy",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "cherrypy": [">=11,<12", ">=12,<13", ">=13,<14", ">=14,<15", ">=15,<16", ">=16,<17", ">=17,<18"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.5),
+                    pkgs={
+                        "cherrypy": [">=18.0,<19", latest],
+                    },
+                ),
+            ],
+        ),
         Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
             name="pymongo",
