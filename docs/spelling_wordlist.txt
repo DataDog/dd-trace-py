@@ -17,6 +17,7 @@ backend
 bikeshedding
 boto
 botocore
+cherrypy
 config
 coroutine
 coroutines
@@ -31,6 +32,7 @@ elasticsearch
 enqueue
 entrypoint
 entrypoints
+fastapi
 gRPC
 gevent
 greenlet
@@ -54,6 +56,7 @@ metadata
 microservices
 middleware
 mongoengine
+multiprocess
 mysql
 mysqlclient
 mysqldb
@@ -92,6 +95,7 @@ timestamp
 tweens
 uWSGI
 unix
+unpatch
 unregister
 url
 urls
@@ -99,3 +103,4 @@ username
 uvicorn
 vertica
 whitelist
+wsgi

@@ -45,6 +45,24 @@ venv = Venv(
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --no-cov {cmdargs} tests/benchmarks",
         ),
+        Venv(
+            name="cherrypy",
+            command="pytest {cmdargs} tests/contrib/cherrypy",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "cherrypy": [">=11,<12", ">=12,<13", ">=13,<14", ">=14,<15", ">=15,<16", ">=16,<17", ">=17,<18"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.5),
+                    pkgs={
+                        "cherrypy": [">=18.0,<19", latest],
+                    },
+                ),
+            ],
+        ),
         Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
             name="pymongo",
@@ -201,6 +219,75 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="elasticsearch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version=3.8),
+                    pkgs={
+                        "elasticsearch": [
+                            "~=1.6.0",
+                            "~=1.7.0",
+                            "~=1.8.0",
+                            "~=1.9.0",
+                            "~=2.3.0",
+                            "~=2.4.0",
+                            "~=5.1.0",
+                            "~=5.2.0",
+                            "~=5.3.0",
+                            "~=5.4.0",
+                            "~=6.3.0",
+                            "~=6.4.0",
+                            "~=6.8.0",
+                            "~=7.0.0",
+                            "~=7.1.0",
+                            "~=7.5.0",
+                        ]
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "elasticsearch": [
+                            "~=7.6.0",
+                            "~=7.8.0",
+                            "~=7.10.0",
+                            latest,
+                        ]
+                    },
+                ),
+                Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
+            ],
+        ),
+        Venv(
+            name="psycopg",
+            command="pytest {cmdargs} tests/contrib/psycopg",
+            venvs = [
+                Venv(
+                    pys=select_pys(min_version=2.7, max_version=3.6),
+                    pkgs={
+                        "psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]
+                    },
+                ),
+                Venv(
+                    pys=[3.7],
+                    pkgs={
+                        "psycopg2": ["~=2.7.0", "~=2.8.0", latest]
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.8, max_version=3.9),
+                    pkgs={
+                        "psycopg2": ["~=2.8.0", latest]
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="pynamodb",
             command="pytest tests/contrib/pynamodb",
             venvs=[
@@ -233,6 +320,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="sqlalchemy",
+            command="pytest {cmdargs} tests/contrib/sqlalchemy",
+            venvs = [
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                        "psycopg2": ["~=2.8.0"],
+                        "mysql-connector-python": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="requests",
             command="pytest tests/contrib/requests",
             venvs=[
@@ -250,6 +351,18 @@ venv = Venv(
                             ">=2.20,<2.21",
                             latest,
                         ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="wsgi",
+            command="pytest tests/contrib/wsgi",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "WebTest": latest,
                     },
                 ),
             ],
@@ -293,6 +406,59 @@ venv = Venv(
             },
             pys=select_pys(min_version=3.6),
             command="pytest tests/contrib/asgi",
+        ),
+        Venv(
+            name="fastapi",
+            command="pytest {cmdargs} tests/contrib/fastapi",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version=3.6),
+                    pkgs={
+                        "fastapi": [">=0.51,<0.52", ">=0.55,<0.56", ">=0.60,<0.61", latest],
+                        "httpx": latest,
+                        "pytest-asyncio": latest,
+                        "requests": latest,
+                        "aiofiles": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="grpc",
+            command="pytest {cmdargs} tests/contrib/grpc",
+            pkgs={
+                "googleapis-common-protos": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version=3.6),
+                    pkgs={
+                        "grpcio": ["~=1.12.0", "~=1.14.0", "~=1.18.0", "~=1.20.0", "~=1.21.0", "~=1.22.0"],
+                    },
+                ),
+                Venv(
+                    pys=["3.7"],
+                    pkgs={
+                        "grpcio": [
+                            "~=1.14.0",
+                            "~=1.18.0",
+                            "~=1.20.0",
+                            "~=1.21.0",
+                            "~=1.22.0",
+                            "~=1.24.0",
+                            "~=1.26.0",
+                            "~=1.28.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.8),
+                    pkgs={
+                        "grpcio": ["~=1.24.0", "~=1.26.0", "~=1.28.0", latest],
+                    },
+                ),
+            ],
         ),
     ],
 )

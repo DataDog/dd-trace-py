@@ -67,6 +67,7 @@ PATCH_MODULES = {
     "logging": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
+    "fastapi": True,
 }
 
 _LOCK = threading.Lock()
