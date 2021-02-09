@@ -106,7 +106,7 @@ The available settings are:
 from ...utils.importlib import require_modules
 
 
-required_modules = ['tornado']
+required_modules = ["tornado"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -117,9 +117,9 @@ with require_modules(required_modules) as missing_modules:
         from .patch import patch, unpatch
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'context_provider',
-            'run_with_trace_context',
-            'TracerStackContext',
+            "patch",
+            "unpatch",
+            "context_provider",
+            "run_with_trace_context",
+            "TracerStackContext",
         ]
