@@ -64,7 +64,6 @@ venv = Venv(
                 ),
             ],
         ),
-        Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
             name="pymongo",
             command="pytest {cmdargs} tests/contrib/pymongo",
