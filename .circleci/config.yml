@@ -630,10 +630,12 @@ jobs:
           pattern: '^celery_contrib-'
 
   cherrypy:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 6
     steps:
-      - run_tox_scenario:
-          pattern: '^cherrypy_contrib-'
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
 
   consul:
     <<: *contrib_job
@@ -861,9 +863,9 @@ jobs:
       - *postgres_server
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres mysql
-          pattern: '^sqlalchemy_contrib-'
+          pattern: "sqlalchemy"
 
   dbapi:
     <<: *contrib_job
@@ -877,9 +879,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *postgres_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres
-          pattern: '^psycopg_contrib-'
+          pattern: "psycopg"
 
   aiobotocore:
     <<: *contrib_job
