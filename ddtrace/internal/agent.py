@@ -1,6 +1,5 @@
 import os
 
-from ddtrace.vendor import six
 from ddtrace import compat
 
 from .uds import UDSHTTPConnection
@@ -12,10 +11,7 @@ URL = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (HOSTNAME, PORT))
 
 
 def get_connection(url, timeout):
-    if isinstance(url, six.string_types):
-        parsed = compat.parse.urlparse(url)
-    else:
-        parsed = url
+    parsed = compat.parse.urlparse(url)
     port = parsed.port or 8126
 
     if parsed.scheme == "https":

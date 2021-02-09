@@ -15,7 +15,6 @@ from .agent import get_connection
 from .buffer import BufferFull, BufferItemTooLarge, TraceBuffer
 from .logger import get_logger
 from .runtime import container
-from .uds import UDSHTTPConnection
 
 log = get_logger(__name__)
 
@@ -86,8 +85,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         super(AgentWriter, self).__init__(
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        self.url = url
-        self._parsed_url = compat.parse.urlparse(url)
+        self.agent_url = url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
@@ -123,14 +121,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._report_metrics = report_metrics
         self._metrics_reset()
 
-    @property
-    def _hostname(self):
-        return self._parsed_url.hostname
-
-    @property
-    def _port(self):
-        return self._parsed_url.port
-
     def _metrics_dist(self, name, count=1, tags=None):
         if self._report_metrics:
             self._metrics[name]["count"] += count
@@ -143,10 +133,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def recreate(self):
         writer = self.__class__(
-            hostname=self._hostname,
-            port=self._port,
-            uds_path=self._uds_path,
-            https=self._https,
+            url=self.agent_url,
             shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
         )
@@ -156,7 +143,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         return writer
 
     def _put(self, data, headers):
-        conn = get_connection(self._parsed_url, self._timeout)
+        conn = get_connection(self.agent_url, self._timeout)
 
         with StopWatch() as sw:
             try:
@@ -187,7 +174,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         try:
             response = self._put(payload, headers)
         except (httplib.HTTPException, OSError, IOError):
-            log.error("failed to send traces to Datadog Agent at %s", self.url, exc_info=True)
+            log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             if self._report_metrics:
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(payload))
@@ -212,7 +199,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             elif response.status >= 400:
                 log.error(
                     "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-                    self.url,
+                    self.agent_url,
                     response.status,
                     response.reason,
                 )
