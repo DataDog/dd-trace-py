@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    flask: fix memory leak for unsampled spans.
+    flask: fix memory leak of sampled out traces.
