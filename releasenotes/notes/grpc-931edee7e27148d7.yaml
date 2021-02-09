@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    grpc: official support for versions prior to 1.17 has been dropped.
