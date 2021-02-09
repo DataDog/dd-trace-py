@@ -180,14 +180,14 @@ def test_not_ignore_profiler_gevent_task(monkeypatch):
     p = profiler.Profiler()
     p.start()
     # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
-    # sure to catch it with the StackProfiler and that it's ignored.
+    # sure to catch it with the StackProfiler and that it's not ignored.
     c = CollectorTest(p._profiler._recorder, interval=0.00001)
     c.start()
-    events = p._profiler._recorder.events[stack.StackSampleEvent]
     time.sleep(3)
+    events = p._profiler._recorder.reset()
     c.stop()
-    p.stop()
-    assert c._worker.ident in {e.task_id for e in events}
+    p.stop(flush=False)
+    assert c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}
 
 
 def test_collect():

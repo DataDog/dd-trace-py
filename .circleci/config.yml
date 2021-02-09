@@ -37,6 +37,8 @@ machine_executor: &machine_executor
     image: ubuntu-1604:201903-01
   environment:
     - BOTO_CONFIG: /dev/null
+    # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+    - PYTHONUNBUFFERED: 1
   steps:
     - &pyenv-set-global
       run:
@@ -623,8 +625,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
     steps:
-      - run_tox_scenario:
-          pattern: '^elasticsearch_contrib-'
+      - run_test:
+          pattern: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
@@ -682,8 +684,8 @@ jobs:
   grpc:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+      - run_test:
+          pattern: "grpc"
 
   molten:
     <<: *contrib_job
