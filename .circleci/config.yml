@@ -525,6 +525,8 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
