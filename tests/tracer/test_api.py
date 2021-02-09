@@ -18,8 +18,8 @@ from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver
 
 
 class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-    error_message_format = '%(message)s\n'
-    error_content_type = 'text/plain'
+    error_message_format = "%(message)s\n"
+    error_content_type = "text/plain"
 
     @staticmethod
     def log_message(format, *args):  # noqa: A002
@@ -27,9 +27,8 @@ class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 class _APIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
-
     def do_PUT(self):
-        self.send_error(200, 'OK')
+        self.send_error(200, "OK")
 
 
 class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
@@ -39,12 +38,11 @@ class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
 
 
 class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
-
     def do_PUT(self):
         return
 
 
-_HOST = '0.0.0.0'
+_HOST = "0.0.0.0"
 _TIMEOUT_PORT = 8743
 _RESET_PORT = _TIMEOUT_PORT + 1
 
@@ -79,7 +77,7 @@ def _make_uds_server(path, request_handler):
 def endpoint_uds_server(tmp_path):
     # TODO: the tmp_path results in a path too long to be used as an address
     # https://github.com/pytest-dev/pytest/issues/5802
-    server, thread = _make_uds_server(str(tmp_path / 'uds_server_socket'), _APIEndpointRequestHandlerTest)
+    server, thread = _make_uds_server(str(tmp_path / "uds_server_socket"), _APIEndpointRequestHandlerTest)
     try:
         yield server
     finally:
@@ -96,7 +94,7 @@ def _make_server(port, request_handler):
     return server, t
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def endpoint_test_timeout_server():
     server, thread = _make_server(_TIMEOUT_PORT, _TimeoutAPIEndpointRequestHandlerTest)
     try:
@@ -106,7 +104,7 @@ def endpoint_test_timeout_server():
         thread.join()
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def endpoint_test_reset_server():
     server, thread = _make_server(_RESET_PORT, _ResetAPIEndpointRequestHandlerTest)
     try:
@@ -126,61 +124,61 @@ class ResponseMock:
 
 
 def test_api_str():
-    api = API('localhost', 8126, https=True)
-    assert str(api) == 'https://localhost:8126'
-    api = API('localhost', 8126, '/path/to/uds')
-    assert str(api) == 'unix:///path/to/uds'
+    api = API("localhost", 8126, https=True)
+    assert str(api) == "https://localhost:8126"
+    api = API("localhost", 8126, "/path/to/uds")
+    assert str(api) == "unix:///path/to/uds"
 
 
 class APITests(TestCase):
-
     def setUp(self):
         # DEV: Mock here instead of in tests, before we have patched `httplib.HTTPConnection`
         self.conn = mock.MagicMock(spec=httplib.HTTPConnection)
-        self.api = API('localhost', 8126)
+        self.api = API("localhost", 8126)
 
     def tearDown(self):
         del self.api
         del self.conn
 
     def test_typecast_port(self):
-        api = API('localhost', u'8126')
+        api = API("localhost", u"8126")
         self.assertEqual(api.port, 8126)
 
-    @mock.patch('logging.Logger.debug')
+    @mock.patch("logging.Logger.debug")
     def test_parse_response_json(self, log):
         test_cases = {
-            'OK': dict(
+            "OK": dict(
                 js=None,
-                log='Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date',
+                log="Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date",
             ),
-            'OK\n': dict(
+            "OK\n": dict(
                 js=None,
-                log='Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date',
+                log="Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date",
             ),
-            'error:unsupported-endpoint': dict(
+            "error:unsupported-endpoint": dict(
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: \'error:unsupported-endpoint\'',
+                log="Unable to parse Datadog Agent JSON response: 'error:unsupported-endpoint'",
             ),
             42: dict(  # int as key to trigger TypeError
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: 42',
+                log="Unable to parse Datadog Agent JSON response: 42",
             ),
-            '{}': dict(js={}),
-            '[]': dict(js=[]),
-
+            "{}": dict(js={}),
+            "[]": dict(js=[]),
             # Priority sampling "rate_by_service" response
-            ('{"rate_by_service": '
-             '{"service:,env:":0.5, "service:mcnulty,env:test":0.9, "service:postgres,env:test":0.6}}'): dict(
+            (
+                '{"rate_by_service": '
+                '{"service:,env:":0.5, "service:mcnulty,env:test":0.9, "service:postgres,env:test":0.6}}'
+            ): dict(
                 js=dict(
                     rate_by_service={
-                        'service:,env:': 0.5,
-                        'service:mcnulty,env:test': 0.9,
-                        'service:postgres,env:test': 0.6,
+                        "service:,env:": 0.5,
+                        "service:mcnulty,env:test": 0.9,
+                        "service:postgres,env:test": 0.6,
                     },
                 ),
             ),
-            ' [4,2,1] ': dict(js=[4, 2, 1]),
+            " [4,2,1] ": dict(js=[4, 2, 1]),
         }
 
         for k, v in iteritems(test_cases):
@@ -188,13 +186,13 @@ class APITests(TestCase):
 
             r = Response.from_http_response(ResponseMock(k))
             js = r.get_json()
-            assert v['js'] == js
-            if 'log' in v:
+            assert v["js"] == js
+            if "log" in v:
                 log.assert_called_once()
                 msg = log.call_args[0][0] % log.call_args[0][1:]
-                assert re.match(v['log'], msg), msg
+                assert re.match(v["log"], msg), msg
 
-    @mock.patch('ddtrace.compat.httplib.HTTPConnection')
+    @mock.patch("ddtrace.compat.httplib.HTTPConnection")
     def test_put_connection_close(self, HTTPConnection):
         """
         When calling API._put
@@ -203,14 +201,14 @@ class APITests(TestCase):
         HTTPConnection.return_value = self.conn
 
         with warnings.catch_warnings(record=True) as w:
-            self.api._put('/test', '<test data>', 1)
+            self.api._put("/test", "<test data>", 1)
 
-            self.assertEqual(len(w), 0, 'Test raised unexpected warnings: {0!r}'.format(w))
+            self.assertEqual(len(w), 0, "Test raised unexpected warnings: {0!r}".format(w))
 
         self.conn.request.assert_called_once()
         self.conn.close.assert_called_once()
 
-    @mock.patch('ddtrace.compat.httplib.HTTPConnection')
+    @mock.patch("ddtrace.compat.httplib.HTTPConnection")
     def test_put_connection_close_exception(self, HTTPConnection):
         """
         When calling API._put raises an exception
@@ -222,9 +220,9 @@ class APITests(TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             with self.assertRaises(Exception):
-                self.api._put('/test', '<test data>', 1)
+                self.api._put("/test", "<test data>", 1)
 
-            self.assertEqual(len(w), 0, 'Test raised unexpected warnings: {0!r}'.format(w))
+            self.assertEqual(len(w), 0, "Test raised unexpected warnings: {0!r}".format(w))
 
         self.conn.request.assert_called_once()
         self.conn.close.assert_called_once()
@@ -232,17 +230,17 @@ class APITests(TestCase):
 
 def test_https():
     conn = mock.MagicMock(spec=httplib.HTTPSConnection)
-    api = API('localhost', 8126, https=True)
-    with mock.patch('ddtrace.compat.httplib.HTTPSConnection') as HTTPSConnection:
+    api = API("localhost", 8126, https=True)
+    with mock.patch("ddtrace.compat.httplib.HTTPSConnection") as HTTPSConnection:
         HTTPSConnection.return_value = conn
-        api._put('/test', '<test data>', 1)
+        api._put("/test", "<test data>", 1)
     conn.request.assert_called_once()
     conn.close.assert_called_once()
 
 
 def test_flush_connection_timeout_connect():
     payload = mock.Mock()
-    payload.get_payload.return_value = 'foobar'
+    payload.get_payload.return_value = "foobar"
     payload.length = 12
     api = API(_HOST, 2019)
     response = api._flush(payload)
@@ -255,7 +253,7 @@ def test_flush_connection_timeout_connect():
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
     payload = mock.Mock()
-    payload.get_payload.return_value = 'foobar'
+    payload.get_payload.return_value = "foobar"
     payload.length = 12
     api = API(_HOST, _TIMEOUT_PORT)
     response = api._flush(payload)
@@ -264,7 +262,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server):
 
 def test_flush_connection_reset(endpoint_test_reset_server):
     payload = mock.Mock()
-    payload.get_payload.return_value = 'foobar'
+    payload.get_payload.return_value = "foobar"
     payload.length = 12
     api = API(_HOST, _RESET_PORT)
     response = api._flush(payload)
@@ -276,27 +274,27 @@ def test_flush_connection_reset(endpoint_test_reset_server):
 
 def test_flush_connection_uds(endpoint_uds_server):
     payload = mock.Mock()
-    payload.get_payload.return_value = 'foobar'
+    payload.get_payload.return_value = "foobar"
     payload.length = 12
     api = API(_HOST, 2019, uds_path=endpoint_uds_server.server_address)
     response = api._flush(payload)
     assert response.status == 200
 
 
-@mock.patch('ddtrace.internal.runtime.container.get_container_info')
+@mock.patch("ddtrace.internal.runtime.container.get_container_info")
 def test_api_container_info(get_container_info):
     # When we have container information
     # DEV: `get_container_info` will return a `CGroupInfo` with a `container_id` or `None`
-    info = CGroupInfo(container_id='test-container-id')
+    info = CGroupInfo(container_id="test-container-id")
     get_container_info.return_value = info
 
     api = API(_HOST, 8126)
     assert api._container_info is info
-    assert api._headers['Datadog-Container-Id'] == 'test-container-id'
+    assert api._headers["Datadog-Container-Id"] == "test-container-id"
 
     # When we do not have container information
     get_container_info.return_value = None
 
     api = API(_HOST, 8126)
     assert api._container_info is None
-    assert 'Datadog-Container-Id' not in api._headers
+    assert "Datadog-Container-Id" not in api._headers

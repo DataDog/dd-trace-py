@@ -58,8 +58,8 @@ class HTTPPropagator(object):
         if sampling_priority is not None:
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
         # Propagate origin only if defined
-        if span_context._dd_origin is not None:
-            headers[HTTP_HEADER_ORIGIN] = str(span_context._dd_origin)
+        if span_context.dd_origin is not None:
+            headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
 
     @staticmethod
     def extract_header_value(possible_header_names, headers, default=None):
@@ -108,7 +108,8 @@ class HTTPPropagator(object):
             def my_controller(url, headers):
                 propagator = HTTPPropagator()
                 context = propagator.extract(headers)
-                tracer.context_provider.activate(context)
+                if context:
+                    tracer.context_provider.activate(context)
 
                 with tracer.trace('my_controller') as span:
                     span.set_meta('http.url', url)
@@ -132,7 +133,7 @@ class HTTPPropagator(object):
                 trace_id=trace_id,
                 span_id=parent_span_id,
                 sampling_priority=sampling_priority,
-                _dd_origin=origin,
+                dd_origin=origin,
             )
         # If headers are invalid and cannot be parsed, return a new context and log the issue.
         except Exception:

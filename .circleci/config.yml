@@ -37,6 +37,8 @@ machine_executor: &machine_executor
     image: ubuntu-1604:201903-01
   environment:
     - BOTO_CONFIG: /dev/null
+    # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+    - PYTHONUNBUFFERED: 1
   steps:
     - &pyenv-set-global
       run:
@@ -161,6 +163,8 @@ commands:
                 command: docker-compose logs -f
                 background: true
             - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
       - unless:
           condition:
@@ -186,6 +190,35 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+
+  run_tox_scenario_with_testagent:
+    description: Run scripts/run-tox-scenario with setup, caching persistence and the testagent
+    parameters:
+      pattern:
+        type: string
+      wait:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - restore_tox_cache
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          name: "Run scripts/run-tox-scenario"
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
+          command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
+      - save_tox_cache
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -492,6 +525,8 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
@@ -594,6 +629,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^celery_contrib-'
 
+  cherrypy:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
+
   consul:
     <<: *contrib_job
     docker:
@@ -615,8 +658,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
     steps:
-      - run_tox_scenario:
-          pattern: '^elasticsearch_contrib-'
+      - run_test:
+          pattern: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
@@ -674,8 +717,8 @@ jobs:
   grpc:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+      - run_test:
+          pattern: "grpc"
 
   molten:
     <<: *contrib_job
@@ -820,9 +863,9 @@ jobs:
       - *postgres_server
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres mysql
-          pattern: '^sqlalchemy_contrib-'
+          pattern: "sqlalchemy"
 
   dbapi:
     <<: *contrib_job
@@ -836,9 +879,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *postgres_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres
-          pattern: '^psycopg_contrib-'
+          pattern: "psycopg"
 
   aiobotocore:
     <<: *contrib_job
@@ -863,13 +906,8 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+      - run_tox_scenario_with_testagent:
+          pattern: '^redis_contrib-'
 
   rediscluster:
     <<: *contrib_job
@@ -896,6 +934,13 @@ jobs:
       - run_tox_scenario:
           wait: vertica
           pattern: '^vertica_contrib-'
+
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
 
   kombu:
     <<: *contrib_job
@@ -998,6 +1043,7 @@ requires_tests: &requires_tests
     - bottle
     - cassandra
     - celery
+    - cherrypy
     - consul
     - dbapi
     - ddtracerun
@@ -1053,6 +1099,7 @@ requires_tests: &requires_tests
     - tracer
     - tornado
     - vertica
+    - wsgi
     - build-docker-ci-image
 
 workflows:
@@ -1104,6 +1151,7 @@ workflows:
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       - celery: *requires_pre_test
+      - cherrypy: *requires_pre_test
       - consul: *requires_pre_test
       - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
@@ -1153,6 +1201,7 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
       - deploy_master:

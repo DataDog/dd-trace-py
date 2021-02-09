@@ -30,6 +30,9 @@ Configuration
    Can also be configured via the ``DD_SERVICE`` or ``DD_MOLTEN_SERVICE_NAME`` environment variables.
 
    Default: ``'molten'``
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 from ...utils.importlib import require_modules
 

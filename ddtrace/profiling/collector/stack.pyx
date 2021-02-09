@@ -330,9 +330,15 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     exc_events = []
 
     for thread_id, thread_native_id, thread_name, frame, exception, spans, cpu_time in running_threads:
-        frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
-
         task_id, task_name = get_task(thread_id)
+
+        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks
+        # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
+        # We ignore them here:
+        if task_id in thread_id_ignore_list:
+            continue
+
+        frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
         stack_events.append(
             StackSampleEvent(
@@ -452,7 +458,7 @@ class StackCollector(collector.PeriodicCollector):
     # no matter how fast the computer is.
     min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
+    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
     tracer = attr.ib(default=None)

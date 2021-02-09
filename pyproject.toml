@@ -40,8 +40,6 @@ exclude = '''
       | celery
       | dbapi
       | flask_cache
-      | futures
-      | gevent
       | grpc/
       (
         __init__.py
@@ -60,7 +58,6 @@ exclude = '''
       | pymongo
       | rediscluster
       | sqlalchemy
-      | tornado
       | util.py
     )
     | ext/
@@ -96,8 +93,6 @@ exclude = '''
       | dbapi
       | flask_autopatch
       | flask_cache
-      | futures
-      | gevent
       | grpc
       | jinja2
       | kombu
@@ -111,13 +106,11 @@ exclude = '''
       | rediscluster
       | sqlalchemy
       | test_utils.py
-      | tornado
     )
     | ddtrace_run.py
     | profiling/_ast_test_file.py
     | subprocesstest.py
     | tracer/fixtures
-    | tracer/[^/]+\.py$
     | vendor
     | wait-for-services.py
   )

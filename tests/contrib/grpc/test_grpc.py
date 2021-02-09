@@ -54,13 +54,15 @@ class GrpcTestCase(TracerTestCase):
         return spans
 
     def _start_server(self):
-        self._server = grpc.server(logging_pool.pool(2))
+        self._server_pool = logging_pool.pool(1)
+        self._server = grpc.server(self._server_pool)
         self._server.add_insecure_port('[::]:%d' % (_GRPC_PORT))
         add_HelloServicer_to_server(_HelloServicer(), self._server)
         self._server.start()
 
     def _stop_server(self):
-        self._server.stop(0)
+        self._server.stop(None)
+        self._server_pool.shutdown(wait=True)
 
     def _check_client_span(self, span, service, method_name, method_kind):
         self.assert_is_not_measured(span)
