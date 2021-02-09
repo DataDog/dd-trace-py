@@ -12,7 +12,7 @@ from inspect import isclass, isfunction, getmro
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, six, wrapt
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
 from ddtrace.internal.logger import get_logger
@@ -366,6 +366,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.django),
             span_type=SpanTypes.WEB,
         ) as span:
+            span.metrics[SPAN_MEASURED_KEY] = 1
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
