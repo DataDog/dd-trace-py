@@ -6,13 +6,13 @@ import os
 import cyclone
 import cyclone.web
 from cyclone import template
-from twisted.internet import reactor
+from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks
 
 from ddtrace import config, Pin
 from ddtrace.contrib.cyclone import patch, unpatch
 
-from tests import TracerTestCase, TracerSpanContainer
+from tests import TracerTestCase, TracerSpanContainer, snapshot
 from .testcase import CycloneTestCase
 
 
@@ -54,10 +54,7 @@ def mk_app():
         @cyclone.web.asynchronous
         def get(self):
             self.write("Processing...")
-            reactor.callLater(0.1, self.done)
-
-        def done(self):
-            self.finish("done")
+            reactor.callLater(0.1, self.finish)
 
     class TemplateHandler(cyclone.web.RequestHandler):
         def get_template_path(self):
@@ -239,32 +236,6 @@ class TestCyclone(CycloneTestCase, TracerTestCase):
         span = self.test_spans.find_span(name="cyclone.request")
         span.assert_matches(trace_id=1234321, parent_id=12, metrics={"_sampling_priority_v1": 2})
 
-    # def test_async_trace(self):
-    #     self.client.get("/async-trace")
-    #     reactor.callLater(0.5, reactor.stop)
-    #     reactor.run()
-
-    #     spans = self.test_spans.get_spans()
-    #     assert len(spans) == 3
-
-    #     s1, s2, s3 = spans
-    #     assert s1.trace_id == s2.trace_id == s3.trace_id
-
-    @TracerTestCase.run_in_subprocess
-    def test_concurrent_requests(self):
-        self.client.get("/async-sleep?k=1")
-        self.client.get("/async-sleep?k=2")
-        self.client.get("/async-sleep?k=3")
-
-        reactor.callLater(0.5, reactor.stop)
-        reactor.run()
-
-        spans = self.test_spans.get_spans()
-        assert len(spans) == 3
-
-        roots = self.test_spans.get_root_spans()
-        assert len(roots) == 3
-
     @inlineCallbacks
     def test_handler_trace(self):
         with self.override_global_tracer(tracer=self.tracer):
@@ -348,3 +319,85 @@ class TestCyclone(CycloneTestCase, TracerTestCase):
         self.assert_trace_count(1)
         spans = self.test_spans.get_spans()
         assert len(spans) == 9
+
+    @inlineCallbacks
+    def test_async_trace(self):
+        with self.override_global_tracer(tracer=self.tracer):
+            d = self.client.get("/async-trace")
+            yield d
+            d = defer.Deferred()  # Dummy deferred to allow async call to finish
+            reactor.callLater(0.5, d.callback, None)
+            yield d
+
+        spans = self.test_spans.get_spans()
+        assert len(spans) == 2
+
+        s1, s2 = spans
+        assert s1.trace_id == s2.trace_id
+        assert s2.parent_id == s1.span_id
+
+    @inlineCallbacks
+    def test_concurrent_requests(self):
+        d = defer.DeferredList(
+            [
+                self.client.get("/async-sleep"),
+                self.client.get("/async-sleep"),
+            ]
+        )
+        yield d
+        d = defer.Deferred()  # Dummy deferred to allow async call to finish
+        reactor.callLater(0.5, d.callback, None)
+        yield d
+        spans = self.test_spans.get_spans()
+        assert len(spans) == 2
+        roots = self.test_spans.get_root_spans()
+        assert len(roots) == 2
+        s1, s2 = spans
+        # Assert spans are concurrent by checking that spans' start/end times overlap
+        assert s2.start <= s1.start + s1.duration
+
+
+class TestCycloneSnapshot(CycloneTestCase, TracerTestCase):
+    app_builder = staticmethod(mk_app)
+
+    def setUp(self):
+        super(TestCycloneSnapshot, self).setUp()
+        patch()
+
+    def tearDown(self):
+        unpatch()
+        super(TestCycloneSnapshot, self).tearDown()
+
+    @snapshot()
+    @inlineCallbacks
+    def test_root_get_request_snapshot(self):
+        resp = yield self.client.get("/")
+        assert resp.content == b"Hello, world"
+        assert resp.get_status() == 200
+
+    @snapshot()
+    @inlineCallbacks
+    def test_root_request_error_snapshot(self):
+        resp = yield self.client.get("/error")
+        expected = b"<html><title>500: Internal Server Error</title><body>500: Internal Server Error</body></html>"
+        assert resp.content == expected
+        assert resp.get_status() == 500
+
+    @snapshot()
+    @inlineCallbacks
+    def test_handler_trace_snapshot(self):
+        with self.override_global_tracer(tracer=self.tracer):
+            resp = yield self.client.get("/trace")
+            assert resp.get_status() == 200
+
+    @snapshot()
+    @inlineCallbacks
+    def test_template_snapshot(self):
+        resp = yield self.client.get("/template")
+        assert resp.get_status() == 200
+
+    @snapshot()
+    @inlineCallbacks
+    def test_uimodule_handler_snapshot(self):
+        resp = yield self.client.get("/uimodules")
+        assert resp.get_status() == 200

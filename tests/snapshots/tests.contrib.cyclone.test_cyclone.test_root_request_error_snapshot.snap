@@ -1,0 +1,22 @@
+[[{"name" "cyclone.request"
+   "service" "cyclone"
+   "resource" "GET tests.contrib.cyclone.test_cyclone.ErrHandler"
+   "type" "web"
+   "error" 1
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1612907623630432000
+   "duration" 1437000
+   "meta" {"runtime-id" "42f4a4d1e94448c7ae8a0f0218a7196b"
+           "http.method" "GET"
+           "http.url" "http://127.0.0.1/error"
+           "cyclone.handler" "tests.contrib.cyclone.test_cyclone.ErrHandler"
+           "http.status_code" "500"
+           "error.msg" "uh oh!"
+           "error.stack" "Traceback (most recent call last):\n  File \"/Users/yun.kim/dd/dd-trace-py/.riot/.venv_py2716/lib/python2.7/site-packages/twisted/internet/defer.py\", line 654, in _runCallbacks\n    current.result = callback(current.result, *args, **kw)\n  File \"/Users/yun.kim/dd/dd-trace-py/.riot/.venv_py2716/lib/python2.7/site-packages/cyclone/web.py\", line 1165, in _execute_handler\n    d = self._deferred_handler(function, *args, **kwargs)\n  File \"/Users/yun.kim/dd/dd-trace-py/ddtrace/contrib/trace_utils.py\", line 48, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/Users/yun.kim/dd/dd-trace-py/ddtrace/contrib/cyclone/patch.py\", line 61, in traced_requesthandler_deferred_handler\n    return func(*args, **kwargs)\n--- <exception caught here> ---\n  File \"/Users/yun.kim/dd/dd-trace-py/.riot/.venv_py2716/lib/python2.7/site-packages/cyclone/web.py\", line 1137, in _deferred_handler\n    result = function(*args, **kwargs)\n  File \"/Users/yun.kim/dd/dd-trace-py/tests/contrib/cyclone/test_cyclone.py\", line 51, in get\n    raise Exception(\"uh oh!\")\nexceptions.Exception: uh oh!\n"
+           "error.type" "<type 'exceptions.Exception'>"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 62957}}]]
