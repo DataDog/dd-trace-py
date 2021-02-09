@@ -29,7 +29,10 @@ def test_configure_keeps_api_hostname_and_port():
     """
     tracer = Tracer()
     assert tracer.writer._hostname == "localhost"
-    assert tracer.writer._port == 8126
+    if AGENT_VERSION == "testagent":
+        assert tracer.writer._port == 9126
+    else:
+        assert tracer.writer._port == 8126
     tracer.configure(hostname="127.0.0.1", port=8127)
     assert tracer.writer._hostname == "127.0.0.1"
     assert tracer.writer._port == 8127
