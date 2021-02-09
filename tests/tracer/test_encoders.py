@@ -26,7 +26,11 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t, "span_name", resource="/fsdlajfdlaj/afdasd%s" % i, service="myservice", parent_id=parent_id,
+            t,
+            "span_name",
+            resource="/fsdlajfdlaj/afdasd%s" % i,
+            service="myservice",
+            parent_id=parent_id,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
@@ -82,10 +86,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -106,10 +116,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -208,10 +224,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()
@@ -232,10 +254,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()

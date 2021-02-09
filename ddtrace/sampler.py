@@ -203,7 +203,7 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
                     self._set_priority(span, AUTO_REJECT)
                     return False
 
-            # If no rules match, use our defualt sampler
+            # If no rules match, use our default sampler
             matching_rule = self.default_sampler
 
         # Sample with the matching sampling rule

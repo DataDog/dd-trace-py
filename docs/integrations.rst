@@ -78,6 +78,13 @@ Celery
 .. automodule:: ddtrace.contrib.celery
 
 
+.. _cherrypy:
+
+CherryPy
+^^^^^^^^
+.. automodule:: ddtrace.contrib.cherrypy
+
+
 .. _consul:
 
 Consul
@@ -105,6 +112,13 @@ Elasticsearch
 Falcon
 ^^^^^^
 .. automodule:: ddtrace.contrib.falcon
+
+
+.. _fastapi:
+
+Fastapi
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.fastapi
 
 
 .. _flask:

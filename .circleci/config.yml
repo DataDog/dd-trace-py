@@ -37,6 +37,8 @@ machine_executor: &machine_executor
     image: ubuntu-1604:201903-01
   environment:
     - BOTO_CONFIG: /dev/null
+    # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+    - PYTHONUNBUFFERED: 1
   steps:
     - &pyenv-set-global
       run:
@@ -625,6 +627,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^celery_contrib-'
 
+  cherrypy:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^cherrypy_contrib-'
+
   consul:
     <<: *contrib_job
     docker:
@@ -646,8 +654,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
     steps:
-      - run_tox_scenario:
-          pattern: '^elasticsearch_contrib-'
+      - run_test:
+          pattern: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
@@ -672,6 +680,13 @@ jobs:
           pattern: 'djangorestframework'
           snapshot: true
           docker_services: "memcached redis"
+
+  fastapi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "fastapi"
+          snapshot: true
 
   flask:
     <<: *contrib_job
@@ -698,8 +713,8 @@ jobs:
   grpc:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+      - run_test:
+          pattern: "grpc"
 
   molten:
     <<: *contrib_job
@@ -916,6 +931,13 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
+
   kombu:
     <<: *contrib_job
     docker:
@@ -1017,6 +1039,7 @@ requires_tests: &requires_tests
     - bottle
     - cassandra
     - celery
+    - cherrypy
     - consul
     - dbapi
     - ddtracerun
@@ -1025,6 +1048,7 @@ requires_tests: &requires_tests
     - djangorestframework
     - elasticsearch
     - falcon
+    - fastapi
     - flask
     - futures
     - gevent
@@ -1071,6 +1095,7 @@ requires_tests: &requires_tests
     - tracer
     - tornado
     - vertica
+    - wsgi
     - build-docker-ci-image
 
 workflows:
@@ -1122,6 +1147,7 @@ workflows:
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       - celery: *requires_pre_test
+      - cherrypy: *requires_pre_test
       - consul: *requires_pre_test
       - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
@@ -1130,6 +1156,7 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
+      - fastapi: *requires_pre_test
       - flask: *requires_pre_test
       - futures: *requires_pre_test
       - gevent: *requires_pre_test
@@ -1170,6 +1197,7 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
       - deploy_master:
