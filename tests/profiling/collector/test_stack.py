@@ -161,7 +161,6 @@ def test_ignore_profiler_gevent_task(profiler):
     # sure to catch it with the StackProfiler and that it's ignored.
     c = CollectorTest(profiler._profiler._recorder, interval=0.00001)
     c.start()
-    events = profiler._profiler._recorder.events[stack.StackSampleEvent]
     collector_thread_ids = {
         col._worker.ident
         for col in profiler._profiler._collectors
@@ -170,7 +169,8 @@ def test_ignore_profiler_gevent_task(profiler):
     collector_thread_ids.add(c._worker.ident)
     time.sleep(3)
     c.stop()
-    assert collector_thread_ids.isdisjoint({e.task_id for e in events})
+    events = profiler._profiler._recorder.reset()
+    assert collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]})
 
 
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
