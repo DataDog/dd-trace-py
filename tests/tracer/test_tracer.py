@@ -36,6 +36,12 @@ from tests.subprocesstest import run_in_subprocess
 from .. import override_env
 
 
+@pytest.fixture(autouse=True)
+def unset_trace_agent_url(monkeypatch):
+    # Avoid using agent url set for snapshot tests
+    monkeypatch.delenv("DD_TRACE_AGENT_URL")
+
+
 class TracerTestCases(TracerTestCase):
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")
@@ -909,7 +915,7 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "mysql"
                     assert VERSION_KEY not in child2.meta
 
-    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_TRACE_AGENT_URL=""))
     def test_detect_agentless_env(self):
         assert isinstance(self.tracer.original_writer, LogWriter)
 

@@ -476,10 +476,12 @@ jobs:
       PYTHON_VERSION: 3.5.4
 
   tracer:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "tracer"
+          snapshot: true
 
   opentracer:
     <<: *contrib_job

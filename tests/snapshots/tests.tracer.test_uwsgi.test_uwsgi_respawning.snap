@@ -1,0 +1,150 @@
+[[{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1614143076065450800
+   "duration" 66200
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11291
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1614143076069835800
+   "duration" 64400
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11292
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 2
+   "parent_id" nil
+   "start" 1614143076068776800
+   "duration" 55400
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11292
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 3
+   "parent_id" nil
+   "start" 1614143076066570700
+   "duration" 65300
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11291
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 4
+   "parent_id" nil
+   "start" 1614143076064303800
+   "duration" 62400
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11291
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 5
+   "parent_id" nil
+   "start" 1614143076056480900
+   "duration" 275900
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11292
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 6
+   "parent_id" nil
+   "start" 1614143076067687400
+   "duration" 76800
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11292
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 7
+   "parent_id" nil
+   "start" 1614143076070961400
+   "duration" 59300
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11292
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 8
+   "parent_id" nil
+   "start" 1614143076061302900
+   "duration" 176800
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11291
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 9
+   "parent_id" nil
+   "start" 1614143076063134200
+   "duration" 75700
+   "meta" {"language" "python"
+           "runtime-id" "a208322121b24ca1a18e74e05b77b808"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11291
+              "_dd.tracer_kr" 1.0}}]]

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The tracer now supports most operation modes from uWSGI. Manual configuration of the tracer is required and automatic configuration using `ddtrace-run` is not currently supported.
+upgrade:
+  - |
+    The tracer now includes uWSGI compatibility. Make sure to use manual configuration of the tracer in place of `ddtrace-run`.

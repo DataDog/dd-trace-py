@@ -1,0 +1,14 @@
+[[{"name" "uwsgi-app"
+   "service" nil
+   "resource" "uwsgi-app"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1614143190759523200
+   "duration" 603100
+   "meta" {"runtime-id" "f8e244f8af2e480bb32ef5e219683ade"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 11323
+              "_dd.tracer_kr" 1.0}}]]

@@ -20,6 +20,7 @@ from .internal import _rand
 from .internal import agent
 from .internal import debug
 from .internal import hostname
+from .internal import uwsgi
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
@@ -257,7 +258,7 @@ class Tracer(object):
             if any(x is not None for x in [hostname, port, uds_path, https]):
                 # If any of the parts of the URL have updated, merge them with
                 # the previous writer values.
-                if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
+                if hasattr(self, "writer") and self.writer and isinstance(self.writer, AgentWriter):
                     prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
                 else:
                     prev_url_parsed = compat.parse.urlparse("")
@@ -275,7 +276,7 @@ class Tracer(object):
                         port = prev_url_parsed.port
                     scheme = "https" if https else "http"
                     url = "%s://%s:%s" % (scheme, hostname, port)
-            elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
+            elif hasattr(self, "writer") and self.writer and isinstance(self.writer, AgentWriter):
                 # Reuse the URL from the previous writer if there was one.
                 url = self.writer.agent_url
             else:
@@ -283,16 +284,21 @@ class Tracer(object):
                 # get the URL from.
                 url = None
 
-            if hasattr(self, "writer"):
+            if hasattr(self, "writer") and self.writer:
                 self.writer.stop()
 
-            self.writer = AgentWriter(
-                url,
-                sampler=self.sampler,
-                priority_sampler=self.priority_sampler,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
-            )
+            self._agent_url = url
+            self._init_agent_writer_called = False
+
+            try:
+                uwsgi.check_uwsgi(self._init_agent_writer, atexit=self.shutdown)
+            except uwsgi.uWSGIMasterProcess:
+                self.writer = None
+            else:
+                # We want to still initialize the agent if it had not been started by
+                # the above uwsgi check.
+                if not self._init_agent_writer_called:
+                    self._init_agent_writer()
         elif self.writer:
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
@@ -311,7 +317,16 @@ class Tracer(object):
             runtime_metrics_was_running = False
 
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
-            self._start_runtime_worker()
+            self._init_runtime_worker_called = False
+            try:
+                uwsgi.check_uwsgi(self._init_runtime_worker, atexit=self._shutdown_runtime_worker)
+            except uwsgi.uWSGIMasterProcess:
+                self._runtime_worker = None
+            else:
+                # We want to still initialize the runtime worker if it had not been started by
+                # the above uwsgi check.
+                if not self._init_runtime_worker_called:
+                    self._init_runtime_worker()
 
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
@@ -490,11 +505,22 @@ class Tracer(object):
 
         return span
 
-    def _start_runtime_worker(self):
+    def _init_runtime_worker(self):
         if not self._dogstatsd_url:
             return
 
         self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
+        self._init_runtime_worker_called = True
+
+    def _init_agent_writer(self):
+        self.writer = AgentWriter(
+            self._agent_url,
+            sampler=self.sampler,
+            priority_sampler=self.priority_sampler,
+            dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+            report_metrics=config.health_metrics_enabled,
+        )
+        self._init_agent_writer_called = True
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -528,10 +554,14 @@ class Tracer(object):
         self._services = set()
 
         if self._runtime_worker is not None:
-            self._start_runtime_worker()
+            # Re-create the runtime worker
+            self._runtime_worker = self._runtime_worker.copy()
 
         # Re-create the background writer thread
-        self.writer = self.writer.recreate()
+        # If writer is not present, skip. This should not be the case but given
+        # the design we should handle it.
+        if hasattr(self, "writer") and self.writer:
+            self.writer = self.writer.recreate()
 
         return new_ctx
 
@@ -641,7 +671,7 @@ class Tracer(object):
             for span in spans:
                 self.log.debug("\n%s", span.pprint())
 
-        if self.enabled and self.writer:
+        if self.enabled and hasattr(self, "writer") and self.writer:
             for filtr in self._filters:
                 try:
                     spans = filtr.process_trace(spans)
@@ -764,7 +794,8 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        self.writer.stop(timeout=timeout)
+        if hasattr(self, "writer") and self.writer:
+            self.writer.stop(timeout=timeout)
         if self._runtime_worker:
             self._shutdown_runtime_worker()
 

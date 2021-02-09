@@ -1,6 +1,8 @@
 Advanced Usage
 ==============
 
+.. _agentconfiguration:
+
 Agent Configuration
 -------------------
 
@@ -463,7 +465,6 @@ detailed in :ref:`Configuration`.
 - ``ddtrace-run python my_app.py``
 - ``ddtrace-run python manage.py runserver``
 - ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
 
 
 Pass along command-line arguments as your program would normally expect them::
@@ -485,16 +486,27 @@ the console, and changes can be made as needed.
 uWSGI
 -----
 
-The default configuration of uWSGI applications does not include the
-``--enable-threads`` setting which must be set to ``true`` for the
-tracing library to run.  This is noted in their best practices doc_.
+The tracer and profiler support uWSGI when configured with the following:
 
-  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+- Threads must be enabled.
+- Multiple processes requires `lazy-app <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`_ enabled or a `master <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#master>`_ process enabled.
 
-Example run command:
+Tracing is not supported when using ``ddtrace-run`` with uWSGI as the tracer needs to be initialized in the worker processes. Use manual configuration instead to enable tracing by adding :ref:`patch_all()<patch_all>` and :ref:`agent configuration<agentconfiguration>` to a WSGI app::
 
-``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+  from os import environ
+  from ddtrace import patch_all
+  from ddtrace import tracer
 
+
+  patch_all()
+  tracer.configure(
+      collect_metrics=environ.get("DD_RUNTIME_METRICS_ENABLED"),
+  )
+
+  def application(env, start_response):
+      with tracer.trace("uwsgi-app"):
+          start_response('200 OK', [('Content-Type','text/html')])
+          return [b"Hello World"]
 
 API
 ---

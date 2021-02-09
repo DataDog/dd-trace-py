@@ -49,7 +49,7 @@ venv = Venv(
         Venv(
             name="tracer",
             command="pytest {cmdargs} tests/tracer/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[Venv(pys=select_pys(), pkgs={"uwsgi": latest, "msgpack": latest})],
         ),
         Venv(
             name="cherrypy",

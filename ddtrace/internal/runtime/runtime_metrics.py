@@ -56,11 +56,15 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
     FLUSH_INTERVAL = 10
 
     def __init__(self, dogstatsd_url, flush_interval=None):
+        self._flush_interval = flush_interval or float(
+            get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)
+        )
+        self._dogstatsd_url = dogstatsd_url
         super(RuntimeWorker, self).__init__(
-            interval=flush_interval or float(get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)),
+            interval=self._flush_interval,
             name=self.__class__.__name__,
         )
-        self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url)
+        self._dogstatsd_client = get_dogstatsd_client(self._dogstatsd_url)
         # Initialize collector
         self._runtime_metrics = RuntimeMetrics()
         # force an immediate update constant tags
@@ -87,4 +91,10 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         return "{}(runtime_metrics={})".format(
             self.__class__.__name__,
             self._runtime_metrics,
+        )
+
+    def copy(self):
+        return self.__class__(
+            dogstatsd_url=self._dogstatsd_url,
+            flush_interval=self._flush_interval,
         )

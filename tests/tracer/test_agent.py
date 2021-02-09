@@ -1,4 +1,12 @@
+import pytest
+
 from ddtrace.internal import agent
+
+
+@pytest.fixture(autouse=True)
+def unset_trace_agent_url(monkeypatch):
+    # Avoid using agent url set for snapshot tests
+    monkeypatch.delenv("DD_TRACE_AGENT_URL")
 
 
 def test_hostname(monkeypatch):
