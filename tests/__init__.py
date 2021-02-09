@@ -9,7 +9,7 @@ from ddtrace.vendor import wrapt
 
 import ddtrace
 from ddtrace import Tracer, Span
-from ddtrace.compat import httplib, to_unicode
+from ddtrace.compat import httplib, to_unicode, parse
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
@@ -447,14 +447,11 @@ class DummyTracer(Tracer):
         # exists before using it to assign hostname/port
         if isinstance(self.writer, AgentWriter):
             self.writer = DummyWriter(
-                hostname=self.writer._hostname,
-                port=self.writer._port,
+                agent_url=self.writer.agent_url,
                 priority_sampler=self.writer._priority_sampler,
             )
         else:
             self.writer = DummyWriter(
-                hostname="",
-                port=0,
                 priority_sampler=self.writer._priority_sampler,
             )
 
@@ -842,7 +839,8 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token
 
-        conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+        parsed = parse.urlparse(tracer.writer.api.url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
@@ -878,7 +876,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
                     del tracer.writer._headers["X-Datadog-Test-Token"]
 
             # Query for the results of the test.
-            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             r = conn.getresponse()
             if r.status != 200:

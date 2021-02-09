@@ -86,7 +86,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
         self.agent_url = url
-        self._parsed_url = compat.parse.urlparse(url)
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
@@ -121,14 +120,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()
-
-    @property
-    def _hostname(self):
-        return self._parsed_url.hostname
-
-    @property
-    def _port(self):
-        return self._parsed_url.port
 
     def _metrics_dist(self, name, count=1, tags=None):
         if self._report_metrics:

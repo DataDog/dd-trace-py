@@ -162,8 +162,8 @@ def should_skip_request(pin, request):
     if not pin or not pin.enabled():
         return True
 
-    writer = pin.tracer.writer
-    return request.host == writer._hostname and request.port == writer._port
+    parsed = parse.urlparse(pin.tracer.writer.agent_url)
+    return request.host == parsed.host and request.port == parsed.port
 
 
 def patch():
