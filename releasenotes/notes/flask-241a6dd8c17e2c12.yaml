@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    flask: fix memory leak for unsampled spans.
