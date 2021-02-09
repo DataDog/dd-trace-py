@@ -58,7 +58,6 @@ exclude = '''
       | pymongo
       | rediscluster
       | sqlalchemy
-      | tornado
       | util.py
     )
     | ext/
@@ -107,7 +106,6 @@ exclude = '''
       | rediscluster
       | sqlalchemy
       | test_utils.py
-      | tornado
     )
     | ddtrace_run.py
     | profiling/_ast_test_file.py

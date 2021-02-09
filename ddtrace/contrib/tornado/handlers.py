@@ -16,9 +16,9 @@ def execute(func, handler, args, kwargs):
     """
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
-    tracer = settings['tracer']
-    service = settings['default_service']
-    distributed_tracing = settings['distributed_tracing']
+    tracer = settings["tracer"]
+    service = settings["default_service"]
+    distributed_tracing = settings["distributed_tracing"]
 
     with TracerStackContext():
         # attach the context to the request
@@ -33,19 +33,16 @@ def execute(func, handler, args, kwargs):
 
         # store the request span in the request so that it can be used later
         request_span = tracer.trace(
-            'tornado.request',
+            "tornado.request",
             service=service,
             span_type=SpanTypes.WEB,
         )
         request_span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
-        analytics_enabled = settings['analytics_enabled']
+        analytics_enabled = settings["analytics_enabled"]
         if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-            request_span.set_tag(
-                ANALYTICS_SAMPLE_RATE_KEY,
-                settings.get('analytics_sample_rate', True)
-            )
+            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
@@ -65,10 +62,10 @@ def on_finish(func, handler, args, kwargs):
         # default handler class will be used so we don't pollute the resource
         # space here
         klass = handler.__class__
-        request_span.resource = '{}.{}'.format(klass.__module__, klass.__name__)
-        request_span.set_tag('http.method', request.method)
-        request_span.set_tag('http.status_code', handler.get_status())
-        request_span.set_tag(http.URL, request.full_url().rsplit('?', 1)[0])
+        request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
+        request_span.set_tag("http.method", request.method)
+        request_span.set_tag("http.status_code", handler.get_status())
+        request_span.set_tag(http.URL, request.full_url().rsplit("?", 1)[0])
         if config.tornado.trace_query_string:
             request_span.set_tag(http.QUERY_STRING, request.query)
         request_span.finish()
@@ -89,7 +86,7 @@ def log_exception(func, handler, args, kwargs):
         return func(*args, **kwargs)
 
     # retrieve the current span
-    tracer = handler.settings[CONFIG_KEY]['tracer']
+    tracer = handler.settings[CONFIG_KEY]["tracer"]
     current_span = tracer.current_span()
 
     if not current_span:
