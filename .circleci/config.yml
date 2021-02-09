@@ -863,9 +863,9 @@ jobs:
       - *postgres_server
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres mysql
-          pattern: '^sqlalchemy_contrib-'
+          pattern: "sqlalchemy"
 
   dbapi:
     <<: *contrib_job
@@ -879,9 +879,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *postgres_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres
-          pattern: '^psycopg_contrib-'
+          pattern: "psycopg"
 
   aiobotocore:
     <<: *contrib_job
