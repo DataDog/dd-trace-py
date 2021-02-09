@@ -1,0 +1,20 @@
+[[{"name" "cyclone.request"
+   "service" "cyclone"
+   "resource" "GET tests.contrib.cyclone.test_cyclone.RootHandler"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1612907623606709000
+   "duration" 289000
+   "meta" {"runtime-id" "42f4a4d1e94448c7ae8a0f0218a7196b"
+           "http.response.headers.resp-header" "test-value"
+           "http.method" "GET"
+           "http.url" "http://127.0.0.1/"
+           "cyclone.handler" "tests.contrib.cyclone.test_cyclone.RootHandler"
+           "http.status_code" "200"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 62957}}]]

@@ -1,0 +1,19 @@
+[[{"name" "cyclone.request"
+   "service" "cyclone"
+   "resource" "GET tests.contrib.cyclone.test_cyclone.TraceHandler"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1612907623581418000
+   "duration" 364000
+   "meta" {"runtime-id" "42f4a4d1e94448c7ae8a0f0218a7196b"
+           "http.url" "http://127.0.0.1/trace"
+           "cyclone.handler" "tests.contrib.cyclone.test_cyclone.TraceHandler"
+           "http.status_code" "200"
+           "http.method" "GET"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 62957}}]]
