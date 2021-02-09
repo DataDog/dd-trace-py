@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import gc
 import os
 import threading
 
@@ -52,8 +53,7 @@ _ALLOC_LINE_NUMBER = 56
 
 
 def _allocate_1k():
-    for _ in range(1000):
-        object()
+    return [object() for _ in range(1000)]
 
 
 def _pre_allocate_1k():
@@ -62,7 +62,7 @@ def _pre_allocate_1k():
 
 def test_iter_events():
     max_nframe = 32
-    _memalloc.start(max_nframe, 10000, 512)
+    _memalloc.start(max_nframe, 10000, 512 * 1024)
     _allocate_1k()
     events, count, alloc_count = _memalloc.iter_events()
     _memalloc.stop()
@@ -76,20 +76,20 @@ def test_iter_events():
         assert nframe >= len(stack)
         last_call = stack[0]
         assert size >= 1  # size depends on the object size
-        if last_call[2] == "_allocate_1k" and last_call[1] == _ALLOC_LINE_NUMBER:
+        if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert thread_id == _nogevent.main_thread_id
             assert last_call[0] == __file__
             assert stack[1][0] == __file__
-            assert stack[1][1] == 66
-            assert stack[1][2] == "test_iter_events"
+            assert stack[1][1] == _ALLOC_LINE_NUMBER
+            assert stack[1][2] == "_allocate_1k"
             object_count += 1
 
-    assert object_count == 1000
+    assert object_count >= 1000
 
 
 def test_iter_events_dropped():
     max_nframe = 32
-    _memalloc.start(max_nframe, 100, 512)
+    _memalloc.start(max_nframe, 100, 512 * 1024)
     _allocate_1k()
     events, count, alloc_count = _memalloc.iter_events()
     _memalloc.stop()
@@ -107,7 +107,7 @@ def test_iter_events_not_started():
 def test_iter_events_multi_thread():
     max_nframe = 32
     t = threading.Thread(target=_allocate_1k)
-    _memalloc.start(max_nframe, 10000, 512)
+    _memalloc.start(max_nframe, 10000, 512 * 1024)
     _allocate_1k()
     t.start()
     t.join()
@@ -125,21 +125,21 @@ def test_iter_events_multi_thread():
         assert nframe >= len(stack)
         last_call = stack[0]
         assert size >= 1  # size depends on the object size
-        if last_call[2] == "_allocate_1k" and last_call[1] == _ALLOC_LINE_NUMBER:
+        if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert last_call[0] == __file__
             if thread_id == _nogevent.main_thread_id:
                 count_object += 1
                 assert stack[1][0] == __file__
-                assert stack[1][1] == 111
-                assert stack[1][2] == "test_iter_events_multi_thread"
+                assert stack[1][1] == _ALLOC_LINE_NUMBER
+                assert stack[1][2] == "_allocate_1k"
             elif thread_id == t.ident:
                 count_thread += 1
-                assert stack[1][0] == threading.__file__
-                assert stack[1][1] > 0
-                assert stack[1][2] == "run"
+                assert stack[2][0] == threading.__file__
+                assert stack[2][1] > 0
+                assert stack[2][2] == "run"
 
-    assert count_object == 1000
-    assert count_thread == 1000
+    assert count_object >= 1000
+    assert count_thread >= 1000
 
 
 def test_memory_collector():
@@ -157,13 +157,13 @@ def test_memory_collector():
         assert 0 < event.capture_pct <= 100
         last_call = event.frames[0]
         assert event.size > 0
-        if last_call[2] == "_allocate_1k" and last_call[1] == _ALLOC_LINE_NUMBER:
+        if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert event.thread_id == _nogevent.main_thread_id
             assert event.thread_name == "MainThread"
             count_object += 1
-            assert event.frames[1][0] == __file__
-            assert event.frames[1][1] == 149
-            assert event.frames[1][2] == "test_memory_collector"
+            assert event.frames[2][0] == __file__
+            assert event.frames[2][1] == 149
+            assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0
 
@@ -191,3 +191,132 @@ def test_memory_collector_ignore_profiler(ignore_profiler):
 
     if not ignore_profiler:
         assert ok
+
+
+def test_heap():
+    max_nframe = 32
+    _memalloc.start(max_nframe, 10, 8 * 1024)
+    x = _allocate_1k()
+    # Check that at least one sample comes from the main thread
+    thread_found = False
+    for (stack, nframe, thread_id), size in _memalloc.heap():
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        if thread_id == _nogevent.main_thread_id:
+            thread_found = True
+        assert isinstance(thread_id, int)
+        if (
+            stack[0][0] == __file__
+            and stack[0][1] == _ALLOC_LINE_NUMBER
+            and stack[0][2] == "<listcomp>"
+            and stack[1][0] == __file__
+            and stack[1][1] == _ALLOC_LINE_NUMBER
+            and stack[1][2] == "_allocate_1k"
+            and stack[2][0] == __file__
+            and stack[2][2] == "test_heap"
+        ):
+            break
+    else:
+        pytest.fail("No trace of allocation in heap")
+    assert thread_found, "Main thread not found"
+    y = _pre_allocate_1k()
+    for (stack, nframe, thread_id), size in _memalloc.heap():
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        assert isinstance(thread_id, int)
+        if (
+            stack[0][0] == __file__
+            and stack[0][1] == _ALLOC_LINE_NUMBER
+            and stack[0][2] == "<listcomp>"
+            and stack[1][0] == __file__
+            and stack[1][1] == _ALLOC_LINE_NUMBER
+            and stack[1][2] == "_allocate_1k"
+            and stack[2][0] == __file__
+            and stack[2][2] == "_pre_allocate_1k"
+        ):
+            break
+    else:
+        pytest.fail("No trace of allocation in heap")
+    del x
+    gc.collect()
+    for (stack, nframe, thread_id), size in _memalloc.heap():
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        assert isinstance(thread_id, int)
+        if (
+            stack[0][0] == __file__
+            and stack[0][1] == _ALLOC_LINE_NUMBER
+            and stack[0][2] == "<listcomp>"
+            and stack[1][0] == __file__
+            and stack[1][1] == _ALLOC_LINE_NUMBER
+            and stack[1][2] == "_allocate_1k"
+            and stack[2][0] == __file__
+            and stack[2][2] == "test_heap"
+        ):
+            pytest.fail("Allocated memory still in heap")
+    del y
+    gc.collect()
+    for (stack, nframe, thread_id), size in _memalloc.heap():
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        assert isinstance(thread_id, int)
+        if (
+            stack[0][0] == __file__
+            and stack[0][1] == _ALLOC_LINE_NUMBER
+            and stack[0][2] == "<listcomp>"
+            and stack[1][0] == __file__
+            and stack[1][1] == _ALLOC_LINE_NUMBER
+            and stack[1][2] == "_allocate_1k"
+            and stack[2][0] == __file__
+            and stack[2][2] == "_pre_allocate_1k"
+        ):
+            pytest.fail("Allocated memory still in heap")
+    _memalloc.stop()
+
+
+def test_heap_collector():
+    heap_sample_size = 4 * 1024
+    r = recorder.Recorder()
+    mc = memalloc.MemoryCollector(r, heap_sample_size=heap_sample_size)
+    with mc:
+        keep_me = _allocate_1k()
+        events = mc.snapshot()
+
+    assert len(events) == 1
+    assert len(events[0]) >= 1
+
+    del keep_me
+
+    for event in events[0]:
+        assert 0 < len(event.frames) <= mc.max_nframe
+        assert event.nframes >= len(event.frames)
+        assert event.sample_size == heap_sample_size
+        assert len(event.frames) >= 1
+        assert event.size > 0
+        assert event.thread_id > 0
+        assert isinstance(event.thread_name, str)
+
+
+def test_heap_stress():
+    # This should run for a few seconds, and is enough to spot potential segfaults.
+    _memalloc.start(64, 64, 1024)
+
+    x = []
+
+    for _ in range(20):
+        for _ in range(1000):
+            x.append(object())
+        _memalloc.heap()
+        del x[:100]
+
+    _memalloc.stop()
+
+
+@pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
+def test_memalloc_speed(benchmark, heap_sample_size):
+    if heap_sample_size:
+        r = recorder.Recorder()
+        with memalloc.MemoryCollector(r, heap_sample_size=heap_sample_size):
+            benchmark(_allocate_1k)
+    else:
+        benchmark(_allocate_1k)
