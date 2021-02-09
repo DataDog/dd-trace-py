@@ -84,9 +84,6 @@ class TraceTool(cherrypy.Tool):
             log.warning("cherrypy: tracing tool after_error_response hook called, but no active span found")
             return
 
-        if not span.sampled:
-            return
-
         span.error = 1
         span.set_tag(errors.ERROR_TYPE, cherrypy._cperror._exc_info()[0])
         span.set_tag(errors.ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
@@ -99,9 +96,6 @@ class TraceTool(cherrypy.Tool):
 
         if not span:
             log.warning("cherrypy: tracing tool on_end_request hook called, but no active span found")
-            return
-
-        if not span.sampled:
             return
 
         self._close_span(span)
