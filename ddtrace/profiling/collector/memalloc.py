@@ -30,12 +30,24 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
     """The total number of allocation events sampled."""
 
 
+@event.event_class
+class MemoryHeapSampleEvent(event.StackBasedEvent):
+    """A sample storing memory allocation tracked."""
+
+    size = attr.ib(default=None)
+    """Allocation size in bytes."""
+
+    sample_size = attr.ib(default=None)
+    """The sampling size."""
+
+
 @attr.s
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
     _DEFAULT_MAX_EVENTS = 32
     _DEFAULT_INTERVAL = 0.5
+    _DEFAULT_HEAP_SAMPLE_SIZE = 0
 
     # Arbitrary interval to empty the _memalloc event buffer
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
@@ -43,7 +55,7 @@ class MemoryCollector(collector.PeriodicCollector):
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
     _max_events = attr.ib(factory=_attr.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
     max_nframe = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    heap_sample_size = attr.ib(factory=_attr.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", 0, int))
+    heap_sample_size = attr.ib(factory=_attr.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
     def start(self):
@@ -60,6 +72,24 @@ class MemoryCollector(collector.PeriodicCollector):
             except RuntimeError:
                 pass
             super(MemoryCollector, self).stop()
+
+    def snapshot(self):
+        return (
+            tuple(
+                MemoryHeapSampleEvent(
+                    thread_id=thread_id,
+                    thread_name=_threading.get_thread_name(thread_id),
+                    thread_native_id=_threading.get_thread_native_id(thread_id),
+                    frames=stack,
+                    nframes=nframes,
+                    size=size,
+                    sample_size=self.heap_sample_size,
+                )
+                for (stack, nframes, thread_id), size in _memalloc.heap()
+                # TODO: this should probably be implemented in _memalloc directly for speed
+                if not self.ignore_profiler or not any(frame[0].startswith(_MODULE_TOP_DIR) for frame in stack)
+            ),
+        )
 
     def collect(self):
         events, count, alloc_count = _memalloc.iter_events()
