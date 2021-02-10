@@ -45,6 +45,7 @@ venv = Venv(
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --no-cov {cmdargs} tests/benchmarks",
         ),
+        Venv(name="tracer", command="pytest {cmdargs} tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
             name="cherrypy",
             command="pytest {cmdargs} tests/contrib/cherrypy",
@@ -63,10 +64,9 @@ venv = Venv(
                 ),
             ],
         ),
-        Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
         Venv(
             name="pymongo",
-            command="pytest tests/contrib/pymongo",
+            command="pytest {cmdargs} tests/contrib/pymongo",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.7),
@@ -119,7 +119,7 @@ venv = Venv(
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
-            command="pytest tests/contrib/django",
+            command="pytest {cmdargs} tests/contrib/django",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.6),
@@ -185,7 +185,7 @@ venv = Venv(
         ),
         Venv(
             name="djangorestframework",
-            command="pytest tests/contrib/djangorestframework",
+            command="pytest {cmdargs} tests/contrib/djangorestframework",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.6),
@@ -292,7 +292,7 @@ venv = Venv(
         ),
         Venv(
             name="pynamodb",
-            command="pytest tests/contrib/pynamodb",
+            command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -305,7 +305,7 @@ venv = Venv(
         ),
         Venv(
             name="starlette",
-            command="pytest tests/contrib/starlette",
+            command="pytest {cmdargs} tests/contrib/starlette",
             venvs=[
                 Venv(
                     pys=select_pys(min_version=3.6),
@@ -338,7 +338,7 @@ venv = Venv(
         ),
         Venv(
             name="requests",
-            command="pytest tests/contrib/requests",
+            command="pytest {cmdargs} tests/contrib/requests",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -360,7 +360,7 @@ venv = Venv(
         ),
         Venv(
             name="wsgi",
-            command="pytest tests/contrib/wsgi",
+            command="pytest {cmdargs} tests/contrib/wsgi",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -372,17 +372,17 @@ venv = Venv(
         ),
         Venv(
             name="boto",
-            command="pytest tests/contrib/boto",
+            command="pytest {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version=3.6), pkgs={"boto": latest, "moto": ["<1.0"]})],
         ),
         Venv(
             name="botocore",
-            command="pytest tests/contrib/botocore",
+            command="pytest {cmdargs} tests/contrib/botocore",
             venvs=[Venv(pys=select_pys(), pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]})],
         ),
         Venv(
             name="mongoengine",
-            command="pytest tests/contrib/mongoengine",
+            command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
                 "pymongo": latest,
             },
@@ -408,7 +408,7 @@ venv = Venv(
                 "asgiref": ["~=3.0.0", "~=3.0"],
             },
             pys=select_pys(min_version=3.6),
-            command="pytest tests/contrib/asgi",
+            command="pytest {cmdargs} tests/contrib/asgi",
         ),
         Venv(
             name="fastapi",
