@@ -167,10 +167,13 @@ def test_ignore_profiler_gevent_task(profiler):
         if (isinstance(col, collector.PeriodicCollector) and col.status == _service.ServiceStatus.RUNNING)
     }
     collector_thread_ids.add(c._worker.ident)
-    time.sleep(3)
+    while True:
+        events = profiler._profiler._recorder.reset()
+        if collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]}):
+            break
+        # Give some time for gevent to switch greenlets
+        time.sleep(0.1)
     c.stop()
-    events = profiler._profiler._recorder.reset()
-    assert collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]})
 
 
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
@@ -337,7 +340,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 331, "test_exception_collection")]
+    assert e.frames == [(__file__, 334, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
