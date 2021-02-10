@@ -120,7 +120,7 @@ class TraceMiddleware(object):
 
     def _process_response(self, response):
         span = getattr(g, "flask_datadog_span", None)
-        if not (span and span.sampled):
+        if not span:
             return
 
         code = response.status_code if response else ""
@@ -133,7 +133,7 @@ class TraceMiddleware(object):
             _set_error_on_span(span, exception)
 
     def _finish_span(self, span, exception=None):
-        if not span or not span.sampled:
+        if not span:
             return
 
         code = span.get_tag(http.STATUS_CODE) or 0
