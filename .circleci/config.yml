@@ -163,6 +163,8 @@ commands:
                 command: docker-compose logs -f
                 background: true
             - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
       - unless:
           condition:
@@ -188,6 +190,35 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+
+  run_tox_scenario_with_testagent:
+    description: Run scripts/run-tox-scenario with setup, caching persistence and the testagent
+    parameters:
+      pattern:
+        type: string
+      wait:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - restore_tox_cache
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          name: "Run scripts/run-tox-scenario"
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
+          command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
+      - save_tox_cache
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -494,6 +525,8 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
@@ -597,10 +630,12 @@ jobs:
           pattern: '^celery_contrib-'
 
   cherrypy:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 6
     steps:
-      - run_tox_scenario:
-          pattern: '^cherrypy_contrib-'
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
 
   consul:
     <<: *contrib_job
@@ -623,8 +658,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *elasticsearch_image
     steps:
-      - run_tox_scenario:
-          pattern: '^elasticsearch_contrib-'
+      - run_test:
+          pattern: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
@@ -682,8 +717,8 @@ jobs:
   grpc:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+      - run_test:
+          pattern: "grpc"
 
   molten:
     <<: *contrib_job
@@ -828,9 +863,9 @@ jobs:
       - *postgres_server
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres mysql
-          pattern: '^sqlalchemy_contrib-'
+          pattern: "sqlalchemy"
 
   dbapi:
     <<: *contrib_job
@@ -839,14 +874,13 @@ jobs:
           pattern: '^dbapi_contrib-'
 
   psycopg:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          wait: postgres
-          pattern: '^psycopg_contrib-'
+      - run_test:
+          pattern: "psycopg"
+          snapshot: true
+          docker_services: "postgres"
 
   aiobotocore:
     <<: *contrib_job
@@ -871,13 +905,8 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+      - run_tox_scenario_with_testagent:
+          pattern: '^redis_contrib-'
 
   rediscluster:
     <<: *contrib_job

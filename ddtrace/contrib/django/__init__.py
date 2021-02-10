@@ -39,7 +39,7 @@ Configuration
 
    The service name reported for your Django app.
 
-   Can also be configured via the ``DD_SERVICE_NAME`` environment variable.
+   Can also be configured via the ``DD_SERVICE`` environment variable.
 
    Default: ``'django'``
 
