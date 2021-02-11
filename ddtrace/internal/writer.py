@@ -172,12 +172,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
-                t = sw.elapsed()
-                if t >= self.interval:
-                    log_level = logging.WARNING
-                else:
-                    log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
+            t = sw.elapsed()
+            if t >= self.interval:
+                log_level = logging.WARNING
+            else:
+                log_level = logging.DEBUG
+            log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
 
     @property
     def agent_url(self):
@@ -201,50 +201,44 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
         self._metrics_dist("http.requests")
 
-        try:
-            response = self._put(payload, headers)
-        except (httplib.HTTPException, OSError, IOError):
-            log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
-            if self._report_metrics:
-                self._metrics_dist("http.errors", tags=["type:err"])
-                self._metrics_dist("http.dropped.bytes", len(payload))
-        else:
-            if response.status >= 400:
-                self._metrics_dist("http.errors", tags=["type:%s" % response.status])
-            else:
-                self._metrics_dist("http.sent.bytes", len(payload))
+        response = self._put(payload, headers)
 
-            if response.status in [404, 415]:
-                log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-                try:
-                    payload = self._downgrade(payload, response)
-                except ValueError:
-                    log.error(
-                        "unsupported endpoint '%s': received response %s from Datadog Agent",
-                        self._endpoint,
-                        response.status,
-                    )
-                else:
-                    return self._send_payload(payload, count)
-            elif response.status >= 400:
+        if response.status >= 400:
+            self._metrics_dist("http.errors", tags=["type:%s" % response.status])
+        else:
+            self._metrics_dist("http.sent.bytes", len(payload))
+
+        if response.status in [404, 415]:
+            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
+            try:
+                payload = self._downgrade(payload, response)
+            except ValueError:
                 log.error(
-                    "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-                    self.agent_url,
+                    "unsupported endpoint '%s': received response %s from Datadog Agent",
+                    self._endpoint,
                     response.status,
-                    response.reason,
                 )
-                self._metrics_dist("http.dropped.bytes", len(payload))
-            elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
-                result_traces_json = response.get_json()
-                if result_traces_json and "rate_by_service" in result_traces_json:
-                    if self._priority_sampler:
-                        self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
-                    if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
-                        )
+            else:
+                return self._send_payload(payload, count)
+        elif response.status >= 400:
+            log.error(
+                "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
+                self.agent_url,
+                response.status,
+                response.reason,
+            )
+            self._metrics_dist("http.dropped.bytes", len(payload))
+        elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
+            result_traces_json = response.get_json()
+            if result_traces_json and "rate_by_service" in result_traces_json:
+                if self._priority_sampler:
+                    self._priority_sampler.update_rate_by_service_sample_rates(
+                        result_traces_json["rate_by_service"],
+                    )
+                if isinstance(self._sampler, BasePrioritySampler):
+                    self._sampler.update_rate_by_service_sample_rates(
+                        result_traces_json["rate_by_service"],
+                    )
 
     def write(self, spans):
         # Start the AgentWriter on first write.
@@ -293,7 +287,13 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             return
 
         encoded = self._encoder.join_encoded(enc_traces)
-        self._send_payload(encoded, len(enc_traces))
+        try:
+            self._send_payload(encoded, len(enc_traces))
+        except (httplib.HTTPException, OSError, IOError):
+            log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
+            if self._report_metrics:
+                self._metrics_dist("http.errors", tags=["type:err"])
+                self._metrics_dist("http.dropped.bytes", len(encoded))
 
         if self._report_metrics:
             # Note that we cannot use the batching functionality of dogstatsd because
