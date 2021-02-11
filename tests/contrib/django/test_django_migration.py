@@ -1,10 +1,11 @@
-import django
 import os
+
+import django
 import pytest
 
-from ddtrace import config, Pin
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.contrib.django.conf import configure_from_settings
-
 from tests import override_config
 
 

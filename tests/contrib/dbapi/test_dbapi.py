@@ -1,13 +1,17 @@
 import mock
-
 import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
+from ddtrace.contrib.dbapi import FetchTracedCursor
+from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.span import Span
 from ddtrace.utils.attrdict import AttrDict
-from ... import TracerTestCase, assert_is_measured, assert_is_not_measured
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_is_not_measured
 
 
 class TestTracedCursor(TracerTestCase):

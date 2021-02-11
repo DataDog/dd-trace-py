@@ -1,9 +1,9 @@
-from .trace import TracePlugin
-
 import bottle
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
+
+from .trace import TracePlugin
 
 
 def patch():

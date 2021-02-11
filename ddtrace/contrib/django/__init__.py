@@ -253,9 +253,10 @@ required_modules = ["django"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .middleware import TraceMiddleware
         from . import patch as _patch
-        from .patch import patch, unpatch
+        from .middleware import TraceMiddleware
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = ["patch", "unpatch", "TraceMiddleware", "_patch"]
 

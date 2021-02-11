@@ -34,6 +34,7 @@ without the whole trace being dropped.
 
 from ...utils.importlib import require_modules
 
+
 required_modules = ['kombu', 'kombu.messaging']
 
 with require_modules(required_modules) as missing_modules:

@@ -49,12 +49,13 @@ being loaded and re-calling `__import__` for the module to trigger the other fin
 
 For these reasons we have decided to patch Python's internal module loading functions instead.
 """
-import threading
 import sys
+import threading
 
 from ..compat import PY3
 from ..vendor import wrapt
 from .logger import get_logger
+
 
 __all__ = ["hooks", "register_module_hook", "patch", "unpatch"]
 

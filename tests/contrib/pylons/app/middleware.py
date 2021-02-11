@@ -1,4 +1,5 @@
-from webob import Request, Response
+from webob import Request
+from webob import Response
 
 
 class ExceptionMiddleware(object):

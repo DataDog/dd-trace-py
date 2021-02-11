@@ -1,7 +1,7 @@
 import json
 
-from .internal.logger import get_logger
 from .internal._encoding import MsgpackEncoder
+from .internal.logger import get_logger
 
 
 log = get_logger(__name__)

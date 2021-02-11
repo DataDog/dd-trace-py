@@ -1,13 +1,20 @@
-from ddtrace import Pin, config
-
 from celery import registry
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ddtrace import Pin
+from ddtrace import config
+
+from . import constants as c
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from . import constants as c
-from .utils import tags_from_context, retrieve_task_id, attach_span, detach_span, retrieve_span
+from .utils import attach_span
+from .utils import detach_span
+from .utils import retrieve_span
+from .utils import retrieve_task_id
+from .utils import tags_from_context
+
 
 log = get_logger(__name__)
 propagator = HTTPPropagator()

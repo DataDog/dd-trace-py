@@ -1,9 +1,10 @@
 import gevent
-import pytest
 from opentracing.scope_managers.gevent import GeventScopeManager
+import pytest
 
 import ddtrace
-from ddtrace.contrib.gevent import patch, unpatch
+from ddtrace.contrib.gevent import patch
+from ddtrace.contrib.gevent import unpatch
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 

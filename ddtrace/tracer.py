@@ -1,29 +1,44 @@
 import functools
-import logging
 import json
-from os import environ, getpid
+import logging
+from os import environ
+from os import getpid
 import sys
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY, HOSTNAME_KEY
-from .ext import system
-from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal import debug, hostname
-from .internal.logger import get_logger, hasHandlers
-from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
-from .internal.writer import AgentWriter, LogWriter
-from .internal import _rand
-from .provider import DefaultContextProvider
+from . import _hooks
+from . import compat
+from .constants import ENV_KEY
+from .constants import FILTERS_KEY
+from .constants import HOSTNAME_KEY
+from .constants import SAMPLE_RATE_METRIC_KEY
+from .constants import VERSION_KEY
 from .context import Context
-from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
+from .ext import system
+from .ext.priority import AUTO_KEEP
+from .ext.priority import AUTO_REJECT
+from .internal import _rand
+from .internal import debug
+from .internal import hostname
+from .internal.logger import get_logger
+from .internal.logger import hasHandlers
+from .internal.runtime import RuntimeTags
+from .internal.runtime import RuntimeWorker
+from .internal.runtime import get_runtime_id
+from .internal.writer import AgentWriter
+from .internal.writer import LogWriter
+from .provider import DefaultContextProvider
+from .sampler import DatadogSampler
+from .sampler import RateByServiceSampler
+from .sampler import RateSampler
 from .settings import config
 from .span import Span
-from .utils.formats import asbool, get_env
-from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
+from .utils.deprecation import RemovedInDDTrace10Warning
+from .utils.deprecation import deprecated
+from .utils.formats import asbool
+from .utils.formats import get_env
 from .vendor.dogstatsd import DogStatsd
-from . import compat
-from . import _hooks
 
 
 log = get_logger(__name__)

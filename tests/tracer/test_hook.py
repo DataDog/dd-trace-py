@@ -1,12 +1,10 @@
 import mock
 
 from ddtrace.compat import reload_module
-from ddtrace.utils.hook import (
-    register_post_import_hook,
-    deregister_post_import_hook,
-)
-
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from ddtrace.utils.hook import deregister_post_import_hook
+from ddtrace.utils.hook import register_post_import_hook
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
 
 @run_in_subprocess
@@ -67,8 +65,8 @@ class TestHook(SubprocessTestCase):
         test_hook_redis = mock.MagicMock()
         register_post_import_hook("tests.test_module", test_hook)
         register_post_import_hook("ddtrace.contrib.redis", test_hook_redis)
-        import tests.test_module  # noqa
         import ddtrace.contrib.redis  # noqa
+        import tests.test_module  # noqa
 
         test_hook.assert_called_once()
         test_hook_redis.assert_called_once()

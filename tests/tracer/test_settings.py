@@ -1,7 +1,8 @@
 from copy import deepcopy
 
-from ddtrace.settings import Config, HttpConfig, IntegrationConfig
-
+from ddtrace.settings import Config
+from ddtrace.settings import HttpConfig
+from ddtrace.settings import IntegrationConfig
 from tests import BaseTestCase
 
 

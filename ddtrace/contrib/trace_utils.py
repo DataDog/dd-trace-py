@@ -1,12 +1,14 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
 

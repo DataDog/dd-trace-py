@@ -1,21 +1,31 @@
 # 3p
-import zipfile
+import base64
 import io
 import json
-import base64
+import zipfile
+
 import botocore.session
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
+from moto import mock_ec2
+from moto import mock_kinesis
+from moto import mock_kms
+from moto import mock_lambda
+from moto import mock_s3
+from moto import mock_sqs
 
 # project
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.compat import stringify
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.botocore.patch import patch
+from ddtrace.contrib.botocore.patch import unpatch
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 # testing
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_span_http_status_code
 
 
 def get_zip_lambda():

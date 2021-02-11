@@ -4,10 +4,12 @@ import pyodbc
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.pyodbc.patch import patch, unpatch
+from ddtrace.contrib.pyodbc.patch import patch
+from ddtrace.contrib.pyodbc.patch import unpatch
 
 # testing
-from ... import TracerTestCase, assert_is_measured
+from ... import TracerTestCase
+from ... import assert_is_measured
 
 
 PYODBC_CONNECT_DSN = "driver=SQLite3;database=:memory:;"
