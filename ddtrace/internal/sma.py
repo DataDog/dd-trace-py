@@ -17,15 +17,18 @@ class SimpleMovingAverage(object):
         "sum_total",
     )
 
-    def __init__(self, size=None):
+    def __init__(self, size=DEFAULT_SMA_WINDOW):
         """
         Constructor for SimpleMovingAverage.
 
         :param size: The size of the window to calculate the moving average.
         :type size: :obj:`int`
         """
+        if size < 1:
+            raise ValueError
+
         self.index = 0
-        self.size = size is None and DEFAULT_SMA_WINDOW or max(1, size)
+        self.size = size
 
         self.sum_count = 0
         self.sum_total = 0
@@ -51,6 +54,9 @@ class SimpleMovingAverage(object):
         :param total: The total quantity of the next bucket.
         :type total: :obj:`unsigned int`
         """
+        if count > total:
+            raise ValueError
+
         self.sum_count += count - self.counts[self.index]
         self.sum_total += total - self.totals[self.index]
 

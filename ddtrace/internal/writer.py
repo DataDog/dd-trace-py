@@ -148,8 +148,15 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._metrics[metric]["count"]
             for metric in ("encoder.dropped.traces", "buffer.dropped.traces", "http.dropped.traces")
         )
+        accepted = self._metrics["writer.accepted.traces"]["count"]
 
-        self._drop_sma.set(dropped, self._metrics["writer.accepted.traces"]["count"])
+        if dropped > accepted:
+            # Sanity check, we cannot drop more traces than we accepted.
+            log.error("dropped more traces than accepted (dropped: %d, accepted: %d)", dropped, accepted)
+
+            accepted = dropped
+
+        self._drop_sma.set(dropped, accepted)
 
     def _set_keep_rate(self, trace):
         if trace:
@@ -317,14 +324,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 # it's not thread-safe.
                 # https://github.com/DataDog/datadogpy/issues/439
                 # This really isn't ideal as now we're going to do a ton of socket calls.
-                try:
-                    self.dogstatsd.increment("datadog.tracer.http.requests")
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
-                    for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
-                finally:
-                    pass
+                self.dogstatsd.increment("datadog.tracer.http.requests")
+                self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
+                self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
+                for name, metric in self._metrics.items():
+                    self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
 
         self._set_drop_rate()
 
