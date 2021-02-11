@@ -1,9 +1,10 @@
+from tornado import template
+
 import ddtrace
 from ddtrace import config
 
-from tornado import template
-
-from . import decorators, context_provider
+from . import context_provider
+from . import decorators
 from .constants import CONFIG_KEY
 
 

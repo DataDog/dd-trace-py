@@ -2,9 +2,8 @@ import os
 
 import pytest
 
-from ddtrace.vendor import six
-
 from ddtrace.profiling import _line2def
+from ddtrace.vendor import six
 
 
 def test_filename_and_lineno_to_def():

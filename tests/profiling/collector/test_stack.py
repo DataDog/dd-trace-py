@@ -6,17 +6,17 @@ import timeit
 
 import pytest
 
-from ddtrace.vendor import six
-
 from ddtrace.profiling import _nogevent
+from ddtrace.profiling import _service
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
-from ddtrace.profiling import _service
-from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import _threading
+from ddtrace.profiling.collector import stack
+from ddtrace.vendor import six
 
 from . import test_collector
+
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 

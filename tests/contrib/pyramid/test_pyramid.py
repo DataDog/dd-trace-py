@@ -1,7 +1,9 @@
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
 from ddtrace import config
+from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 
-from .utils import PyramidTestCase, PyramidBase
+from .utils import PyramidBase
+from .utils import PyramidTestCase
 
 
 def includeme(config):

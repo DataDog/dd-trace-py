@@ -1,6 +1,8 @@
-from ddtrace import Pin
-from ddtrace.contrib.flask import patch, unpatch
 import flask
+
+from ddtrace import Pin
+from ddtrace.contrib.flask import patch
+from ddtrace.contrib.flask import unpatch
 from ddtrace.vendor import wrapt
 
 from ... import TracerTestCase

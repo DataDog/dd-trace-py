@@ -55,6 +55,7 @@ Here is the end result, in a sample app::
 
 from ..util import require_modules
 
+
 required_modules = ["cherrypy"]
 
 with require_modules(required_modules) as missing_modules:

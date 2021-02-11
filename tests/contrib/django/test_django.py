@@ -1,24 +1,35 @@
 import itertools
-import django
-from django.views.generic import TemplateView
-from django.test import modify_settings, override_settings
-from django.utils.functional import SimpleLazyObject
 import os
-import pytest
 import subprocess
 
+import django
+from django.test import modify_settings
+from django.test import override_settings
+from django.utils.functional import SimpleLazyObject
+from django.views.generic import TemplateView
+import pytest
+
 from ddtrace import config
-from ddtrace.compat import string_type, binary_type
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
+from ddtrace.compat import binary_type
+from ddtrace.compat import string_type
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
-from ddtrace.ext import http, errors
+from ddtrace.ext import errors
+from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
-
-from tests import override_config, override_env, override_global_config, override_http_config, assert_dict_issuperset
+from tests import assert_dict_issuperset
+from tests import override_config
+from tests import override_env
+from tests import override_global_config
+from tests import override_http_config
 from tests.opentracer.utils import init_tracer
+
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 

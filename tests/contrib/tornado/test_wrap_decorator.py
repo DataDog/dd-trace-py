@@ -1,7 +1,7 @@
 from ddtrace.ext import http
 
-from .utils import TornadoTestCase
 from ... import assert_span_http_status_code
+from .utils import TornadoTestCase
 
 
 class TestTornadoWebWrapper(TornadoTestCase):

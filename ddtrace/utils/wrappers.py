@@ -1,5 +1,6 @@
-from ddtrace.vendor import wrapt
 import inspect
+
+from ddtrace.vendor import wrapt
 
 from .deprecation import deprecated
 

@@ -1,6 +1,6 @@
-import mock
 from unittest import TestCase
 
+import mock
 import pytest
 
 from ddtrace import config as global_config

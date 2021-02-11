@@ -1,17 +1,18 @@
 import asyncio
 import sys
 
+from fastapi.testclient import TestClient
 import httpx
 import pytest
 
 import ddtrace
-from ddtrace.contrib.fastapi import patch as fastapi_patch, unpatch as fastapi_unpatch
+from ddtrace.contrib.fastapi import patch as fastapi_patch
+from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.propagation import http as http_propagation
-
-from fastapi.testclient import TestClient
-from tests import override_http_config, snapshot, override_config
+from tests import override_config
+from tests import override_http_config
+from tests import snapshot
 from tests.tracer.test_tracer import get_dummy_tracer
-
 
 from . import app
 

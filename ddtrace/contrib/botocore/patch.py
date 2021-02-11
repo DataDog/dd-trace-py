@@ -4,18 +4,25 @@ Trace queries to aws api done via botocore client
 # 3p
 import base64
 import json
-from ddtrace.vendor import wrapt
-from ddtrace import config
+
 import botocore.client
 
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
 # project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http, aws
-from ...pin import Pin
-from ...utils.formats import deep_getattr, get_env
-from ...utils.wrappers import unwrap
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import aws
+from ...ext import http
 from ...internal.logger import get_logger
+from ...pin import Pin
 from ...propagation.http import HTTPPropagator
+from ...utils.formats import deep_getattr
+from ...utils.formats import get_env
+from ...utils.wrappers import unwrap
+
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient

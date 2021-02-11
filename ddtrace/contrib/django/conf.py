@@ -12,8 +12,8 @@ back to the defaults.
 """
 from __future__ import unicode_literals
 
-import os
 import importlib
+import os
 
 from django.conf import settings as django_settings
 
