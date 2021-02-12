@@ -2,8 +2,8 @@ import collections
 import logging
 import os
 
-from ..utils.formats import get_env
 from ..utils.deprecation import deprecation
+from ..utils.formats import get_env
 
 
 def get_logger(name):
@@ -110,7 +110,10 @@ class DDLogger(logging.Logger):
                     version="1.0.0",
                 )
 
-        self.rate_limit = rate_limit is not None and int(rate_limit) or 60
+        if rate_limit is not None:
+            self.rate_limit = int(rate_limit)
+        else:
+            self.rate_limit = 60
 
     def handle(self, record):
         """
@@ -125,7 +128,7 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
-        # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
+        # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
         # If the logging is in debug, then do not apply any limits to any log
         if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:
             super(DDLogger, self).handle(record)

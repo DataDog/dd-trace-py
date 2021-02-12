@@ -1,16 +1,11 @@
 import logging
 
-<<<<<<< HEAD
-from pytest import warns
-
-from ddtrace.internal.logger import DDLogger, get_logger
-from ddtrace.utils.deprecation import RemovedInDDTrace10Warning
-=======
 import mock
->>>>>>> master
+from pytest import warns
 
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
+from ddtrace.utils.deprecation import RemovedInDDTrace10Warning
 from tests import BaseTestCase
 
 
@@ -154,6 +149,11 @@ class DDLoggerTestCase(BaseTestCase):
         with self.override_env(dict(DD_LOGGING_RATE_LIMIT="10")), warns(RemovedInDDTrace10Warning):
             log = DDLogger("test.logger")
             self.assertEqual(log.rate_limit, 10)
+
+        # Ensure correct precedence
+        with self.override_env(dict(DD_LOGGING_RATE_LIMIT="10", DD_TRACE_LOGGING_RATE="20")):
+            log = DDLogger("test.logger")
+            self.assertEqual(log.rate_limit, 20)
 
     def test_logger_log(self):
         """
