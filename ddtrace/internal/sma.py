@@ -1,5 +1,6 @@
 from __future__ import division
 
+
 DEFAULT_SMA_WINDOW = 10
 
 
