@@ -126,7 +126,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._encoder = Encoder()
         self._headers.update({"Content-Type": self._encoder.content_type})
 
-        self._started = False
         self._started_lock = threading.Lock()
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
@@ -244,11 +243,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
-        if self._started is False:
+        if self.started is False:
             with self._started_lock:
-                if self._started is False:
+                if self.started is False:
                     self.start()
-                    self._started = True
         if not spans:
             return
 
