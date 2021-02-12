@@ -14,6 +14,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
               "system.pid" 76423
               "out.port" 6379
               "out.redis_db" 0
@@ -34,6 +35,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
               "system.pid" 76423
               "out.port" 6379
               "out.redis_db" 0
