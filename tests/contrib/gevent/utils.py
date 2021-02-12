@@ -1,6 +1,6 @@
-import gevent
-
 from functools import wraps
+
+import gevent
 
 
 _NOT_ERROR = gevent.hub.Hub.NOT_ERROR

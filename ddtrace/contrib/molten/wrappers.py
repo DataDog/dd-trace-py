@@ -1,11 +1,12 @@
-from ddtrace import config
-from ddtrace.vendor import wrapt
 import molten
 
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
+from .. import trace_utils
 from ... import Pin
 from ...utils.importlib import func_name
 
-from .. import trace_utils
 
 MOLTEN_ROUTE = "molten.route"
 

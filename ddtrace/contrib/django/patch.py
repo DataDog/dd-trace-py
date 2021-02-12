@@ -6,23 +6,34 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+from inspect import getmro
+from inspect import isclass
+from inspect import isfunction
 import sys
 
-from inspect import isclass, isfunction, getmro
-
-from ddtrace import config, Pin
-from ddtrace.vendor import debtcollector, six, wrapt
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ddtrace.contrib import func_name, dbapi
-from ddtrace.ext import http, sql as sqlx, SpanTypes
+from ddtrace import Pin
+from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import dbapi
+from ddtrace.contrib import func_name
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
+from ddtrace.ext import sql as sqlx
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
-from ddtrace.utils.formats import asbool, get_env
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
+from ddtrace.vendor import debtcollector
+from ddtrace.vendor import six
+from ddtrace.vendor import wrapt
 
+from . import conf
+from . import utils
 from .. import trace_utils
-from .compat import get_resolver, user_is_authenticated
-from . import utils, conf
+from .compat import get_resolver
+from .compat import user_is_authenticated
 
 
 log = get_logger(__name__)

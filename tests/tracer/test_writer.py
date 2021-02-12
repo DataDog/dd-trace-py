@@ -1,8 +1,11 @@
 import mock
 
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
-from ddtrace.internal.writer import AgentWriter, LogWriter, _human_size
-from tests import BaseTestCase, AnyInt
+from tests import AnyInt
+from tests import BaseTestCase
 
 
 class DummyOutput:

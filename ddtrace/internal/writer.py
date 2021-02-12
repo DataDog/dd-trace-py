@@ -4,17 +4,22 @@ import sys
 import threading
 
 import ddtrace
-from ..api import Response
-from .. import compat
+
 from .. import _worker
+from .. import compat
+from ..api import Response
 from ..compat import httplib
+from ..encoding import Encoder
+from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
-from ..encoding import Encoder, JSONEncoderV2
 from ..utils.time import StopWatch
+from .buffer import BufferFull
+from .buffer import BufferItemTooLarge
+from .buffer import TraceBuffer
 from .logger import get_logger
 from .runtime import container
-from .buffer import BufferFull, BufferItemTooLarge, TraceBuffer
 from .uds import UDSHTTPConnection
+
 
 log = get_logger(__name__)
 

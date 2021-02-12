@@ -56,6 +56,7 @@ https://dev.mysql.com/doc/connector-python/en/
 """
 from ...utils.importlib import require_modules
 
+
 # check `mysql-connector` availability
 required_modules = ["mysql.connector"]
 

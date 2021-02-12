@@ -39,6 +39,7 @@ from ddtrace import config
 
 from ...utils.formats import get_env
 
+
 # pytest default settings
 config._add(
     "pytest",

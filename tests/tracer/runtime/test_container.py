@@ -1,11 +1,12 @@
 import mock
-
 import pytest
 
 from ddtrace.compat import PY2
-from ddtrace.internal.runtime.container import CGroupInfo, get_container_info
+from ddtrace.internal.runtime.container import CGroupInfo
+from ddtrace.internal.runtime.container import get_container_info
 
 from .utils import cgroup_line_valid_test_cases
+
 
 # Map expected Py2 exception to Py3 name
 if PY2:

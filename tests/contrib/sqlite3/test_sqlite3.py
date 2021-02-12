@@ -1,20 +1,21 @@
-# stdlib
 import sqlite3
 import time
 
 import pytest
 
-# project
 import ddtrace
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlite3 import connection_factory
-from ddtrace.contrib.sqlite3.patch import patch, unpatch, TracedSQLiteCursor
+from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
+from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.contrib.sqlite3.patch import unpatch
 from ddtrace.ext import errors
-
-# testing
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_is_not_measured
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_is_not_measured
 
 
 class TestSQLite(TracerTestCase):

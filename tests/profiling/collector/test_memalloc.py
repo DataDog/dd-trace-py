@@ -5,14 +5,15 @@ import threading
 
 import pytest
 
+
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
     pytestmark = pytest.mark.skip("_memalloc not available")
 
-from ddtrace.profiling import recorder
 from ddtrace.profiling import _nogevent
 from ddtrace.profiling import _periodic
+from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import memalloc
 
 
@@ -49,7 +50,7 @@ def test_start_stop():
 
 
 # This is used by tests and must be equal to the line number where object() is called in _allocate_1k 😉
-_ALLOC_LINE_NUMBER = 56
+_ALLOC_LINE_NUMBER = 57
 
 
 def _allocate_1k():
@@ -162,7 +163,7 @@ def test_memory_collector():
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 149
+            assert event.frames[2][1] == 150
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0

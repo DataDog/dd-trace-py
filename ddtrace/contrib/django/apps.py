@@ -1,8 +1,10 @@
 from django.apps import AppConfig
 
 from ddtrace.vendor.debtcollector import removals
+
 from ...internal.logger import get_logger
 from .patch import patch
+
 
 log = get_logger(__name__)
 

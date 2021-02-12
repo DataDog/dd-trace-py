@@ -1,8 +1,9 @@
-from falcon import testing
 import falcon as falcon
+from falcon import testing
+
+from ... import TracerTestCase
 from .app import get_app
 from .test_suite import FalconTestCase
-from ... import TracerTestCase
 
 
 class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):

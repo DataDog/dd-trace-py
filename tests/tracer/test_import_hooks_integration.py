@@ -1,12 +1,12 @@
 import contextlib
-import mock
 import sys
 
+import mock
 import pytest
 
 from ddtrace.internal import import_hooks
-
-from tests.subprocesstest import run_in_subprocess, SubprocessTestCase
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
 
 import_hooks.patch()
@@ -94,9 +94,6 @@ class ImportHookTestCase(SubprocessTestCase):
         """
         module_hook = mock.Mock()
         import_hooks.register_module_hook("tests.test_module", module_hook)
-        import tests.test_module
-        import tests.test_module  # noqa
-        import tests.test_module  # noqa
         import tests.test_module  # noqa
 
         # Hook should be called only once

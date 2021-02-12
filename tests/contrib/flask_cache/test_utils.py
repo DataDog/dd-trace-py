@@ -1,15 +1,17 @@
 import unittest
 
-# project
-from ddtrace.tracer import Tracer
-from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.utils import _extract_conn_tags, _resource_from_cache_prefix
-
 # 3rd party
 from flask import Flask
 
+from ddtrace.contrib.flask_cache import get_traced_cache
+from ddtrace.contrib.flask_cache.utils import _extract_conn_tags
+from ddtrace.contrib.flask_cache.utils import _resource_from_cache_prefix
+# project
+from ddtrace.tracer import Tracer
+
 # testing
-from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
+from ..config import MEMCACHED_CONFIG
+from ..config import REDIS_CONFIG
 
 
 class FlaskCacheUtilsTest(unittest.TestCase):

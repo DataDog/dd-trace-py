@@ -10,10 +10,11 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 from ddtrace.ext import http
 
-from .app import create_app
-
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_span_http_status_code
 from ...opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
+from .app import create_app
 
 
 class PyramidBase(TracerTestCase):

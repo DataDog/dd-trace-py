@@ -9,6 +9,7 @@ from ddtrace import compat
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack
 
+
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 

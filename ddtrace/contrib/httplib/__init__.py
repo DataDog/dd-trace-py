@@ -58,6 +58,8 @@ The integration can be configured per instance::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from .patch import patch, unpatch
+from .patch import patch
+from .patch import unpatch
+
 
 __all__ = ["patch", "unpatch"]

@@ -4,9 +4,12 @@ import os
 from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.deprecation import get_service_legacy
-from ..utils.formats import asbool, get_env, parse_tags_str
+from ..utils.formats import asbool
+from ..utils.formats import get_env
+from ..utils.formats import parse_tags_str
 from .http import HttpConfig
 from .integration import IntegrationConfig
+
 
 log = get_logger(__name__)
 

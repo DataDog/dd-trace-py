@@ -1,4 +1,5 @@
 import pytest
+
 from ddtrace.opentracer.span import Span
 from tests.tracer.test_tracer import get_dummy_tracer
 
@@ -70,6 +71,7 @@ class TestSpan(object):
     def test_log_dd_kv(self, nop_span):
         """Ensure keys that can be handled by our impl. are indeed handled. """
         import traceback
+
         from ddtrace.ext import errors
 
         stack_trace = str(traceback.format_stack())

@@ -1,14 +1,18 @@
 import bottle
-import ddtrace
 import webtest
 
-from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
-
-from ddtrace import compat, config
+import ddtrace
+from ddtrace import compat
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
 from ddtrace.ext import http
+from tests.opentracer.utils import init_tracer
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_span_http_status_code
+
 
 SERVICE = "bottle-app"
 

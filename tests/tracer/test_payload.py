@@ -1,12 +1,13 @@
 import math
 
-from ddtrace.encoding import Encoder, JSONEncoder
-from ddtrace.payload import Payload, PayloadFull
-from ddtrace.span import Span
-
-from tests import TracerTestCase
-
 import pytest
+
+from ddtrace.encoding import Encoder
+from ddtrace.encoding import JSONEncoder
+from ddtrace.payload import Payload
+from ddtrace.payload import PayloadFull
+from ddtrace.span import Span
+from tests import TracerTestCase
 
 
 class PayloadTestCase(TracerTestCase):

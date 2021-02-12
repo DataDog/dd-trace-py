@@ -1,5 +1,4 @@
 import ddtrace
-
 from ddtrace.vendor import debtcollector
 
 from .internal.logger import get_logger
