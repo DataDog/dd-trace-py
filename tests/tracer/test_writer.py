@@ -1,9 +1,22 @@
-import mock
+import os
+import socket
+import tempfile
+import threading
+import time
 
+import mock
+import pytest
+
+from ddtrace.compat import PY3
+from ddtrace.compat import get_connection_response
+from ddtrace.compat import httplib
+from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
+from ddtrace.vendor.six.moves import BaseHTTPServer
+from ddtrace.vendor.six.moves import socketserver
 from tests import AnyInt
 from tests import BaseTestCase
 
@@ -170,3 +183,131 @@ def test_humansize():
     assert _human_size(1000000) == "1MB"
     assert _human_size(10000000) == "10MB"
     assert _human_size(1000000000) == "1GB"
+
+
+class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    error_message_format = "%(message)s\n"
+    error_content_type = "text/plain"
+
+    @staticmethod
+    def log_message(format, *args):  # noqa: A002
+        pass
+
+
+class _APIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+    def do_PUT(self):
+        self.send_error(200, "OK")
+
+
+class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+    def do_PUT(self):
+        # This server sleeps longer than our timeout
+        time.sleep(5)
+
+
+class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+    def do_PUT(self):
+        return
+
+
+_HOST = "0.0.0.0"
+_TIMEOUT_PORT = 8743
+_RESET_PORT = _TIMEOUT_PORT + 1
+
+
+class UDSHTTPServer(socketserver.UnixStreamServer, BaseHTTPServer.HTTPServer):
+    def server_bind(self):
+        BaseHTTPServer.HTTPServer.server_bind(self)
+
+
+def _make_uds_server(path, request_handler):
+    server = UDSHTTPServer(path, request_handler)
+    t = threading.Thread(target=server.serve_forever)
+    # Set daemon just in case something fails
+    t.daemon = True
+    t.start()
+
+    # Wait for the server to start
+    resp = None
+    while resp != 200:
+        conn = UDSHTTPConnection(server.server_address, False, _HOST, 2019)
+        try:
+            conn.request("PUT", path)
+            resp = get_connection_response(conn).status
+        finally:
+            conn.close()
+        time.sleep(0.01)
+
+    return server, t
+
+
+@pytest.fixture
+def endpoint_uds_server():
+    socket_name = tempfile.mktemp()
+    server, thread = _make_uds_server(socket_name, _APIEndpointRequestHandlerTest)
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        thread.join()
+        os.unlink(socket_name)
+
+
+def _make_server(port, request_handler):
+    server = BaseHTTPServer.HTTPServer((_HOST, port), request_handler)
+    t = threading.Thread(target=server.serve_forever)
+    # Set daemon just in case something fails
+    t.daemon = True
+    t.start()
+    return server, t
+
+
+@pytest.fixture(scope="module")
+def endpoint_test_timeout_server():
+    server, thread = _make_server(_TIMEOUT_PORT, _TimeoutAPIEndpointRequestHandlerTest)
+    try:
+        yield thread
+    finally:
+        server.shutdown()
+        thread.join()
+
+
+@pytest.fixture(scope="module")
+def endpoint_test_reset_server():
+    server, thread = _make_server(_RESET_PORT, _ResetAPIEndpointRequestHandlerTest)
+    try:
+        yield thread
+    finally:
+        server.shutdown()
+        thread.join()
+
+
+def test_flush_connection_timeout_connect():
+    writer = AgentWriter(_HOST, 2019)
+    if PY3:
+        exc_type = OSError
+    else:
+        exc_type = socket.error
+    with pytest.raises(exc_type):
+        writer._send_payload("foobar", 12)
+
+
+def test_flush_connection_timeout(endpoint_test_timeout_server):
+    writer = AgentWriter(_HOST, _TIMEOUT_PORT)
+    with pytest.raises(socket.timeout):
+        writer._send_payload("foobar", 12)
+
+
+def test_flush_connection_reset(endpoint_test_reset_server):
+    writer = AgentWriter(_HOST, _RESET_PORT)
+    if PY3:
+        exc_types = (httplib.BadStatusLine, ConnectionResetError)
+    else:
+        exc_types = (httplib.BadStatusLine,)
+    with pytest.raises(exc_types):
+        writer._send_payload("foobar", 12)
+
+
+def test_flush_connection_uds(endpoint_uds_server):
+    writer = AgentWriter(_HOST, 2019, uds_path=endpoint_uds_server.server_address)
+    writer._send_payload("foobar", 12)
