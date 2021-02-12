@@ -1,6 +1,10 @@
 from __future__ import division
 
 
+# The window size should be chosen so that the look-back period is
+# greater-equal to the agent API's timeout. Although most tracers have a
+# 2s timeout, the java tracer has a 10s timeout, so we set the window size
+# to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
 
 
@@ -51,9 +55,9 @@ class SimpleMovingAverage(object):
         Set the value of the next bucket and update the SMA value.
 
         :param count: The valid quantity of the next bucket.
-        :type count: :obj:`unsigned int`
+        :type count: :obj:`int`
         :param total: The total quantity of the next bucket.
-        :type total: :obj:`unsigned int`
+        :type total: :obj:`int`
         """
         if count > total:
             raise ValueError

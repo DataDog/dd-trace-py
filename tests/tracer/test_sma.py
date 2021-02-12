@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.internal.sma import DEFAULT_SMA_WINDOW
 from ddtrace.internal.sma import SimpleMovingAverage
 
@@ -9,19 +11,15 @@ def test_min_size():
     assert DEFAULT_SMA_WINDOW == len(sma.counts)
     assert DEFAULT_SMA_WINDOW == len(sma.totals)
 
-    try:
+    with pytest.raises(ValueError):
         sma = SimpleMovingAverage(size=0)
-    except Exception as e:
-        assert isinstance(e, ValueError)
 
 
 def test_count_greater_than_total():
     sma = SimpleMovingAverage()
 
-    try:
+    with pytest.raises(ValueError):
         sma.set(2, 1)
-    except Exception as e:
-        assert isinstance(e, ValueError)
 
 
 def test_moving_average():
