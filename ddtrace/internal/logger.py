@@ -1,7 +1,9 @@
 import collections
 import logging
+import os
 
 from ..utils.formats import get_env
+from ..utils.deprecation import deprecation
 
 
 def get_logger(name):
@@ -95,9 +97,20 @@ class DDLogger(logging.Logger):
         self.buckets = collections.defaultdict(lambda: DDLogger.LoggingBucket(0, 0))
 
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
-        # Allow configuring via `DD_LOGGING_RATE_LIMIT`
-        # DEV: `DD_LOGGING_RATE_LIMIT=0` means to disable all rate limiting
-        self.rate_limit = int(get_env("logging", "rate_limit", default=60))
+        # Allow configuring via `DD_TRACE_LOGGING_RATE`
+        # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
+        rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
+        if rate_limit is None:
+            # DEV: If not set, look at the deprecated (DD/DATADOG)_LOGGING_RATE_LIMIT
+            rate_limit = get_env("logging", "rate_limit", default=None)
+            if rate_limit is not None:
+                deprecation(
+                    name="DD_LOGGING_RATE_LIMIT",
+                    message="Use `DD_TRACE_LOGGING_RATE` instead",
+                    version="1.0.0",
+                )
+
+        self.rate_limit = rate_limit is not None and int(rate_limit) or 60
 
     def handle(self, record):
         """
