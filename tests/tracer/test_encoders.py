@@ -8,10 +8,15 @@ from unittest import TestCase
 import msgpack
 import pytest
 
+from ddtrace.compat import msgpack_type
+from ddtrace.compat import string_type
+from ddtrace.encoding import JSONEncoder
+from ddtrace.encoding import JSONEncoderV2
+from ddtrace.encoding import MsgpackEncoder
+from ddtrace.encoding import _EncoderBase
+from ddtrace.span import Span
+from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
-from ddtrace.span import Span, SpanTypes
-from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import _EncoderBase, JSONEncoder, JSONEncoderV2, MsgpackEncoder
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):

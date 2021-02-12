@@ -2,10 +2,9 @@ import threading
 
 import pytest
 
-from ddtrace.vendor.six.moves import _thread
-
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import threading as collector_threading
+from ddtrace.vendor.six.moves import _thread
 
 from . import test_collector
 
@@ -61,13 +60,13 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 0
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:59"
+    assert event.lock_name == "test_threading.py:58"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns > 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 60, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 59, "test_lock_acquire_events")
     assert event.sampling_pct == 100
 
 
@@ -108,13 +107,13 @@ def test_lock_release_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 1
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:105"
+    assert event.lock_name == "test_threading.py:104"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0.1
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 107, "test_lock_release_events")
+    assert event.frames[0] == (__file__, 106, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 

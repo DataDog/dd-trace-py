@@ -1,12 +1,16 @@
 # 3p
 import sqlite3
 import sqlite3.dbapi2
+
 from ddtrace.vendor import wrapt
 
 # project
-from ...contrib.dbapi import TracedConnection, TracedCursor, FetchTracedCursor
+from ...contrib.dbapi import FetchTracedCursor
+from ...contrib.dbapi import TracedConnection
+from ...contrib.dbapi import TracedCursor
 from ...pin import Pin
 from ...settings import config
+
 
 # Original connect method
 _connect = sqlite3.connect

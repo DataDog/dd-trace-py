@@ -1,10 +1,12 @@
 from tornado.testing import AsyncHTTPTestCase
 
-from ddtrace.contrib.tornado import patch, unpatch
 from ddtrace.compat import reload_module
+from ddtrace.contrib.tornado import patch
+from ddtrace.contrib.tornado import unpatch
 
-from .web import app, compat
 from ... import TracerTestCase
+from .web import app
+from .web import compat
 
 
 class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):

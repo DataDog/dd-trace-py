@@ -1,6 +1,5 @@
-from .app import patch_app
-
 from ...utils.deprecation import deprecation
+from .app import patch_app
 
 
 def patch_task(task, pin=None):

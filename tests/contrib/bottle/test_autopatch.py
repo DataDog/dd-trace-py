@@ -1,12 +1,13 @@
+from unittest import TestCase
+
 import bottle
-import ddtrace
 import webtest
 
-from unittest import TestCase
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import assert_span_http_status_code
-
+import ddtrace
 from ddtrace import compat
+from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import assert_span_http_status_code
 
 
 SERVICE = "bottle-app"

@@ -4,13 +4,13 @@ Simple test to test tracing. Inspired by CherryPy Tutorials:
 https://github.com/cherrypy/cherrypy/blob/master/cherrypy/tutorial/tut01_helloworld.py
 """
 
+import logging
 import os.path
 import sys
 
 # Import CherryPy global namespace
 import cherrypy
 
-import logging
 
 logger = logging.getLogger()
 logger.level = logging.DEBUG

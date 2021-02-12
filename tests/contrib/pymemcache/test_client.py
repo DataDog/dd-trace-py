@@ -1,23 +1,25 @@
 # 3p
 import pymemcache
-from pymemcache.exceptions import (
-    MemcacheClientError,
-    MemcacheServerError,
-    MemcacheUnknownCommandError,
-    MemcacheUnknownError,
-    MemcacheIllegalInputError,
-)
+from pymemcache.exceptions import MemcacheClientError
+from pymemcache.exceptions import MemcacheIllegalInputError
+from pymemcache.exceptions import MemcacheServerError
+from pymemcache.exceptions import MemcacheUnknownCommandError
+from pymemcache.exceptions import MemcacheUnknownError
 import pytest
-from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch, unpatch
-from .utils import MockSocket, _str
-from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
-from ... import TracerTestCase
-
+from ddtrace.contrib.pymemcache.patch import patch
+from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.vendor import wrapt
 from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import TracerTestCase
+from .test_client_mixin import PymemcacheClientTestCaseMixin
+from .test_client_mixin import TEST_HOST
+from .test_client_mixin import TEST_PORT
+from .utils import MockSocket
+from .utils import _str
 
 
 _Client = pymemcache.client.base.Client

@@ -1,9 +1,10 @@
-import ddtrace
+from functools import wraps
 import sys
 
-from functools import wraps
+import ddtrace
 
-from .constants import FUTURE_SPAN_KEY, PARENT_SPAN_KEY
+from .constants import FUTURE_SPAN_KEY
+from .constants import PARENT_SPAN_KEY
 from .stack_context import TracerStackContext
 
 

@@ -5,17 +5,22 @@ import pytest
 import requests
 from requests import Session
 from requests.exceptions import MissingSchema
-from ddtrace.vendor import six
 
-from ddtrace import config
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.requests import patch, unpatch
-from ddtrace.ext import errors, http
-
+from ddtrace.contrib.requests import patch
+from ddtrace.contrib.requests import unpatch
+from ddtrace.ext import errors
+from ddtrace.ext import http
+from ddtrace.vendor import six
 from tests.opentracer.utils import init_tracer
 
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code, override_global_tracer
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_span_http_status_code
+from ... import override_global_tracer
+
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = "httpbin.org"

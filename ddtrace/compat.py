@@ -2,10 +2,11 @@ import platform
 import random
 import re
 import sys
-import threading
 import textwrap
+import threading
 
 from ddtrace.vendor import six
+
 
 __all__ = [
     "httplib",

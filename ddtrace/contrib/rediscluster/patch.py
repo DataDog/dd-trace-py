@@ -1,14 +1,18 @@
 # 3p
 import rediscluster
-from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ddtrace.vendor import wrapt
+
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import redis as redisx
 from ...pin import Pin
-from ...ext import SpanTypes, redis as redisx
 from ...utils.wrappers import unwrap
-from ..redis.patch import traced_execute_command, traced_pipeline
+from ..redis.patch import traced_execute_command
+from ..redis.patch import traced_pipeline
 from ..redis.util import format_command_args
 
 

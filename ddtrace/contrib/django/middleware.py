@@ -1,5 +1,6 @@
 from ...vendor import debtcollector
 
+
 try:
     from django.utils.deprecation import MiddlewareMixin
 

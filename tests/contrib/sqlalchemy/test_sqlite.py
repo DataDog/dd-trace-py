@@ -1,9 +1,9 @@
 import pytest
-
 from sqlalchemy.exc import OperationalError
 
+from ... import TracerTestCase
+from ... import assert_is_measured
 from .mixins import SQLAlchemyTestMixin
-from ... import TracerTestCase, assert_is_measured
 
 
 class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):

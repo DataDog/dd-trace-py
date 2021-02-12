@@ -7,31 +7,32 @@ import multiprocessing
 import os
 from os import getpid
 import threading
-import warnings
 from unittest.case import SkipTest
+import warnings
 
 import mock
 import pytest
 
-from ddtrace.vendor import six
-
 import ddtrace
-from ddtrace.tracer import Tracer
-from ddtrace.ext import system, priority
+from ddtrace.constants import ENV_KEY
+from ddtrace.constants import HOSTNAME_KEY
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
-from ddtrace.constants import (
-    VERSION_KEY,
-    ENV_KEY,
-    SAMPLING_PRIORITY_KEY,
-    ORIGIN_KEY,
-    HOSTNAME_KEY,
-    MANUAL_KEEP_KEY,
-    MANUAL_DROP_KEY,
-)
-
+from ddtrace.ext import priority
+from ddtrace.ext import system
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import LogWriter
+from ddtrace.tracer import Tracer
+from ddtrace.vendor import six
+from tests import DummyTracer
+from tests import DummyWriter
+from tests import TracerTestCase
+from tests import override_global_config
 from tests.subprocesstest import run_in_subprocess
-from tests import TracerTestCase, DummyWriter, DummyTracer, override_global_config
-from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
 def get_dummy_tracer():

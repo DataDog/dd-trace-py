@@ -1,19 +1,20 @@
 from datetime import datetime
 import json
 import logging
-import mock
 import os
 import re
 import subprocess
 import sys
 
+import mock
 import pytest
 
 import ddtrace
-import ddtrace.sampler
 from ddtrace.internal import debug
+import ddtrace.sampler
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 from .test_integration import AGENT_VERSION
 
 

@@ -110,11 +110,13 @@ required_modules = ["tornado"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .stack_context import run_with_trace_context, TracerStackContext
+        from .stack_context import TracerStackContext
+        from .stack_context import run_with_trace_context
 
         context_provider = TracerStackContext()
 
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = [
             "patch",

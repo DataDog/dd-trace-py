@@ -1,6 +1,6 @@
+from functools import wraps
 import os
 import warnings
-from functools import wraps
 
 from ddtrace.vendor import debtcollector
 

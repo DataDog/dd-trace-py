@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
-import mock
 import time
-
-import pytest
 from unittest.case import SkipTest
 
-from ddtrace.constants import (
-    ANALYTICS_SAMPLE_RATE_KEY,
-    VERSION_KEY,
-    SERVICE_VERSION_KEY,
-    SPAN_MEASURED_KEY,
-    ENV_KEY,
-)
+import mock
+import pytest
+
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ENV_KEY
+from ddtrace.constants import SERVICE_VERSION_KEY
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import VERSION_KEY
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import errors
 from ddtrace.span import Span
-from ddtrace.ext import SpanTypes, errors
-from tests import TracerTestCase, assert_is_measured, assert_is_not_measured
+from tests import TracerTestCase
+from tests import assert_is_measured
+from tests import assert_is_not_measured
 
 
 class SpanTestCase(TracerTestCase):

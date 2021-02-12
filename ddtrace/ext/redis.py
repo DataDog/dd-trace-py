@@ -1,5 +1,6 @@
 from . import SpanTypes
 
+
 # defaults
 APP = "redis"
 DEFAULT_SERVICE = "redis"

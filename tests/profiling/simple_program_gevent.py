@@ -1,12 +1,13 @@
 from gevent import monkey
 
+
 monkey.patch_all()
 
 import threading
 
+from ddtrace.profiling import bootstrap
 # do not use pyddprofile; the monkey-patching would be done too late
 import ddtrace.profiling.auto
-from ddtrace.profiling import bootstrap
 from ddtrace.profiling.collector import stack
 
 

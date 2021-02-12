@@ -4,6 +4,7 @@ configuration if you need to change the default behavior of
 Django during tests
 """
 import os
+
 import django
 
 

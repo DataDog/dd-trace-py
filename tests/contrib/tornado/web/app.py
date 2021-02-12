@@ -1,11 +1,12 @@
 import os
 import time
 
-import tornado.web
 import tornado.concurrent
+import tornado.web
 
 from . import uimodules
-from .compat import sleep, ThreadPoolExecutor
+from .compat import ThreadPoolExecutor
+from .compat import sleep
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))

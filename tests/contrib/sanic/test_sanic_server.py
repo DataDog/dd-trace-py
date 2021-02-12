@@ -6,6 +6,7 @@ import pytest
 from sanic import Sanic
 from sanic.response import json
 
+
 # Handle naming of asynchronous client in older httpx versions used in sanic 19.12
 httpx_client = getattr(httpx, "AsyncClient", getattr(httpx, "Client"))
 

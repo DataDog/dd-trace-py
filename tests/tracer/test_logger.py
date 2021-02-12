@@ -1,12 +1,18 @@
 import logging
-import mock
 
+<<<<<<< HEAD
 from pytest import warns
 
 from ddtrace.internal.logger import DDLogger, get_logger
 from ddtrace.utils.deprecation import RemovedInDDTrace10Warning
+=======
+import mock
+>>>>>>> master
 
+from ddtrace.internal.logger import DDLogger
+from ddtrace.internal.logger import get_logger
 from tests import BaseTestCase
+
 
 ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical", "fatal")
 
