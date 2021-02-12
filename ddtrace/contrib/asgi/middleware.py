@@ -2,14 +2,16 @@ import sys
 
 import ddtrace
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import SpanTypes, http
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings import config
 
+from .. import trace_utils
 from ...compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
-from .. import trace_utils
+
 
 log = get_logger(__name__)
 

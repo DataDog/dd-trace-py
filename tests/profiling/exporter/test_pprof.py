@@ -1,13 +1,13 @@
 import os
 import sys
 
+
 try:
     import tracemalloc
 except ImportError:
     tracemalloc = None
 
 import mock
-
 import pytest
 
 from ddtrace.profiling.collector import memalloc

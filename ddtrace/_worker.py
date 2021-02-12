@@ -1,8 +1,9 @@
 import atexit
-import threading
 import os
+import threading
 
 from .internal.logger import get_logger
+
 
 _LOG = get_logger(__name__)
 

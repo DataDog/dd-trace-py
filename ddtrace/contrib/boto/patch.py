@@ -1,11 +1,16 @@
-import boto.connection
-from ddtrace.vendor import wrapt
 import inspect
 
+import boto.connection
+
 from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ddtrace.vendor import wrapt
+
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import aws
+from ...ext import http
 from ...pin import Pin
-from ...ext import SpanTypes, http, aws
 from ...utils.wrappers import unwrap
 
 

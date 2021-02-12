@@ -8,6 +8,7 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 
+
 LOG = logging.getLogger(__name__)
 
 

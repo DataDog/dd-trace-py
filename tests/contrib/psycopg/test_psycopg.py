@@ -1,24 +1,28 @@
 # stdlib
 import time
+from unittest import skipIf
 
 # 3p
 import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
-from unittest import skipIf
-
+from ddtrace import Pin
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg import connection_factory
-from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
-from ddtrace import Pin
-
+from ddtrace.contrib.psycopg.patch import PSYCOPG2_VERSION
+from ddtrace.contrib.psycopg.patch import patch
+from ddtrace.contrib.psycopg.patch import unpatch
+from tests import snapshot
+from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
-from tests import snapshot
-from ... import TracerTestCase, DummyTracer, assert_is_measured
+
+from ... import DummyTracer
+from ... import TracerTestCase
+from ... import assert_is_measured
+
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import SQL

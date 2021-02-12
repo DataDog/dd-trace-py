@@ -7,15 +7,19 @@ import pymongo
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import mongo as mongox, SpanTypes
 from ddtrace.contrib.pymongo.client import normalize_filter
-from ddtrace.contrib.pymongo.patch import patch, unpatch, trace_mongo_client
-
+from ddtrace.contrib.pymongo.patch import patch
+from ddtrace.contrib.pymongo.patch import trace_mongo_client
+from ddtrace.contrib.pymongo.patch import unpatch
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import mongo as mongox
 # testing
 from tests.opentracer.utils import init_tracer
-from ..config import MONGO_CONFIG
-from ... import TracerTestCase, assert_is_measured
 from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ..config import MONGO_CONFIG
 
 
 def test_normalize_filter():

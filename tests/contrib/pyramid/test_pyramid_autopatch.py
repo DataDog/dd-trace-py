@@ -1,6 +1,7 @@
 from pyramid.config import Configurator
 
-from .test_pyramid import PyramidTestCase, PyramidBase
+from .test_pyramid import PyramidBase
+from .test_pyramid import PyramidTestCase
 
 
 class TestPyramidAutopatch(PyramidTestCase):

@@ -18,8 +18,11 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, sql as sqlx, net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import net as netx
+from ...ext import sql as sqlx
 from ...pin import Pin
 from ...settings import config
 

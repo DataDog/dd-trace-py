@@ -3,21 +3,22 @@ import itertools
 import operator
 import sys
 
+
 try:
     import tracemalloc
 except ImportError:
     tracemalloc = None
 
-from ddtrace.vendor import six
-
 from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof_pb2
+from ddtrace.vendor import attr
+from ddtrace.vendor import six
+
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)
 _ITEMGETTER_ONE = operator.itemgetter(1)

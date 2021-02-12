@@ -1,13 +1,14 @@
 # -*- encoding: utf-8 -*-
 import os
-import subprocess
-import tempfile
-import signal
-import time
 import re
+import signal
+import subprocess
 import sys
+import tempfile
+import time
 
 import pytest
+
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 

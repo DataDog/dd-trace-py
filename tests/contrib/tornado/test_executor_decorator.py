@@ -1,12 +1,12 @@
 import unittest
 
+from tornado import version_info
+
 from ddtrace.contrib.tornado.compat import futures_available
 from ddtrace.ext import http
 
-from tornado import version_info
-
-from .utils import TornadoTestCase
 from ... import assert_span_http_status_code
+from .utils import TornadoTestCase
 
 
 class TestTornadoExecutor(TornadoTestCase):
@@ -177,6 +177,7 @@ class TestTornadoExecutor(TornadoTestCase):
 
         patch(futures=True)
         from concurrent.futures import ThreadPoolExecutor
+
         from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
         fn_wrapper = getattr(ThreadPoolExecutor.submit, "__wrapped__", None)

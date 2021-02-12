@@ -2,8 +2,8 @@ import collections
 from copy import deepcopy
 
 from .internal.logger import get_logger
-
 from .vendor import attr
+
 
 log = get_logger(__name__)
 

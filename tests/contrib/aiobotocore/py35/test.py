@@ -1,11 +1,14 @@
 import aiobotocore
 
-from ddtrace.contrib.aiobotocore.patch import patch, unpatch
-
-from ..utils import aiobotocore_client
-from ...asyncio.utils import AsyncioTestCase, mark_asyncio
+from ddtrace.contrib.aiobotocore.patch import patch
+from ddtrace.contrib.aiobotocore.patch import unpatch
 from tests.tracer.test_tracer import get_dummy_tracer
-from .... import assert_is_measured, assert_span_http_status_code
+
+from .... import assert_is_measured
+from .... import assert_span_http_status_code
+from ...asyncio.utils import AsyncioTestCase
+from ...asyncio.utils import mark_asyncio
+from ..utils import aiobotocore_client
 
 
 class AIOBotocoreTest(AsyncioTestCase):

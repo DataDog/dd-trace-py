@@ -1,9 +1,11 @@
 import logging
+
 import mock
 
-from ddtrace.internal.logger import DDLogger, get_logger
-
+from ddtrace.internal.logger import DDLogger
+from ddtrace.internal.logger import get_logger
 from tests import BaseTestCase
+
 
 ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical", "fatal")
 

@@ -49,9 +49,12 @@ required_modules = ['celery']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .app import patch_app, unpatch_app
-        from .patch import patch, unpatch
-        from .task import patch_task, unpatch_task
+        from .app import patch_app
+        from .app import unpatch_app
+        from .patch import patch
+        from .patch import unpatch
+        from .task import patch_task
+        from .task import unpatch_task
 
         __all__ = [
             'patch',

@@ -1,10 +1,13 @@
 import asyncio
+
 import pytest
 
-from ddtrace.context import Context
 from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
+from ddtrace.context import Context
 from ddtrace.contrib.asyncio import helpers
-from .utils import AsyncioTestCase, mark_asyncio
+
+from .utils import AsyncioTestCase
+from .utils import mark_asyncio
 
 
 @pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio integration")

@@ -1,16 +1,18 @@
 import collections
+
 import grpc
-from ddtrace.vendor import wrapt
 
 from ddtrace import config
 from ddtrace.compat import to_unicode
-from ddtrace.ext import SpanTypes, errors
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import errors
+from ddtrace.vendor import wrapt
 
+from . import constants
 from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from . import constants
 from .utils import parse_method_path
 
 

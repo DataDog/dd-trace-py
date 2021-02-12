@@ -1,11 +1,10 @@
+import pytest
 from tornado import template
 
-import pytest
-
-from .utils import TornadoTestCase
-from ... import assert_span_http_status_code
-
 from ddtrace.ext import http
+
+from ... import assert_span_http_status_code
+from .utils import TornadoTestCase
 
 
 class TestTornadoTemplate(TornadoTestCase):
