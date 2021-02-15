@@ -12,10 +12,14 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
+from ddtrace.settings import Config
+import ddtrace.span
 from ddtrace.span import Span
 from tests import TracerTestCase
 from tests import assert_is_measured
 from tests import assert_is_not_measured
+
+from .. import override_env
 
 
 class SpanTestCase(TracerTestCase):
@@ -532,3 +536,11 @@ def test_span_ignored_exception_subclass():
     assert s.get_tag(errors.ERROR_MSG) is None
     assert s.get_tag(errors.ERROR_TYPE) is None
     assert s.get_tag(errors.ERROR_STACK) is None
+
+
+def test_span_service_name_mapping():
+    assert Span(None, None, service="foo").service == "foo"
+
+    with override_env(dict(DD_SERVICE_MAPPING="foo:bar")):
+        ddtrace.span.config = Config()
+        assert Span(None, None, service="foo").service == "bar"

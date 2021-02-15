@@ -62,6 +62,15 @@ class Config(object):
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
         self.http_server.error_statuses = "500-599"
 
+        service_mapping = get_env("service", "mapping")
+        if service_mapping is not None:
+            try:
+                self.service_mapping = dict([(_.strip() for _ in m.split(":")) for m in service_mapping.split(",")])
+            except ValueError:
+                raise ValueError("Invalid syntax for variable `DD_SERVICE_MAPPING`: " + service_mapping)
+        else:
+            self.service_mapping = {}
+
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
         if self.service and "service" in self.tags:

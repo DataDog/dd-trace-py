@@ -24,6 +24,7 @@ from .ext import net
 from .ext import priority
 from .internal import _rand
 from .internal.logger import get_logger
+from .settings import config
 from .vendor import six
 
 
@@ -34,7 +35,7 @@ class Span(object):
 
     __slots__ = [
         # Public span attributes
-        "service",
+        "_service",
         "name",
         "resource",
         "span_id",
@@ -167,6 +168,14 @@ class Span(object):
     @duration.setter
     def duration(self, value):
         self.duration_ns = value * 1e9
+
+    @property
+    def service(self):
+        return self._service
+
+    @service.setter
+    def service(self, name):
+        self._service = config.service_mapping.get(name, name)
 
     def finish(self, finish_time=None):
         """Mark the end time of the span and submit it to the tracer.
