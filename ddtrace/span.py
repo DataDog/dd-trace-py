@@ -1,6 +1,7 @@
 import math
 import sys
 import traceback
+import fcntl
 from typing import List
 from typing import Optional
 
@@ -49,6 +50,8 @@ class Span(object):
         "tracer",
         # Sampler attributes
         "sampled",
+        # eRPC attributes
+        "secret_token",
         # Internal attributes
         "_context",
         "_parent",
@@ -68,6 +71,7 @@ class Span(object):
         parent_id=None,
         start=None,
         context=None,
+        secret_token=None,
         _check_pid=True,
     ):
         """
@@ -116,6 +120,13 @@ class Span(object):
         self._context = context
         self._parent = None
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
+
+        self.secret_token = secret_token or 0
+        # send erpc request
+        try:
+            fcntl.ioctl(0, 0xdeadc001, bytearray(int(3).to_bytes(1, "little") + self.secret_token.to_bytes(8, "little") + self.span_id.to_bytes(8, "little") + self.trace_id.to_bytes(8, "little") + bytes(8) + int(2).to_bytes(8, "little")))
+        except OSError:
+            pass
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -187,6 +198,13 @@ class Span(object):
             trace, sampled = self._context.close_span(self)
             if self.tracer and trace and sampled:
                 self.tracer.write(trace)
+
+        # send erpc request
+        try:
+            parent = self.parent_id if self.parent_id is not None else 0
+            fcntl.ioctl(0, 0xdeadc001, bytearray(int(3).to_bytes(1, "little") + self.secret_token.to_bytes(8, "little") + parent.to_bytes(8, "little") + self.trace_id.to_bytes(8, "little") + bytes(8) + int(2).to_bytes(8, "little")))
+        except OSError:
+            pass
 
     def set_tag(self, key, value=None):
         """Set a tag key/value pair on the span.

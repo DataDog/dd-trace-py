@@ -171,6 +171,9 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
 
+        # eRPC secret token
+        self.secret_token = _rand.rand64bits(True)
+
     def on_start_span(self, func):
         """Register a function to execute when a span start.
 
@@ -443,6 +446,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
+                secret_token=self.secret_token,
                 _check_pid=False,
             )
 
@@ -459,6 +463,7 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
+                secret_token=self.secret_token,
                 _check_pid=False,
             )
             span.metrics[system.PID] = self._pid or getpid()
