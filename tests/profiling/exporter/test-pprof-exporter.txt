@@ -38,6 +38,10 @@ sample_type {
   type: 19
   unit: 20
 }
+sample_type {
+  type: 21
+  unit: 20
+}
 sample {
   location_id: 1
   location_id: 2
@@ -52,23 +56,24 @@ sample {
   value: 7202807
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
     key: 27
-    str: 28
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -85,17 +90,14 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-    str: 29
+    key: 24
+    str: 25
   }
   label {
     key: 26
@@ -103,7 +105,11 @@ sample {
   }
   label {
     key: 27
-    str: 28
+    str: 31
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -120,17 +126,18 @@ sample {
   value: 0
   value: 2
   value: 59689
+  value: 58
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -147,23 +154,24 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
+  }
+  label {
+    key: 27
   }
 }
 sample {
@@ -180,64 +188,66 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
-    key: 33
-    str: 34
-  }
-}
-sample {
-  location_id: 1
-  location_id: 2
-  location_id: 3
-  value: 0
-  value: 0
-  value: 0
-  value: 1
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  value: 0
-  label {
-    key: 21
-    str: 22
+    key: 27
   }
   label {
-    key: 31
-    str: 32
-  }
-  label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-  }
-  label {
-    key: 26
-  }
-  label {
-    key: 33
+    key: 34
     str: 35
+  }
+}
+sample {
+  location_id: 1
+  location_id: 2
+  location_id: 3
+  value: 0
+  value: 0
+  value: 0
+  value: 1
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  value: 0
+  label {
+    key: 22
+    str: 23
+  }
+  label {
+    key: 32
+    str: 33
+  }
+  label {
+    key: 24
+    str: 25
+  }
+  label {
+    key: 26
+  }
+  label {
+    key: 27
+  }
+  label {
+    key: 34
+    str: 36
   }
 }
 sample {
@@ -254,25 +264,26 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-    str: 36
+    key: 24
+    str: 25
   }
   label {
     key: 26
     str: 37
+  }
+  label {
+    key: 27
+    str: 38
   }
 }
 sample {
@@ -290,23 +301,24 @@ sample {
   value: 65528
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
     key: 27
-    str: 28
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -324,17 +336,18 @@ sample {
   value: 0
   value: 1
   value: 174080
+  value: 340
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -352,27 +365,28 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
-    key: 33
-    str: 35
+    key: 27
+  }
+  label {
+    key: 34
+    str: 36
   }
 }
 sample {
@@ -390,25 +404,26 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-    str: 36
+    key: 24
+    str: 25
   }
   label {
     key: 26
-    str: 38
+    str: 37
+  }
+  label {
+    key: 27
+    str: 39
   }
 }
 sample {
@@ -425,23 +440,24 @@ sample {
   value: 6548447
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
     key: 27
-    str: 28
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -458,17 +474,18 @@ sample {
   value: 0
   value: 1
   value: 69632
+  value: 68
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -485,27 +502,28 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
-    key: 33
-    str: 39
+    key: 27
+  }
+  label {
+    key: 34
+    str: 40
   }
 }
 sample {
@@ -522,25 +540,26 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-    str: 36
+    key: 24
+    str: 25
   }
   label {
     key: 26
-    str: 40
+    str: 37
+  }
+  label {
+    key: 27
+    str: 41
   }
 }
 sample {
@@ -558,23 +577,24 @@ sample {
   value: 42341
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
     key: 27
-    str: 28
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -592,17 +612,18 @@ sample {
   value: 0
   value: 1
   value: 14868
+  value: 44
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -620,23 +641,24 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
+  }
+  label {
+    key: 27
   }
 }
 sample {
@@ -654,27 +676,28 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
-    key: 33
-    str: 35
+    key: 27
+  }
+  label {
+    key: 34
+    str: 36
   }
 }
 sample {
@@ -691,23 +714,24 @@ sample {
   value: 65476
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
     key: 27
-    str: 28
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -724,17 +748,18 @@ sample {
   value: 0
   value: 1
   value: 101376
+  value: 99
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -751,27 +776,28 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
-    key: 33
-    str: 35
+    key: 27
+  }
+  label {
+    key: 34
+    str: 36
   }
 }
 sample {
@@ -788,25 +814,26 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-    str: 36
+    key: 24
+    str: 25
   }
   label {
     key: 26
-    str: 38
+    str: 37
+  }
+  label {
+    key: 27
+    str: 39
   }
 }
 sample {
@@ -823,23 +850,24 @@ sample {
   value: 1529841
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
   }
   label {
     key: 27
-    str: 28
+  }
+  label {
+    key: 28
+    str: 29
   }
 }
 sample {
@@ -856,17 +884,18 @@ sample {
   value: 0
   value: 1
   value: 24576
+  value: 12
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
+    key: 24
+    str: 25
   }
 }
 sample {
@@ -883,23 +912,24 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
+    key: 24
+    str: 25
   }
   label {
     key: 26
+  }
+  label {
+    key: 27
   }
 }
 sample {
@@ -916,34 +946,35 @@ sample {
   value: 0
   value: 0
   value: 0
+  value: 0
   label {
-    key: 21
-    str: 22
+    key: 22
+    str: 23
   }
   label {
-    key: 31
-    str: 32
+    key: 32
+    str: 33
   }
   label {
-    key: 23
-    str: 24
-  }
-  label {
-    key: 25
-    str: 41
+    key: 24
+    str: 25
   }
   label {
     key: 26
     str: 42
   }
   label {
-    key: 33
-    str: 34
+    key: 27
+    str: 43
+  }
+  label {
+    key: 34
+    str: 35
   }
 }
 mapping {
   id: 1
-  filename: 44
+  filename: 45
 }
 location {
   id: 1
@@ -1048,6 +1079,7 @@ string_table: "lock-release-hold"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"
+string_table: "heap-space"
 string_table: "thread id"
 string_table: "67892304"
 string_table: "thread name"
@@ -1075,7 +1107,7 @@ string_table: "bonjour"
 time_nanos: 1
 duration_nanos: 6
 period_type {
-  type: 43
+  type: 44
   unit: 11
 }
 period: 1000000
