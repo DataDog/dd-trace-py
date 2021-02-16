@@ -15,46 +15,54 @@ Installation
 
 Install with :code:`pip`::
 
-$ pip install ddtrace
+    pip install ddtrace
 
 We strongly suggest pinning the version of the library you deploy.
 
 Quickstart
 ----------
 
-Getting started with ``ddtrace`` is as easy as prefixing your python
-entry-point command with ``ddtrace-run``.
+Tracing
+~~~~~~~
+
+Getting started for tracing is as easy as prefixing your python entry-point
+command with ``ddtrace-run``.
 
 For example if you start your application with ``python app.py`` then run::
 
-  $ ddtrace-run python app.py
+    ddtrace-run python app.py
 
 For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here<ddtracerun>`.
 
-To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
+
+If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all` can be used::
+
+    import ddtrace
+
+    ddtrace.patch_all()
+
+
+For information on how to manually create traces refer to the documentation :ref:`here<basic usage>`.
+
+Profiling
+~~~~~~~~~
+
+Profiling can also be auto enabled with :ref:`ddtracerun` by providing the
+``DD_PROFILING_ENABLED`` environment variable::
+
+    DD_PROFILING_ENABLED=true ddtrace-run python app.py
+
+If ``ddtrace-run`` isn't suitable for your application then
+``ddtrace.profiling.auto`` can be used::
+
+    import ddtrace.profiling.auto
 
 
 Configuration
 ~~~~~~~~~~~~~
 
-You can configure some parameters of the library by setting environment
-variable before starting your application and importing the library:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 1 1 2
-
-   * - Configuration Variable
-     - Configuration Type
-     - Default Value
-     - Value Description
-   * - ``DD_TRACE_AGENT_URL``
-     - URL
-     - ``http://localhost:8126``
-     - The URL to use to connect the Datadog agent. The url can starts with
-       ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
-       Domain Socket.
-
+Almost all configuration of ``ddtrace`` can be done via environment
+variable. See the full list in :ref:`Configuration`.
 
 OpenTracing
 -----------
@@ -64,7 +72,7 @@ that you can use the Datadog tracer in your OpenTracing-compatible
 applications.
 
 Installation
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 Include OpenTracing with ``ddtrace``::
 
@@ -78,7 +86,7 @@ you have the following in ``setup.py``::
     ],
 
 Configuration
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 The OpenTracing convention for initializing a tracer is to define an
 initialization method that will configure and instantiate a new tracer and

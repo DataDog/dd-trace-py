@@ -1,6 +1,7 @@
 from ..internal.logger import get_logger
 from ..utils.http import normalize_header_name
 
+
 log = get_logger(__name__)
 
 
@@ -46,9 +47,10 @@ class HttpConfig(object):
         :rtype: bool
         """
         normalized_header_name = normalize_header_name(header_name)
-        log.debug('Checking header \'%s\' tracing in whitelist %s', normalized_header_name, self._whitelist_headers)
+        log.debug("Checking header '%s' tracing in whitelist %s", normalized_header_name, self._whitelist_headers)
         return normalized_header_name in self._whitelist_headers
 
     def __repr__(self):
-        return '<{} traced_headers={} trace_query_string={}>'.format(
-            self.__class__.__name__, self._whitelist_headers, self.trace_query_string)
+        return "<{} traced_headers={} trace_query_string={}>".format(
+            self.__class__.__name__, self._whitelist_headers, self.trace_query_string
+        )

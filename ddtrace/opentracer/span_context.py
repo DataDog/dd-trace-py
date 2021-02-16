@@ -6,8 +6,7 @@ from ddtrace.context import Context as DatadogContext
 class SpanContext(OpenTracingSpanContext):
     """Implementation of the OpenTracing span context."""
 
-    def __init__(self, trace_id=None, span_id=None,
-                 sampling_priority=None, baggage=None, ddcontext=None):
+    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, baggage=None, ddcontext=None):
         # create a new dict for the baggage if it is not provided
         # NOTE: it would be preferable to use opentracing.SpanContext.EMPTY_BAGGAGE
         #       but it is mutable.

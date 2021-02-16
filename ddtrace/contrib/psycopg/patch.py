@@ -1,11 +1,19 @@
 # 3p
 import psycopg2
-from ddtrace.vendor import wrapt
 
 # project
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.contrib import dbapi
-from ddtrace.ext import sql, net, db
+from ddtrace.ext import db
+from ddtrace.ext import net
+from ddtrace.ext import sql
+from ddtrace.vendor import wrapt
+
+
+config._add("psycopg", dict(
+    _default_service="postgres"
+))
 
 # Original connect method
 _connect = psycopg2.connect
@@ -65,7 +73,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
             if config.dbapi2.trace_fetch_methods:
                 cursor_cls = Psycopg2FetchTracedCursor
 
-        super(Psycopg2TracedConnection, self).__init__(conn, pin, cursor_cls=cursor_cls)
+        super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
 
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
@@ -86,10 +94,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
         'db.application': dsn.get('application_name'),
     }
 
-    Pin(
-        service='postgres',
-        app='postgres',
-        tags=tags).onto(c)
+    Pin(app='postgres', tags=tags).onto(c)
 
     return c
 

@@ -97,6 +97,7 @@ class _ImportHookLoader(object):
     interest. When a module of interest is imported, then any post import
     hooks which are registered will be invoked.
     """
+
     def load_module(self, fullname):
         module = sys.modules[fullname]
         notify_module_loaded(module)
@@ -151,6 +152,7 @@ class ImportHookFinder:
                 # post import hooks.
                 try:
                     import importlib.util
+
                     loader = importlib.util.find_spec(fullname).loader
                 except (ImportError, AttributeError):
                     loader = importlib.find_loader(fullname, path)

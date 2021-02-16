@@ -1,16 +1,45 @@
 """
-The gRPC integration traces the client and server using interceptor pattern.
+The gRPC integration traces the client and server using the interceptor pattern.
 
-gRPC will be automatically instrumented with ``patch_all``, or when using
-the ``ddtrace-run`` command.
-gRPC is instrumented on import. To instrument gRPC manually use the
-``patch`` function.::
 
-    import grpc
+Enabling
+~~~~~~~~
+
+The gRPC integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
     from ddtrace import patch
     patch(grpc=True)
 
     # use grpc like usual
+
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.grpc["service"]
+
+   The service name reported by default for gRPC client instances.
+
+   This option can also be set with the ``DD_GRPC_SERVICE`` environment
+   variable.
+
+   Default: ``"grpc-client"``
+
+.. py:data:: ddtrace.config.grpc_server["service"]
+
+   The service name reported by default for gRPC server instances.
+
+   This option can also be set with the ``DD_SERVICE`` or
+   ``DD_GRPC_SERVER_SERVICE`` environment variables.
+
+   Default: ``"grpc-server"``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
 
 To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::
@@ -48,10 +77,12 @@ To configure the gRPC integration on the server use the ``Pin`` API::
 
 from ...utils.importlib import require_modules
 
+
 required_modules = ['grpc']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = ['patch', 'unpatch']

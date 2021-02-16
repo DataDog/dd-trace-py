@@ -1,10 +1,14 @@
 import aiobotocore
 
-from ddtrace.contrib.aiobotocore.patch import patch, unpatch
+from ddtrace.contrib.aiobotocore.patch import patch
+from ddtrace.contrib.aiobotocore.patch import unpatch
+from tests.tracer.test_tracer import get_dummy_tracer
 
+from .... import assert_is_measured
+from .... import assert_span_http_status_code
+from ...asyncio.utils import AsyncioTestCase
+from ...asyncio.utils import mark_asyncio
 from ..utils import aiobotocore_client
-from ...asyncio.utils import AsyncioTestCase, mark_asyncio
-from ....test_tracer import get_dummy_tracer
 
 
 class AIOBotocoreTest(AsyncioTestCase):
@@ -44,14 +48,16 @@ class AIOBotocoreTest(AsyncioTestCase):
             assert len(traces[1]) == 1
 
             span = traces[0][0]
+            assert_is_measured(span)
             assert span.get_tag('aws.operation') == 'GetObject'
-            assert span.get_tag('http.status_code') == '200'
+            assert_span_http_status_code(span, 200)
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
 
             read_span = traces[1][0]
+            assert_is_measured(read_span)
             assert read_span.get_tag('aws.operation') == 'GetObject'
-            assert read_span.get_tag('http.status_code') == '200'
+            assert_span_http_status_code(read_span, 200)
             assert read_span.service == 'aws.s3'
             assert read_span.resource == 's3.getobject'
             assert read_span.name == 's3.command.read'
@@ -63,8 +69,9 @@ class AIOBotocoreTest(AsyncioTestCase):
             assert len(traces[0]) == 1
 
             span = traces[0][0]
+            assert_is_measured(span)
             assert span.get_tag('aws.operation') == 'GetObject'
-            assert span.get_tag('http.status_code') == '200'
+            assert_span_http_status_code(span, 200)
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
             assert span.name == 's3.command'

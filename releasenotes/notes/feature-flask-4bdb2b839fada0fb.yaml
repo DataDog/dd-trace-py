@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Store request headers in Flask integration.

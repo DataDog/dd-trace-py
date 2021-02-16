@@ -1,15 +1,17 @@
-import threading
 import asyncio
+import threading
+from urllib import request
+
+from aiohttp.test_utils import unittest_run_loop
 import aiohttp_jinja2
 
-from urllib import request
-from aiohttp.test_utils import unittest_run_loop
-
+from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.aiohttp.patch import unpatch
 from ddtrace.pin import Pin
 from ddtrace.provider import DefaultContextProvider
-from ddtrace.contrib.aiohttp.patch import patch, unpatch
-from ddtrace.contrib.aiohttp.middlewares import trace_app
 
+from ... import assert_is_measured
 from .utils import TraceTestCase
 
 
@@ -19,6 +21,7 @@ class TestAiohttpSafety(TraceTestCase):
     bad traces are produced but the ``Context`` object will not
     leak memory.
     """
+
     def enable_tracing(self):
         # aiohttp TestCase with the wrong context provider
         trace_app(self.app, self.tracer)
@@ -34,7 +37,7 @@ class TestAiohttpSafety(TraceTestCase):
     def test_full_request(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = yield from self.client.request('GET', '/template/')
+        request = yield from self.client.request("GET", "/template/")
         assert 200 == request.status
         yield from request.text()
         # the trace is created
@@ -44,13 +47,14 @@ class TestAiohttpSafety(TraceTestCase):
         request_span = traces[0][0]
         template_span = traces[0][1]
         # request
-        assert 'aiohttp-web' == request_span.service
-        assert 'aiohttp.request' == request_span.name
-        assert 'GET /template/' == request_span.resource
+        assert_is_measured(request_span)
+        assert "aiohttp-web" == request_span.service
+        assert "aiohttp.request" == request_span.name
+        assert "GET /template/" == request_span.resource
         # template
-        assert 'aiohttp-web' == template_span.service
-        assert 'aiohttp.template' == template_span.name
-        assert 'aiohttp.template' == template_span.resource
+        assert "aiohttp-web" == template_span.service
+        assert "aiohttp.template" == template_span.name
+        assert "aiohttp.template" == template_span.resource
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -61,12 +65,11 @@ class TestAiohttpSafety(TraceTestCase):
         # it should produce a wrong trace, but the Context must
         # be finished
         def make_requests():
-            url = self.client.make_url('/delayed/')
-            response = request.urlopen(str(url)).read().decode('utf-8')
+            url = self.client.make_url("/delayed/")
+            response = request.urlopen(str(url)).read().decode("utf-8")
             responses.append(response)
 
         # blocking call executed in different threads
-        ctx = self.tracer.get_call_context()
         threads = [threading.Thread(target=make_requests) for _ in range(NUMBER_REQUESTS)]
         for t in threads:
             t.start()
@@ -76,12 +79,11 @@ class TestAiohttpSafety(TraceTestCase):
             yield from asyncio.sleep(0.001)
 
         for response in responses:
-            assert 'Done' == response
+            assert "Done" == response
 
         for t in threads:
             t.join()
 
-        # the trace is wrong but the Context is finished
+        # the trace is wrong but the spans are finished and written
         spans = self.tracer.writer.pop()
         assert NUMBER_REQUESTS == len(spans)
-        assert 0 == len(ctx._trace)

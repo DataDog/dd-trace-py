@@ -1,6 +1,7 @@
 import functools
 import socket
 
+
 _hostname = None
 
 
@@ -12,6 +13,7 @@ def _cached(func):
             _hostname = func()
 
         return _hostname
+
     return wrapper
 
 

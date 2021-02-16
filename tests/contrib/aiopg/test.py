@@ -1,24 +1,28 @@
 # stdlib
-import time
 import asyncio
+import time
 
 # 3p
 import aiopg
 from psycopg2 import extras
 
+from ddtrace import Pin
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.aiopg.patch import patch, unpatch
-from ddtrace import Pin
-
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
+from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import get_dummy_tracer
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import assert_is_measured
+from ...subprocesstest import run_in_subprocess
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -68,6 +72,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.name == 'postgres.query'
         assert span.resource == q
         assert span.service == service
@@ -118,7 +123,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.meta['sql.query'] == q
         assert span.error == 1
         # assert span.meta['out.host'] == 'localhost'
-        assert span.meta['out.port'] == TEST_PORT
+        assert span.metrics['out.port'] == TEST_PORT
         assert span.span_type == 'sql'
 
     @mark_asyncio
@@ -195,6 +200,26 @@ class AiopgTestCase(AsyncioTestCase):
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The aiopg integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute('select \'blah\'')
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

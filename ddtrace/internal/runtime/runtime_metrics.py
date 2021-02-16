@@ -1,20 +1,14 @@
 import itertools
 
-
 from ... import _worker
 from ..logger import get_logger
-from .constants import (
-    DEFAULT_RUNTIME_METRICS,
-    DEFAULT_RUNTIME_TAGS,
-)
-from .metric_collectors import (
-    GCRuntimeMetricCollector,
-    PSUtilRuntimeMetricCollector,
-)
-from .tag_collectors import (
-    PlatformTagCollector,
-    TracerTagCollector,
-)
+from .constants import DEFAULT_RUNTIME_METRICS
+from .constants import DEFAULT_RUNTIME_TAGS
+from .metric_collectors import GCRuntimeMetricCollector
+from .metric_collectors import PSUtilRuntimeMetricCollector
+from .tag_collectors import PlatformTagCollector
+from .tag_collectors import TracerTagCollector
+
 
 log = get_logger(__name__)
 
@@ -26,14 +20,11 @@ class RuntimeCollectorsIterable(object):
         self._collectors = [c() for c in self.COLLECTORS]
 
     def __iter__(self):
-        collected = (
-            collector.collect(self._enabled)
-            for collector in self._collectors
-        )
+        collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
 
     def __repr__(self):
-        return '{}(enabled={})'.format(
+        return "{}(enabled={})".format(
             self.__class__.__name__,
             self._enabled,
         )
@@ -56,29 +47,28 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 class RuntimeWorker(_worker.PeriodicWorkerThread):
-    """ Worker thread for collecting and writing runtime metrics to a DogStatsd
-        client.
+    """Worker thread for collecting and writing runtime metrics to a DogStatsd
+    client.
     """
 
     FLUSH_INTERVAL = 10
 
     def __init__(self, statsd_client, flush_interval=FLUSH_INTERVAL):
-        super(RuntimeWorker, self).__init__(interval=flush_interval,
-                                            name=self.__class__.__name__)
+        super(RuntimeWorker, self).__init__(interval=flush_interval, name=self.__class__.__name__)
         self._statsd_client = statsd_client
         self._runtime_metrics = RuntimeMetrics()
 
     def flush(self):
         with self._statsd_client:
             for key, value in self._runtime_metrics:
-                log.debug('Writing metric %s:%s', key, value)
+                log.debug("Writing metric %s:%s", key, value)
                 self._statsd_client.gauge(key, value)
 
     run_periodic = flush
     on_shutdown = flush
 
     def __repr__(self):
-        return '{}(runtime_metrics={})'.format(
+        return "{}(runtime_metrics={})".format(
             self.__class__.__name__,
             self._runtime_metrics,
         )

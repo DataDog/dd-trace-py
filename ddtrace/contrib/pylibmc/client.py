@@ -1,14 +1,18 @@
 from contextlib import contextmanager
 import random
 
-# 3p
-from ddtrace.vendor.wrapt import ObjectProxy
 import pylibmc
 
 # project
 import ddtrace
+# 3p
+from ddtrace.vendor.wrapt import ObjectProxy
+
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes, memcached, net
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import memcached
+from ...ext import net
 from ...internal.logger import get_logger
 from ...settings import config
 from .addrs import parse_addresses
@@ -135,7 +139,9 @@ class TracedClient(ObjectProxy):
             'memcached.cmd',
             service=pin.service,
             resource=cmd_name,
-            span_type=SpanTypes.CACHE)
+            span_type=SpanTypes.CACHE,
+        )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         try:
             self._tag_span(span)

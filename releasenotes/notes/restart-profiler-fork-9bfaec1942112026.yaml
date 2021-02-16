@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The Profiler instances now restart automatically in child process when the
+    main program is forked.
+    This only works for Python ≥ 3.7.

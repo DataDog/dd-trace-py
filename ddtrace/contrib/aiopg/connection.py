@@ -1,11 +1,14 @@
 import asyncio
-from ddtrace.vendor import wrapt
 
 from aiopg.utils import _ContextManager
 
+from ddtrace.vendor import wrapt
+
 from .. import dbapi
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes, sql
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import sql
 from ...pin import Pin
 from ...settings import config
 
@@ -29,6 +32,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
         with pin.tracer.trace(self._datadog_name, service=service,
                               resource=resource, span_type=SpanTypes.SQL) as s:
+            s.set_tag(SPAN_MEASURED_KEY)
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

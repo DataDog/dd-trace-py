@@ -9,13 +9,18 @@ import cassandra.cluster
 # project
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes, net, cassandra as cassx, errors
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import cassandra as cassx
+from ...ext import errors
+from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
 from ...utils.deprecation import deprecated
 from ...utils.formats import deep_getattr
 from ...vendor import wrapt
+
 
 log = get_logger(__name__)
 
@@ -182,6 +187,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
     span = tracer.trace('cassandra.query', service=service, span_type=SpanTypes.CASSANDRA)
+    span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))

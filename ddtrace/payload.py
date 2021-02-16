@@ -1,8 +1,9 @@
-from .encoding import get_encoder
+from .encoding import Encoder
 
 
 class PayloadFull(Exception):
     """The payload is full."""
+
     pass
 
 
@@ -16,7 +17,8 @@ class Payload(object):
     DEV: We encoded and buffer traces so that we can reliable determine the size of
          the payload easily so we can flush based on the payload size.
     """
-    __slots__ = ('traces', 'size', 'encoder', 'max_payload_size')
+
+    __slots__ = ("traces", "size", "encoder", "max_payload_size")
 
     # Trace agent limit payload size of 10 MB
     # 5 MB should be a good average efficient size
@@ -32,7 +34,7 @@ class Payload(object):
             being considered full (default: 5mb)
         """
         self.max_payload_size = max_payload_size
-        self.encoder = encoder or get_encoder()
+        self.encoder = encoder or Encoder()
         self.traces = []
         self.size = 0
 
@@ -86,5 +88,6 @@ class Payload(object):
 
     def __repr__(self):
         """Get the string representation of this payload"""
-        return '{0}(length={1}, size={2} B, max_payload_size={3} B)'.format(
-            self.__class__.__name__, self.length, self.size, self.max_payload_size)
+        return "{0}(length={1}, size={2} B, max_payload_size={3} B)".format(
+            self.__class__.__name__, self.length, self.size, self.max_payload_size
+        )

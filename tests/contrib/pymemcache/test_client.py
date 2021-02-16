@@ -1,23 +1,25 @@
 # 3p
 import pymemcache
-from pymemcache.exceptions import (
-    MemcacheClientError,
-    MemcacheServerError,
-    MemcacheUnknownCommandError,
-    MemcacheUnknownError,
-    MemcacheIllegalInputError,
-)
+from pymemcache.exceptions import MemcacheClientError
+from pymemcache.exceptions import MemcacheIllegalInputError
+from pymemcache.exceptions import MemcacheServerError
+from pymemcache.exceptions import MemcacheUnknownCommandError
+from pymemcache.exceptions import MemcacheUnknownError
 import pytest
-import unittest
-from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch, unpatch
-from .utils import MockSocket, _str
-from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
+from ddtrace.contrib.pymemcache.patch import patch
+from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.vendor import wrapt
+from tests.tracer.test_tracer import get_dummy_tracer
 
-from tests.test_tracer import get_dummy_tracer
+from ... import TracerTestCase
+from .test_client_mixin import PymemcacheClientTestCaseMixin
+from .test_client_mixin import TEST_HOST
+from .test_client_mixin import TEST_PORT
+from .utils import MockSocket
+from .utils import _str
 
 
 _Client = pymemcache.client.base.Client
@@ -272,7 +274,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         self.check_spans(2, ['add', 'delete'], ['add key', 'delete key'])
 
 
-class PymemcacheClientConfiguration(unittest.TestCase):
+class PymemcacheClientConfiguration(TracerTestCase):
     """Ensure that pymemache can be configured properly."""
 
     def setUp(self):
@@ -319,3 +321,22 @@ class PymemcacheClientConfiguration(unittest.TestCase):
         spans = tracer.writer.pop()
 
         self.assertEqual(spans[0].service, 'mysvc2')
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The pymemcache integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.writer.pop()
+
+        assert spans[0].service != "mysvc"

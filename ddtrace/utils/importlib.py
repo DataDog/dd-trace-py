@@ -5,6 +5,7 @@ from importlib import import_module
 
 class require_modules(object):
     """Context manager to check the availability of required modules."""
+
     def __init__(self, modules):
         self._missing_modules = []
         for module in modules:
@@ -22,11 +23,11 @@ class require_modules(object):
 
 def func_name(f):
     """Return a human readable version of the function's name."""
-    if hasattr(f, '__module__'):
-        return '%s.%s' % (f.__module__, getattr(f, '__name__', f.__class__.__name__))
-    return getattr(f, '__name__', f.__class__.__name__)
+    if hasattr(f, "__module__"):
+        return "%s.%s" % (f.__module__, getattr(f, "__name__", f.__class__.__name__))
+    return getattr(f, "__name__", f.__class__.__name__)
 
 
 def module_name(instance):
     """Return the instance module name."""
-    return instance.__class__.__module__.split('.')[0]
+    return instance.__class__.__module__.split(".")[0]

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -e
+
+# If we are running outside a GitHub action, default to `master`
+BASE_REF="${GITHUB_BASE_REF:-master}"
+
+# Print input data
+echo "Base ref: origin/${BASE_REF}"
+echo "GitHub event path: ${GITHUB_EVENT_PATH}"
+echo "JQ: $(which jq)"
+
+
+# Skip the label check if we do not have a GitHub event path
+if [[ -f "${GITHUB_EVENT_PATH}" ]] && jq -e '.pull_request?.labels[]?.name | select(. == "changelog/no-changelog")' "${GITHUB_EVENT_PATH}";
+then
+    echo "PR has label 'changelog/no-changelog', skipping validation"
+    exit 0
+fi
+
+# Check if they added a new file to releasenotes/notes
+if git diff --name-only --diff-filter=A "origin/${BASE_REF}" | grep releasenotes/notes;
+then
+    echo "New release note found, success"
+    exit 0
+else
+    echo "Release note not found."
+    echo "Use 'reno new <slug>' to add a new note to 'releasenotes/notes', or add the label 'changelog/no-changelog' to skip this validation"
+    exit 1
+fi

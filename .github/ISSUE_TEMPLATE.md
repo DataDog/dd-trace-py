@@ -16,4 +16,4 @@ You can copy/paste the output of `pip freeze` here.
 
 ### What is the result that you get?
 
-### What is result that you expected?
+### What is the result that you expected?

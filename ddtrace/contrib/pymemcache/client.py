@@ -1,24 +1,27 @@
 import sys
 
-# 3p
-from ddtrace.vendor import wrapt
 import pymemcache
 from pymemcache.client.base import Client
-from pymemcache.exceptions import (
-    MemcacheClientError,
-    MemcacheServerError,
-    MemcacheUnknownCommandError,
-    MemcacheUnknownError,
-    MemcacheIllegalInputError,
-)
+from pymemcache.exceptions import MemcacheClientError
+from pymemcache.exceptions import MemcacheIllegalInputError
+from pymemcache.exceptions import MemcacheServerError
+from pymemcache.exceptions import MemcacheUnknownCommandError
+from pymemcache.exceptions import MemcacheUnknownError
 
+# 3p
+from ddtrace.vendor import wrapt
+
+from ...compat import reraise
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...compat import reraise
-from ...ext import SpanTypes, net, memcached as memcachedx
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import memcached as memcachedx
+from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
+
 
 log = get_logger(__name__)
 
@@ -143,6 +146,7 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=SpanTypes.CACHE,
         ) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate
             span.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,

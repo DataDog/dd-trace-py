@@ -16,6 +16,7 @@ class AttrDict(dict):
        data = AttrDict(dict(key='value'))
        print(data.key)
     """
+
     def __getattr__(self, key):
         if key in self:
             return self[key]

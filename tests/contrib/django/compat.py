@@ -1,4 +1,4 @@
-__all__ = ['reverse']
+__all__ = ["reverse"]
 
 try:
     from django.core.urlresolvers import reverse

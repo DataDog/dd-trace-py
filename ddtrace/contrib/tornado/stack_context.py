@@ -1,18 +1,19 @@
+import sys
+
 import tornado
 from tornado.ioloop import IOLoop
-import sys
 
 from ...context import Context
 from ...provider import DefaultContextProvider
 
+
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
 # instead use DefaultContextProvider with ContextVarContextManager for asyncio
-_USE_STACK_CONTEXT = not (
-    sys.version_info >= (3, 7) and tornado.version_info >= (5, 0)
-)
+_USE_STACK_CONTEXT = not (sys.version_info >= (3, 7) and tornado.version_info >= (5, 0))
 
 if _USE_STACK_CONTEXT:
-    from tornado.stack_context import StackContextInconsistentError, _state
+    from tornado.stack_context import StackContextInconsistentError
+    from tornado.stack_context import _state
 
     class TracerStackContext(DefaultContextProvider):
         """
@@ -28,11 +29,8 @@ if _USE_STACK_CONTEXT:
         This implementation follows some suggestions provided here:
         https://github.com/tornadoweb/tornado/issues/1063
         """
+
         def __init__(self):
-            # DEV: skip resetting context manager since TracerStackContext is used
-            # as a with-statement context where we do not want to be clearing the
-            # current context for a thread or task
-            super(TracerStackContext, self).__init__(reset_context_manager=False)
             self._active = True
             self._context = Context()
 
@@ -60,8 +58,8 @@ if _USE_STACK_CONTEXT:
 
             if final_contexts is not self.new_contexts:
                 raise StackContextInconsistentError(
-                    'stack_context inconsistency (may be caused by yield '
-                    'within a "with TracerStackContext" block)')
+                    "stack_context inconsistency (may be caused by yield " 'within a "with TracerStackContext" block)'
+                )
 
             # break the reference to allow faster GC on CPython
             self.new_contexts = None
@@ -71,12 +69,12 @@ if _USE_STACK_CONTEXT:
 
         def _has_io_loop(self):
             """Helper to determine if we are currently in an IO loop"""
-            return getattr(IOLoop._current, 'instance', None) is not None
+            return getattr(IOLoop._current, "instance", None) is not None
 
         def _has_active_context(self):
             """Helper to determine if we have an active context or not"""
             if not self._has_io_loop():
-                return self._local._has_active_context()
+                return super(TracerStackContext, self)._has_active_context()
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 return self._get_state_active_context() is not None
@@ -100,7 +98,7 @@ if _USE_STACK_CONTEXT:
                 # if a Tornado loop is not available, it means that this method
                 # has been called from a synchronous code, so we can rely in a
                 # thread-local storage
-                return self._local.get()
+                return super(TracerStackContext, self).active()
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 return self._get_state_active_context()
@@ -115,13 +113,15 @@ if _USE_STACK_CONTEXT:
             if not self._has_io_loop():
                 # because we're outside of an asynchronous execution, we store
                 # the current context in a thread-local storage
-                self._local.set(ctx)
+                super(TracerStackContext, self).activate(ctx)
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 for stack_ctx in reversed(_state.contexts[0]):
                     if isinstance(stack_ctx, self.__class__) and stack_ctx._active:
                         stack_ctx._context = ctx
             return ctx
+
+
 else:
     # no-op when not using stack_context
     class TracerStackContext(DefaultContextProvider):

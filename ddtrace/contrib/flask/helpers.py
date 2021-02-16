@@ -1,5 +1,9 @@
-from ddtrace import Pin
 import flask
+
+from ddtrace import Pin
+from ddtrace import config
+
+from .. import trace_utils
 
 
 def get_current_app():
@@ -12,33 +16,23 @@ def get_current_app():
 
 def with_instance_pin(func):
     """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
+
     def wrapper(wrapped, instance, args, kwargs):
         pin = Pin._find(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
         return func(pin, wrapped, instance, args, kwargs)
+
     return wrapper
 
 
 def simple_tracer(name, span_type=None):
     """Generate a simple tracer that wraps the function call with `with tracer.trace()`"""
+
     @with_instance_pin
     def wrapper(pin, wrapped, instance, args, kwargs):
-        with pin.tracer.trace(name, service=pin.service, span_type=span_type):
+        with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask, pin), span_type=span_type):
             return wrapped(*args, **kwargs)
+
     return wrapper
-
-
-def get_current_span(pin, root=False):
-    """Helper to get the current span from the provided pins current call context"""
-    if not pin or not pin.enabled():
-        return None
-
-    ctx = pin.tracer.get_call_context()
-    if not ctx:
-        return None
-
-    if root:
-        return ctx.get_current_root_span()
-    return ctx.get_current_span()

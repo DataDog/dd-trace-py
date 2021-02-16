@@ -1,14 +1,18 @@
 import collections
+
 import grpc
-from ddtrace.vendor import wrapt
 
 from ddtrace import config
 from ddtrace.compat import to_unicode
-from ddtrace.ext import SpanTypes, errors
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import errors
+from ddtrace.vendor import wrapt
+
+from . import constants
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from . import constants
 from .utils import parse_method_path
 
 
@@ -28,9 +32,9 @@ def create_client_interceptor(pin, host, port):
 def intercept_channel(wrapped, instance, args, kwargs):
     channel = args[0]
     interceptors = args[1:]
-    if isinstance(getattr(channel, '_interceptor', None), _ClientInterceptor):
+    if isinstance(getattr(channel, "_interceptor", None), _ClientInterceptor):
         dd_interceptor = channel._interceptor
-        base_channel = getattr(channel, '_channel', None)
+        base_channel = getattr(channel, "_channel", None)
         if base_channel:
             new_channel = wrapped(channel._channel, *interceptors)
             return grpc.intercept_channel(new_channel, dd_interceptor)
@@ -39,10 +43,9 @@ def intercept_channel(wrapped, instance, args, kwargs):
 
 
 class _ClientCallDetails(
-        collections.namedtuple(
-            '_ClientCallDetails',
-            ('method', 'timeout', 'metadata', 'credentials')),
-        grpc.ClientCallDetails):
+    collections.namedtuple("_ClientCallDetails", ("method", "timeout", "metadata", "credentials")),
+    grpc.ClientCallDetails,
+):
     pass
 
 
@@ -54,7 +57,7 @@ def _future_done_callback(span):
             response_code = response.code()
             # cast code to unicode for tags
             status_code = to_unicode(response_code)
-            span.set_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
+            span._set_str_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
 
             if response_code != grpc.StatusCode.OK:
                 _handle_error(span, response, status_code)
@@ -74,9 +77,9 @@ def _handle_error(span, response_error, status_code):
     # exception() and traceback() methods if a computation has resulted in an
     # exception being raised
     if (
-        not callable(getattr(response_error, 'cancelled', None)) and
-        not callable(getattr(response_error, 'exception', None)) and
-        not callable(getattr(response_error, 'traceback', None))
+        not callable(getattr(response_error, "cancelled", None))
+        and not callable(getattr(response_error, "exception", None))
+        and not callable(getattr(response_error, "traceback", None))
     ):
         return
 
@@ -84,8 +87,8 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = to_unicode(response_error.details())
-        span.set_tag(errors.ERROR_MSG, exc_val)
-        span.set_tag(errors.ERROR_TYPE, status_code)
+        span._set_str_tag(errors.ERROR_MSG, exc_val)
+        span._set_str_tag(errors.ERROR_TYPE, status_code)
         return
 
     exception = response_error.exception()
@@ -97,9 +100,9 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = to_unicode(response_error.details())
-            span.set_tag(errors.ERROR_MSG, exc_val)
-            span.set_tag(errors.ERROR_TYPE, status_code)
-            span.set_tag(errors.ERROR_STACK, traceback)
+            span._set_str_tag(errors.ERROR_MSG, exc_val)
+            span._set_str_tag(errors.ERROR_TYPE, status_code)
+            span._set_str_tag(errors.ERROR_STACK, traceback)
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
@@ -114,7 +117,14 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def _next(self):
+        # While an iterator ObjectProxy requires only __iter__ and __next__, we
+        # make sure to also proxy the grpc._channel._Rendezvous._next method in
+        # case it is being called directly as in google.api_core.grpc_helpers
+        # and grpc_gcp._channel.
+        # https://github.com/grpc/grpc/blob/5195a06ddea8da6603c6672e0ed09fec9b5c16ac/src/python/grpcio/grpc/_channel.py#L418-L419
+        # https://github.com/googleapis/python-api-core/blob/35e87e0aca52167029784379ca84e979098e1d6c/google/api_core/grpc_helpers.py#L84
+        # https://github.com/GoogleCloudPlatform/grpc-gcp-python/blob/5a2cd9807bbaf1b85402a2a364775e5b65853df6/src/grpc_gcp/_channel.py#L102
         try:
             return next(self.__wrapped__)
         except StopIteration:
@@ -129,19 +139,23 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             raise
         except Exception:
             # DEV: added for safety though should not be reached since wrapped response
-            log.debug('unexpected non-grpc exception raised, closing open span', exc_info=True)
+            log.debug("unexpected non-grpc exception raised, closing open span", exc_info=True)
             self._span.set_traceback()
             self._span.finish()
             raise
 
-    def next(self):
-        return self.__next__()
+    def __next__(self):
+        return self._next()
+
+    next = __next__
 
 
 class _ClientInterceptor(
-        grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
-        grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
-
+    grpc.UnaryUnaryClientInterceptor,
+    grpc.UnaryStreamClientInterceptor,
+    grpc.StreamUnaryClientInterceptor,
+    grpc.StreamStreamClientInterceptor,
+):
     def __init__(self, pin, host, port):
         self._pin = pin
         self._host = host
@@ -151,23 +165,23 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            'grpc',
+            "grpc",
             span_type=SpanTypes.GRPC,
-            service=self._pin.service,
+            service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
 
         # tags for method details
         method_path = client_call_details.method
         method_package, method_service, method_name = parse_method_path(method_path)
-        span.set_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
-        span.set_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
-        span.set_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
-        span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
-        span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
-        span.set_tag(constants.GRPC_HOST_KEY, self._host)
-        span.set_tag(constants.GRPC_PORT_KEY, self._port)
-        span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span._set_str_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
+        span._set_str_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+        span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+        span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
+        span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+        span._set_str_tag(constants.GRPC_HOST_KEY, self._host)
+        span._set_str_tag(constants.GRPC_PORT_KEY, self._port)
+        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         sample_rate = config.grpc.get_analytics_sample_rate()
         if sample_rate is not None:

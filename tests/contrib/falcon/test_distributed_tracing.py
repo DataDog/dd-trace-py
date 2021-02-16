@@ -1,5 +1,7 @@
+import falcon as falcon
 from falcon import testing
-from tests.test_tracer import get_dummy_tracer
+
+from tests.tracer.test_tracer import get_dummy_tracer
 
 from .app import get_app
 
@@ -11,18 +13,25 @@ class DistributedTracingTestCase(testing.TestCase):
 
     def setUp(self):
         super(DistributedTracingTestCase, self).setUp()
-        self._service = 'falcon'
+        self._service = "falcon"
         self.tracer = get_dummy_tracer()
         self.api = get_app(tracer=self.tracer)
+        self.version = falcon.__version__
+        if self.version[0] != "1":
+            self.client = testing.TestClient(self.api)
 
     def test_distributred_tracing(self):
         headers = {
-            'x-datadog-trace-id': '100',
-            'x-datadog-parent-id': '42',
+            "x-datadog-trace-id": "100",
+            "x-datadog-parent-id": "42",
         }
-        out = self.simulate_get('/200', headers=headers)
-        assert out.status_code == 200
-        assert out.content.decode('utf-8') == 'Success'
+        if self.version[0] == "1":
+            out = self.simulate_get("/200", headers=headers)
+            assert out.status_code == 200
+        else:
+            out = self.client.simulate_get("/200", headers=headers)
+            assert out.status[:3] == "200"
+        assert out.content.decode("utf-8") == "Success"
 
         traces = self.tracer.writer.pop_traces()
 
@@ -35,13 +44,19 @@ class DistributedTracingTestCase(testing.TestCase):
     def test_distributred_tracing_disabled(self):
         self.tracer = get_dummy_tracer()
         self.api = get_app(tracer=self.tracer, distributed_tracing=False)
+        if self.version[0] != "1":
+            self.client = testing.TestClient(self.api)
         headers = {
-            'x-datadog-trace-id': '100',
-            'x-datadog-parent-id': '42',
+            "x-datadog-trace-id": "100",
+            "x-datadog-parent-id": "42",
         }
-        out = self.simulate_get('/200', headers=headers)
-        assert out.status_code == 200
-        assert out.content.decode('utf-8') == 'Success'
+        if self.version[0] == "1":
+            out = self.simulate_get("/200", headers=headers)
+            assert out.status_code == 200
+        else:
+            out = self.client.simulate_get("/200", headers=headers)
+            assert out.status[:3] == "200"
+        assert out.content.decode("utf-8") == "Success"
 
         traces = self.tracer.writer.pop_traces()
 

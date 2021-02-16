@@ -1,20 +1,17 @@
 # stdlib
 import contextlib
 
+from sqlalchemy import Column
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import create_engine
 # 3rd party
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import (
-    create_engine,
-    Column,
-    Integer,
-    String,
-)
 
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import trace_engine
-
 # testing
 from tests.opentracer.utils import init_tracer
 
@@ -114,7 +111,7 @@ class SQLAlchemyTestMixin(object):
         assert span.service == self.SERVICE
         assert 'INSERT INTO players' in span.resource
         assert span.get_tag('sql.db') == self.SQL_DB
-        assert span.get_tag('sql.rows') == '1'
+        assert span.get_metric('sql.rows') == 1
         self.check_meta(span)
         assert span.span_type == 'sql'
         assert span.error == 0

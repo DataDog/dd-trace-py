@@ -8,7 +8,7 @@ wish to make via an `issue <https://github.com/DataDog/dd-trace-py/issues>`_.
 Branches
 ========
 
-Developement happens in the `master` branch. When all the features for the next
+Development happens in the `master` branch. When all the features for the next
 milestone are merged, the next version is released and tagged on the `master`
 branch as `vVERSION`.
 
@@ -35,7 +35,7 @@ Splitting Pull Requests
 
 If you discussed your feature within an issue (as advised), there's a great
 chance that the implementation appears doable in several steps. In order to
-facilite the review process, we strongly advise to split your feature
+facilitate the review process, we strongly advise to split your feature
 implementation in small pull requests (if that is possible) so they contain a
 very small number of commits (a single commit per pull request being optimal).
 

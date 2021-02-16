@@ -1,14 +1,16 @@
 import sqlalchemy
 
 from ddtrace import Pin
-from ddtrace.contrib.sqlalchemy import patch, unpatch
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.sqlalchemy import patch
+from ddtrace.contrib.sqlalchemy import unpatch
 
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
 
 
-class SQLAlchemyPatchTestCase(BaseTracerTestCase):
+class SQLAlchemyPatchTestCase(TracerTestCase):
     """TestCase that checks if the engine is properly traced
     when the `patch()` method is used.
     """
@@ -44,6 +46,7 @@ class SQLAlchemyPatchTestCase(BaseTracerTestCase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         # check subset of span fields
+        assert_is_measured(span)
         assert span.name == 'postgres.query'
         assert span.service == 'postgres'
         assert span.error == 0
@@ -61,6 +64,7 @@ class SQLAlchemyPatchTestCase(BaseTracerTestCase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         # check subset of span fields
+        assert_is_measured(span)
         assert span.name == 'postgres.query'
         assert span.service == 'replica-db'
         assert span.error == 0
@@ -93,6 +97,7 @@ class SQLAlchemyPatchTestCase(BaseTracerTestCase):
                 self.conn.execute('SELECT 1').fetchall()
 
                 root = self.get_root_span()
+                assert_is_measured(root)
                 root.assert_matches(name='postgres.query')
 
                 # If the value is None assert it was not set, otherwise assert the expected value

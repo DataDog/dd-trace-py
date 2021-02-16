@@ -5,6 +5,7 @@ python interpreter instances.
 A base class SubprocessTestCase is provided that, when extended, will run test
 cases marked with @run_in_subprocess in a separate python interpreter.
 """
+import inspect
 import os
 import subprocess
 import sys
@@ -12,15 +13,19 @@ import unittest
 
 
 SUBPROC_TEST_ATTR = '_subproc_test'
+SUBPROC_TEST_ENV_ATTR = '_subproc_test_env'
 SUBPROC_ENV_VAR = 'SUBPROCESS_TEST'
 
 
-def run_in_subprocess(obj):
+def run_in_subprocess(*args, **kwargs):
     """
     Marks a test case that is to be run in its own 'clean' interpreter instance.
 
-    When applied to a TestCase class, each method will be run in a separate
-    interpreter instance.
+    When applied to a SubprocessTestCase class, each method will be run in a
+    separate interpreter instance.
+
+    When applied only to a method of a SubprocessTestCase, only the method
+    will be run in a separate interpreter instance.
 
     Usage on a class::
 
@@ -44,17 +49,34 @@ def run_in_subprocess(obj):
         class OtherTests(SubprocessTestCase):
             @run_in_subprocess
             def test_case(self):
+                # Run in subprocess
                 pass
 
+            def test_case(self):
+                # NOT run in subprocess
+                pass
 
-    :param obj: method or class to run in a separate python interpreter.
+    :param env_override: dict of environment variables to provide to the subprocess.
     :return:
     """
-    setattr(obj, SUBPROC_TEST_ATTR, True)
-    return obj
+    env_overrides = kwargs.get("env_overrides")
+
+    def wrapper(obj):
+        setattr(obj, SUBPROC_TEST_ATTR, True)
+        if env_overrides is not None:
+            setattr(obj, SUBPROC_TEST_ENV_ATTR, env_overrides)
+        return obj
+
+    # Support both @run_in_subprocess and @run_in_subprocess(env_overrides=...) usage
+    if len(args) == 1 and callable(args[0]):
+        return wrapper(args[0])
+    else:
+        return wrapper
 
 
 class SubprocessTestCase(unittest.TestCase):
+    run_in_subprocess = staticmethod(run_in_subprocess)
+
     def _full_method_name(self):
         test = getattr(self, self._testMethodName)
         # DEV: we have to use the internal self reference of the bound test
@@ -63,9 +85,14 @@ class SubprocessTestCase(unittest.TestCase):
         # method is defined on another class.
         # A concrete case of this is a parent and child TestCase where the child
         # doesn't override a parent test method. The full_method_name we want
-        # is that of the child test method (even though it exists on the parent)
-        modpath = test.__self__.__class__.__module__
-        clsname = test.__self__.__class__.__name__
+        # is that of the child test method (even though it exists on the parent).
+        # This is only true if the test method is bound by pytest; pytest>=5.4 returns a function.
+        if inspect.ismethod(test):
+            modpath = test.__self__.__class__.__module__
+            clsname = test.__self__.__class__.__name__
+        else:
+            modpath = self.__class__.__module__
+            clsname = self.__class__.__name__
         testname = test.__name__
         testcase_name = '{}.{}.{}'.format(modpath, clsname, testname)
         return testcase_name
@@ -73,9 +100,11 @@ class SubprocessTestCase(unittest.TestCase):
     def _run_test_in_subprocess(self, result):
         full_testcase_name = self._full_method_name()
 
-        # copy the environment and include the special subprocess environment
-        # variable for the subprocess to detect
+        # Copy the environment and include the special subprocess environment
+        # variable for the subprocess to detect.
+        env_overrides = self._get_env_overrides()
         sp_test_env = os.environ.copy()
+        sp_test_env.update(env_overrides)
         sp_test_env[SUBPROC_ENV_VAR] = 'True'
         sp_test_cmd = ['python', '-m', 'unittest', full_testcase_name]
         sp = subprocess.Popen(
@@ -120,6 +149,16 @@ class SubprocessTestCase(unittest.TestCase):
             return True
 
         return False
+
+    def _get_env_overrides(self):
+        if hasattr(self, SUBPROC_TEST_ENV_ATTR):
+            return getattr(self, SUBPROC_TEST_ENV_ATTR)
+
+        test = getattr(self, self._testMethodName)
+        if hasattr(test, SUBPROC_TEST_ENV_ATTR):
+            return getattr(test, SUBPROC_TEST_ENV_ATTR)
+
+        return {}
 
     def run(self, result=None):
         if not self._is_subprocess_test():
