@@ -921,16 +921,14 @@ jobs:
           pattern: '^rediscluster_contrib-'
 
   urllib3:
+    <<: *contrib_job
     docker:
-      - *test_runner
+      - image: *ddtrace_dev_image
       - *httpbin_local
     resource_class: *resource_class
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^urllib3_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^urllib3_contrib-'
 
   vertica:
     <<: *contrib_job

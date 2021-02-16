@@ -2,16 +2,19 @@ import urllib3
 
 import ddtrace
 from ddtrace import config
+from ddtrace.http import store_request_headers
+from ddtrace.http import store_response_headers
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace.http import store_request_headers, store_response_headers
 
-from ...ext import http, SpanTypes
 from ...compat import parse
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import SpanTypes
+from ...ext import http
+from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ...utils.http import sanitize_url_for_tag
 from ...utils.wrappers import unwrap as _u
-from ...utils.formats import asbool, get_env
-from ...propagation.http import HTTPPropagator
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -22,11 +25,11 @@ config._add(
     "urllib3",
     {
         "service_name": get_env("urllib3", "service_name", "urllib3"),
-        "distributed_tracing": asbool(get_env("urllib3", "distributed_tracing", True)),
-        "analytics_enabled": asbool(get_env("urllib3", "analytics_enabled", False)),
-        "analytics_sample_rate": float(get_env("urllib3", "analytics_sample_rate", 1.0)),
-        "trace_query_string": asbool(get_env("urllib3", "trace_query_string", False)),
-        "split_by_domain": asbool(get_env("urllib3", "split_by_domain", True)),
+        "distributed_tracing": asbool(get_env("urllib3", "distributed_tracing", default=True)),
+        "analytics_enabled": asbool(get_env("urllib3", "analytics_enabled", default=False)),
+        "analytics_sample_rate": float(get_env("urllib3", "analytics_sample_rate", default=1.0)),
+        "trace_query_string": asbool(get_env("urllib3", "trace_query_string", default=False)),
+        "split_by_domain": asbool(get_env("urllib3", "split_by_domain", default=True)),
     },
 )
 
@@ -154,7 +157,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
         if config.urllib3["analytics_enabled"]:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3["analytics_sample_rate"])
         if isinstance(request_retries, urllib3.util.retry.Retry):
-            span.set_tag(http.RETRIES_REMAIN, request_retries.total)
+            span.set_tag(http.RETRIES_REMAIN, str(request_retries.total))
 
         # Call the target function
         resp = func(*args, **kwargs)

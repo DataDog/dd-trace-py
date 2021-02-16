@@ -29,13 +29,14 @@ urllib3 through the Configuration API:
     config.urllib3['analytics_enabled'] = True
 """
 from ...utils.importlib import require_modules
+from .patch import patch
+from .patch import unpatch
 
 
 required_modules = ["urllib3"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
 
         __all__ = [
             "patch",

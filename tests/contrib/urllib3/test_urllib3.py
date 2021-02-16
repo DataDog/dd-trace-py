@@ -4,12 +4,13 @@ import urllib3
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.urllib3 import patch, unpatch
-from ddtrace.ext import errors, http
-
+from ddtrace.contrib.urllib3 import patch
+from ddtrace.contrib.urllib3 import unpatch
+from ddtrace.ext import errors
+from ddtrace.ext import http
+from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
 
-from ...base import BaseTracerTestCase
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = "httpbin.org"
@@ -17,23 +18,21 @@ URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
 
 
-class BaseUrllib3TestCase(object):
+class BaseUrllib3TestCase(TracerTestCase):
     """Provides the setup and teardown for patching/unpatching the urllib3 integration"""
 
     def setUp(self):
         super(BaseUrllib3TestCase, self).setUp()
-
         patch()
         self.http = urllib3.PoolManager()
         setattr(urllib3.connectionpool.HTTPConnectionPool, "datadog_tracer", self.tracer)
 
     def tearDown(self):
+        super(BaseUrllib3TestCase, self).tearDown()
         unpatch()
 
-        super(BaseUrllib3TestCase, self).tearDown()
 
-
-class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
+class TestUrllib3(BaseUrllib3TestCase):
     def test_HTTPConnectionPool_traced(self):
         """Tests that requests made from the HTTPConnectionPool are traced"""
         pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
@@ -142,7 +141,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == "http"
         assert http.QUERY_STRING not in s.meta
 
     def test_200_query_string(self):
@@ -159,7 +158,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag(http.URL) == URL_200
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
 
     def test_post_500(self):
@@ -312,7 +311,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         assert dd_span.get_tag(http.METHOD) == "GET"
         assert dd_span.get_tag(http.STATUS_CODE) == "200"
         assert dd_span.error == 0
-        assert dd_span.span_type == 'http'
+        assert dd_span.span_type == "http"
 
     def test_request_and_response_headers(self):
         """Tests the headers are added as tag when the headers are whitelisted"""
