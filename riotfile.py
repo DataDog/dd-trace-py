@@ -46,7 +46,11 @@ venv = Venv(
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --no-cov {cmdargs} tests/benchmarks",
         ),
-        Venv(name="tracer", command="pytest {cmdargs} tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
+        Venv(
+            name="tracer",
+            command="pytest {cmdargs} tests/tracer/",
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+        ),
         Venv(
             name="cherrypy",
             command="pytest {cmdargs} tests/contrib/cherrypy",
@@ -54,7 +58,15 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "cherrypy": [">=11,<12", ">=12,<13", ">=13,<14", ">=14,<15", ">=15,<16", ">=16,<17", ">=17,<18"],
+                        "cherrypy": [
+                            ">=11,<12",
+                            ">=12,<13",
+                            ">=13,<14",
+                            ">=14,<15",
+                            ">=15,<16",
+                            ">=16,<17",
+                            ">=17,<18",
+                        ],
                     },
                 ),
                 Venv(
@@ -270,24 +282,18 @@ venv = Venv(
         Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
-            venvs = [
+            venvs=[
                 Venv(
                     pys=select_pys(min_version=2.7, max_version=3.6),
-                    pkgs={
-                        "psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]
-                    },
+                    pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
                     pys=[3.7],
-                    pkgs={
-                        "psycopg2": ["~=2.7.0", "~=2.8.0", latest]
-                    },
+                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
                     pys=select_pys(min_version=3.8, max_version=3.9),
-                    pkgs={
-                        "psycopg2": ["~=2.8.0", latest]
-                    },
+                    pkgs={"psycopg2": ["~=2.8.0", latest]},
                 ),
             ],
         ),
@@ -326,7 +332,7 @@ venv = Venv(
         Venv(
             name="sqlalchemy",
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
-            venvs = [
+            venvs=[
                 Venv(
                     pys=select_pys(),
                     pkgs={
