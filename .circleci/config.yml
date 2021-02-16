@@ -548,7 +548,16 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
-          pattern: '^boto'  # run boto and botocore
+          pattern: 'boto'
+          snapshot: true
+          docker_services: "localstack"
+
+  botocore:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'botocore'
           snapshot: true
           docker_services: "localstack"
 
@@ -1039,6 +1048,7 @@ requires_tests: &requires_tests
     - asgi
     - benchmarks
     - boto
+    - botocore
     - bottle
     - cassandra
     - celery
@@ -1147,6 +1157,7 @@ workflows:
       - asgi: *requires_pre_test
       - benchmarks: *requires_pre_test
       - boto: *requires_pre_test
+      - botocore: *requires_pre_test
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       - celery: *requires_pre_test
