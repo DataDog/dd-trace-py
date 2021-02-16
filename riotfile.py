@@ -300,19 +300,15 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
+            pkgs={
+                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                "moto": ">=1.0,<2.0",
+            },
             venvs=[
-                Venv(
-                    pys=select_pys(min_version=3.5),
-                    pkgs={
-                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-                        "moto": ">=1.0,<2.0",
-                    },
-                ),
+                Venv(pys=select_pys(min_version=3.5)),
                 Venv(
                     pys=["2.7"],
                     pkgs={
-                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-                        "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
                 ),
@@ -393,9 +389,10 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
+            pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]},
             venvs=[
-                Venv(pys=select_pys(min_version=3.5), pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]}),
-                Venv(pys=["2.7"], pkgs={"botocore": latest, "moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version=3.5)),
+                Venv(pys=["2.7"], pkgs={"rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
