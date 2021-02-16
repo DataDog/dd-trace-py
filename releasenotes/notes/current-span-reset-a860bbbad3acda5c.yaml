@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    core: always reset the current_span in the context
+    core: always reset the current_span in the context.

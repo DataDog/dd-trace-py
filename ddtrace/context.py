@@ -1,11 +1,11 @@
-import logging
 import threading
 
-from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, LOG_SPAN_KEY
+from .constants import ORIGIN_KEY
+from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
-from .internal import hostname
-from .settings import config
-from .utils.formats import asbool, get_env
+from .utils.formats import asbool
+from .utils.formats import get_env
+
 
 log = get_logger(__name__)
 
@@ -25,10 +25,11 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=False))
-    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=500))
 
-    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
+    _partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+    _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
+
+    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -43,7 +44,7 @@ class Context(object):
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
         self._sampling_priority = sampling_priority
-        self._dd_origin = _dd_origin
+        self.dd_origin = dd_origin
 
     @property
     def trace_id(self):
@@ -141,36 +142,6 @@ class Context(object):
             if self._finished_spans != len(self._trace) or span == self._trace[0]:
                 self._set_current_span(span._parent)
 
-            # notify if the trace is not closed properly; this check is executed only
-            # if the debug logging is enabled and when the root span is closed
-            # for an unfinished trace. This logging is meant to be used for debugging
-            # reasons, and it doesn't mean that the trace is wrongly generated.
-            # In asynchronous environments, it's legit to close the root span before
-            # some children. On the other hand, asynchronous web frameworks still expect
-            # to close the root span after all the children.
-            if span.tracer and span.tracer.log.isEnabledFor(logging.DEBUG) and span._parent is None:
-                extra = {LOG_SPAN_KEY: span}
-                unfinished_spans = [x for x in self._trace if not x.finished]
-                if unfinished_spans:
-                    log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                              span.name, len(unfinished_spans), extra=extra)
-                    for wrong_span in unfinished_spans:
-                        log.debug('\n%s', wrong_span.pprint(), extra=extra)
-
-    def _is_sampled(self):
-        return any(span.sampled for span in self._trace)
-
-    def get(self):
-        """
-        Returns a tuple containing the trace list generated in the current context and
-        if the context is sampled or not. It returns (None, None) if the ``Context`` is
-        not finished. If a trace is returned, the ``Context`` will be reset so that it
-        can be re-used immediately.
-
-        This operation is thread-safe.
-        """
-        with self._lock:
-            # All spans are finished?
             if self._finished_spans == len(self._trace):
                 # get the trace
                 trace = self._trace
@@ -179,15 +150,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                origin = self._dd_origin
+                origin = self.dd_origin
                 # attach the origin to the root span tag
                 if sampled and origin is not None and trace:
                     trace[0].meta[ORIGIN_KEY] = str(origin)
-
-                # Set hostname tag if they requested it
-                if config.report_hostname:
-                    # DEV: `get_hostname()` value is cached
-                    trace[0].meta[HOSTNAME_KEY] = hostname.get_hostname()
 
                 # clean the current state
                 self._trace = []
@@ -196,7 +162,6 @@ class Context(object):
                 self._parent_span_id = None
                 self._sampling_priority = None
                 return trace, sampled
-
             elif self._partial_flush_enabled:
                 finished_spans = [t for t in self._trace if t.finished]
                 if len(finished_spans) >= self._partial_flush_min_spans:
@@ -207,21 +172,18 @@ class Context(object):
                     # attach the sampling priority to the context root span
                     if sampled and sampling_priority is not None and trace:
                         trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                    origin = self._dd_origin
+                    origin = self.dd_origin
                     # attach the origin to the root span tag
                     if sampled and origin is not None and trace:
                         trace[0].meta[ORIGIN_KEY] = str(origin)
-
-                    # Set hostname tag if they requested it
-                    if config.report_hostname:
-                        # DEV: `get_hostname()` value is cached
-                        trace[0].meta[HOSTNAME_KEY] = hostname.get_hostname()
 
                     self._finished_spans = 0
 
                     # Any open spans will remain as `self._trace`
                     # Any finished spans will get returned to be flushed
                     self._trace = [t for t in self._trace if not t.finished]
-
                     return finished_spans, sampled
             return None, None
+
+    def _is_sampled(self):
+        return any(span.sampled for span in self._trace)

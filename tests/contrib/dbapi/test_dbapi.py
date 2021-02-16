@@ -1,13 +1,17 @@
 import mock
-
 import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
+from ddtrace.contrib.dbapi import FetchTracedCursor
+from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.span import Span
 from ddtrace.utils.attrdict import AttrDict
-from ... import TracerTestCase, assert_is_measured, assert_is_not_measured
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_is_not_measured
 
 
 class TestTracedCursor(TracerTestCase):
@@ -534,6 +538,24 @@ class TestFetchTracedCursor(TracerTestCase):
 
             span = self.tracer.writer.pop()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_unknown_rowcount(self):
+        class Unknown(object):
+            pass
+
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = Unknown()
+        pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        traced_cursor = FetchTracedCursor(cursor, pin, {})
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.get_metric('db.rowcount') is None
+        assert span.get_metric('sql.rows') is None
 
 
 class TestTracedConnection(TracerTestCase):

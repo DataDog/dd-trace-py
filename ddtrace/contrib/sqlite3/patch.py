@@ -1,26 +1,33 @@
 # 3p
 import sqlite3
 import sqlite3.dbapi2
+
 from ddtrace.vendor import wrapt
 
 # project
-from ...contrib.dbapi import TracedConnection, TracedCursor, FetchTracedCursor
+from ...contrib.dbapi import FetchTracedCursor
+from ...contrib.dbapi import TracedConnection
+from ...contrib.dbapi import TracedCursor
 from ...pin import Pin
 from ...settings import config
+
 
 # Original connect method
 _connect = sqlite3.connect
 
-config._add("sqlite", dict(
-    _default_service="sqlite",
-))
+config._add(
+    "sqlite",
+    dict(
+        _default_service="sqlite",
+    ),
+)
 
 
 def patch():
     wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
 
-    setattr(sqlite3, 'connect', wrapped)
-    setattr(sqlite3.dbapi2, 'connect', wrapped)
+    setattr(sqlite3, "connect", wrapped)
+    setattr(sqlite3.dbapi2, "connect", wrapped)
 
 
 def unpatch():
@@ -35,7 +42,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin(app='sqlite').onto(wrapped)
+    Pin(app="sqlite").onto(wrapped)
     return wrapped
 
 

@@ -1,6 +1,6 @@
 import glob
-import os
 import json
+import os
 
 import pytest
 
@@ -17,10 +17,10 @@ def test_flatten_dict():
 
 def _ci_fixtures():
     basepath = os.path.join(os.path.dirname(__file__), "fixtures", "ci")
-    for filename in glob.glob(os.path.join(basepath, '*.json')):
+    for filename in glob.glob(os.path.join(basepath, "*.json")):
         with open(filename) as fp:
             for i, item in enumerate(json.load(fp)):
-                yield os.path.basename(filename)[:-5] + ':' + str(i), item[0], item[1]
+                yield os.path.basename(filename)[:-5] + ":" + str(i), item[0], item[1]
 
 
 def _updateenv(monkeypatch, env):
@@ -31,4 +31,4 @@ def _updateenv(monkeypatch, env):
 @pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
 def test_ci_providers(monkeypatch, name, environment, tags):
     _updateenv(monkeypatch, environment)
-    assert tags == ci.tags(), "wrong tags in {0} for {1}".format(name, environment)
+    assert tags == ci.tags(environment), "wrong tags in {0} for {1}".format(name, environment)

@@ -2,8 +2,9 @@
 """This files exposes non-gevent Python original functions."""
 import threading
 
-from ddtrace.vendor import six
+from ddtrace import compat
 from ddtrace.vendor import attr
+from ddtrace.vendor import six
 
 
 try:
@@ -73,7 +74,4 @@ if is_module_patched("threading"):
     # We don't have the choice has we can't access the original MainThread
     main_thread_id = thread_get_ident()
 else:
-    if six.PY2:
-        main_thread_id = threading._MainThread().ident
-    else:
-        main_thread_id = threading.main_thread().ident
+    main_thread_id = compat.main_thread.ident

@@ -1,7 +1,9 @@
 import mock
 import pytest
 
-from ddtrace.internal.import_hooks import register_module_hook, ModuleHookRegistry, hooks as global_hooks
+from ddtrace.internal.import_hooks import ModuleHookRegistry
+from ddtrace.internal.import_hooks import hooks as global_hooks
+from ddtrace.internal.import_hooks import register_module_hook
 from tests import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
@@ -181,7 +183,10 @@ def test_registry_call_with_hook_exception(hooks_log, hooks):
 
     # Assert we logged a warning about the hook failing
     hooks_log.warning.assert_called_once_with(
-        "Failed to call hook %r for module %r", hook_two, module_name, exc_info=True,
+        "Failed to call hook %r for module %r",
+        hook_two,
+        module_name,
+        exc_info=True,
     )
 
 

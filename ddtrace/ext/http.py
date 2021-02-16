@@ -8,6 +8,7 @@ span.set_tag(STATUS_CODE, 404)
 """
 from . import SpanTypes
 
+
 # [TODO] Deprecated, remove when we remove AppTypes
 # type of the spans
 TYPE = SpanTypes.HTTP
@@ -16,6 +17,7 @@ TYPE = SpanTypes.HTTP
 URL = 'http.url'
 METHOD = 'http.method'
 STATUS_CODE = 'http.status_code'
+STATUS_MSG = 'http.status_msg'
 QUERY_STRING = 'http.query.string'
 VERSION = 'http.version'
 

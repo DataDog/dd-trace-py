@@ -1,11 +1,13 @@
 import sqlalchemy
 
 from ddtrace import Pin
-from ddtrace.contrib.sqlalchemy import patch, unpatch
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.sqlalchemy import patch
+from ddtrace.contrib.sqlalchemy import unpatch
 
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import POSTGRES_CONFIG
-from ... import TracerTestCase, assert_is_measured
 
 
 class SQLAlchemyPatchTestCase(TracerTestCase):

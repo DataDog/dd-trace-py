@@ -1,10 +1,8 @@
 """
 An API to provide after_in_child fork hooks across all Pythons.
 """
-import functools
 import logging
 import os
-import threading
 
 
 __all__ = [
@@ -15,7 +13,6 @@ __all__ = [
 
 log = logging.getLogger(__name__)
 
-BUILTIN_FORK_HOOKS = hasattr(os, "register_at_fork")
 
 registry = []
 
@@ -36,53 +33,20 @@ def _register(hook):
         registry.append(hook)
 
 
-if BUILTIN_FORK_HOOKS:
+def register(after_in_child):
+    _register(after_in_child)
+    return lambda f: f
 
-    def register(after_in_child):
-        _register(after_in_child)
-        return lambda f: f
 
+if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=ddtrace_after_in_child)
 else:
-    PID = os.getpid()
-    PID_LOCK = threading.Lock()
+    import threading
 
-    def register(after_in_child):
-        """Decorator that registers a function `after_in_child` that will be
-        called in the child process when a fork occurs.
+    _threading_after_fork = threading._after_fork
 
-        Decorator usage::
-            def after_fork():
-                # update fork-sensitive state
-                pass
+    def _after_fork():
+        _threading_after_fork()
+        ddtrace_after_in_child()
 
-            @forksafe.register(after_in_child=after_fork)
-            def fork_sensitive_fn():
-                # after_fork is guaranteed to be called by this point
-                # if a fork occurred and we're in the child.
-                pass
-        """
-        _register(after_in_child)
-
-        def wrapper(func):
-            @functools.wraps(func)
-            def forksafe_func(*args, **kwargs):
-                global PID
-
-                # A lock is required here to ensure that the hooks
-                # are only called once.
-                with PID_LOCK:
-                    pid = os.getpid()
-
-                    # Check the global pid
-                    if pid != PID:
-                        # Call ALL the hooks.
-                        ddtrace_after_in_child()
-                        PID = pid
-                return func(*args, **kwargs)
-
-            # Set a flag to use to perform sanity checks.
-            forksafe_func._is_forksafe = True
-            return forksafe_func
-
-        return wrapper
+    threading._after_fork = _after_fork

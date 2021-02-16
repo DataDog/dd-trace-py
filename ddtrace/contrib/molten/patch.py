@@ -1,18 +1,25 @@
+import molten
+
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-import molten
-
-from ... import Pin, config
+from .. import trace_utils
+from ... import Pin
+from ... import config
 from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool, get_env
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
-from .. import trace_utils
-from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter, MOLTEN_ROUTE
+from .wrappers import MOLTEN_ROUTE
+from .wrappers import WrapperComponent
+from .wrappers import WrapperMiddleware
+from .wrappers import WrapperRenderer
+from .wrappers import WrapperRouter
 
 
 MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split(".")))
@@ -29,8 +36,7 @@ config._add(
 
 
 def patch():
-    """Patch the instrumented methods
-    """
+    """Patch the instrumented methods"""
     if getattr(molten, "_datadog_patch", False):
         return
     setattr(molten, "_datadog_patch", True)
@@ -45,8 +51,7 @@ def patch():
 
 
 def unpatch():
-    """Remove instrumentation
-    """
+    """Remove instrumentation"""
     if getattr(molten, "_datadog_patch", False):
         setattr(molten, "_datadog_patch", False)
 
@@ -61,8 +66,7 @@ def unpatch():
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
-    """Patch wsgi interface for app
-    """
+    """Patch wsgi interface for app"""
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():
@@ -114,28 +118,30 @@ def patch_app_call(wrapped, instance, args, kwargs):
                 # if route never resolve, update root resource
                 span.resource = u"{} {}".format(request.method, code)
 
-            span.set_tag(http.STATUS_CODE, code)
-
-            # mark 5xx spans as error
-            if 500 <= code < 600:
-                span.error = 1
+            trace_utils.set_http_meta(span, config.molten, status_code=code)
 
             return wrapped(*args, **kwargs)
 
         # patching for extracting response code
         start_response = _w_start_response(start_response)
 
-        span.set_tag(http.METHOD, request.method)
-        span.set_tag(http.URL, "%s://%s:%s%s" % (request.scheme, request.host, request.port, request.path,))
-        if config.molten.trace_query_string:
-            span.set_tag(http.QUERY_STRING, urlencode(dict(request.params)))
+        url = "%s://%s:%s%s" % (
+            request.scheme,
+            request.host,
+            request.port,
+            request.path,
+        )
+        query = urlencode(dict(request.params))
+        trace_utils.set_http_meta(
+            span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
+        )
+
         span.set_tag("molten.version", molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
-    """Patch app initialization of middleware, components and renderers
-    """
+    """Patch app initialization of middleware, components and renderers"""
     # allow instance to be initialized before wrapping them
     wrapped(*args, **kwargs)
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: Http404 exceptions will no longer be flagged as errors

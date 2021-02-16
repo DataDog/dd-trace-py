@@ -12,8 +12,8 @@ back to the defaults.
 """
 from __future__ import unicode_literals
 
-import os
 import importlib
+import os
 
 from django.conf import settings as django_settings
 
@@ -194,7 +194,7 @@ def configure_from_settings(pin, config, settings):
         pin.tracer.enabled = settings["ENABLED"]
 
     if "AGENT_HOSTNAME" in settings:
-        pin.tracer.writer.api.hostname = settings["AGENT_HOSTNAME"]
+        pin.tracer.writer._hostname = settings["AGENT_HOSTNAME"]
 
     if "AGENT_PORT" in settings:
-        pin.tracer.writer.api.port = settings["AGENT_PORT"]
+        pin.tracer.writer._port = settings["AGENT_PORT"]

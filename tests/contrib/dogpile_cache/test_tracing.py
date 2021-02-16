@@ -2,9 +2,10 @@ import dogpile
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.dogpile_cache.patch import patch, unpatch
-
+from ddtrace.contrib.dogpile_cache.patch import patch
+from ddtrace.contrib.dogpile_cache.patch import unpatch
 from tests.tracer.test_tracer import get_dummy_tracer
+
 from ... import assert_is_measured
 
 
@@ -79,6 +80,7 @@ def test_traces_get_or_create(tracer, single_cache):
 
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
+    assert span.span_type == "cache"
     assert span.resource == "get_or_create"
     assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
     assert span.meta["hit"] == "False"
@@ -96,6 +98,7 @@ def test_traces_get_or_create(tracer, single_cache):
 
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
+    assert span.span_type == "cache"
     assert span.resource == "get_or_create"
     assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
     assert span.meta["hit"] == "True"
@@ -113,6 +116,8 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     span = spans[0]
 
     assert_is_measured(span)
+    assert span.name == "dogpile.cache"
+    assert span.span_type == "cache"
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|3']"
     )
@@ -129,6 +134,8 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     assert len(spans) == 1
     span = spans[0]
     assert_is_measured(span)
+    assert span.name == "dogpile.cache"
+    assert span.span_type == "cache"
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
@@ -145,6 +152,8 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     assert len(spans) == 1
     span = spans[0]
     assert_is_measured(span)
+    assert span.name == "dogpile.cache"
+    assert span.span_type == "cache"
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )

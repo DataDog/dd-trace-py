@@ -1,15 +1,19 @@
 from functools import partial
-import mock
 import os
 import unittest
 import warnings
 
+import mock
 import pytest
 
 from ddtrace.utils import time
+from ddtrace.utils.deprecation import deprecated
+from ddtrace.utils.deprecation import deprecation
+from ddtrace.utils.deprecation import format_message
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
+from ddtrace.utils.formats import parse_tags_str
 from ddtrace.utils.importlib import func_name
-from ddtrace.utils.deprecation import deprecation, deprecated, format_message
-from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 
 
 class TestUtils(unittest.TestCase):
@@ -65,7 +69,11 @@ class TestUtils(unittest.TestCase):
 
     def test_deprecation_formatter(self):
         # ensure the formatter returns the proper message
-        msg = format_message("deprecated_function", "use something else instead", "1.0.0",)
+        msg = format_message(
+            "deprecated_function",
+            "use something else instead",
+            "1.0.0",
+        )
         expected = (
             "'deprecated_function' is deprecated and will be remove in future versions (1.0.0). "
             "use something else instead"

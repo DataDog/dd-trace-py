@@ -1,16 +1,15 @@
 import os
 import sys
 
+
 try:
     import tracemalloc
 except ImportError:
     tracemalloc = None
 
 import mock
-
 import pytest
 
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
@@ -122,92 +121,6 @@ TEST_EVENTS = {
             nframes=3,
         ),
     ],
-    exceptions.UncaughtExceptionEvent: [
-        exceptions.UncaughtExceptionEvent(
-            timestamp=1,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=ValueError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=2,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 20, "func5"),
-            ],
-            nframes=3,
-            exc_type=ValueError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=3,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=4,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=4,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar2.py", 19, "func5"),
-            ],
-            nframes=6,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=5,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar2.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=6,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 44, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=IOError,
-        ),
-        exceptions.UncaughtExceptionEvent(
-            timestamp=7,
-            thread_id=67892304,
-            thread_name="MainThread",
-            frames=[
-                ("foobar.py", 23, "func1"),
-                ("foobar.py", 49, "func2"),
-                ("foobar.py", 19, "func5"),
-            ],
-            nframes=3,
-            exc_type=IOError,
-        ),
-    ],
     memalloc.MemoryAllocSampleEvent: [
         memalloc.MemoryAllocSampleEvent(
             timestamp=1,
@@ -315,6 +228,107 @@ TEST_EVENTS = {
             capture_pct=100,
             nframes=3,
             nevents=2048,
+        ),
+    ],
+    memalloc.MemoryHeapSampleEvent: [
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=1,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=34,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=2,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 20, "func5"),
+            ],
+            size=99,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=3,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=340,
+            nframes=4,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=4,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            size=44,
+            nframes=6,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=5,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            trace_ids=set([1322219321]),
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar2.py", 19, "func5"),
+            ],
+            size=68,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=6,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 44, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=24,
+            nframes=3,
+            sample_size=512 * 1024,
+        ),
+        memalloc.MemoryHeapSampleEvent(
+            timestamp=7,
+            thread_id=67892304,
+            thread_native_id=123987,
+            thread_name="MainThread",
+            frames=[
+                ("foobar.py", 23, "func1"),
+                ("foobar.py", 49, "func2"),
+                ("foobar.py", 19, "func5"),
+            ],
+            size=12,
+            nframes=3,
+            sample_size=512 * 1024,
         ),
     ],
     stack.StackSampleEvent: [
@@ -753,27 +767,27 @@ sample_type {
 }
 sample_type {
   type: 12
-  unit: 6
+  unit: 8
 }
 sample_type {
   type: 13
-  unit: 8
+  unit: 6
 }
 sample_type {
   type: 14
-  unit: 6
-}
-sample_type {
-  type: 15
   unit: 8
 }
 sample_type {
-  type: 16
+  type: 15
   unit: 6
 }
 sample_type {
-  type: 17
-  unit: 18
+  type: 16
+  unit: 17
+}
+sample_type {
+  type: 18
+  unit: 17
 }
 sample {
   location_id: 1
@@ -785,9 +799,9 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
   value: 100
   value: 169380
+  value: 0
 }
 sample {
   location_id: 2
@@ -799,9 +813,9 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 0
   value: 40
   value: 1920
+  value: 0
 }
 mapping {
   id: 1
@@ -840,7 +854,6 @@ string_table: "count"
 string_table: "cpu-time"
 string_table: "nanoseconds"
 string_table: "wall-time"
-string_table: "uncaught-exceptions"
 string_table: "exception-samples"
 string_table: "lock-acquire"
 string_table: "lock-acquire-wait"
@@ -849,6 +862,7 @@ string_table: "lock-release-hold"
 string_table: "alloc-samples"
 string_table: "alloc-space"
 string_table: "bytes"
+string_table: "heap-space"
 string_table: "time"
 string_table: "bonjour"
 time_nanos: 1

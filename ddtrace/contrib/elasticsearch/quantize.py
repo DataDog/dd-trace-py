@@ -2,6 +2,7 @@ import re
 
 from ...ext import elasticsearch as metadata
 
+
 # Replace any ID
 ID_REGEXP = re.compile(r"/([0-9]+)([/\?]|$)")
 ID_PLACEHOLDER = r"/?\2"

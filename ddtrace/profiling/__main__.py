@@ -1,6 +1,7 @@
 """Main command pyddprofile."""
 import os
 import sys
+import warnings
 
 
 def main():
@@ -17,4 +18,5 @@ def main():
 
 
 if __name__ == "__main__":
+    warnings.warn("pyddprofile is deprecated. Use ddtrace-run instead.", DeprecationWarning)
     main()

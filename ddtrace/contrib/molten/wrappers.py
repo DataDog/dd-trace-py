@@ -1,11 +1,12 @@
-from ddtrace import config
-from ddtrace.vendor import wrapt
 import molten
 
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
+from .. import trace_utils
 from ... import Pin
 from ...utils.importlib import func_name
 
-from .. import trace_utils
 
 MOLTEN_ROUTE = "molten.route"
 
@@ -20,8 +21,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
 
 
 def trace_func(resource):
-    """Trace calls to function using provided resource name
-    """
+    """Trace calls to function using provided resource name"""
 
     @wrapt.function_wrapper
     def _trace_func(wrapped, instance, args, kwargs):
@@ -88,7 +88,10 @@ class WrapperRouter(wrapt.ObjectProxy):
             route.handler = trace_func(func_name(route.handler))(route.handler)
 
             # update root span resource while we know the matched route
-            resource = "{} {}".format(route.method, route.template,)
+            resource = "{} {}".format(
+                route.method,
+                route.template,
+            )
             root_span = pin.tracer.current_root_span()
             root_span.resource = resource
 

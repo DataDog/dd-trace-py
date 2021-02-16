@@ -1,9 +1,11 @@
-import warnings
 import unittest
+import warnings
 
 from celery import Celery
 
-from ddtrace.contrib.celery import patch_task, unpatch_task, unpatch
+from ddtrace.contrib.celery import patch_task
+from ddtrace.contrib.celery import unpatch
+from ddtrace.contrib.celery import unpatch_task
 
 
 class CeleryDeprecatedTaskPatch(unittest.TestCase):

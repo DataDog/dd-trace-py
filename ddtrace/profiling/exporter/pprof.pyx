@@ -3,22 +3,22 @@ import itertools
 import operator
 import sys
 
+
 try:
     import tracemalloc
 except ImportError:
     tracemalloc = None
 
-from ddtrace.vendor import six
-
 from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
-from ddtrace.profiling.collector import exceptions
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof_pb2
+from ddtrace.vendor import attr
+from ddtrace.vendor import six
+
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)
 _ITEMGETTER_ONE = operator.itemgetter(1)
@@ -74,7 +74,9 @@ class _PprofConverter(object):
 
     # A dict where key is a (Location, [Labels]) and value is a a dict.
     # This dict has sample-type (e.g. "cpu-time") as key and the numeric value.
-    _location_values = attr.ib(factory=lambda: collections.defaultdict(dict), init=False, repr=False)
+    _location_values = attr.ib(
+        factory=lambda: collections.defaultdict(lambda: collections.defaultdict(lambda: 0)), init=False, repr=False
+    )
 
     def _to_Function(self, filename, funcname):
         try:
@@ -123,14 +125,6 @@ class _PprofConverter(object):
 
         return tuple(locations)
 
-    def convert_uncaught_exception_event(self, thread_id, thread_name, frames, nframes, exc_type_name, events):
-        location_key = (
-            self._to_locations(frames, nframes),
-            (("thread id", str(thread_id)), ("thread name", thread_name), ("exception type", exc_type_name)),
-        )
-
-        self._location_values[location_key]["uncaught-exceptions"] = len(events)
-
     def convert_stack_event(
         self, thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, samples
     ):
@@ -167,6 +161,18 @@ class _PprofConverter(object):
 
         self._location_values[location_key]["alloc-samples"] = nevents
         self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
+
+    def convert_memalloc_heap_event(self, event):
+        location_key = (
+            self._to_locations(event.frames, event.nframes),
+            (
+                ("thread id", str(event.thread_id)),
+                ("thread native id", str(event.thread_native_id)),
+                ("thread name", event.thread_name),
+            ),
+        )
+
+        self._location_values[location_key]["heap-space"] += event.size
 
     def convert_lock_acquire_event(
         self, lock_name, thread_id, thread_name, trace_id, span_id, frames, nframes, events, sampling_ratio
@@ -299,12 +305,18 @@ class PprofExporter(exporter.Exporter):
             return str(list(sorted(event.span_ids))[0])
         return ""
 
+    @staticmethod
+    def _get_thread_name(thread_id, thread_name):
+        if thread_name is None:
+            return "Anonymous Thread %d" % thread_id
+        return thread_name
+
     def _stack_event_group_key(self, event):
         # If multiple traces were active, we pick only one :(
         return (
             event.thread_id,
             event.thread_native_id,
-            str(event.thread_name),
+            self._get_thread_name(event.thread_id, event.thread_name),
             self._get_trace_id(event),
             self._get_span_id(event),
             tuple(event.frames),
@@ -321,7 +333,7 @@ class PprofExporter(exporter.Exporter):
         return (
             event.lock_name,
             event.thread_id,
-            str(event.thread_name),
+            self._get_thread_name(event.thread_id, event.thread_name),
             self._get_trace_id(event),
             self._get_span_id(event),
             tuple(event.frames),
@@ -340,7 +352,7 @@ class PprofExporter(exporter.Exporter):
         return (
             event.thread_id,
             event.thread_native_id,
-            str(event.thread_name),
+            self._get_thread_name(event.thread_id, event.thread_name),
             self._get_trace_id(event),
             self._get_span_id(event),
             tuple(event.frames),
@@ -354,11 +366,16 @@ class PprofExporter(exporter.Exporter):
             key=self._stack_exception_group_key,
         )
 
-    @staticmethod
-    def _exception_group_key(event):
+    def _exception_group_key(self, event):
         exc_type = event.exc_type
         exc_type_name = exc_type.__module__ + "." + exc_type.__name__
-        return (event.thread_id, str(event.thread_name), tuple(event.frames), event.nframes, exc_type_name)
+        return (
+            event.thread_id,
+            self._get_thread_name(event.thread_id, event.thread_name),
+            tuple(event.frames),
+            event.nframes,
+            exc_type_name,
+        )
 
     def _group_exception_events(self, events):
         return itertools.groupby(
@@ -446,15 +463,6 @@ class PprofExporter(exporter.Exporter):
                         sampling_ratio_avg,
                     )
 
-        # Handle UncaughtExceptionEvent
-        for (
-            (thread_id, thread_name, frames, nframes, exc_type_name),
-            ue_events,
-        ) in self._group_exception_events(events.get(exceptions.UncaughtExceptionEvent, [])):
-            converter.convert_uncaught_exception_event(
-                thread_id, thread_name, frames, nframes, exc_type_name, list(ue_events)
-            )
-
         for (
             (thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, exc_type_name),
             se_events,
@@ -505,6 +513,9 @@ class PprofExporter(exporter.Exporter):
                     list(memalloc_events),
                 )
 
+            for event in events.get(memalloc.MemoryHeapSampleEvent, []):
+                converter.convert_memalloc_heap_event(event)
+
         # Compute some metadata
         if nb_event:
             period = int(sum_period / nb_event)
@@ -517,7 +528,6 @@ class PprofExporter(exporter.Exporter):
             ("cpu-samples", "count"),
             ("cpu-time", "nanoseconds"),
             ("wall-time", "nanoseconds"),
-            ("uncaught-exceptions", "count"),
             ("exception-samples", "count"),
             ("lock-acquire", "count"),
             ("lock-acquire-wait", "nanoseconds"),
@@ -525,6 +535,7 @@ class PprofExporter(exporter.Exporter):
             ("lock-release-hold", "nanoseconds"),
             ("alloc-samples", "count"),
             ("alloc-space", "bytes"),
+            ("heap-space", "bytes"),
         )
 
         return converter._build_profile(

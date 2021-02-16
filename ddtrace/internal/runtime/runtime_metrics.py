@@ -1,20 +1,14 @@
 import itertools
 
-
 from ... import _worker
 from ..logger import get_logger
-from .constants import (
-    DEFAULT_RUNTIME_METRICS,
-    DEFAULT_RUNTIME_TAGS,
-)
-from .metric_collectors import (
-    GCRuntimeMetricCollector,
-    PSUtilRuntimeMetricCollector,
-)
-from .tag_collectors import (
-    PlatformTagCollector,
-    TracerTagCollector,
-)
+from .constants import DEFAULT_RUNTIME_METRICS
+from .constants import DEFAULT_RUNTIME_TAGS
+from .metric_collectors import GCRuntimeMetricCollector
+from .metric_collectors import PSUtilRuntimeMetricCollector
+from .tag_collectors import PlatformTagCollector
+from .tag_collectors import TracerTagCollector
+
 
 log = get_logger(__name__)
 

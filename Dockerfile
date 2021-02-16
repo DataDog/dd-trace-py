@@ -7,6 +7,9 @@ FROM debian:stretch-slim
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
 ENV LANG C.UTF-8
 
+# https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+ENV PYTHONUNBUFFERED=1
+
 RUN \
   # Install system dependencies
   apt-get update \
@@ -62,7 +65,5 @@ RUN \
   # Order matters: first version is the global one
   && pyenv global 3.8.6 2.7.17 3.5.10 3.6.12 3.7.9 3.9.0 \
   && pip install --upgrade pip
-
-RUN pip install tox riot
 
 CMD ["/bin/bash"]

@@ -2,18 +2,27 @@ from importlib import import_module
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .quantize import quantize
-
 from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, elasticsearch as metadata, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import elasticsearch as metadata
+from ...ext import http
 from ...pin import Pin
-from ...utils.wrappers import unwrap as _u
 from ...settings import config
+from ...utils.wrappers import unwrap as _u
+from .quantize import quantize
 
 
 def _es_modules():
-    module_names = ("elasticsearch", "elasticsearch1", "elasticsearch2", "elasticsearch5", "elasticsearch6")
+    module_names = (
+        "elasticsearch",
+        "elasticsearch1",
+        "elasticsearch2",
+        "elasticsearch5",
+        "elasticsearch6",
+        "elasticsearch7",
+    )
     for module_name in module_names:
         try:
             yield import_module(module_name)
@@ -71,7 +80,7 @@ def _get_perform_request(elasticsearch):
             if config.elasticsearch.trace_query_string:
                 span.set_tag(http.QUERY_STRING, encoded_params)
 
-            if method == "GET":
+            if method in ["GET", "POST"]:
                 span.set_tag(metadata.BODY, instance.serializer.dumps(body))
             status = None
 
