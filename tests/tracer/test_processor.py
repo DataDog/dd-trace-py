@@ -2,14 +2,29 @@ import mock
 
 from ddtrace import Span
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.processor import TraceProcessor
+from ddtrace.internal.processor import SpanProcessor
 
 
 def test_no_filters():
-    tp = TraceProcessor([])
-    trace = [Span(None, "span1"), Span(None, "span2")]
-    spans = tp.process(trace)
-    assert spans == trace
+    tp = SpanProcessor(
+        filters=[],
+        partial_flush_enabled=False,
+        partial_flush_min_spans=-1,
+    )
+    s1 = Span(None, "1", trace_id=2)
+    tp.on_span_start(s1)
+
+    s2 = Span(None, "2", trace_id=2)
+    s2._parent = s1
+    tp.on_span_start(s2)
+
+    s2.finish()
+    r = tp.on_span_finish(s2)
+    assert r is None
+
+    s1.finish()
+    r = tp.on_span_finish(s1)
+    assert r == [s1, s2]
 
 
 def test_single_filter():
@@ -17,7 +32,7 @@ def test_single_filter():
         def process_trace(self, trace):
             return None
 
-    tp = TraceProcessor([Filter()])
+    tp = SpanProcessor([Filter()])
     trace = [Span(None, "span1"), Span(None, "span2")]
     spans = tp.process(trace)
     assert spans is None
@@ -28,7 +43,7 @@ def test_multi_filter_none():
         def process_trace(self, trace):
             return None
 
-    tp = TraceProcessor([Filter(), Filter()])
+    tp = SpanProcessor([Filter(), Filter()])
     trace = [Span(None, "span1"), Span(None, "span2")]
     spans = tp.process(trace)
     assert spans is None
@@ -45,7 +60,7 @@ def test_multi_filter_mutate():
             trace[1].set_tag("test", "value2")
             return trace
 
-    tp = TraceProcessor([Filter(), Filter2()])
+    tp = SpanProcessor([Filter(), Filter2()])
     trace = [Span(None, "span1"), Span(None, "span2")]
     spans = tp.process(trace)
 
@@ -59,7 +74,7 @@ def test_filter_error():
 
     f = Filter()
     with mock.patch("ddtrace.internal.processor.log") as log:
-        tp = TraceProcessor([f])
+        tp = SpanProcessor([f])
         trace = [Span(None, "span1"), Span(None, "span2")]
         spans = tp.process(trace)
 
@@ -81,7 +96,7 @@ def test_filter_error_multi():
     f2 = Filter2()
 
     with mock.patch("ddtrace.internal.processor.log") as log:
-        tp = TraceProcessor([f1, f2])
+        tp = SpanProcessor([f1, f2])
         trace = [Span(None, "span1"), Span(None, "span2")]
         spans = tp.process(trace)
 

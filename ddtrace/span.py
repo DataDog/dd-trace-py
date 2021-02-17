@@ -2,6 +2,7 @@ import math
 import sys
 import traceback
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -62,6 +63,7 @@ class Span(object):
         "_context",
         "_parent",
         "_ignored_exceptions",
+        "_on_finish_callbacks",
         "__weakref__",
     ]
 
@@ -77,6 +79,7 @@ class Span(object):
         parent_id=None,  # type: Optional[int]
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
+        on_finish=None,  # type: List[Callable[[Span], None]]
         _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
@@ -119,6 +122,7 @@ class Span(object):
         self.span_id = span_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self.tracer = tracer
+        self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
         self.sampled = True  # type: bool
@@ -202,9 +206,9 @@ class Span(object):
             self.duration_ns = ft - (self.start_ns or ft)
 
         if self._context:
-            trace, sampled = self._context.close_span(self)
-            if self.tracer and trace and sampled:
-                self.tracer.write(trace)
+            self._context.close_span(self)
+        for cb in self._on_finish_callbacks:
+            cb(self)
 
     def set_tag(self, key, value=None):
         # type: (str, Any) -> None

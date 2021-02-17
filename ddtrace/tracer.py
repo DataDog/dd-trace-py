@@ -35,7 +35,7 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.processor import TraceProcessor
+from .internal.processor import SpanProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
@@ -132,9 +132,15 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
             )
         self.writer = writer
-        self.processor = TraceProcessor([])  # type: ignore[call-arg]
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
+        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        self._partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
+        self.processor = SpanProcessor(  # type: ignore[call-arg]
+            filters=[],
+            partial_flush_enabled=self._partial_flush_enabled,
+            partial_flush_min_spans=self._partial_flush_min_spans,
+        )
 
     def _atexit(self):
         # type: () -> None
@@ -223,6 +229,8 @@ class Tracer(object):
         collect_metrics=None,  # type: Optional[bool]
         dogstatsd_url=None,  # type: Optional[str]
         writer=None,  # type: Optional[TraceWriter]
+        partial_flush_enabled=None,  # type: Optional[bool]
+        partial_flush_min_spans=None,  # type: Optional[int]
     ):
         # type: (...) -> None
         """
@@ -254,6 +262,12 @@ class Tracer(object):
             filters = settings.get(FILTERS_KEY)
             if filters is not None:
                 self._filters = filters
+
+        if partial_flush_enabled is not None:
+            self._partial_flush_enabled = partial_flush_enabled
+
+        if partial_flush_min_spans is not None:
+            self._partial_flush_min_spans = partial_flush_min_spans
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
@@ -307,7 +321,11 @@ class Tracer(object):
             report_metrics=config.health_metrics_enabled,
         )
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
+        self.processor = SpanProcessor(  # type: ignore[call-arg]
+            filters=self._filters,
+            partial_flush_enabled=self._partial_flush_enabled,
+            partial_flush_min_spans=self._partial_flush_min_spans,
+        )
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -423,6 +441,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
 
             # Extra attributes when from a local parent
@@ -439,6 +458,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
@@ -507,9 +527,20 @@ class Tracer(object):
             if self._runtime_worker:
                 self._runtime_worker.update_runtime_tags()
 
+        self.processor.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
-
         return span
+
+    def _on_span_finish(self, span):
+        if not self.enabled:
+            return  # nothing to do
+
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("writing span %r", span)
+
+        spans = self.processor.on_span_finish(span)
+        if spans is not None:
+            self.writer.write(spans=spans)
 
     def _start_runtime_worker(self):
         if not self._dogstatsd_url:
@@ -651,27 +682,6 @@ class Tracer(object):
         if ctx:
             return ctx.get_current_span()
         return None
-
-    def write(self, spans):
-        # type: (Optional[List[Span]]) -> None
-        """
-        Send the trace to the writer to enqueue the spans list in the agent
-        sending queue.
-        """
-        if not spans:
-            return  # nothing to do
-
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
-            for span in spans:
-                self.log.debug("\n%s", span.pprint())
-
-        if not self.enabled:
-            return
-
-        spans = self.processor.process(spans)
-        if spans is not None:
-            self.writer.write(spans=spans)
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
     def set_service_info(self, *args, **kwargs):
