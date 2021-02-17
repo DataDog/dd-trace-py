@@ -90,7 +90,7 @@ below:
        reply.
    * - ``DD_PROFILING_MAX_TIME_USAGE_PCT``
      - Float
-     - 2
+     - 1
      - The percentage of maximum time the stack profiler can use when computing
        statistics. Must be greater than 0 and lesser or equal to 100.
    * - ``DD_PROFILING_MAX_FRAMES``

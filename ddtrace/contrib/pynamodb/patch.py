@@ -2,17 +2,19 @@
 Trace queries to botocore api done via a pynamodb client
 """
 
-from ddtrace.vendor import wrapt
-from ddtrace import config
 import pynamodb.connection.base
 
+from ddtrace import config
+from ddtrace.vendor import wrapt
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...pin import Pin
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...pin import Pin
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
-from .. import trace_utils
+
 
 # Pynamodb connection class
 _PynamoDB_client = pynamodb.connection.base.Connection

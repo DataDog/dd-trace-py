@@ -4,14 +4,19 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 
-from .compat import iteritems, pattern_type
+from .compat import iteritems
+from .compat import pattern_type
 from .constants import ENV_KEY
-from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING_LIMIT_DECISION
-from .ext.priority import AUTO_KEEP, AUTO_REJECT
+from .constants import SAMPLING_AGENT_DECISION
+from .constants import SAMPLING_LIMIT_DECISION
+from .constants import SAMPLING_RULE_DECISION
+from .ext.priority import AUTO_KEEP
+from .ext.priority import AUTO_REJECT
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .utils.formats import get_env
 from .vendor import six
+
 
 log = get_logger(__name__)
 

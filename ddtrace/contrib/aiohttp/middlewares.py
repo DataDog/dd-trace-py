@@ -1,12 +1,14 @@
 import asyncio
 
-from ..asyncio import context_provider
+from .. import trace_utils
 from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
-from .. import trace_utils
+from ..asyncio import context_provider
 
 
 CONFIG_KEY = "datadog_trace"

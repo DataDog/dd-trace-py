@@ -8,8 +8,8 @@ import weakref
 
 from ddtrace import compat
 from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
 from ddtrace.profiling import _nogevent
+from ddtrace.profiling import _periodic
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
@@ -47,8 +47,10 @@ else:
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
 
-    from posix.time cimport timespec, clock_gettime
+    from posix.time cimport clock_gettime
+    from posix.time cimport timespec
     from posix.types cimport clockid_t
+
     from cpython.exc cimport PyErr_SetFromErrno
 
     cdef extern from "<pthread.h>":
@@ -165,20 +167,21 @@ class StackExceptionSampleEvent(event.StackBasedEvent):
 
 from cpython.object cimport PyObject
 
+
 # The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
 IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
     FEATURES['stack-exceptions'] = True
 
     from cpython cimport PyInterpreterState
-    from cpython cimport PyInterpreterState_Head, PyInterpreterState_Next
-    from cpython cimport PyInterpreterState_ThreadHead, PyThreadState_Next
-
-    from cpython.pythread cimport (
-        PyThread_acquire_lock, PyThread_release_lock,
-        WAIT_LOCK,
-        PyThread_type_lock,
-        PY_LOCK_ACQUIRED
-    )
+    from cpython cimport PyInterpreterState_Head
+    from cpython cimport PyInterpreterState_Next
+    from cpython cimport PyInterpreterState_ThreadHead
+    from cpython cimport PyThreadState_Next
+    from cpython.pythread cimport PY_LOCK_ACQUIRED
+    from cpython.pythread cimport PyThread_acquire_lock
+    from cpython.pythread cimport PyThread_release_lock
+    from cpython.pythread cimport PyThread_type_lock
+    from cpython.pythread cimport WAIT_LOCK
 
     cdef extern from "<Python.h>":
         # This one is provided as an opaque struct from Cython's cpython/pystate.pxd,
@@ -458,7 +461,7 @@ class StackCollector(collector.PeriodicCollector):
     # no matter how fast the computer is.
     min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
+    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
     tracer = attr.ib(default=None)

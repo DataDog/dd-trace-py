@@ -7,21 +7,32 @@ import multiprocessing
 import os
 from os import getpid
 import threading
-import warnings
 from unittest.case import SkipTest
+import warnings
 
 import mock
 import pytest
 
 import ddtrace
-from ddtrace.ext import system
+from ddtrace.constants import ENV_KEY
+from ddtrace.constants import HOSTNAME_KEY
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
-from ddtrace.constants import VERSION_KEY, ENV_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from ddtrace.ext import priority
+from ddtrace.ext import system
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import LogWriter
+from ddtrace.tracer import Tracer
 from ddtrace.vendor import six
-
+from tests import DummyTracer
+from tests import DummyWriter
+from tests import TracerTestCase
+from tests import override_global_config
 from tests.subprocesstest import run_in_subprocess
-from tests import TracerTestCase, DummyWriter, DummyTracer, override_global_config
-from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
 def get_dummy_tracer():
@@ -1397,7 +1408,7 @@ def test_ctx_distributed():
     assert len(trace) == 1
 
     # Test activating a valid context.
-    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, _dd_origin="somewhere")
+    ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     tracer.context_provider.activate(ctx)
     assert tracer.current_span() is None
 
@@ -1412,3 +1423,106 @@ def test_ctx_distributed():
     assert len(trace) == 1
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
+
+
+def test_manual_keep():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    # On a root span
+    with tracer.trace("asdf") as s:
+        s.set_tag(MANUAL_KEEP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+
+    # On a child span
+    with tracer.trace("asdf"):
+        with tracer.trace("child") as s:
+            s.set_tag(MANUAL_KEEP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+
+
+def test_manual_keep_then_drop():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    # Test changing the value before finish.
+    with tracer.trace("asdf") as root:
+        with tracer.trace("child") as child:
+            child.set_tag(MANUAL_KEEP_KEY)
+        root.set_tag(MANUAL_DROP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+
+
+def test_manual_drop():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    # On a root span
+    with tracer.trace("asdf") as s:
+        s.set_tag(MANUAL_DROP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+
+    # On a child span
+    with tracer.trace("asdf"):
+        with tracer.trace("child") as s:
+            s.set_tag(MANUAL_DROP_KEY)
+    spans = tracer.writer.pop()
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_enabled(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=True)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) == "test-hostname"
+    assert child.get_tag(HOSTNAME_KEY) is None
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_disabled(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=False)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) is None
+    assert child.get_tag(HOSTNAME_KEY) is None
+
+
+@mock.patch("ddtrace.internal.hostname.get_hostname")
+def test_get_report_hostname_default(get_hostname):
+    get_hostname.return_value = "test-hostname"
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+
+    with override_global_config(dict(report_hostname=False)):
+        with tracer.trace("span"):
+            with tracer.trace("child"):
+                pass
+
+    spans = tracer.writer.pop()
+    root = spans[0]
+    child = spans[1]
+    assert root.get_tag(HOSTNAME_KEY) is None
+    assert child.get_tag(HOSTNAME_KEY) is None

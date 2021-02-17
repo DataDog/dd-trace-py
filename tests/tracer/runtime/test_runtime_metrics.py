@@ -3,14 +3,14 @@ import time
 import mock
 
 from ddtrace.ext import SpanTypes
-
-from ddtrace.internal.runtime.runtime_metrics import (
-    RuntimeTags,
-    RuntimeMetrics,
-)
-from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS, GC_COUNT_GEN0, SERVICE, ENV
-
-from tests import TracerTestCase, BaseTestCase
+from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import ENV
+from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
+from ddtrace.internal.runtime.constants import SERVICE
+from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
+from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+from tests import BaseTestCase
+from tests import TracerTestCase
 
 
 class TestRuntimeTags(TracerTestCase):

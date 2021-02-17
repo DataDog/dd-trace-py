@@ -1,19 +1,20 @@
 import os
 
-from .trace import trace_pyramid, DD_TWEEN_NAME
-from .constants import (
-    SETTINGS_SERVICE,
-    SETTINGS_DISTRIBUTED_TRACING,
-    SETTINGS_ANALYTICS_ENABLED,
-    SETTINGS_ANALYTICS_SAMPLE_RATE,
-)
-from ...utils.formats import asbool, get_env
-
 import pyramid.config
 from pyramid.path import caller_package
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
+
+from ...utils.formats import asbool
+from ...utils.formats import get_env
+from .constants import SETTINGS_ANALYTICS_ENABLED
+from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
+from .constants import SETTINGS_DISTRIBUTED_TRACING
+from .constants import SETTINGS_SERVICE
+from .trace import DD_TWEEN_NAME
+from .trace import trace_pyramid
+
 
 DD_PATCH = "_datadog_patch"
 

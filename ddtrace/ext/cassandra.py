@@ -1,5 +1,6 @@
 from . import SpanTypes
 
+
 # [TODO] Deprecated, remove when we remove AppTypes
 # the type of the spans
 TYPE = SpanTypes.CASSANDRA

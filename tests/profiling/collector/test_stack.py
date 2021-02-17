@@ -6,17 +6,17 @@ import timeit
 
 import pytest
 
-from ddtrace.vendor import six
-
 from ddtrace.profiling import _nogevent
+from ddtrace.profiling import _service
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
-from ddtrace.profiling import _service
-from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import _threading
+from ddtrace.profiling.collector import stack
+from ddtrace.vendor import six
 
 from . import test_collector
+
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
@@ -161,16 +161,19 @@ def test_ignore_profiler_gevent_task(profiler):
     # sure to catch it with the StackProfiler and that it's ignored.
     c = CollectorTest(profiler._profiler._recorder, interval=0.00001)
     c.start()
-    events = profiler._profiler._recorder.events[stack.StackSampleEvent]
     collector_thread_ids = {
         col._worker.ident
         for col in profiler._profiler._collectors
         if (isinstance(col, collector.PeriodicCollector) and col.status == _service.ServiceStatus.RUNNING)
     }
     collector_thread_ids.add(c._worker.ident)
-    time.sleep(3)
+    while True:
+        events = profiler._profiler._recorder.reset()
+        if collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]}):
+            break
+        # Give some time for gevent to switch greenlets
+        time.sleep(0.1)
     c.stop()
-    assert collector_thread_ids.isdisjoint({e.task_id for e in events})
 
 
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
@@ -180,14 +183,18 @@ def test_not_ignore_profiler_gevent_task(monkeypatch):
     p = profiler.Profiler()
     p.start()
     # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
-    # sure to catch it with the StackProfiler and that it's ignored.
+    # sure to catch it with the StackProfiler and that it's not ignored.
     c = CollectorTest(p._profiler._recorder, interval=0.00001)
     c.start()
-    events = p._profiler._recorder.events[stack.StackSampleEvent]
-    time.sleep(3)
+    # Wait forever and stop when we finally find an event with our collector task id
+    while True:
+        events = p._profiler._recorder.reset()
+        if c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}:
+            break
+        # Give some time for gevent to switch greenlets
+        time.sleep(0.1)
     c.stop()
-    p.stop()
-    assert c._worker.ident in {e.task_id for e in events}
+    p.stop(flush=False)
 
 
 def test_collect():
@@ -202,14 +209,14 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
 
 def test_new_interval():
     r = recorder.Recorder()
-    c = stack.StackCollector(r)
+    c = stack.StackCollector(r, max_time_usage_pct=2)
     new_interval = c._compute_new_interval(1000000)
     assert new_interval == 0.049
     new_interval = c._compute_new_interval(2000000)
@@ -333,7 +340,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == _nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 327, "test_exception_collection")]
+    assert e.frames == [(__file__, 334, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 

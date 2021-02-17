@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
-import time
 import re
-from flask import make_response
-
+import time
 from unittest import TestCase
 
-from ddtrace.contrib.flask import TraceMiddleware
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.ext import http, errors
-from ddtrace import config
+from flask import make_response
 
+from ddtrace import config
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.flask import TraceMiddleware
+from ddtrace.ext import errors
+from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
-from .web import create_app
 from tests.tracer.test_tracer import get_dummy_tracer
+
 from ... import assert_span_http_status_code
+from .web import create_app
 
 
 class TestFlask(TestCase):

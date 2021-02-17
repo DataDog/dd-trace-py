@@ -36,6 +36,7 @@ Configuration
 """
 from ...utils.importlib import require_modules
 
+
 required_modules = ["molten"]
 
 with require_modules(required_modules) as missing_modules:

@@ -4,13 +4,14 @@ import asyncio
 # 3p
 import aiopg
 
-# project
-from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
-
+# project
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])

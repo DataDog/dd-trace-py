@@ -1,5 +1,4 @@
 import asyncio
-
 from functools import wraps
 
 from ddtrace.contrib.asyncio import context_provider

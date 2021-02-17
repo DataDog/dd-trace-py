@@ -1,28 +1,33 @@
-# Standard library
 import contextlib
 import sys
 
-# Third party
-from ddtrace.vendor import wrapt
 import pytest
 
-# Project
 from ddtrace import config
-from ddtrace.compat import httplib, PY2
+from ddtrace.compat import PY2
+from ddtrace.compat import httplib
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.httplib import patch, unpatch
+from ddtrace.contrib.httplib import patch
+from ddtrace.contrib.httplib import unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.ext import http
 from ddtrace.pin import Pin
-
+from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 
-from ... import TracerTestCase, assert_span_http_status_code, override_global_tracer
+from ... import TracerTestCase
+from ... import assert_span_http_status_code
+from ... import override_global_tracer
+
 
 if PY2:
-    from urllib2 import urlopen, build_opener, Request
+    from urllib2 import Request
+    from urllib2 import build_opener
+    from urllib2 import urlopen
 else:
-    from urllib.request import urlopen, build_opener, Request
+    from urllib.request import Request
+    from urllib.request import build_opener
+    from urllib.request import urlopen
 
 
 # socket name comes from https://english.stackexchange.com/a/44048

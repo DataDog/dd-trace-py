@@ -1,13 +1,14 @@
 # 3p
 import MySQLdb
 
+# project
+from ddtrace import Pin
+from ddtrace import config
+from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-# project
-from ddtrace import config, Pin
-from ddtrace.contrib.dbapi import TracedConnection
-
-from ...ext import net, db
+from ...ext import db
+from ...ext import net
 from ...utils.wrappers import unwrap as _u
 
 

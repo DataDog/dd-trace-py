@@ -1,16 +1,18 @@
 import logging
-import mock
 import threading
 
+import mock
 import pytest
 
-from ddtrace.span import Span
 from ddtrace.context import Context
-from ddtrace.constants import HOSTNAME_KEY
-from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
+from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.ext.priority import USER_KEEP
+from ddtrace.ext.priority import USER_REJECT
+from ddtrace.span import Span
+from tests import BaseTestCase
 
 from .test_tracer import get_dummy_tracer
-from tests import BaseTestCase
 
 
 @pytest.fixture
@@ -109,55 +111,6 @@ class TestTracingContext(BaseTestCase):
         assert 0 == len(ctx._trace)
         assert ctx._current_span is None
 
-    @mock.patch("ddtrace.internal.hostname.get_hostname")
-    def test_get_report_hostname_enabled(self, get_hostname):
-        get_hostname.return_value = "test-hostname"
-
-        with self.override_global_config(dict(report_hostname=True)):
-            # Create a context and add a span and finish it
-            ctx = Context()
-            span = Span(tracer=None, name="fake_span")
-            ctx.add_span(span)
-            span.finish()
-            assert span.get_tag(HOSTNAME_KEY) == "test-hostname"
-
-    @mock.patch("ddtrace.internal.hostname.get_hostname")
-    def test_get_report_hostname_disabled(self, get_hostname):
-        get_hostname.return_value = "test-hostname"
-
-        with self.override_global_config(dict(report_hostname=False)):
-            # Create a context and add a span and finish it
-            ctx = Context()
-            span = Span(tracer=None, name="fake_span")
-            ctx.add_span(span)
-            span.finished = True
-
-            # Assert that we have not added the tag to the span yet
-            assert span.get_tag(HOSTNAME_KEY) is None
-
-            # Assert that retrieving the trace does not set the tag
-            trace, _ = ctx.close_span(span)
-            assert trace[0].get_tag(HOSTNAME_KEY) is None
-            assert span.get_tag(HOSTNAME_KEY) is None
-
-    @mock.patch("ddtrace.internal.hostname.get_hostname")
-    def test_get_report_hostname_default(self, get_hostname):
-        get_hostname.return_value = "test-hostname"
-
-        # Create a context and add a span and finish it
-        ctx = Context()
-        span = Span(tracer=None, name="fake_span")
-        ctx.add_span(span)
-        span.finished = True
-
-        # Assert that we have not added the tag to the span yet
-        assert span.get_tag(HOSTNAME_KEY) is None
-
-        # Assert that retrieving the trace does not set the tag
-        trace, _ = ctx.close_span(span)
-        assert trace[0].get_tag(HOSTNAME_KEY) is None
-        assert span.get_tag(HOSTNAME_KEY) is None
-
     def test_finished(self):
         # a Context is finished if all spans inside are finished
         ctx = Context()
@@ -237,6 +190,6 @@ class TestTracingContext(BaseTestCase):
         assert cloned_ctx._parent_trace_id == ctx._parent_trace_id
         assert cloned_ctx._parent_span_id == ctx._parent_span_id
         assert cloned_ctx._sampling_priority == ctx._sampling_priority
-        assert cloned_ctx._dd_origin == ctx._dd_origin
+        assert cloned_ctx.dd_origin == ctx.dd_origin
         assert cloned_ctx._current_span == ctx._current_span
         assert cloned_ctx._trace == []

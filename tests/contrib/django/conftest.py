@@ -1,4 +1,5 @@
 import os
+
 import django
 from django.conf import settings
 import pytest
@@ -6,7 +7,9 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.django import patch
 
-from ... import DummyTracer, TracerSpanContainer
+from ... import DummyTracer
+from ... import TracerSpanContainer
+
 
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`

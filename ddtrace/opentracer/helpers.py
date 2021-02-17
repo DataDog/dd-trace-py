@@ -1,5 +1,7 @@
 import opentracing
+
 import ddtrace
+
 
 """
 Helper routines for Datadog OpenTracing.

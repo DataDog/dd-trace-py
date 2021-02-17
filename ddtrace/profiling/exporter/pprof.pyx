@@ -3,21 +3,22 @@ import itertools
 import operator
 import sys
 
+
 try:
     import tracemalloc
 except ImportError:
     tracemalloc = None
 
-from ddtrace.vendor import six
-
 from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof_pb2
+from ddtrace.vendor import attr
+from ddtrace.vendor import six
+
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)
 _ITEMGETTER_ONE = operator.itemgetter(1)
@@ -73,7 +74,9 @@ class _PprofConverter(object):
 
     # A dict where key is a (Location, [Labels]) and value is a a dict.
     # This dict has sample-type (e.g. "cpu-time") as key and the numeric value.
-    _location_values = attr.ib(factory=lambda: collections.defaultdict(dict), init=False, repr=False)
+    _location_values = attr.ib(
+        factory=lambda: collections.defaultdict(lambda: collections.defaultdict(lambda: 0)), init=False, repr=False
+    )
 
     def _to_Function(self, filename, funcname):
         try:
@@ -158,6 +161,18 @@ class _PprofConverter(object):
 
         self._location_values[location_key]["alloc-samples"] = nevents
         self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
+
+    def convert_memalloc_heap_event(self, event):
+        location_key = (
+            self._to_locations(event.frames, event.nframes),
+            (
+                ("thread id", str(event.thread_id)),
+                ("thread native id", str(event.thread_native_id)),
+                ("thread name", event.thread_name),
+            ),
+        )
+
+        self._location_values[location_key]["heap-space"] += event.size
 
     def convert_lock_acquire_event(
         self, lock_name, thread_id, thread_name, trace_id, span_id, frames, nframes, events, sampling_ratio
@@ -498,6 +513,9 @@ class PprofExporter(exporter.Exporter):
                     list(memalloc_events),
                 )
 
+            for event in events.get(memalloc.MemoryHeapSampleEvent, []):
+                converter.convert_memalloc_heap_event(event)
+
         # Compute some metadata
         if nb_event:
             period = int(sum_period / nb_event)
@@ -517,6 +535,7 @@ class PprofExporter(exporter.Exporter):
             ("lock-release-hold", "nanoseconds"),
             ("alloc-samples", "count"),
             ("alloc-space", "bytes"),
+            ("heap-space", "bytes"),
         )
 
         return converter._build_profile(

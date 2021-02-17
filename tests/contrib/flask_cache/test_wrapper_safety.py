@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 import unittest
 
+# 3rd party
+from flask import Flask
+import pytest
+from redis.exceptions import ConnectionError
+
+from ddtrace.contrib.flask_cache import get_traced_cache
+from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 # project
 from ddtrace.ext import net
 from ddtrace.tracer import Tracer
-from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
-
-# 3rd party
-from flask import Flask
-from redis.exceptions import ConnectionError
-import pytest
-
 # testing
 from tests import DummyWriter
 

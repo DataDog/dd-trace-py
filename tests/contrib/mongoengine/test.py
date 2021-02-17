@@ -1,21 +1,19 @@
-# stdib
 import time
 
-# 3p
 import mongoengine
 import pymongo
 
-# project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.mongoengine.patch import patch, unpatch
+from ddtrace.contrib.mongoengine.patch import patch
+from ddtrace.contrib.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
-
-# testing
 from tests.opentracer.utils import init_tracer
-from ..config import MONGO_CONFIG
-from ... import TracerTestCase, assert_is_measured
 from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ..config import MONGO_CONFIG
 
 
 class Artist(mongoengine.Document):

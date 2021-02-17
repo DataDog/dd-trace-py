@@ -1,10 +1,11 @@
 import threading
 
-from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .constants import ORIGIN_KEY
+from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
-from .internal import hostname
-from .settings import config
-from .utils.formats import asbool, get_env
+from .utils.formats import asbool
+from .utils.formats import get_env
+
 
 log = get_logger(__name__)
 
@@ -28,7 +29,7 @@ class Context(object):
     _partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
     _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
-    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
+    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -43,7 +44,7 @@ class Context(object):
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
         self._sampling_priority = sampling_priority
-        self._dd_origin = _dd_origin
+        self.dd_origin = dd_origin
 
     @property
     def trace_id(self):
@@ -149,15 +150,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                origin = self._dd_origin
+                origin = self.dd_origin
                 # attach the origin to the root span tag
                 if sampled and origin is not None and trace:
                     trace[0].meta[ORIGIN_KEY] = str(origin)
-
-                # Set hostname tag if they requested it
-                if config.report_hostname:
-                    # DEV: `get_hostname()` value is cached
-                    trace[0].meta[HOSTNAME_KEY] = hostname.get_hostname()
 
                 # clean the current state
                 self._trace = []
@@ -176,15 +172,10 @@ class Context(object):
                     # attach the sampling priority to the context root span
                     if sampled and sampling_priority is not None and trace:
                         trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                    origin = self._dd_origin
+                    origin = self.dd_origin
                     # attach the origin to the root span tag
                     if sampled and origin is not None and trace:
                         trace[0].meta[ORIGIN_KEY] = str(origin)
-
-                    # Set hostname tag if they requested it
-                    if config.report_hostname:
-                        # DEV: `get_hostname()` value is cached
-                        trace[0].meta[HOSTNAME_KEY] = hostname.get_hostname()
 
                     self._finished_spans = 0
 

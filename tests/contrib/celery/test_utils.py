@@ -1,12 +1,10 @@
 import gc
 
-from ddtrace.contrib.celery.utils import (
-    tags_from_context,
-    retrieve_task_id,
-    attach_span,
-    detach_span,
-    retrieve_span,
-)
+from ddtrace.contrib.celery.utils import attach_span
+from ddtrace.contrib.celery.utils import detach_span
+from ddtrace.contrib.celery.utils import retrieve_span
+from ddtrace.contrib.celery.utils import retrieve_task_id
+from ddtrace.contrib.celery.utils import tags_from_context
 
 from .base import CeleryBaseTestCase
 

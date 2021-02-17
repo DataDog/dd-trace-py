@@ -1,6 +1,6 @@
 import mock
-from ddtrace.internal.runtime.collector import ValueCollector
 
+from ddtrace.internal.runtime.collector import ValueCollector
 from tests import BaseTestCase
 
 
