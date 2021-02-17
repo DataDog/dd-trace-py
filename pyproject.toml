@@ -21,7 +21,7 @@ include = '''\.py[ix]?$'''
 exclude = '''
 (
   .venv*
-  | .riot
+  | \.riot/
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/profiling/collector/_traceback.pyx$
