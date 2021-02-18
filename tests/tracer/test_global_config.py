@@ -279,12 +279,6 @@ class GlobalConfigTestCase(TestCase):
         c = Config()
         assert c.service_mapping == {}
 
-        with override_env(dict(DD_SERVICE_MAPPING="foobar : bar , snafu : foo")):
+        with override_env(dict(DD_SERVICE_MAPPING="foobar:bar,snafu:foo")):
             c = Config()
             assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}
-
-        with override_env(dict(DD_SERVICE_MAPPING="foobar : bar ; snafu : foo")), pytest.raises(ValueError):
-            Config()
-
-        with override_env(dict(DD_SERVICE_MAPPING="foobar ; bar , snafu : foo")), pytest.raises(ValueError):
-            Config()
