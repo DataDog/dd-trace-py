@@ -28,6 +28,12 @@ log = get_logger(__name__)
 DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
+# The window size should be chosen so that the look-back period is
+# greater-equal to the agent API's timeout. Although most tracers have a
+# 2s timeout, the java tracer has a 10s timeout, so we set the window size
+# to 10 buckets of 1s duration.
+DEFAULT_SMA_WINDOW = 10
+
 
 def _human_size(nbytes):
     """Return a human-readable size."""
@@ -133,7 +139,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()
-        self._drop_sma = SimpleMovingAverage()
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
