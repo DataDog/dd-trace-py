@@ -840,7 +840,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token
 
-        parsed = parse.urlparse(tracer.writer.api.url)
+        parsed = parse.urlparse(tracer.writer.agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         try:
             # clear queue in case traces have been generated before test case is

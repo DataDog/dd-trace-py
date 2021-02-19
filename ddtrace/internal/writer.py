@@ -135,6 +135,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
 
+        # TODO: remove these attributes
+        self._parsed_url = compat.parse.urlparse(agent_url)
+        self._hostname = self._parsed_url.hostname
+        self._uds_path = agent_url if self._parsed_url.scheme == "unix" else None
+        self._https = self._parsed_url.scheme == "https"
+
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
         if tags:

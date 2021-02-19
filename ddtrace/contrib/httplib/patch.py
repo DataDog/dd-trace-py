@@ -166,7 +166,7 @@ def should_skip_request(pin, request):
         return True
 
     parsed = parse.urlparse(pin.tracer.writer.agent_url)
-    return request.host == parsed.host and request.port == parsed.port
+    return request.host == parsed.hostname and request.port == parsed.port
 
 
 def patch():
