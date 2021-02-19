@@ -2,12 +2,13 @@
 import os
 import re
 import signal
-import subprocess
 import sys
 import tempfile
 import time
 
 import pytest
+
+from tests.contrib.uwsgi import run_uwsgi
 
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
@@ -19,21 +20,8 @@ def uwsgi():
     socket_name = tempfile.mktemp()
     cmd = ["uwsgi", "--need-app", "--die-on-term", "--socket", socket_name, "--wsgi-file", uwsgi_app]
 
-    def _run_uwsgi(*args):
-        env = os.environ.copy()
-        if sys.version_info[0] == 2:
-            # On Python 2, it's impossible to import uwsgidecorators without this hack
-            env["PYTHONPATH"] = os.path.join(
-                os.environ.get("VIRTUAL_ENV", ""),
-                "lib",
-                "python%s.%s" % (sys.version_info[0], sys.version_info[1]),
-                "site-packages",
-            )
-
-        return subprocess.Popen(cmd + list(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-
     try:
-        yield _run_uwsgi
+        yield run_uwsgi(cmd)
     finally:
         os.unlink(socket_name)
 

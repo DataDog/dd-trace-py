@@ -32,12 +32,6 @@ class DummyOutput:
         pass
 
 
-class FailingAPI(object):
-    @staticmethod
-    def send_traces(traces):
-        return [Exception("oops")]
-
-
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
