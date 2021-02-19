@@ -124,7 +124,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        parsed = parse.urlparse(self.tracer.writer.url)
+        parsed = parse.urlparse(self.tracer.writer.agent_url)
         request = self.get_http_connection(parsed.hostname, parsed.port)
 
         pin = Pin.get_from(request)

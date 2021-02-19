@@ -325,7 +325,7 @@ class Tracer(object):
             elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
                 # Preserve hostname and port when overriding priority sampling
                 # This is clumsy and a good reason to get rid of this configure() API
-                url = self.writer.url
+                url = self.writer.agent_url
             else:
                 url = self.DEFAULT_AGENT_URL
 
