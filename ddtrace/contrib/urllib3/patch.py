@@ -1,11 +1,12 @@
 import urllib3
 
-import ddtrace
 from ddtrace import config
 from ddtrace.http import store_request_headers
 from ddtrace.http import store_response_headers
+from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from .. import trace_utils
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
@@ -40,7 +41,12 @@ def patch():
         return
     setattr(urllib3, "__datadog_patch", True)
 
+    pin = Pin(service="urllib3")
+
+    from urllib3.connectionpool import HTTPConnectionPool
+
     _w("urllib3.connectionpool", "HTTPConnectionPool.urlopen", _wrap_urlopen)
+    pin.onto(HTTPConnectionPool)
 
 
 def unpatch():
@@ -100,12 +106,12 @@ def _infer_argument_value(args, kwargs, pos, kw, default=None):
     return default
 
 
-def _wrap_urlopen(func, obj, args, kwargs):
+def _wrap_urlopen(func, instance, args, kwargs):
     """
     Wrapper function for the lower-level urlopen in urllib3
 
     :param func: The original target function "urlopen"
-    :param obj: The patched instance of ``HTTPConnectionPool``
+    :param instance: The patched instance of ``HTTPConnectionPool``
     :param args: Positional arguments from the target function
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
@@ -119,8 +125,10 @@ def _wrap_urlopen(func, obj, args, kwargs):
     if request_url.startswith("/"):
         request_url = parse.urlunparse(
             (
-                obj.scheme,
-                "{}:{}".format(obj.host, obj.port) if obj.port and obj.port not in DROP_PORTS else str(obj.host),
+                instance.scheme,
+                "{}:{}".format(instance.host, instance.port)
+                if instance.port and instance.port not in DROP_PORTS
+                else str(instance.host),
                 request_url,
                 None,
                 None,
@@ -132,12 +140,13 @@ def _wrap_urlopen(func, obj, args, kwargs):
     hostname = parsed_uri.netloc
     sanitized_url = sanitize_url_for_tag(request_url)
 
-    tracer = getattr(obj, "datadog_tracer", ddtrace.tracer)
-
-    if not tracer.enabled:
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with tracer.trace("urllib3.request", span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace(
+        "urllib3.request", service=trace_utils.int_service(pin, config.urllib3), span_type=SpanTypes.HTTP
+    ) as span:
 
         span.service = _extract_service_name(span, hostname, config.urllib3["split_by_domain"])
 
@@ -155,7 +164,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
         if config.urllib3["trace_query_string"]:
             span.set_tag(http.QUERY_STRING, parsed_uri.query)
         if config.urllib3["analytics_enabled"]:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3["analytics_sample_rate"])
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
         if isinstance(request_retries, urllib3.util.retry.Retry):
             span.set_tag(http.RETRIES_REMAIN, str(request_retries.total))
 

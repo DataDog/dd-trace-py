@@ -927,8 +927,8 @@ jobs:
       - *httpbin_local
     resource_class: *resource_class
     steps:
-      - run_tox_scenario:
-          pattern: '^urllib3_contrib-'
+      - run_test:
+          pattern: 'urllib3'
 
   vertica:
     <<: *contrib_job
@@ -1107,6 +1107,7 @@ requires_tests: &requires_tests
     - test_logging
     - tracer
     - tornado
+    - urllib3
     - vertica
     - wsgi
     - build-docker-ci-image

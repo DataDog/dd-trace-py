@@ -8,6 +8,7 @@ from ddtrace.contrib.urllib3 import patch
 from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import errors
 from ddtrace.ext import http
+from ddtrace.pin import Pin
 from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
 
@@ -23,9 +24,10 @@ class BaseUrllib3TestCase(TracerTestCase):
 
     def setUp(self):
         super(BaseUrllib3TestCase, self).setUp()
+
         patch()
         self.http = urllib3.PoolManager()
-        setattr(urllib3.connectionpool.HTTPConnectionPool, "datadog_tracer", self.tracer)
+        Pin.override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseUrllib3TestCase, self).tearDown()

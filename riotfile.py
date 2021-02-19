@@ -478,5 +478,11 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="urllib3",
+            pys=select_pys(max_version=3.7),
+            pkgs={"urllib3": [">=1.22,<1.26"]},
+            command="pytest {cmdargs} tests/contrib/urllib3",
+        ),
     ],
 )
