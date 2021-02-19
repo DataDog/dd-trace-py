@@ -1,7 +1,7 @@
-import ddtrace
 import opentracing
 from opentracing import Format
 
+import ddtrace
 from ddtrace.opentracer.span_context import SpanContext
 
 

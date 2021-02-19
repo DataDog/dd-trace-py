@@ -1,18 +1,16 @@
 import os
 
 from .collector import ValueCollector
-from .constants import (
-    GC_COUNT_GEN0,
-    GC_COUNT_GEN1,
-    GC_COUNT_GEN2,
-    THREAD_COUNT,
-    MEM_RSS,
-    CTX_SWITCH_VOLUNTARY,
-    CTX_SWITCH_INVOLUNTARY,
-    CPU_TIME_SYS,
-    CPU_TIME_USER,
-    CPU_PERCENT,
-)
+from .constants import CPU_PERCENT
+from .constants import CPU_TIME_SYS
+from .constants import CPU_TIME_USER
+from .constants import CTX_SWITCH_INVOLUNTARY
+from .constants import CTX_SWITCH_VOLUNTARY
+from .constants import GC_COUNT_GEN0
+from .constants import GC_COUNT_GEN1
+from .constants import GC_COUNT_GEN2
+from .constants import MEM_RSS
+from .constants import THREAD_COUNT
 
 
 class RuntimeMetricCollector(ValueCollector):

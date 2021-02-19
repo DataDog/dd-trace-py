@@ -2,14 +2,16 @@ from importlib import import_module
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .quantize import quantize
-
 from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, elasticsearch as metadata, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import elasticsearch as metadata
+from ...ext import http
 from ...pin import Pin
-from ...utils.wrappers import unwrap as _u
 from ...settings import config
+from ...utils.wrappers import unwrap as _u
+from .quantize import quantize
 
 
 def _es_modules():

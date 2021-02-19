@@ -2,25 +2,29 @@
 import atexit
 import logging
 import os
-from typing import Optional, List, Dict, AnyStr
-import warnings
 import sys
+from typing import AnyStr
+from typing import Dict
+from typing import List
+from typing import Optional
+import warnings
 
 import ddtrace
-from ddtrace.internal import agent, uwsgi
+from ddtrace.internal import agent
+from ddtrace.internal import uwsgi
+from ddtrace.profiling import _service
+from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
-from ddtrace.utils import deprecation
-from ddtrace.utils import formats
-from ddtrace.vendor import attr
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling import _service
-from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
+from ddtrace.utils import deprecation
+from ddtrace.utils import formats
+from ddtrace.vendor import attr
 
 
 LOG = logging.getLogger(__name__)
@@ -236,6 +240,8 @@ class _ProfilerInstance(_service.Service):
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
                 ),
+                # Do not limit the heap sample size as the number of events is relative to allocated memory anyway
+                memalloc.MemoryHeapSampleEvent: None,
             },
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )

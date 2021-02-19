@@ -36,6 +36,7 @@ venv = Venv(
                 "flake8-docstrings": latest,
                 "flake8-logging-format": latest,
                 "flake8-rst-docstrings": latest,
+                "flake8-isort": latest,
                 "pygments": latest,
             },
         ),
@@ -45,10 +46,40 @@ venv = Venv(
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --no-cov {cmdargs} tests/benchmarks",
         ),
-        Venv(name="tracer", command="pytest tests/tracer/", venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})]),
+        Venv(
+            name="tracer",
+            command="pytest {cmdargs} tests/tracer/",
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+        ),
+        Venv(
+            name="cherrypy",
+            command="pytest {cmdargs} tests/contrib/cherrypy",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "cherrypy": [
+                            ">=11,<12",
+                            ">=12,<13",
+                            ">=13,<14",
+                            ">=14,<15",
+                            ">=15,<16",
+                            ">=16,<17",
+                            ">=17,<18",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.5),
+                    pkgs={
+                        "cherrypy": [">=18.0,<19", latest],
+                    },
+                ),
+            ],
+        ),
         Venv(
             name="pymongo",
-            command="pytest tests/contrib/pymongo",
+            command="pytest {cmdargs} tests/contrib/pymongo",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.7),
@@ -101,7 +132,7 @@ venv = Venv(
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
-            command="pytest tests/contrib/django",
+            command="pytest {cmdargs} tests/contrib/django",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.6),
@@ -167,7 +198,7 @@ venv = Venv(
         ),
         Venv(
             name="djangorestframework",
-            command="pytest tests/contrib/djangorestframework",
+            command="pytest {cmdargs} tests/contrib/djangorestframework",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.6),
@@ -249,21 +280,43 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="pynamodb",
-            command="pytest tests/contrib/pynamodb",
+            name="psycopg",
+            command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version=2.7, max_version=3.6),
+                    pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
+                ),
+                Venv(
+                    pys=[3.7],
+                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version=3.8, max_version=3.9),
+                    pkgs={"psycopg2": ["~=2.8.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
+            name="pynamodb",
+            command="pytest {cmdargs} tests/contrib/pynamodb",
+            pkgs={
+                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                "moto": ">=1.0,<2.0",
+            },
+            venvs=[
+                Venv(pys=select_pys(min_version=3.5)),
+                Venv(
+                    pys=["2.7"],
                     pkgs={
-                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-                        "moto": ">=1.0,<2.0",
+                        "rsa": "<4.7.1",
                     },
                 ),
             ],
         ),
         Venv(
             name="starlette",
-            command="pytest tests/contrib/starlette",
+            command="pytest {cmdargs} tests/contrib/starlette",
             venvs=[
                 Venv(
                     pys=select_pys(min_version=3.6),
@@ -281,8 +334,22 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="sqlalchemy",
+            command="pytest {cmdargs} tests/contrib/sqlalchemy",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                        "psycopg2": ["~=2.8.0"],
+                        "mysql-connector-python": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="requests",
-            command="pytest tests/contrib/requests",
+            command="pytest {cmdargs} tests/contrib/requests",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -304,7 +371,7 @@ venv = Venv(
         ),
         Venv(
             name="wsgi",
-            command="pytest tests/contrib/wsgi",
+            command="pytest {cmdargs} tests/contrib/wsgi",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -316,17 +383,21 @@ venv = Venv(
         ),
         Venv(
             name="boto",
-            command="pytest tests/contrib/boto",
+            command="pytest {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version=3.6), pkgs={"boto": latest, "moto": ["<1.0"]})],
         ),
         Venv(
             name="botocore",
-            command="pytest tests/contrib/botocore",
-            venvs=[Venv(pys=select_pys(), pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]})],
+            command="pytest {cmdargs} tests/contrib/botocore",
+            pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]},
+            venvs=[
+                Venv(pys=select_pys(min_version=3.5)),
+                Venv(pys=["2.7"], pkgs={"rsa": ["<4.7.1"]}),
+            ],
         ),
         Venv(
             name="mongoengine",
-            command="pytest tests/contrib/mongoengine",
+            command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
                 "pymongo": latest,
             },
@@ -352,7 +423,7 @@ venv = Venv(
                 "asgiref": ["~=3.0.0", "~=3.0"],
             },
             pys=select_pys(min_version=3.6),
-            command="pytest tests/contrib/asgi",
+            command="pytest {cmdargs} tests/contrib/asgi",
         ),
         Venv(
             name="fastapi",

@@ -4,12 +4,15 @@ import pymemcache
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.pymemcache.patch import patch, unpatch
-from ddtrace.ext import memcached as memcachedx, net
+from ddtrace.contrib.pymemcache.patch import patch
+from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.ext import memcached as memcachedx
+from ddtrace.ext import net
+from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import TracerTestCase
 from .utils import MockSocket
 
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import TracerTestCase
 
 _Client = pymemcache.client.base.Client
 

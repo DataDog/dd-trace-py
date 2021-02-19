@@ -1,14 +1,18 @@
 import contextlib
+
 import pymongo
 
 from ddtrace import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ...utils.wrappers import unwrap as _u
 
-from ...ext import mongo as mongox, SpanTypes
-from ...utils.deprecation import deprecated
 from ...constants import SPAN_MEASURED_KEY
-from .client import TracedMongoClient, set_address_tags
+from ...ext import SpanTypes
+from ...ext import mongo as mongox
+from ...utils.deprecation import deprecated
+from ...utils.wrappers import unwrap as _u
+from .client import TracedMongoClient
+from .client import set_address_tags
+
 
 # Original Client class
 _MongoClient = pymongo.MongoClient

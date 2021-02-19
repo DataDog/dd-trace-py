@@ -1,23 +1,30 @@
 # 3p
-import boto.ec2
-import boto.s3
+# testing
+from unittest import skipUnless
+
 import boto.awslambda
-import boto.sqs
-import boto.kms
-import boto.sts
+import boto.ec2
 import boto.elasticache
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sts
+import boto.kms
+import boto.s3
+import boto.sqs
+import boto.sts
+from moto import mock_ec2
+from moto import mock_lambda
+from moto import mock_s3
+from moto import mock_sts
 
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.boto.patch import patch, unpatch
+from ddtrace.contrib.boto.patch import patch
+from ddtrace.contrib.boto.patch import unpatch
 from ddtrace.ext import http
-
-# testing
-from unittest import skipUnless
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_span_http_status_code
 
 
 class BotoTest(TracerTestCase):

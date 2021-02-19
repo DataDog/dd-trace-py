@@ -1,13 +1,13 @@
 import mock
-
 import pytest
 
-from ddtrace import Pin, Tracer, config
-from ddtrace.settings import Config
-from ddtrace.ext import http
+from ddtrace import Pin
+from ddtrace import Tracer
+from ddtrace import config
 from ddtrace.compat import stringify
 from ddtrace.contrib import trace_utils
-
+from ddtrace.ext import http
+from ddtrace.settings import Config
 from tests import override_global_config
 from tests.tracer.test_tracer import get_dummy_tracer
 

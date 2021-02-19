@@ -1,18 +1,24 @@
+import time
+
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
-import time
 from grpc.framework.foundation import logging_pool
+
+from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace.contrib.grpc import constants
+from ddtrace.contrib.grpc import patch
+from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
-from ddtrace import Pin
 
 from ... import TracerTestCase
+from .hello_pb2 import HelloReply
+from .hello_pb2 import HelloRequest
+from .hello_pb2_grpc import HelloServicer
+from .hello_pb2_grpc import HelloStub
+from .hello_pb2_grpc import add_HelloServicer_to_server
 
-from .hello_pb2 import HelloRequest, HelloReply
-from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
 
 _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split('.')])

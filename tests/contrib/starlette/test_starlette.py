@@ -1,23 +1,23 @@
 import asyncio
 import sys
 
+from app import get_app
 import httpx
 import pytest
 import sqlalchemy
+from starlette.testclient import TestClient
 
 import ddtrace
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.starlette import patch as starlette_patch, unpatch as starlette_unpatch
-from ddtrace.contrib.sqlalchemy import patch as sql_patch, unpatch as sql_unpatch
+from ddtrace.contrib.sqlalchemy import patch as sql_patch
+from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
+from ddtrace.contrib.starlette import patch as starlette_patch
+from ddtrace.contrib.starlette import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
-
-
-from starlette.testclient import TestClient
-from tests import override_http_config, snapshot
+from tests import override_http_config
+from tests import snapshot
 from tests.tracer.test_tracer import get_dummy_tracer
-
-from app import get_app
 
 
 @pytest.fixture

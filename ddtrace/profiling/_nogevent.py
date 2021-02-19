@@ -3,8 +3,8 @@
 import threading
 
 from ddtrace import compat
-from ddtrace.vendor import six
 from ddtrace.vendor import attr
+from ddtrace.vendor import six
 
 
 try:

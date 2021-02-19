@@ -1,22 +1,31 @@
 import math
 import sys
 import traceback
-from typing import Optional, List
+from typing import List
+from typing import Optional
 
-from .vendor import six
-from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
-from .constants import (
-    NUMERIC_TAGS,
-    MANUAL_DROP_KEY,
-    MANUAL_KEEP_KEY,
-    VERSION_KEY,
-    SERVICE_VERSION_KEY,
-    SPAN_MEASURED_KEY,
-    SERVICE_KEY,
-)
-from .ext import SpanTypes, errors, priority, net, http
-from .internal.logger import get_logger
+from .compat import StringIO
+from .compat import is_integer
+from .compat import iteritems
+from .compat import numeric_types
+from .compat import stringify
+from .compat import time_ns
+from .constants import MANUAL_DROP_KEY
+from .constants import MANUAL_KEEP_KEY
+from .constants import NUMERIC_TAGS
+from .constants import SERVICE_KEY
+from .constants import SERVICE_VERSION_KEY
+from .constants import SPAN_MEASURED_KEY
+from .constants import VERSION_KEY
+from .ext import SpanTypes
+from .ext import errors
+from .ext import http
+from .ext import net
+from .ext import priority
 from .internal import _rand
+from .internal.logger import get_logger
+from .vendor import six
+
 
 log = get_logger(__name__)
 

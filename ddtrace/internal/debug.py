@@ -1,9 +1,10 @@
 import datetime
 import logging
 import os
-import pkg_resources
 import platform
 import sys
+
+import pkg_resources
 
 import ddtrace
 from ddtrace.internal import writer

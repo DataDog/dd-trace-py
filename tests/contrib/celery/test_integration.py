@@ -1,11 +1,12 @@
-import pytest
-
 import celery
 from celery.exceptions import Retry
+import pytest
+
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.context import Context
-from ddtrace.contrib.celery import patch, unpatch
+from ddtrace.contrib.celery import patch
+from ddtrace.contrib.celery import unpatch
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer
 

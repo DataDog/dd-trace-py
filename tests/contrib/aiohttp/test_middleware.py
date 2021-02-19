@@ -1,17 +1,21 @@
 import asyncio
 
 from aiohttp.test_utils import unittest_run_loop
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
 
-from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware, CONFIG_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
+from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
-
-from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.utils import init_tracer
-from .utils import TraceTestCase
-from .app.web import setup_app, noop_middleware
+
 from ... import assert_span_http_status_code
+from .app.web import noop_middleware
+from .app.web import setup_app
+from .utils import TraceTestCase
 
 
 class TestTraceMiddleware(TraceTestCase):

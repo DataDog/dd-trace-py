@@ -1,16 +1,20 @@
-# stdlib
-import ddtrace
 from json import loads
 
-# project
-from .encoding import Encoder, JSONEncoder
-from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+import ddtrace
+
+from .compat import PYTHON_INTERPRETER
+from .compat import PYTHON_VERSION
+from .compat import get_connection_response
+from .compat import httplib
+from .encoding import Encoder
+from .encoding import JSONEncoder
 from .internal import uds
 from .internal.logger import get_logger
 from .internal.runtime import container
-from .payload import Payload, PayloadFull
-from .utils.deprecation import deprecated
+from .payload import Payload
+from .payload import PayloadFull
 from .utils import time
+from .utils.deprecation import deprecated
 
 
 log = get_logger(__name__)

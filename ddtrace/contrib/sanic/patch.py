@@ -1,6 +1,8 @@
 import asyncio
-import ddtrace
+
 import sanic
+
+import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
@@ -11,6 +13,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...internal.logger import get_logger
+
 
 log = get_logger(__name__)
 

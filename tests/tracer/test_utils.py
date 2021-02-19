@@ -1,15 +1,19 @@
 from functools import partial
-import mock
 import os
 import unittest
 import warnings
 
+import mock
 import pytest
 
 from ddtrace.utils import time
+from ddtrace.utils.deprecation import deprecated
+from ddtrace.utils.deprecation import deprecation
+from ddtrace.utils.deprecation import format_message
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
+from ddtrace.utils.formats import parse_tags_str
 from ddtrace.utils.importlib import func_name
-from ddtrace.utils.deprecation import deprecation, deprecated, format_message
-from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 
 
 class TestUtils(unittest.TestCase):

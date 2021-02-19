@@ -1,5 +1,6 @@
 from django.http import HttpResponse
 
+
 try:
     from django.utils.deprecation import MiddlewareMixin
 
