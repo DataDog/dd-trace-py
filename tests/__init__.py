@@ -446,8 +446,6 @@ class DummyTracer(Tracer):
         # some tests
         if not isinstance(self.writer, DummyWriter):
             self.original_writer = self.writer
-        # LogWriters don't have an api property, so we test that
-        # exists before using it to assign hostname/port
         if isinstance(self.writer, AgentWriter):
             self.writer = DummyWriter(
                 agent_url=self.writer.agent_url,

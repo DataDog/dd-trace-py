@@ -14,6 +14,7 @@ from ..encoding import Encoder
 from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..utils.time import StopWatch
+from .agent import URL as AGENT_URL
 from .agent import get_connection
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
@@ -82,7 +83,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def __init__(
         self,
-        url,
+        agent_url=AGENT_URL,
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
@@ -98,7 +99,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         super(AgentWriter, self).__init__(
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        self.agent_url = url
+        self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
