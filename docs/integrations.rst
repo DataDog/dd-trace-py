@@ -345,3 +345,10 @@ Tornado
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib.vertica
+
+
+.. _wsgi:
+
+WSGI
+^^^^
+.. automodule:: ddtrace.contrib.wsgi
