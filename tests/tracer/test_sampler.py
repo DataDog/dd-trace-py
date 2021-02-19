@@ -105,7 +105,7 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_negative_sample_rate_raises_error(self):
         tracer = get_dummy_tracer()
-        with pytest.raises(ValueError, match="sample_rate is negative"):
+        with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
             tracer.sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):

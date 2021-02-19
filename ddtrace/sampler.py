@@ -54,7 +54,7 @@ class RateSampler(BaseSampler):
 
     def __init__(self, sample_rate=1):
         if sample_rate < 0:
-            raise ValueError("sample_rate is negative")
+            raise ValueError("sample_rate of {} is negative".format(sample_rate))
         elif sample_rate > 1:
             sample_rate = 1
 
