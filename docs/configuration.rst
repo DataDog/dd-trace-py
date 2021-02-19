@@ -29,7 +29,7 @@ below:
    * - ``DD_SERVICE_MAPPING``
      - String
      -
-     - Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,deafultdb:postgresql``.
+     - Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
    * - ``DD_TAGS``
      - String
      -
