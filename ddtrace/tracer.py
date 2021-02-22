@@ -95,13 +95,13 @@ class Tracer(object):
 
     _RUNTIME_METRICS_INTERVAL = 10
 
-    DEFAULT_HOSTNAME = agent.HOSTNAME
-    DEFAULT_PORT = agent.PORT
+    DEFAULT_HOSTNAME = agent.get_hostname()
+    DEFAULT_PORT = agent.get_port()
     DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
     DEFAULT_DOGSTATSD_URL = get_env(
         "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
     )
-    DEFAULT_AGENT_URL = agent.URL
+    DEFAULT_AGENT_URL = agent.get_url()
 
     def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
         """
@@ -119,8 +119,8 @@ class Tracer(object):
 
         uds_path = None
         https = None
-        hostname = self.DEFAULT_HOSTNAME
-        port = self.DEFAULT_PORT
+        hostname = agent.get_hostname()
+        port = agent.get_port()
         writer = None
 
         if self._is_agentless_environment() and url is None:

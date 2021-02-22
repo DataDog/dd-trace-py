@@ -5,9 +5,16 @@ from ddtrace import compat
 from .uds import UDSHTTPConnection
 
 
-HOSTNAME = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-PORT = int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", 8126)))
-URL = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (HOSTNAME, PORT))
+def get_hostname():
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
+
+
+def get_port():
+    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", 8126)))
+
+
+def get_url():
+    return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_port()))
 
 
 def get_connection(url, timeout):

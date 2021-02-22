@@ -157,7 +157,7 @@ def _get_default_url(
     # Default URL changes if an API_KEY is provided in the env
     if api_key is None:
         if tracer is None:
-            return agent.URL
+            return agent.get_url()
         else:
             return tracer.writer.agent_url
     # Agentless mode

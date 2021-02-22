@@ -14,8 +14,8 @@ from ..encoding import Encoder
 from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..utils.time import StopWatch
-from .agent import URL as AGENT_URL
 from .agent import get_connection
+from .agent import get_url
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
@@ -83,7 +83,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def __init__(
         self,
-        agent_url=AGENT_URL,
+        agent_url=None,
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
@@ -99,7 +99,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         super(AgentWriter, self).__init__(
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        self.agent_url = agent_url
+        self.agent_url = get_url() if agent_url is None else agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
@@ -136,10 +136,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
 
         # TODO: remove these attributes
-        self._parsed_url = compat.parse.urlparse(agent_url)
-        self._hostname = self._parsed_url.hostname
-        self._uds_path = agent_url if self._parsed_url.scheme == "unix" else None
-        self._https = self._parsed_url.scheme == "https"
+        _parsed_url = compat.parse.urlparse(agent_url)
+        self._hostname = _parsed_url.hostname
+        self._port = _parsed_url.port
+        self._https = _parsed_url.scheme == "https"
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
