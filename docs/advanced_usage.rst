@@ -160,7 +160,9 @@ It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
-    Tracer.configure(settings={
+    from ddtrace import tracer
+
+    tracer.configure(settings={
         'FILTERS': [
             FilterRequestsOnUrl(r'http://test\.example\.com'),
         ],
@@ -185,6 +187,9 @@ Creating your own filters is as simple as implementing a class with a
 Tracer.configure. process_trace should either return a trace to be fed to the
 next step of the pipeline or ``None`` if the trace should be discarded::
 
+    from ddtrace import tracer
+
+
     class FilterExample(object):
         def process_trace(self, trace):
             # write here your logic to return the `trace` or None;
@@ -193,7 +198,7 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
     # And then instantiate it with
     filters = [FilterExample()]
-    Tracer.configure(settings={'FILTERS': filters})
+    tracer.configure(settings={'FILTERS': filters})
 
 (see filters.py for other example implementations)
 
