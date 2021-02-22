@@ -1,19 +1,25 @@
 import flask
 import werkzeug
+
+from ddtrace import Pin
+from ddtrace import compat
+from ddtrace import config
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ddtrace import compat
-from ddtrace import config, Pin
-
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
-from .. import trace_utils
-from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
-from .wrappers import wrap_function, wrap_signal
+from .helpers import get_current_app
+from .helpers import simple_tracer
+from .helpers import with_instance_pin
+from .wrappers import wrap_function
+from .wrappers import wrap_signal
+
 
 log = get_logger(__name__)
 
@@ -432,9 +438,9 @@ def traced_render(wrapped, instance, args, kwargs):
     This method is called for render_template or render_template_string
     """
     pin = Pin._find(wrapped, instance, get_current_app())
-    # DEV: `get_current_span` will verify `pin` is valid and enabled first
-    span = get_current_span(pin)
-    if not span:
+    span = pin.tracer.current_span()
+
+    if not pin.enabled or not span:
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
@@ -464,8 +470,8 @@ def request_tracer(name):
 
         This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
         """
-        span = get_current_span(pin)
-        if not span:
+        span = pin.tracer.current_span()
+        if not pin.enabled or not span:
             return wrapped(*args, **kwargs)
 
         try:

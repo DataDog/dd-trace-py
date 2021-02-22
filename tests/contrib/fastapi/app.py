@@ -1,11 +1,13 @@
+from tempfile import NamedTemporaryFile
 import time
 from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
-
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Header
+from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from tempfile import NamedTemporaryFile
 
 
 fake_secret_token = "DataDog"

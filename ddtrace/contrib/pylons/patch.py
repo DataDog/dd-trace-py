@@ -1,12 +1,14 @@
-from ddtrace import config
-from ddtrace.vendor import wrapt
 import pylons.wsgiapp
 
-from ddtrace import tracer, Pin
+from ddtrace import Pin
+from ddtrace import config
+from ddtrace import tracer
+from ddtrace.vendor import wrapt
 
-from .middleware import PylonsTraceMiddleware
-from ...utils.formats import asbool, get_env
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
+from .middleware import PylonsTraceMiddleware
 
 
 def patch():

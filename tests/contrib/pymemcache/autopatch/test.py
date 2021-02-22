@@ -1,5 +1,7 @@
-import pymemcache
 import unittest
+
+import pymemcache
+
 from ddtrace.vendor import wrapt
 
 

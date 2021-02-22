@@ -1,9 +1,10 @@
-from sqlalchemy.exc import ProgrammingError
 import pytest
+from sqlalchemy.exc import ProgrammingError
 
-from .mixins import SQLAlchemyTestMixin
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import MYSQL_CONFIG
-from ... import TracerTestCase, assert_is_measured
+from .mixins import SQLAlchemyTestMixin
 
 
 class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):

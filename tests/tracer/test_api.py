@@ -1,20 +1,24 @@
-import mock
 import errno
 import re
 import socket
 import threading
 import time
+from unittest import TestCase
 import warnings
 
-from unittest import TestCase
-
+import mock
 import pytest
 
-from ddtrace.api import API, Response
-from ddtrace.internal.uds import UDSHTTPConnection
-from ddtrace.compat import iteritems, httplib, PY3, get_connection_response
+from ddtrace.api import API
+from ddtrace.api import Response
+from ddtrace.compat import PY3
+from ddtrace.compat import get_connection_response
+from ddtrace.compat import httplib
+from ddtrace.compat import iteritems
 from ddtrace.internal.runtime.container import CGroupInfo
-from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver
+from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.vendor.six.moves import BaseHTTPServer
+from ddtrace.vendor.six.moves import socketserver
 
 
 class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):

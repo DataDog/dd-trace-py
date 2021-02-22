@@ -1,8 +1,8 @@
 import flask
 
 from ddtrace import Pin
-from ddtrace.contrib.flask import unpatch
 from ddtrace.compat import StringIO
+from ddtrace.contrib.flask import unpatch
 
 from . import BaseFlaskTestCase
 

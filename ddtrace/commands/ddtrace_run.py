@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 import argparse
 from distutils import spawn
+import logging
 import os
 import sys
-import logging
 
 import ddtrace
 from ddtrace.compat import PY2
-from ddtrace.utils.formats import asbool, get_env
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
 
 
 if PY2:
@@ -75,6 +76,7 @@ def main():
     if args.info:
         # Inline imports for performance.
         import pprint
+
         from ddtrace.internal.debug import collect
 
         pprint.pprint(collect(ddtrace.tracer))

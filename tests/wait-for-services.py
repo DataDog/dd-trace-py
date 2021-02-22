@@ -1,21 +1,20 @@
 import sys
 import time
 
+from cassandra.cluster import Cluster
+from cassandra.cluster import NoHostAvailable
+from contrib.config import CASSANDRA_CONFIG
+from contrib.config import MYSQL_CONFIG
+from contrib.config import POSTGRES_CONFIG
+from contrib.config import RABBITMQ_CONFIG
+from contrib.config import REDISCLUSTER_CONFIG
+from contrib.config import VERTICA_CONFIG
+import kombu
 import mysql.connector
-from psycopg2 import connect, OperationalError
-from cassandra.cluster import Cluster, NoHostAvailable
+from psycopg2 import OperationalError
+from psycopg2 import connect
 import rediscluster
 import vertica_python
-import kombu
-
-from contrib.config import (
-    POSTGRES_CONFIG,
-    CASSANDRA_CONFIG,
-    MYSQL_CONFIG,
-    REDISCLUSTER_CONFIG,
-    VERTICA_CONFIG,
-    RABBITMQ_CONFIG
-)
 
 
 def try_until_timeout(exception):

@@ -2,11 +2,15 @@ import pytest
 
 from ddtrace import config as ddconfig
 
-from ..trace_utils import int_service
 from ...constants import SPAN_KIND
-from ...ext import SpanTypes, ci, test
+from ...ext import SpanTypes
+from ...ext import ci
+from ...ext import test
 from ...pin import Pin
-from .constants import FRAMEWORK, HELP_MSG, KIND
+from ..trace_utils import int_service
+from .constants import FRAMEWORK
+from .constants import HELP_MSG
+from .constants import KIND
 
 
 def is_enabled(config):
