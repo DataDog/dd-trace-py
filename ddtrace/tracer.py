@@ -19,6 +19,7 @@ from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .internal import _rand
+from .internal import agent
 from .internal import debug
 from .internal import hostname
 from .internal.logger import get_logger
@@ -94,15 +95,7 @@ class Tracer(object):
 
     _RUNTIME_METRICS_INTERVAL = 10
 
-    DEFAULT_HOSTNAME = environ.get("DD_AGENT_HOST", environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-    DEFAULT_PORT = int(environ.get("DD_TRACE_AGENT_PORT", 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
-    DEFAULT_DOGSTATSD_URL = get_env(
-        "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
-    )
-    DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
-
-    def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
+    def __init__(self, url=None, dogstatsd_url=None):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -118,15 +111,15 @@ class Tracer(object):
 
         uds_path = None
         https = None
-        hostname = self.DEFAULT_HOSTNAME
-        port = self.DEFAULT_PORT
+        hostname = agent.get_hostname()
+        port = agent.get_trace_port()
         writer = None
 
         if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         else:
             if url is None:
-                url = self.DEFAULT_AGENT_URL
+                url = agent.get_trace_url()
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ("http", "https"):
                 hostname = url_parsed.hostname
@@ -165,7 +158,7 @@ class Tracer(object):
             uds_path=uds_path,
             sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
-            dogstatsd_url=dogstatsd_url,
+            dogstatsd_url=agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url,
             writer=writer,
         )
 
@@ -296,7 +289,7 @@ class Tracer(object):
             self.sampler = sampler
 
         if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or agent.get_stats_port())
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
@@ -322,8 +315,8 @@ class Tracer(object):
                 if https is None:
                     https = self.writer._https
             else:
-                default_hostname = self.DEFAULT_HOSTNAME
-                default_port = self.DEFAULT_PORT
+                default_hostname = agent.get_hostname()
+                default_port = agent.get_trace_port()
 
             if hasattr(self, "writer") and self.writer.is_alive():
                 self.writer.stop()
