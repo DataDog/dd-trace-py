@@ -609,8 +609,8 @@ def patch():
 
 def _unpatch(django):
     trace_utils.unwrap(django.apps.registry.Apps, "populate")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "lotrace_utils.ad_middleware")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "getrace_utils.t_response")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "load_middleware")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response")
     trace_utils.unwrap(django.template.base.Template, "render")
     trace_utils.unwrap(django.conf.urls.static, "static")
     trace_utils.unwrap(django.conf.urls, "url")
