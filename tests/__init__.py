@@ -16,6 +16,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -450,6 +451,7 @@ class DummyTracer(Tracer):
             self.writer = DummyWriter(
                 agent_url=self.writer.agent_url,
                 priority_sampler=self.writer._priority_sampler,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
             )
         else:
             self.writer = DummyWriter(
