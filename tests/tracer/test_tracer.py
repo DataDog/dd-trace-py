@@ -1532,9 +1532,29 @@ def test_get_report_hostname_default(get_hostname):
 
 
 def test_service_mapping():
-    with override_env(dict(DD_SERVICE_MAPPING="foo:bar")):
-        assert ddtrace.config.service_mapping == {}
-        ddtrace.config.service_mapping = Config().service_mapping
-        with ddtrace.Tracer().trace("renaming", service="foo") as span:
-            assert span.service == "bar"
-        ddtrace.config.service_mapping = {}
+    @contextlib.contextmanager
+    def override_service_mapping(service_mapping):
+        with override_env(dict(DD_SERVICE_MAPPING=service_mapping)):
+            assert ddtrace.config.service_mapping == {}
+            ddtrace.config.service_mapping = Config().service_mapping
+            yield
+            ddtrace.config.service_mapping = {}
+
+    # Test single mapping
+    with override_service_mapping("foo:bar"), ddtrace.Tracer().trace("renaming", service="foo") as span:
+        assert span.service == "bar"
+
+    # Test multiple mappings
+    with override_service_mapping("foo:bar,sna:fu"), ddtrace.Tracer().trace("renaming", service="sna") as span:
+        assert span.service == "fu"
+
+    # Test colliding mappings
+    with override_service_mapping("foo:bar,foo:foobar"), ddtrace.Tracer().trace("renaming", service="foo") as span:
+        assert span.service == "foobar"
+
+    # Test invalid service mapping
+    with override_service_mapping("foo;bar,sna:fu"):
+        with ddtrace.Tracer().trace("passthru", service="foo") as _:
+            assert _.service == "foo"
+        with ddtrace.Tracer().trace("renaming", "sna") as _:
+            assert _.service == "fu"
