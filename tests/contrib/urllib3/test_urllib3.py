@@ -188,6 +188,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 4  # Default retry behavior is 3 retries + original request
         for i, s in enumerate(spans):
+            print(i, s)
             assert s.get_tag(http.METHOD) == "GET"
             if i > 0:
                 assert s.get_tag(http.RETRIES_REMAIN) == str(retries - i)

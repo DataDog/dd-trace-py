@@ -1,8 +1,6 @@
 import urllib3
 
 from ddtrace import config
-from ddtrace.http import store_request_headers
-from ddtrace.http import store_response_headers
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -41,12 +39,10 @@ def patch():
         return
     setattr(urllib3, "__datadog_patch", True)
 
-    pin = Pin(service="urllib3")
-
     from urllib3.connectionpool import HTTPConnectionPool
 
     _w("urllib3.connectionpool", "HTTPConnectionPool.urlopen", _wrap_urlopen)
-    pin.onto(HTTPConnectionPool)
+    Pin(service="urllib3").onto(HTTPConnectionPool)
 
 
 def unpatch():
@@ -145,7 +141,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(
-        "urllib3.request", service=trace_utils.int_service(pin, config.urllib3), span_type=SpanTypes.HTTP
+        "urllib3.request", service=trace_utils.ext_service(pin, config.urllib3), span_type=SpanTypes.HTTP
     ) as span:
 
         span.service = _extract_service_name(span, hostname, config.urllib3["split_by_domain"])
@@ -158,11 +154,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
             propagator = HTTPPropagator()
             propagator.inject(span.context, request_headers)
 
-        store_request_headers(request_headers, span, config.urllib3)
-        span.set_tag(http.METHOD, request_method)
-        span.set_tag(http.URL, sanitized_url)
-        if config.urllib3["trace_query_string"]:
-            span.set_tag(http.QUERY_STRING, parsed_uri.query)
         if config.urllib3["analytics_enabled"]:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
         if isinstance(request_retries, urllib3.util.retry.Retry):
@@ -171,8 +162,17 @@ def _wrap_urlopen(func, instance, args, kwargs):
         # Call the target function
         resp = func(*args, **kwargs)
 
-        store_response_headers(dict(resp.headers), span, config.urllib3)
-        span.set_tag(http.STATUS_CODE, resp.status)
         span.error = int(resp.status >= 500)
+
+        trace_utils.set_http_meta(
+            span,
+            integration_config=config.urllib3,
+            method=request_method,
+            url=sanitized_url,
+            status_code=resp.status,
+            query=parsed_uri.query,
+            request_headers=request_headers,
+            response_headers=dict(resp.headers),
+        )
 
         return resp
