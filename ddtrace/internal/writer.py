@@ -170,7 +170,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def recreate(self):
         writer = self.__class__(
-            url=self.agent_url,
+            agent_url=self.agent_url,
             shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
         )

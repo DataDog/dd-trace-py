@@ -19,7 +19,7 @@ def get_connection(url, timeout):
     elif parsed.scheme == "http":
         conn = compat.httplib.HTTPConnection(parsed.hostname, port, timeout=timeout)
     elif parsed.scheme == "unix":
-        conn = UDSHTTPConnection(parsed.path, False, parsed.hostname, port, timeout=timeout)
+        conn = UDSHTTPConnection(parsed.path, parsed.scheme == "https", parsed.hostname or "", port, timeout=timeout)
     else:
         raise ValueError("Unknown agent protocol %s" % parsed.scheme)
 
