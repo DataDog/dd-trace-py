@@ -567,6 +567,7 @@ def test_tracer_url():
 
     t = ddtrace.Tracer(url="unix:///foobar")
     assert t.writer.agent_url == "unix:///foobar"
+    assert t.writer._uds_path == "/foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
     assert t.writer._hostname == "localhost"

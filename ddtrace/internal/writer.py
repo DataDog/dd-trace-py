@@ -140,6 +140,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._hostname = _parsed_url.hostname
         self._port = _parsed_url.port
         self._https = _parsed_url.scheme == "https"
+        self._uds_path = _parsed_url.path if _parsed_url.scheme == "unix" else None
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
