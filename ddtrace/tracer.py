@@ -433,6 +433,8 @@ class Tracer(object):
             else:
                 service = config.service
 
+        mapped_service = config.service_mapping.get(service, service)
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -440,7 +442,7 @@ class Tracer(object):
                 name,
                 trace_id=trace_id,
                 parent_id=parent_span_id,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
@@ -456,7 +458,7 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
