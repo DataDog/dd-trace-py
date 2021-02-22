@@ -46,6 +46,7 @@ Example::
 """
 from ...utils.importlib import require_modules
 
+
 required_modules = ["falcon"]
 
 with require_modules(required_modules) as missing_modules:

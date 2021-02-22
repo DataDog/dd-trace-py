@@ -2,11 +2,14 @@
 import rediscluster
 
 from ddtrace import Pin
-from ddtrace.contrib.rediscluster.patch import patch, unpatch
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
-from ..config import REDISCLUSTER_CONFIG
-from ... import TracerTestCase, assert_is_measured
+from ddtrace.contrib.rediscluster.patch import patch
+from ddtrace.contrib.rediscluster.patch import unpatch
 from tests.tracer.test_tracer import get_dummy_tracer
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ..config import REDISCLUSTER_CONFIG
 
 
 class TestRedisPatch(TracerTestCase):

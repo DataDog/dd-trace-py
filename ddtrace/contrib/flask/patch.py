@@ -1,19 +1,25 @@
 import flask
 import werkzeug
+
+from ddtrace import Pin
+from ddtrace import compat
+from ddtrace import config
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ddtrace import compat
-from ddtrace import config, Pin
-
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
-from .. import trace_utils
-from .helpers import get_current_app, simple_tracer, with_instance_pin
-from .wrappers import wrap_function, wrap_signal
+from .helpers import get_current_app
+from .helpers import simple_tracer
+from .helpers import with_instance_pin
+from .wrappers import wrap_function
+from .wrappers import wrap_signal
+
 
 log = get_logger(__name__)
 

@@ -1,8 +1,11 @@
 import pytest
 
-from ddtrace import tracer, Span
-from ddtrace.http import store_request_headers, store_response_headers
-from ddtrace.settings import Config, IntegrationConfig
+from ddtrace import Span
+from ddtrace import tracer
+from ddtrace.http import store_request_headers
+from ddtrace.http import store_response_headers
+from ddtrace.settings import Config
+from ddtrace.settings import IntegrationConfig
 from ddtrace.utils.http import normalize_header_name
 
 

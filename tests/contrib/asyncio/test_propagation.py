@@ -2,14 +2,18 @@ import asyncio
 import time
 
 import pytest
+
 from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.context import Context
 from ddtrace.contrib.asyncio.helpers import set_call_context
-from ddtrace.contrib.asyncio.patch import patch, unpatch
+from ddtrace.contrib.asyncio.patch import patch
+from ddtrace.contrib.asyncio.patch import unpatch
 from ddtrace.provider import DefaultContextProvider
 from tests.opentracer.utils import init_tracer
 
-from .utils import AsyncioTestCase, mark_asyncio
+from .utils import AsyncioTestCase
+from .utils import mark_asyncio
+
 
 _orig_create_task = asyncio.BaseEventLoop.create_task
 

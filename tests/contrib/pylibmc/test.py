@@ -9,13 +9,15 @@ import pylibmc
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylibmc import TracedClient
-from ddtrace.contrib.pylibmc.patch import patch, unpatch
+from ddtrace.contrib.pylibmc.patch import patch
+from ddtrace.contrib.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
 
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ...contrib.config import MEMCACHED_CONFIG as cfg
 # testing
 from ...opentracer.utils import init_tracer
-from ...contrib.config import MEMCACHED_CONFIG as cfg
-from ... import TracerTestCase, assert_is_measured
 
 
 class PylibmcCore(object):

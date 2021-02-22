@@ -78,6 +78,13 @@ Celery
 .. automodule:: ddtrace.contrib.celery
 
 
+.. _cherrypy:
+
+CherryPy
+^^^^^^^^
+.. automodule:: ddtrace.contrib.cherrypy
+
+
 .. _consul:
 
 Consul
@@ -338,3 +345,10 @@ Tornado
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib.vertica
+
+
+.. _wsgi:
+
+WSGI
+^^^^
+.. automodule:: ddtrace.contrib.wsgi

@@ -3,7 +3,8 @@ import sys
 import pytest
 
 import ddtrace
-from ddtrace.contrib.sanic import patch, unpatch
+from ddtrace.contrib.sanic import patch
+from ddtrace.contrib.sanic import unpatch
 from tests.tracer.test_tracer import get_dummy_tracer
 
 

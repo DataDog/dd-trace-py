@@ -1,17 +1,15 @@
 import os
 
+from beaker.middleware import CacheMiddleware
+from beaker.middleware import SessionMiddleware
 from mako.lookup import TemplateLookup
-
+from paste.registry import RegistryManager
 from pylons import config
 from pylons.wsgiapp import PylonsApp
-
 from routes.middleware import RoutesMiddleware
-from beaker.middleware import SessionMiddleware, CacheMiddleware
 
-from paste.registry import RegistryManager
-
-from .router import create_routes
 from .lib.helpers import AppGlobals
+from .router import create_routes
 
 
 def make_app(global_conf, full_stack=True, **app_conf):

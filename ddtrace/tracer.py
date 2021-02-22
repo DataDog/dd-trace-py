@@ -1,29 +1,45 @@
 import functools
-import logging
 import json
-from os import environ, getpid
+import logging
+from os import environ
+from os import getpid
 import sys
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
-from .ext import system
-from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal import debug
-from .internal.logger import get_logger, hasHandlers
-from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
-from .internal.writer import AgentWriter, LogWriter
-from .internal import _rand
-from .provider import DefaultContextProvider
+from . import _hooks
+from . import compat
+from .constants import ENV_KEY
+from .constants import FILTERS_KEY
+from .constants import HOSTNAME_KEY
+from .constants import SAMPLE_RATE_METRIC_KEY
+from .constants import VERSION_KEY
 from .context import Context
-from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
+from .ext import system
+from .ext.priority import AUTO_KEEP
+from .ext.priority import AUTO_REJECT
+from .internal import _rand
+from .internal import agent
+from .internal import debug
+from .internal import hostname
+from .internal.logger import get_logger
+from .internal.logger import hasHandlers
+from .internal.runtime import RuntimeTags
+from .internal.runtime import RuntimeWorker
+from .internal.runtime import get_runtime_id
+from .internal.writer import AgentWriter
+from .internal.writer import LogWriter
+from .provider import DefaultContextProvider
+from .sampler import DatadogSampler
+from .sampler import RateByServiceSampler
+from .sampler import RateSampler
 from .settings import config
 from .span import Span
-from .utils.formats import asbool, get_env
-from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
+from .utils.deprecation import RemovedInDDTrace10Warning
+from .utils.deprecation import deprecated
+from .utils.formats import asbool
+from .utils.formats import get_env
 from .vendor.dogstatsd import DogStatsd
-from . import compat
-from . import _hooks
 
 
 log = get_logger(__name__)
@@ -79,15 +95,7 @@ class Tracer(object):
 
     _RUNTIME_METRICS_INTERVAL = 10
 
-    DEFAULT_HOSTNAME = environ.get("DD_AGENT_HOST", environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-    DEFAULT_PORT = int(environ.get("DD_TRACE_AGENT_PORT", 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
-    DEFAULT_DOGSTATSD_URL = get_env(
-        "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
-    )
-    DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
-
-    def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
+    def __init__(self, url=None, dogstatsd_url=None):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -103,15 +111,15 @@ class Tracer(object):
 
         uds_path = None
         https = None
-        hostname = self.DEFAULT_HOSTNAME
-        port = self.DEFAULT_PORT
+        hostname = agent.get_hostname()
+        port = agent.get_trace_port()
         writer = None
 
         if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         else:
             if url is None:
-                url = self.DEFAULT_AGENT_URL
+                url = agent.get_trace_url()
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ("http", "https"):
                 hostname = url_parsed.hostname
@@ -150,7 +158,7 @@ class Tracer(object):
             uds_path=uds_path,
             sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
-            dogstatsd_url=dogstatsd_url,
+            dogstatsd_url=agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url,
             writer=writer,
         )
 
@@ -281,7 +289,7 @@ class Tracer(object):
             self.sampler = sampler
 
         if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or agent.get_stats_port())
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
@@ -307,8 +315,8 @@ class Tracer(object):
                 if https is None:
                     https = self.writer._https
             else:
-                default_hostname = self.DEFAULT_HOSTNAME
-                default_port = self.DEFAULT_PORT
+                default_hostname = agent.get_hostname()
+                default_port = agent.get_trace_port()
 
             if hasattr(self, "writer") and self.writer.is_alive():
                 self.writer.stop()
@@ -418,6 +426,8 @@ class Tracer(object):
             else:
                 service = config.service
 
+        mapped_service = config.service_mapping.get(service, service)
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -425,7 +435,7 @@ class Tracer(object):
                 name,
                 trace_id=trace_id,
                 parent_id=parent_span_id,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
@@ -441,11 +451,19 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
             )
+            span.metrics[system.PID] = self._pid or getpid()
+            span.meta["runtime-id"] = get_runtime_id()
+            if config.report_hostname:
+                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
+            # add tags to root span to correlate trace with runtime metrics
+            # only applied to spans with types that are internal to applications
+            if self._runtime_worker and self._is_span_internal(span):
+                span.meta["language"] = "python"
 
             span.sampled = self.sampler.sample(span)
             # Old behavior
@@ -474,11 +492,6 @@ class Tracer(object):
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
-            # add tags to root span to correlate trace with runtime metrics
-            # only applied to spans with types that are internal to applications
-            if self._runtime_worker and self._is_span_internal(span):
-                span.meta["language"] = "python"
-
         # Apply default global tags.
         if self.tags:
             span.set_tags(self.tags)
@@ -497,10 +510,6 @@ class Tracer(object):
                 root_span and root_span.service == service and VERSION_KEY in root_span.meta
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
-
-        if not span._parent:
-            span.metrics[system.PID] = self._pid or getpid()
-            span.meta["runtime-id"] = get_runtime_id()
 
         # add it to the current context
         context.add_span(span)

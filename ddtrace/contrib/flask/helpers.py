@@ -1,5 +1,7 @@
-from ddtrace import Pin, config
 import flask
+
+from ddtrace import Pin
+from ddtrace import config
 
 from .. import trace_utils
 

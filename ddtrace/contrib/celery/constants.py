@@ -1,5 +1,6 @@
 from ddtrace import config
 
+
 # Celery Context key
 CTX_KEY = '__dd_task_span'
 

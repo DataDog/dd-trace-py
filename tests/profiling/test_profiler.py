@@ -162,7 +162,7 @@ def test_default_tracer_and_url():
         prof = profiler.Profiler(url="https://foobaz:123")
         _check_url(prof, "https://foobaz:123")
     finally:
-        ddtrace.tracer.configure(hostname=ddtrace.Tracer.DEFAULT_HOSTNAME)
+        ddtrace.tracer.configure(hostname="localhost")
 
 
 def test_tracer_and_url():

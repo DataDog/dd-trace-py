@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 #define PY_SSIZE_T_CLEAN
 #include "_memalloc_heap.h"
 #include "_memalloc_tb.h"
@@ -7,6 +9,14 @@ typedef struct
     traceback_array_t allocs;
     /* Allocated memory counter in bytes */
     uint32_t allocated_memory;
+    /* True if the heap tracker is frozen */
+    bool frozen;
+    /* Contains the ongoing heap allocation/deallocation while frozen */
+    struct
+    {
+        traceback_array_t allocs;
+        ptr_array_t frees;
+    } freezer;
 } heap_tracker_t;
 
 static heap_tracker_t global_heap_tracker;
@@ -15,29 +25,28 @@ static void
 heap_tracker_init(heap_tracker_t* heap_tracker)
 {
     traceback_array_init(&heap_tracker->allocs);
+    traceback_array_init(&heap_tracker->freezer.allocs);
+    ptr_array_init(&heap_tracker->freezer.frees);
     heap_tracker->allocated_memory = 0;
+    heap_tracker->frozen = false;
 }
 
 static void
 heap_tracker_wipe(heap_tracker_t* heap_tracker)
 {
     traceback_array_wipe(&heap_tracker->allocs);
+    traceback_array_wipe(&heap_tracker->freezer.allocs);
+    ptr_array_wipe(&heap_tracker->freezer.frees);
 }
 
-void
-memalloc_heap_tracker_init(void)
+static void
+heap_tracker_freeze(heap_tracker_t* heap_tracker)
 {
-    heap_tracker_init(&global_heap_tracker);
+    heap_tracker->frozen = true;
 }
 
-void
-memalloc_heap_tracker_deinit(void)
-{
-    heap_tracker_wipe(&global_heap_tracker);
-}
-
-void
-memalloc_heap_untrack(void* ptr)
+static void
+heap_tracker_untrack_thawed(heap_tracker_t* heap_tracker, void* ptr)
 {
     /* This search is O(n) where `n` is the number of tracked traceback,
        which is linearly linked to the heap size. This search could probably be
@@ -56,10 +65,76 @@ memalloc_heap_untrack(void* ptr)
         if (ptr == (*tb)->ptr) {
             /* Free the traceback */
             traceback_free(*tb);
-            traceback_array_remove(&global_heap_tracker.allocs, tb);
+            traceback_array_remove(&heap_tracker->allocs, tb);
             break;
         }
     }
+}
+
+static void
+heap_tracker_thaw(heap_tracker_t* heap_tracker)
+{
+    /* Add the frozen allocs at the end */
+    traceback_array_splice(&heap_tracker->allocs,
+                           heap_tracker->allocs.count,
+                           0,
+                           heap_tracker->freezer.allocs.tab,
+                           heap_tracker->freezer.allocs.count);
+
+    /* Handle the frees: we need to handle the frees after we merge the allocs
+       array together to be sure that there's no free in the freezer matching
+       an alloc that is also in the freezer; heap_tracker_untrack_thawed does
+       not care about the freezer, by definition. */
+    for (TRACEBACK_ARRAY_COUNT_TYPE i = 0; i < heap_tracker->freezer.frees.count; i++)
+        heap_tracker_untrack_thawed(heap_tracker, heap_tracker->freezer.frees.tab[i]);
+
+    /* Reset the count to zero so we can reused the array and overwrite previous values */
+    heap_tracker->freezer.allocs.count = 0;
+    heap_tracker->freezer.frees.count = 0;
+
+    heap_tracker->frozen = false;
+}
+
+/* Public API */
+
+void
+memalloc_heap_tracker_init(void)
+{
+    heap_tracker_init(&global_heap_tracker);
+}
+
+void
+memalloc_heap_tracker_deinit(void)
+{
+    heap_tracker_wipe(&global_heap_tracker);
+}
+
+void
+memalloc_heap_tracker_freeze()
+{
+    heap_tracker_freeze(&global_heap_tracker);
+}
+
+void
+memalloc_heap_tracker_thaw()
+{
+    heap_tracker_thaw(&global_heap_tracker);
+}
+
+void
+memalloc_heap_untrack(void* ptr)
+{
+    if (global_heap_tracker.frozen) {
+        /* Check that we still have space to store the free. If we don't have
+           enough space, we ignore the untrack. That's sad as there is a change
+           the heap profile won't be valid anymore. However, that's the best we
+           can do since reporting an error is not an option here. What's gonna
+           free more than 2^64 pointer anyway?!
+        */
+        if (global_heap_tracker.freezer.frees.count < MEMALLOC_HEAP_PTR_ARRAY_MAX)
+            ptr_array_append(&global_heap_tracker.freezer.frees, ptr);
+    } else
+        heap_tracker_untrack_thawed(&global_heap_tracker, ptr);
 }
 
 void
@@ -82,8 +157,32 @@ memalloc_heap_track(uint32_t heap_sample_size, uint16_t max_nframe, void* ptr, s
 
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory);
     if (tb) {
-        traceback_array_append(&global_heap_tracker.allocs, tb);
+        if (global_heap_tracker.frozen)
+            traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
+        else
+            traceback_array_append(&global_heap_tracker.allocs, tb);
         /* Reset the counter to 0 */
         global_heap_tracker.allocated_memory = 0;
     }
+}
+
+PyObject*
+memalloc_heap()
+{
+    heap_tracker_freeze(&global_heap_tracker);
+
+    PyObject* heap_list = PyList_New(global_heap_tracker.allocs.count);
+
+    for (TRACEBACK_ARRAY_COUNT_TYPE i = 0; i < global_heap_tracker.allocs.count; i++) {
+        traceback_t* tb = global_heap_tracker.allocs.tab[i];
+
+        PyObject* tb_and_size = PyTuple_New(2);
+        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
+        PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
+        PyList_SET_ITEM(heap_list, i, tb_and_size);
+    }
+
+    heap_tracker_thaw(&global_heap_tracker);
+
+    return heap_list;
 }

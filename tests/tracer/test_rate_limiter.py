@@ -1,6 +1,6 @@
 from __future__ import division
-import mock
 
+import mock
 import pytest
 
 from ddtrace import compat

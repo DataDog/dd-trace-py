@@ -1,22 +1,24 @@
 import contextlib
+from contextlib import contextmanager
 import inspect
 import os
 import sys
-from contextlib import contextmanager
 
 import pytest
-from ddtrace.vendor import wrapt
 
 import ddtrace
-from ddtrace import Tracer, Span
-from ddtrace.compat import httplib, to_unicode
+from ddtrace import Span
+from ddtrace import Tracer
+from ddtrace.compat import httplib
+from ddtrace.compat import to_unicode
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal._encoding import MsgpackEncoder
-
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
+
 
 NO_CHILDREN = object()
 

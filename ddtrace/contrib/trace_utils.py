@@ -1,12 +1,14 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
 
@@ -146,6 +148,7 @@ def set_http_meta(
     method=None,
     url=None,
     status_code=None,
+    status_msg=None,
     query=None,
     request_headers=None,
     response_headers=None,
@@ -160,6 +163,9 @@ def set_http_meta(
         span._set_str_tag(http.STATUS_CODE, status_code)
         if is_error_code(status_code):
             span.error = 1
+
+    if status_msg is not None:
+        span._set_str_tag(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)

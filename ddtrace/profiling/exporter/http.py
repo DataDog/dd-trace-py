@@ -1,26 +1,25 @@
 # -*- encoding: utf-8 -*-
 import binascii
 import datetime
-import itertools
 import gzip
+import itertools
 import os
 import platform
 
 import tenacity
 
-from ddtrace.internal.runtime import container
-from ddtrace.utils.formats import parse_tags_str
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client
-
 import ddtrace
 from ddtrace.internal import runtime
 from ddtrace.internal import uds
+from ddtrace.internal.runtime import container
 from ddtrace.profiling import _attr
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
-from ddtrace.vendor.six.moves.urllib import parse as urlparse
 from ddtrace.profiling.exporter import pprof
+from ddtrace.utils.formats import parse_tags_str
+from ddtrace.vendor import attr
+from ddtrace.vendor import six
+from ddtrace.vendor.six.moves import http_client
+from ddtrace.vendor.six.moves.urllib import parse as urlparse
 
 
 HOSTNAME = platform.node()

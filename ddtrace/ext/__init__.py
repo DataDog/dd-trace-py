@@ -1,7 +1,7 @@
 from enum import Enum
 
-from ..vendor.debtcollector import removals
 from ..utils import removed_classproperty
+from ..vendor.debtcollector import removals
 
 
 class SpanTypes(Enum):

@@ -1,16 +1,16 @@
-# 3p
 import pymysql
 
-# project
 from ddtrace import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.compat import PY2
 from ddtrace.compat import stringify
-from ddtrace.contrib.pymysql.patch import patch, unpatch
-
-# testing
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.pymysql.patch import patch
+from ddtrace.contrib.pymysql.patch import unpatch
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
+
+from ... import TracerTestCase
+from ... import assert_dict_issuperset
+from ... import assert_is_measured
 from ...contrib.config import MYSQL_CONFIG
 
 

@@ -2,9 +2,11 @@ import celery
 
 from ddtrace import config
 
-from .app import patch_app, unpatch_app
-from .constants import PRODUCER_SERVICE, WORKER_SERVICE
 from ...utils.formats import get_env
+from .app import patch_app
+from .app import unpatch_app
+from .constants import PRODUCER_SERVICE
+from .constants import WORKER_SERVICE
 
 
 # Celery default settings
