@@ -26,6 +26,10 @@ below:
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
        :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
+   * - ``DD_SERVICE_MAPPING``
+     - String
+     -
+     - Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
    * - ``DD_TAGS``
      - String
      -
@@ -90,7 +94,7 @@ below:
        reply.
    * - ``DD_PROFILING_MAX_TIME_USAGE_PCT``
      - Float
-     - 2
+     - 1
      - The percentage of maximum time the stack profiler can use when computing
        statistics. Must be greater than 0 and lesser or equal to 100.
    * - ``DD_PROFILING_MAX_FRAMES``

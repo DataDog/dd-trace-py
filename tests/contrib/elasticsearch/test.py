@@ -2,12 +2,13 @@ import datetime
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch.elasticsearch import elasticsearch
-from ddtrace.contrib.elasticsearch.patch import patch, unpatch
+from ddtrace.contrib.elasticsearch.patch import patch
+from ddtrace.contrib.elasticsearch.patch import unpatch
+from ddtrace.ext import http
 
-from ..config import ELASTICSEARCH_CONFIG
 from ... import TracerTestCase
+from ..config import ELASTICSEARCH_CONFIG
 
 
 class ElasticsearchPatchTest(TracerTestCase):

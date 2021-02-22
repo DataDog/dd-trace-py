@@ -1,10 +1,12 @@
 import asyncio
 
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w, ObjectProxy
+from ddtrace.vendor.wrapt import ObjectProxy
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...compat import CONTEXTVARS_IS_AVAILABLE
-from .wrappers import wrapped_create_task, wrapped_create_task_contextvars
 from ...utils.wrappers import unwrap as _u
+from .wrappers import wrapped_create_task
+from .wrappers import wrapped_create_task_contextvars
 
 
 def patch():

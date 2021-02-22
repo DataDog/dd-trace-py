@@ -4,6 +4,8 @@
 #include <Python.h>
 #include <stdlib.h>
 
+#define DO_NOTHING(...)
+
 #define p_new(type, count) PyMem_RawMalloc(sizeof(type) * (count))
 #define p_delete(mem_p) PyMem_Free(mem_p);
 // Allocate at least 16 and 50% more than requested to avoid allocating items one by one.

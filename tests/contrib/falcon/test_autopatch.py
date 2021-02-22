@@ -1,5 +1,5 @@
-from falcon import testing
 import falcon as falcon
+from falcon import testing
 
 import ddtrace
 

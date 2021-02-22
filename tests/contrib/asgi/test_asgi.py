@@ -3,9 +3,10 @@ from functools import partial
 import random
 import sys
 
+from asgiref.testing import ApplicationCommunicator
 import httpx
 import pytest
-from asgiref.testing import ApplicationCommunicator
+
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.propagation import http as http_propagation
 from tests import override_http_config

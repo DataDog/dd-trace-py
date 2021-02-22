@@ -1,23 +1,26 @@
 # stdlib
-import time
 import asyncio
+import time
 
 # 3p
 import aiopg
 from psycopg2 import extras
 
+from ddtrace import Pin
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.aiopg.patch import patch, unpatch
-from ddtrace import Pin
-
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
+from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
 from tests.tracer.test_tracer import get_dummy_tracer
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
-from ...subprocesstest import run_in_subprocess
+
 from ... import assert_is_measured
+from ...subprocesstest import run_in_subprocess
+
 
 TEST_PORT = POSTGRES_CONFIG['port']
 

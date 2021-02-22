@@ -3,8 +3,8 @@ import sys
 import threading
 import time
 
-from ddtrace.profiling import _service
 from ddtrace.profiling import _nogevent
+from ddtrace.profiling import _service
 from ddtrace.vendor import attr
 
 

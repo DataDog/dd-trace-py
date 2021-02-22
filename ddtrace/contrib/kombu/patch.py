@@ -1,24 +1,25 @@
 # 3p
 import kombu
+
 from ddtrace.vendor import wrapt
 
 # project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, kombu as kombux
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import kombu as kombux
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
-
 from .constants import DEFAULT_SERVICE
-from .utils import (
-    get_exchange_from_args,
-    get_body_length_from_args,
-    get_routing_key_from_args,
-    extract_conn_tags,
-    HEADER_POS
-)
+from .utils import HEADER_POS
+from .utils import extract_conn_tags
+from .utils import get_body_length_from_args
+from .utils import get_exchange_from_args
+from .utils import get_routing_key_from_args
+
 
 # kombu default settings
 

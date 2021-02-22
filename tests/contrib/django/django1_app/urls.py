@@ -1,6 +1,6 @@
 from django.conf.urls import url
-from django.views.generic import TemplateView
 from django.views.decorators.cache import cache_page
+from django.views.generic import TemplateView
 
 from .. import views
 

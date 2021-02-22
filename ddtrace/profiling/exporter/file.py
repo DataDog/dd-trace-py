@@ -1,8 +1,8 @@
 import gzip
 import os
 
-from ddtrace.vendor import attr
 from ddtrace.profiling.exporter import pprof
+from ddtrace.vendor import attr
 
 
 @attr.s

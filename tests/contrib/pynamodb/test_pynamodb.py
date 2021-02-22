@@ -1,15 +1,15 @@
+from moto import mock_dynamodb
+from moto.dynamodb import dynamodb_backend
 import pynamodb.connection.base
 from pynamodb.connection.base import Connection
-from moto import mock_dynamodb
-
-# project
-from ddtrace import Pin
-from ddtrace.contrib.pynamodb.patch import patch, unpatch
-
-# testing
 import pytest
-from ... import TracerTestCase, assert_is_measured
-from moto.dynamodb import dynamodb_backend
+
+from ddtrace import Pin
+from ddtrace.contrib.pynamodb.patch import patch
+from ddtrace.contrib.pynamodb.patch import unpatch
+
+from ... import TracerTestCase
+from ... import assert_is_measured
 
 
 class PynamodbTest(TracerTestCase):

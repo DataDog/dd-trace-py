@@ -1,18 +1,25 @@
+import molten
+
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-import molten
-
-from ... import Pin, config
+from .. import trace_utils
+from ... import Pin
+from ... import config
 from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool, get_env
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
-from .. import trace_utils
-from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter, MOLTEN_ROUTE
+from .wrappers import MOLTEN_ROUTE
+from .wrappers import WrapperComponent
+from .wrappers import WrapperMiddleware
+from .wrappers import WrapperRenderer
+from .wrappers import WrapperRouter
 
 
 MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split(".")))

@@ -1,14 +1,18 @@
 from contextlib import contextmanager
 import random
 
-# 3p
-from ddtrace.vendor.wrapt import ObjectProxy
 import pylibmc
 
 # project
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, memcached, net
+# 3p
+from ddtrace.vendor.wrapt import ObjectProxy
+
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import memcached
+from ...ext import net
 from ...internal.logger import get_logger
 from ...settings import config
 from .addrs import parse_addresses

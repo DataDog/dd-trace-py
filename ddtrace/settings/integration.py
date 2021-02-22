@@ -1,10 +1,11 @@
 from copy import deepcopy
 import os
 
-from ..utils.attrdict import AttrDict
-from ..utils.formats import asbool, get_env
-from .http import HttpConfig
 from .._hooks import Hooks
+from ..utils.attrdict import AttrDict
+from ..utils.formats import asbool
+from ..utils.formats import get_env
+from .http import HttpConfig
 
 
 class IntegrationConfig(AttrDict):

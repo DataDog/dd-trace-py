@@ -1,10 +1,11 @@
-# 3p
 import pyodbc
 
-# project
-from ..dbapi import TracedConnection, TracedCursor
-from ... import config, Pin
-from ..trace_utils import wrap, unwrap
+from ... import Pin
+from ... import config
+from ..dbapi import TracedConnection
+from ..dbapi import TracedCursor
+from ..trace_utils import unwrap
+from ..trace_utils import wrap
 
 
 config._add(

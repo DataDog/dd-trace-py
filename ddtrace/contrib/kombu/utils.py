@@ -1,7 +1,9 @@
 """
 Some utils used by the dogtrace kombu integration
 """
-from ...ext import kombu as kombux, net
+from ...ext import kombu as kombux
+from ...ext import net
+
 
 PUBLISH_BODY_IDX = 0
 PUBLISH_ROUTING_KEY = 6

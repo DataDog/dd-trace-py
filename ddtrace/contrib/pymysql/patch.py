@@ -1,11 +1,14 @@
 # 3p
-from ddtrace.vendor import wrapt
 import pymysql
 
 # project
-from ddtrace import config, Pin
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
-from ...ext import net, db
+from ddtrace.vendor import wrapt
+
+from ...ext import db
+from ...ext import net
 
 
 config._add(

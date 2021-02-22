@@ -1,17 +1,25 @@
 from __future__ import division
-import mock
+
 import re
 import unittest
 
+import mock
 import pytest
 
 from ddtrace.compat import iteritems
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
-from ddtrace.constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING_LIMIT_DECISION
-from ddtrace.ext.priority import AUTO_KEEP, AUTO_REJECT
+from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
+from ddtrace.constants import SAMPLING_AGENT_DECISION
+from ddtrace.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SAMPLING_RULE_DECISION
+from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.ext.priority import AUTO_REJECT
 from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace.sampler import DatadogSampler, SamplingRule
-from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
+from ddtrace.sampler import AllSampler
+from ddtrace.sampler import DatadogSampler
+from ddtrace.sampler import RateByServiceSampler
+from ddtrace.sampler import RateSampler
+from ddtrace.sampler import SamplingRule
 from ddtrace.span import Span
 
 from .. import override_env
@@ -94,6 +102,17 @@ class RateSamplerTest(unittest.TestCase):
                 assert sampled == tracer.sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
+
+    def test_negative_sample_rate_raises_error(self):
+        tracer = get_dummy_tracer()
+        with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
+            tracer.sampler = RateSampler(sample_rate=-0.5)
+
+    def test_sample_rate_0_does_not_reset_to_1(self):
+        # Regression test for case where a sample rate of 0 caused the sample rate to be reset to 1
+        tracer = get_dummy_tracer()
+        tracer.sampler = RateSampler(sample_rate=0)
+        assert tracer.sampler.sample_rate == 0
 
 
 class RateByServiceSamplerTest(unittest.TestCase):

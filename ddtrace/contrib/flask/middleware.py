@@ -1,13 +1,18 @@
+from flask import g
+from flask import request
+from flask import signals
+import flask.templating
+
+from ddtrace import config
+
+from .. import trace_utils
 from ... import compat
-from ...ext import SpanTypes, http, errors
+from ...ext import SpanTypes
+from ...ext import errors
+from ...ext import http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
-from .. import trace_utils
-from ddtrace import config
-
-import flask.templating
-from flask import g, request, signals
 
 
 log = get_logger(__name__)
@@ -120,7 +125,7 @@ class TraceMiddleware(object):
 
     def _process_response(self, response):
         span = getattr(g, "flask_datadog_span", None)
-        if not (span and span.sampled):
+        if not span:
             return
 
         code = response.status_code if response else ""
@@ -133,7 +138,7 @@ class TraceMiddleware(object):
             _set_error_on_span(span, exception)
 
     def _finish_span(self, span, exception=None):
-        if not span or not span.sampled:
+        if not span:
             return
 
         code = span.get_tag(http.STATUS_CODE) or 0

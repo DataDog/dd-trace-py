@@ -1,11 +1,9 @@
 import os
 import uuid
 
-from .runtime_metrics import (
-    RuntimeTags,
-    RuntimeMetrics,
-    RuntimeWorker,
-)
+from .runtime_metrics import RuntimeMetrics
+from .runtime_metrics import RuntimeTags
+from .runtime_metrics import RuntimeWorker
 
 
 __all__ = [

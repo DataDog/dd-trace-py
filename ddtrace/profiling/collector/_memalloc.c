@@ -219,35 +219,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     Py_RETURN_NONE;
 }
 
-static PyObject*
-traceback_to_tuple(traceback_t* tb)
-{
-    /* Convert stack into a tuple of tuple */
-    PyObject* stack = PyTuple_New(tb->nframe);
-
-    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        PyObject* frame_tuple = PyTuple_New(3);
-
-        frame_t* frame = &tb->frames[nframe];
-
-        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
-        Py_INCREF(frame->filename);
-        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-        Py_INCREF(frame->name);
-
-        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
-    }
-
-    PyObject* tuple = PyTuple_New(3);
-
-    PyTuple_SET_ITEM(tuple, 0, stack);
-    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->total_nframe));
-    PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
-
-    return tuple;
-}
-
 PyDoc_STRVAR(memalloc_stop__doc__,
              "stop($module, /)\n"
              "--\n"
@@ -271,6 +242,22 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     memalloc_heap_tracker_deinit();
 
     Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(memalloc_heap_py__doc__,
+             "heap($module, /)\n"
+             "--\n"
+             "\n"
+             "Get the sampled heap representation.\n");
+static PyObject*
+memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    if (!global_alloc_tracker) {
+        PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
+        return NULL;
+    }
+
+    return memalloc_heap();
 }
 
 typedef struct
@@ -399,6 +386,7 @@ static PyTypeObject MemallocIterEvents_Type = {
 
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
                                         { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
                                         /* sentinel */
                                         { NULL, NULL, 0, NULL } };
 

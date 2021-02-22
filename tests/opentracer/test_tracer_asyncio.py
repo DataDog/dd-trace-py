@@ -1,11 +1,13 @@
 import asyncio
-import pytest
+
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
+import pytest
 
 import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 from .conftest import ot_tracer_factory  # noqa: F401
 
 

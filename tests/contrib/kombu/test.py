@@ -3,11 +3,14 @@ import kombu
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.kombu.patch import patch, unpatch
 from ddtrace.contrib.kombu import utils
+from ddtrace.contrib.kombu.patch import patch
+from ddtrace.contrib.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
+
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import RABBITMQ_CONFIG
-from ... import TracerTestCase, assert_is_measured
 
 
 class TestKombuPatch(TracerTestCase):
