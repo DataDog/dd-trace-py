@@ -257,14 +257,17 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
             result_traces_json = response.get_json()
             if result_traces_json and "rate_by_service" in result_traces_json:
-                if self._priority_sampler:
-                    self._priority_sampler.update_rate_by_service_sample_rates(
-                        result_traces_json["rate_by_service"],
-                    )
-                if isinstance(self._sampler, BasePrioritySampler):
-                    self._sampler.update_rate_by_service_sample_rates(
-                        result_traces_json["rate_by_service"],
-                    )
+                try:
+                    if self._priority_sampler:
+                        self._priority_sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                    if isinstance(self._sampler, BasePrioritySampler):
+                        self._sampler.update_rate_by_service_sample_rates(
+                            result_traces_json["rate_by_service"],
+                        )
+                except ValueError:
+                    log.error("sample_rate is negative, cannot update the rate samplers")
 
     def write(self, spans):
         # Start the AgentWriter on first write.
