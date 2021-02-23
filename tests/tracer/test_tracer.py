@@ -1558,3 +1558,18 @@ def test_service_mapping():
             assert _.service == "foo"
         with ddtrace.Tracer().trace("renaming", "sna") as _:
             assert _.service == "fu"
+
+
+def test_configure_url_partial():
+    tracer = ddtrace.Tracer()
+    tracer.configure(hostname="abc")
+    assert tracer.writer.agent_url == "http://abc:8126"
+    tracer.configure(port=123)
+    assert tracer.writer.agent_url == "http://abc:123"
+
+    tracer = ddtrace.Tracer(url="http://abc")
+    assert tracer.writer.agent_url == "http://abc:80"
+    tracer.configure(port=123)
+    assert tracer.writer.agent_url == "http://abc:123"
+    tracer.configure(port=431)
+    assert tracer.writer.agent_url == "http://abc:431"
