@@ -277,8 +277,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             with self._started_lock:
                 if self.started is False:
                     self.start()
-        if not spans:
-            return
 
         self._metrics_dist("writer.accepted.traces")
 
