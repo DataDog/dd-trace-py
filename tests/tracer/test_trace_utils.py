@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.compat import stringify
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID, HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from tests import override_global_config
 from tests.tracer.test_tracer import get_dummy_tracer
@@ -160,3 +161,17 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_called_once_with(*log_call)
     else:
         mock_log.exception.assert_not_called()
+
+
+def test_activate_distributed_tracing_context(int_config):
+    pin = Pin()
+    int_config.myint["distributed_tracing_enabled"] = True
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+    trace_utils.activate_distributed_tracing_context(pin, int_config.myint, headers)
+    context = pin.tracer.context_provider.active()
+
+    assert context._parent_trace_id == 678910
+    assert context._parent_span_id == 12345
