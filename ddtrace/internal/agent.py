@@ -6,19 +6,25 @@ from ddtrace.utils.formats import get_env
 from .uds import UDSHTTPConnection
 
 
+DEFAULT_HOSTNAME = "localhost"
+DEFAULT_TRACE_PORT = 8126
+DEFAULT_STATS_PORT = 8125
+DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
+
+
 def get_hostname():
     # type: () -> str
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HOSTNAME))
 
 
 def get_trace_port():
     # type: () -> int
-    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", 8126)))
+    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_TRACE_PORT)))
 
 
 def get_stats_port():
     # type: () -> int
-    return int(get_env("dogstatsd", "port", default=8125))
+    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))
 
 
 def get_trace_url():
