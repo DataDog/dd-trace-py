@@ -283,10 +283,7 @@ class Tracer(object):
                 if uds_path:
                     url = "unix://%s%s" % (hostname or "", uds_path)
                 else:
-                    if https:
-                        scheme = "https"
-                    else:
-                        scheme = "http"
+                    scheme = "https" if https else "http"
                     url = "%s://%s:%d" % (scheme, hostname or agent.get_hostname(), port or agent.get_trace_port())
             elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
                 # Preserve hostname and port when overriding priority sampling

@@ -136,7 +136,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
 
         # TODO: remove these attributes
-        _parsed_url = compat.parse.urlparse(agent_url)
+        _parsed_url = compat.parse.urlparse(self.agent_url)
         self._hostname = _parsed_url.hostname
         self._port = _parsed_url.port
         self._https = _parsed_url.scheme == "https"

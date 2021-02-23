@@ -457,5 +457,5 @@ def test_flush_connection_reset(endpoint_test_reset_server):
 
 
 def test_flush_connection_uds(endpoint_uds_server):
-    writer = AgentWriter("unix://%s:%s" % (_HOST, 2019))
+    writer = AgentWriter("unix://%s" % endpoint_uds_server.server_address)
     writer._send_payload("foobar", 12)
