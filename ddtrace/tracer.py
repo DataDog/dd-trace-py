@@ -19,11 +19,12 @@ from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .internal import _rand
+from .internal import agent
 from .internal import debug
 from .internal import hostname
+from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.runtime import RuntimeTags
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
@@ -38,7 +39,6 @@ from .utils.deprecation import RemovedInDDTrace10Warning
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
 from .utils.formats import get_env
-from .vendor.dogstatsd import DogStatsd
 
 
 log = get_logger(__name__)
@@ -56,27 +56,6 @@ if debug_mode and not hasHandlers(log):
         logging.basicConfig(level=logging.DEBUG)
 
 
-def _parse_dogstatsd_url(url):
-    if url is None:
-        return
-
-    # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
-    # also support without url scheme included
-    if url.startswith("/"):
-        url = "unix://" + url
-    elif "://" not in url:
-        url = "udp://" + url
-
-    parsed = compat.parse.urlparse(url)
-
-    if parsed.scheme == "unix":
-        return dict(socket_path=parsed.path)
-    elif parsed.scheme == "udp":
-        return dict(host=parsed.hostname, port=parsed.port)
-    else:
-        raise ValueError("Unknown scheme `%s` for DogStatsD URL `{}`".format(parsed.scheme))
-
-
 _INTERNAL_APPLICATION_SPAN_TYPES = ["custom", "template", "web", "worker"]
 
 
@@ -92,17 +71,7 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
-    _RUNTIME_METRICS_INTERVAL = 10
-
-    DEFAULT_HOSTNAME = environ.get("DD_AGENT_HOST", environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-    DEFAULT_PORT = int(environ.get("DD_TRACE_AGENT_PORT", 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
-    DEFAULT_DOGSTATSD_URL = get_env(
-        "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
-    )
-    DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
-
-    def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
+    def __init__(self, url=None, dogstatsd_url=None):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -118,15 +87,15 @@ class Tracer(object):
 
         uds_path = None
         https = None
-        hostname = self.DEFAULT_HOSTNAME
-        port = self.DEFAULT_PORT
+        hostname = agent.get_hostname()
+        port = agent.get_trace_port()
         writer = None
 
         if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         else:
             if url is None:
-                url = self.DEFAULT_AGENT_URL
+                url = agent.get_trace_url()
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ("http", "https"):
                 hostname = url_parsed.hostname
@@ -165,7 +134,7 @@ class Tracer(object):
             uds_path=uds_path,
             sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
-            dogstatsd_url=dogstatsd_url,
+            dogstatsd_url=agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url,
             writer=writer,
         )
 
@@ -296,16 +265,14 @@ class Tracer(object):
             self.sampler = sampler
 
         if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or agent.get_stats_port())
 
-        if dogstatsd_url is not None:
-            dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug("Connecting to DogStatsd(%s)", dogstatsd_url)
-            self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
+        self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
         if writer:
             self.writer = writer
-            self.writer.dogstatsd = self._dogstatsd_client
+            # Ensure dogstatsd client has been created for the writer being configured
+            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         elif (
             hostname is not None
             or port is not None
@@ -322,8 +289,8 @@ class Tracer(object):
                 if https is None:
                     https = self.writer._https
             else:
-                default_hostname = self.DEFAULT_HOSTNAME
-                default_port = self.DEFAULT_PORT
+                default_hostname = agent.get_hostname()
+                default_port = agent.get_trace_port()
 
             if hasattr(self, "writer") and self.writer.is_alive():
                 self.writer.stop()
@@ -335,7 +302,7 @@ class Tracer(object):
                 https=https,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
-                dogstatsd=self._dogstatsd_client,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
             )
 
@@ -348,8 +315,7 @@ class Tracer(object):
         # Since we've recreated our dogstatsd agent, we need to restart metric collection with that new agent
         if self._runtime_worker:
             runtime_metrics_was_running = True
-            self._runtime_worker.stop()
-            self._runtime_worker.join()
+            self._shutdown_runtime_worker()
             self._runtime_worker = None
         else:
             runtime_metrics_was_running = False
@@ -433,6 +399,8 @@ class Tracer(object):
             else:
                 service = config.service
 
+        mapped_service = config.service_mapping.get(service, service)
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -440,7 +408,7 @@ class Tracer(object):
                 name,
                 trace_id=trace_id,
                 parent_id=parent_span_id,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
@@ -456,7 +424,7 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
@@ -525,22 +493,21 @@ class Tracer(object):
 
             # The constant tags for the dogstatsd client needs to updated with any new
             # service(s) that may have been added.
-            self._update_dogstatsd_constant_tags()
+            if self._runtime_worker:
+                self._runtime_worker.update_runtime_tags()
 
         self._hooks.emit(self.__class__.start_span, span)
 
         return span
 
-    def _update_dogstatsd_constant_tags(self):
-        """Prepare runtime tags for ddstatsd."""
-        # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        tags = ["{}:{}".format(k, v) for k, v in RuntimeTags()]
-        self.log.debug("Updating constant tags %s", tags)
-        self._dogstatsd_client.constant_tags = tags
-
     def _start_runtime_worker(self):
-        self._runtime_worker = RuntimeWorker(self._dogstatsd_client, self._RUNTIME_METRICS_INTERVAL)
-        self._runtime_worker.start()
+        if not self._dogstatsd_url:
+            return
+
+        self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
+        # force an immediate update constant tags since we have reset services
+        # and generated a new runtime id
+        self._runtime_worker.update_runtime_tags()
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -575,10 +542,6 @@ class Tracer(object):
 
         if self._runtime_worker is not None:
             self._start_runtime_worker()
-
-        # force an immediate update constant tags since we have reset services
-        # and generated a new runtime id
-        self._update_dogstatsd_constant_tags()
 
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
@@ -819,6 +782,16 @@ class Tracer(object):
 
         self.writer.stop()
         self.writer.join(timeout=timeout)
+
+        if self._runtime_worker:
+            self._shutdown_runtime_worker()
+
+    def _shutdown_runtime_worker(self, timeout=None):
+        if not self._runtime_worker.is_alive():
+            return
+
+        self._runtime_worker.stop()
+        self._runtime_worker.join(timeout=timeout)
 
     @staticmethod
     def _is_agentless_environment():

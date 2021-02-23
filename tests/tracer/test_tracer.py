@@ -26,6 +26,7 @@ from ddtrace.ext import priority
 from ddtrace.ext import system
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
+from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.vendor import six
 from tests import DummyTracer
@@ -33,6 +34,8 @@ from tests import DummyWriter
 from tests import TracerTestCase
 from tests import override_global_config
 from tests.subprocesstest import run_in_subprocess
+
+from .. import override_env
 
 
 def get_dummy_tracer():
@@ -476,8 +479,8 @@ class TracerTestCases(TracerTestCase):
         with warnings.catch_warnings(record=True) as ws:
             warnings.simplefilter("always")
             self.tracer.configure(dogstatsd_host="foo")
-            assert self.tracer._dogstatsd_client.host == "foo"
-            assert self.tracer._dogstatsd_client.port == 8125
+            assert self.tracer.writer.dogstatsd.host == "foo"
+            assert self.tracer.writer.dogstatsd.port == 8125
             # verify warnings triggered
             assert len(ws) >= 1
             for w in ws:
@@ -491,8 +494,8 @@ class TracerTestCases(TracerTestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             self.tracer.configure(dogstatsd_host="foo", dogstatsd_port="1234")
-            assert self.tracer._dogstatsd_client.host == "foo"
-            assert self.tracer._dogstatsd_client.port == 1234
+            assert self.tracer.writer.dogstatsd.host == "foo"
+            assert self.tracer.writer.dogstatsd.port == 1234
             # verify warnings triggered
             assert len(w) >= 2
             assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
@@ -502,14 +505,14 @@ class TracerTestCases(TracerTestCase):
 
     def test_configure_dogstatsd_url_host_port(self):
         self.tracer.configure(dogstatsd_url="foo:1234")
-        assert self.tracer._dogstatsd_client.host == "foo"
-        assert self.tracer._dogstatsd_client.port == 1234
+        assert self.tracer.writer.dogstatsd.host == "foo"
+        assert self.tracer.writer.dogstatsd.port == 1234
 
     def test_configure_dogstatsd_url_socket(self):
         self.tracer.configure(dogstatsd_url="unix:///foo.sock")
-        assert self.tracer._dogstatsd_client.host is None
-        assert self.tracer._dogstatsd_client.port is None
-        assert self.tracer._dogstatsd_client.socket_path == "/foo.sock"
+        assert self.tracer.writer.dogstatsd.host is None
+        assert self.tracer.writer.dogstatsd.port is None
+        assert self.tracer.writer.dogstatsd.socket_path == "/foo.sock"
 
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
@@ -636,22 +639,22 @@ def test_tracer_shutdown_timeout():
 
 def test_tracer_dogstatsd_url():
     t = ddtrace.Tracer()
-    assert t._dogstatsd_client.host == "localhost"
-    assert t._dogstatsd_client.port == 8125
+    assert t.writer.dogstatsd.host == "localhost"
+    assert t.writer.dogstatsd.port == 8125
 
     t = ddtrace.Tracer(dogstatsd_url="foobar:12")
-    assert t._dogstatsd_client.host == "foobar"
-    assert t._dogstatsd_client.port == 12
+    assert t.writer.dogstatsd.host == "foobar"
+    assert t.writer.dogstatsd.port == 12
 
     t = ddtrace.Tracer(dogstatsd_url="udp://foobar:12")
-    assert t._dogstatsd_client.host == "foobar"
-    assert t._dogstatsd_client.port == 12
+    assert t.writer.dogstatsd.host == "foobar"
+    assert t.writer.dogstatsd.port == 12
 
     t = ddtrace.Tracer(dogstatsd_url="/var/run/statsd.sock")
-    assert t._dogstatsd_client.socket_path == "/var/run/statsd.sock"
+    assert t.writer.dogstatsd.socket_path == "/var/run/statsd.sock"
 
     t = ddtrace.Tracer(dogstatsd_url="unix:///var/run/statsd.sock")
-    assert t._dogstatsd_client.socket_path == "/var/run/statsd.sock"
+    assert t.writer.dogstatsd.socket_path == "/var/run/statsd.sock"
 
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(dogstatsd_url="foo://foobar:12")
@@ -1526,3 +1529,32 @@ def test_get_report_hostname_default(get_hostname):
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) is None
     assert child.get_tag(HOSTNAME_KEY) is None
+
+
+def test_service_mapping():
+    @contextlib.contextmanager
+    def override_service_mapping(service_mapping):
+        with override_env(dict(DD_SERVICE_MAPPING=service_mapping)):
+            assert ddtrace.config.service_mapping == {}
+            ddtrace.config.service_mapping = Config().service_mapping
+            yield
+            ddtrace.config.service_mapping = {}
+
+    # Test single mapping
+    with override_service_mapping("foo:bar"), ddtrace.Tracer().trace("renaming", service="foo") as span:
+        assert span.service == "bar"
+
+    # Test multiple mappings
+    with override_service_mapping("foo:bar,sna:fu"), ddtrace.Tracer().trace("renaming", service="sna") as span:
+        assert span.service == "fu"
+
+    # Test colliding mappings
+    with override_service_mapping("foo:bar,foo:foobar"), ddtrace.Tracer().trace("renaming", service="foo") as span:
+        assert span.service == "foobar"
+
+    # Test invalid service mapping
+    with override_service_mapping("foo;bar,sna:fu"):
+        with ddtrace.Tracer().trace("passthru", service="foo") as _:
+            assert _.service == "foo"
+        with ddtrace.Tracer().trace("renaming", "sna") as _:
+            assert _.service == "fu"
