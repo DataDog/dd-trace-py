@@ -3,14 +3,14 @@ import os
 import subprocess
 
 import django
+from django.core.signals import request_started
+from django.core.wsgi import get_wsgi_application
+from django.db import close_old_connections
 from django.test import modify_settings
 from django.test import override_settings
+from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
-from django.test.client import RequestFactory
-from django.core.signals import request_started
-from django.db import close_old_connections
-from django.core.wsgi import get_wsgi_application
 import pytest
 
 from ddtrace import config
