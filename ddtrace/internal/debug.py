@@ -7,7 +7,9 @@ import sys
 import pkg_resources
 
 import ddtrace
-from ddtrace.internal import writer
+from ddtrace.internal import agent
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import LogWriter
 
 from .logger import get_logger
 
@@ -66,42 +68,23 @@ def collect(tracer):
     # it on the possibly None writer which actually stores it on an API object.
     # Note that the tracer DOES have hostname and port attributes that it
     # sets to the defaults and ignores afterwards.
-    if tracer.writer:
-        if isinstance(tracer.writer, writer.LogWriter):
-            agent_url = "AGENTLESS"
-            hostname = port = uds_path = None
-        else:
-            hostname = tracer.writer._hostname
-            port = tracer.writer._port
-            uds_path = tracer.writer._uds_path
-            https = tracer.writer._https
-
-            # If all specified, uds_path will take precedence
-            if uds_path:
-                agent_url = "uds://%s" % uds_path
-            else:
-                proto = "https" if https else "http"
-                agent_url = "%s://%s:%s" % (proto, hostname, port)
-    else:
-        # Else if we can't infer anything from the tracer, rely on the defaults.
-        hostname = tracer.hostname
-        port = tracer.port
-        agent_url = "http://%s:%s" % (hostname, port)
-
-    if (hostname and port) or uds_path:
-        loc = "%s:%s" % (hostname, port) if hostname and port else uds_path
-        resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
-        if isinstance(resp, ddtrace.api.Response):
-            if resp.status == 200:
-                agent_error = None
-            else:
-                agent_error = "HTTP code %s, reason %s, message %s" % (resp.status, resp.reason, resp.msg)
-        else:
-            # There was an exception
-            agent_error = "Agent not reachable at %s. Exception raised: %s" % (loc, str(resp))
-    else:
-        # Serverless case
+    if tracer.writer and isinstance(tracer.writer, LogWriter):
+        agent_url = "AGENTLESS"
         agent_error = None
+    else:
+        if isinstance(tracer.writer, AgentWriter):
+            writer = tracer.writer
+        else:
+            writer = AgentWriter(agent_url=agent.get_trace_url())
+
+        agent_url = writer.agent_url
+        try:
+            writer.write([])
+            writer.flush_queue(raise_errors=True)
+        except Exception as e:
+            agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
+        else:
+            agent_error = None
 
     is_venv = in_venv()
 

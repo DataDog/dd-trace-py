@@ -61,11 +61,6 @@ class AgentWriterTests(BaseTestCase):
         writer.stop()
         writer.join()
 
-        statsd.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
@@ -90,11 +85,6 @@ class AgentWriterTests(BaseTestCase):
         writer.stop()
         writer.join()
 
-        statsd.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
@@ -116,11 +106,6 @@ class AgentWriterTests(BaseTestCase):
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
             )
         writer.flush_queue()
-        statsd.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
@@ -141,11 +126,6 @@ class AgentWriterTests(BaseTestCase):
         writer.stop()
         writer.join()
 
-        statsd.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
