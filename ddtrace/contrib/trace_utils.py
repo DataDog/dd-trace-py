@@ -178,9 +178,9 @@ def set_http_meta(
         store_response_headers(dict(response_headers), span, integration_config)
 
 
-def activate_distributed_tracing_context(pin, int_config, request_headers):
+def activate_distributed_headers(tracer, int_config, request_headers=None):
     """
-    Helper for activating a distributed trace's context if enabled in integration config.
+    Helper for activating a distributed trace headers' context if enabled in integration config.
     """
     int_config = int_config or {}
 
@@ -189,4 +189,4 @@ def activate_distributed_tracing_context(pin, int_config, request_headers):
         context = propagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+            tracer.context_provider.activate(context)

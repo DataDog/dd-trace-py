@@ -164,15 +164,40 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
-def test_activate_distributed_tracing_context(int_config):
-    pin = Pin()
+def test_activate_distributed_headers_enabled(int_config):
+    pin = Pin(tracer=Tracer())
     int_config.myint["distributed_tracing_enabled"] = True
     headers = {
         HTTP_HEADER_PARENT_ID: "12345",
         HTTP_HEADER_TRACE_ID: "678910",
     }
-    trace_utils.activate_distributed_tracing_context(pin, int_config.myint, headers)
+    trace_utils.activate_distributed_headers(pin.tracer, int_config.myint, headers)
     context = pin.tracer.context_provider.active()
 
-    assert context._parent_trace_id == 678910
-    assert context._parent_span_id == 12345
+    assert context.trace_id == 678910
+    assert context.span_id == 12345
+
+
+def test_activate_distributed_headers_disabled(int_config):
+    pin = Pin(tracer=Tracer())
+    int_config.myint["distributed_tracing_enabled"] = False
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+    trace_utils.activate_distributed_headers(pin.tracer, int_config.myint, headers)
+    context = pin.tracer.context_provider.active()
+
+    assert context.trace_id is None
+    assert context.span_id is None
+
+
+def test_activate_distributed_headers_no_headers(int_config):
+    pin = Pin(tracer=Tracer())
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    trace_utils.activate_distributed_headers(pin.tracer, int_config.myint, request_headers=None)
+    context = pin.tracer.context_provider.active()
+
+    assert context.trace_id is None
+    assert context.span_id is None
