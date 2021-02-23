@@ -279,7 +279,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                     self.start()
 
         self._metrics_dist("writer.accepted.traces")
-
         self._set_keep_rate(spans)
 
         try:
@@ -314,30 +313,31 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def flush_queue(self):
         enc_traces = self._buffer.get()
-        if enc_traces:
+        try:
+            if not enc_traces:
+                return
+
             encoded = self._encoder.join_encoded(enc_traces)
             try:
                 self._send_payload(encoded, len(enc_traces))
             except (httplib.HTTPException, OSError, IOError):
-                log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))
-
-            if self._report_metrics:
-                # Note that we cannot use the batching functionality of dogstatsd because
-                # it's not thread-safe.
-                # https://github.com/DataDog/datadogpy/issues/439
-                # This really isn't ideal as now we're going to do a ton of socket calls.
-                self.dogstatsd.increment("datadog.tracer.http.requests")
-                self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
-                for name, metric in self._metrics.items():
-                    self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
-
-        self._set_drop_rate()
-
-        self._metrics_reset()
+                log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
+            finally:
+                if self._report_metrics:
+                    # Note that we cannot use the batching functionality of dogstatsd because
+                    # it's not thread-safe.
+                    # https://github.com/DataDog/datadogpy/issues/439
+                    # This really isn't ideal as now we're going to do a ton of socket calls.
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
+                    for name, metric in self._metrics.items():
+                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
+        finally:
+            self._set_drop_rate()
+            self._metrics_reset()
 
     def run_periodic(self):
         self.flush_queue()
