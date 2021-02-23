@@ -7,7 +7,6 @@ import sys
 import pkg_resources
 
 import ddtrace
-from ddtrace.internal import agent
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 
@@ -15,35 +14,6 @@ from .logger import get_logger
 
 
 logger = get_logger(__name__)
-
-
-def ping_agent(api=None, hostname=None, port=None, uds_path=None):
-    # Attempt to query the agent, returns an api.Response
-    # or one of the following exceptions: httplib.HTTPException, OSError, IOError
-
-    if not api:
-        api = ddtrace.api.API(
-            hostname=hostname,
-            port=port,
-            uds_path=uds_path,
-        )
-
-    # We can't use api.send_traces([]) since it'll shortcut
-    # if traces is falsy.
-    p = ddtrace.payload.Payload(encoder=api._encoder)
-
-    # We can't use payload.add_trace([]) for the same reason
-    # as api.send_trace([]).
-    encoded = p.encoder.encode_trace([])
-    p.traces.append(encoded)
-    p.size += len(encoded)
-
-    try:
-        resp = api._flush(p)
-    except Exception as e:
-        resp = e
-
-    return resp
 
 
 def in_venv():
@@ -75,12 +45,12 @@ def collect(tracer):
         if isinstance(tracer.writer, AgentWriter):
             writer = tracer.writer
         else:
-            writer = AgentWriter(agent_url=agent.get_trace_url())
+            writer = AgentWriter()
 
         agent_url = writer.agent_url
         try:
             writer.write([])
-            writer.flush_queue(raise_errors=True)
+            writer.flush_queue(raise_exc=True)
         except Exception as e:
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:

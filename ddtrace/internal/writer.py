@@ -288,7 +288,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self._metrics_dist("buffer.accepted.traces", 1)
                 self._metrics_dist("buffer.accepted.spans", len(spans))
 
-    def flush_queue(self, raise_errors=False):
+    def flush_queue(self, raise_exc=False):
         enc_traces = self._buffer.get()
         try:
             if not enc_traces:
@@ -301,7 +301,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))
-                if raise_errors:
+                if raise_exc:
                     exc_type, exc_val, exc_tb = sys.exc_info()
                     reraise(exc_type, exc_val, exc_tb)
                 else:
@@ -321,6 +321,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             self._metrics_reset()
 
     def run_periodic(self):
-        self.flush_queue(raise_errors=False)
+        self.flush_queue(raise_exc=False)
 
     on_shutdown = run_periodic

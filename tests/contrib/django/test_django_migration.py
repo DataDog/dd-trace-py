@@ -40,4 +40,4 @@ def test_configure_from_settings(tracer):
 
         assert pin.tracer.enabled is True
         assert pin.tracer.tags["env"] == "env-test"
-        assert pin.tracer.writer.url == "http://host-test:1234"
+        assert pin.tracer.writer.agent_url == "http://host-test:1234"
