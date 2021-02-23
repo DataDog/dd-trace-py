@@ -85,32 +85,33 @@ class Tracer(object):
         self._runtime_worker = None
         self._filters = []
 
-        uds_path = None
-        https = None
-        hostname = agent.get_hostname()
-        port = agent.get_trace_port()
+        configure_kwargs = {}
         writer = None
-
         if self._is_agentless_environment() and url is None:
             writer = LogWriter()
-        else:
-            if url is None:
-                url = agent.get_trace_url()
+        elif url is not None:
             url_parsed = compat.parse.urlparse(url)
-            if url_parsed.scheme not in ("http", "https", "unix"):
-                raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
 
-            hostname = url_parsed.hostname
-            https = url_parsed.scheme == "https"
-            port = url_parsed.port
-            # FIXME This is needed because of the way of configure() works
-            # right now, where it considers `port=None` to be "no port set so
-            # let's use the default". It should go away when we remove
-            # configure()
-            if port is None:
-                port = 443 if https else 80
             if url_parsed.scheme == "unix":
-                uds_path = url_parsed.path
+                configure_kwargs["uds_path"] = url_parsed.path
+            elif url_parsed.scheme == "http":
+                configure_kwargs.update(
+                    {
+                        "hostname": url_parsed.hostname,
+                        "port": 80 if url_parsed.port is None else url_parsed.port,
+                        "https": False,
+                    }
+                )
+            elif url_parsed.scheme == "https":
+                configure_kwargs.update(
+                    {
+                        "hostname": url_parsed.hostname,
+                        "port": 443 if url_parsed.port is None else url_parsed.port,
+                        "https": True,
+                    }
+                )
+            else:
+                raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
 
         # globally set tags
         self.tags = config.tags.copy()
@@ -126,14 +127,11 @@ class Tracer(object):
 
         # Apply the default configuration
         self.configure(
-            hostname=hostname,
-            port=port,
-            https=https,
-            uds_path=uds_path,
             sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
             dogstatsd_url=agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url,
             writer=writer,
+            **configure_kwargs
         )
 
         self._hooks = _hooks.Hooks()
@@ -271,26 +269,35 @@ class Tracer(object):
             self.writer = writer
             # Ensure dogstatsd client has been created for the writer being configured
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        elif (
-            hostname is not None
-            or port is not None
-            or uds_path is not None
-            or https is not None
-            or priority_sampling is not None
-            or sampler is not None
-        ):
-            if hostname is not None or port is not None or uds_path is not None or https is not None:
-                if uds_path:
+        elif any([x is not None for x in [hostname, port, uds_path, https, priority_sampling, sampler]]):
+            if any([x is not None for x in [hostname, port, uds_path, https]]):
+                # If any of the parts of the URL have updated, merge them with
+                # the previous writer values.
+                if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
+                    prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
+                else:
+                    prev_url_parsed = compat.parse.urlparse("")
+
+                if uds_path is not None:
+                    if hostname is None and prev_url_parsed.scheme == "unix":
+                        hostname = prev_url_parsed.hostname
                     url = "unix://%s%s" % (hostname or "", uds_path)
                 else:
+                    if https is None:
+                        https = prev_url_parsed.scheme == "https"
+                    if hostname is None:
+                        hostname = prev_url_parsed.hostname or ""
+                    if port is None:
+                        port = prev_url_parsed.port
                     scheme = "https" if https else "http"
-                    url = "%s://%s:%d" % (scheme, hostname or agent.get_hostname(), port or agent.get_trace_port())
+                    url = "%s://%s:%s" % (scheme, hostname, port)
             elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                # Preserve hostname and port when overriding priority sampling
-                # This is clumsy and a good reason to get rid of this configure() API
+                # Reuse the URL from the previous writer if there was one.
                 url = self.writer.agent_url
             else:
-                url = agent.get_trace_url()
+                # No URL parts have updated and there's no previous writer to
+                # get the URL from.
+                url = None
 
             if hasattr(self, "writer") and self.writer.is_alive():
                 self.writer.stop()

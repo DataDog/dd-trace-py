@@ -157,9 +157,13 @@ def _get_default_url(
     # Default URL changes if an API_KEY is provided in the env
     if api_key is None:
         if tracer is None:
-            return agent.get_url()
+            return agent.get_trace_url()
         else:
-            return tracer.writer.agent_url
+            # Only use the tracer writer URL if it has been modified by the user.
+            if tracer.writer.agent_url != agent.get_trace_url() and tracer.writer.agent_url != agent.DEFAULT_TRACE_URL:
+                return tracer.writer.agent_url
+            else:
+                return agent.get_trace_url()
     # Agentless mode
     legacy = os.environ.get("DD_PROFILING_API_URL")
     if legacy:
