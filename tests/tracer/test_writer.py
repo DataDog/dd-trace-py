@@ -439,3 +439,16 @@ def test_flush_connection_reset(endpoint_test_reset_server):
 def test_flush_connection_uds(endpoint_uds_server):
     writer = AgentWriter(_HOST, 2019, uds_path=endpoint_uds_server.server_address)
     writer._send_payload("foobar", 12)
+
+
+def test_flush_queue_raise():
+    writer = AgentWriter(hostname="dne", port=1234)
+
+    # Should not raise
+    writer.write([])
+    writer.flush_queue(raise_exc=False)
+
+    error = OSError if PY3 else IOError
+    with pytest.raises(error):
+        writer.write([])
+        writer.flush_queue(raise_exc=True)
