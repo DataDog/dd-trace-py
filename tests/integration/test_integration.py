@@ -208,11 +208,6 @@ def test_metrics():
             log.warning.assert_not_called()
             log.error.assert_not_called()
 
-        statsd_mock.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd_mock.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 5, tags=[]),
