@@ -892,7 +892,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
         except Exception as e:
             # Even though it's unlikely any traces have been sent, make the
             # final request to the test agent so that the test case is finished.
-            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             conn.getresponse()
             pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
