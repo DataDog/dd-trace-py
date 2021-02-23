@@ -1569,7 +1569,7 @@ def resource():
 class TestWSGI:
     request_factory = RequestFactory()
 
-    def test_get_wsgi_200_request(self, test_spans, resource):
+    def test_get_wsgi_application_200_request(self, test_spans, resource):
         application = get_wsgi_application()
         test_response = {}
         environ = self.request_factory._base_environ(
@@ -1583,12 +1583,11 @@ class TestWSGI:
         response = application(environ, start_response)
 
         expected_headers = [
-            ("Content-Length", "16"),
             ("my-response-header", "my_response_value"),
             ("Content-Type", "text/html; charset=utf-8"),
         ]
         assert test_response["status"] == "200 OK"
-        assert all(header in test_response["headers"] for header in expected_headers)
+        assert all([header in test_response["headers"] for header in expected_headers])
         assert response.content == b"Hello, test app."
 
         # Assert the structure of the root `django.request` span
@@ -1634,8 +1633,8 @@ class TestWSGI:
             test_response["headers"] = headers
 
         response = application(environ, start_response)
-        assert test_response["status"] == "500 Internal Server Error"
-        assert response.content == b"<h1>Server Error (500)</h1>"
+        assert test_response["status"].upper() == "500 INTERNAL SERVER ERROR"
+        assert "Server Error" in str(response.content)
 
         # Assert the structure of the root `django.request` span
         root = test_spans.get_root_span()
