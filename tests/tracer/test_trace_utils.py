@@ -7,7 +7,8 @@ from ddtrace import config
 from ddtrace.compat import stringify
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
-from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID, HTTP_HEADER_TRACE_ID
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from tests import override_global_config
 from tests.tracer.test_tracer import get_dummy_tracer
