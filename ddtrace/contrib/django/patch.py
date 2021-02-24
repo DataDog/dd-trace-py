@@ -314,10 +314,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     try:
         request_headers = request.META
 
-        if config.django.distributed_tracing_enabled:
-            context = propagator.extract(request_headers)
-            if context.trace_id:
-                pin.tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(pin.tracer, config.django, request_headers=request_headers)
 
         # Determine the resolver and resource name for this request
         resolver = get_resolver(getattr(request, "urlconf", None))
