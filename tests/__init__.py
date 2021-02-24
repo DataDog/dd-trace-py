@@ -10,6 +10,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.compat import httplib
+from ddtrace.compat import parse
 from ddtrace.compat import to_unicode
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
@@ -846,7 +847,8 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token
 
-        conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+        parsed = parse.urlparse(tracer.writer.agent_url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
@@ -882,7 +884,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
                     del tracer.writer._headers["X-Datadog-Test-Token"]
 
             # Query for the results of the test.
-            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             r = conn.getresponse()
             if r.status != 200:
@@ -895,7 +897,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
         except Exception as e:
             # Even though it's unlikely any traces have been sent, make the
             # final request to the test agent so that the test case is finished.
-            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             conn.getresponse()
             pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)

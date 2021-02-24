@@ -33,15 +33,13 @@ def test_configure_keeps_api_hostname_and_port():
     tracer = Tracer()
     assert tracer.writer._hostname == "localhost"
     if AGENT_VERSION == "testagent":
-        assert tracer.writer._port == 9126
+        assert tracer.writer.agent_url == "http://localhost:9126"
     else:
-        assert tracer.writer._port == 8126
+        assert tracer.writer.agent_url == "http://localhost:8126"
     tracer.configure(hostname="127.0.0.1", port=8127)
-    assert tracer.writer._hostname == "127.0.0.1"
-    assert tracer.writer._port == 8127
+    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
     tracer.configure(priority_sampling=True)
-    assert tracer.writer._hostname == "127.0.0.1"
-    assert tracer.writer._port == 8127
+    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
 
 
 def test_debug_mode():

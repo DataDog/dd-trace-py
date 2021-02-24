@@ -560,25 +560,19 @@ class TracerTestCases(TracerTestCase):
 
 def test_tracer_url():
     t = ddtrace.Tracer()
-    assert t.writer._hostname == "localhost"
-    assert t.writer._port == 8126
+    assert t.writer.agent_url == "http://localhost:8126"
 
     t = ddtrace.Tracer(url="http://foobar:12")
-    assert t.writer._hostname == "foobar"
-    assert t.writer._port == 12
+    assert t.writer.agent_url == "http://foobar:12"
 
     t = ddtrace.Tracer(url="unix:///foobar")
-    assert t.writer._uds_path == "/foobar"
+    assert t.writer.agent_url == "unix:///foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer._hostname == "localhost"
-    assert t.writer._port == 80
-    assert not t.writer._https
+    assert t.writer.agent_url == "http://localhost:80"
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer._hostname == "localhost"
-    assert t.writer._port == 443
-    assert t.writer._https
+    assert t.writer.agent_url == "https://localhost:443"
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
