@@ -274,3 +274,11 @@ class GlobalConfigTestCase(TestCase):
         with override_env(dict(DATADOG_ENV="prod", DD_ENV="prod-staging")):
             c = Config()
             assert c.env == "prod-staging"
+
+    def test_dd_service_mapping(self):
+        c = Config()
+        assert c.service_mapping == {}
+
+        with override_env(dict(DD_SERVICE_MAPPING="foobar:bar,snafu:foo")):
+            c = Config()
+            assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}

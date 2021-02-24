@@ -7,6 +7,8 @@ from ddtrace import config
 from ddtrace.compat import stringify
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from tests import override_global_config
 from tests.tracer.test_tracer import get_dummy_tracer
@@ -160,3 +162,42 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_called_once_with(*log_call)
     else:
         mock_log.exception.assert_not_called()
+
+
+def test_activate_distributed_headers_enabled(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+    trace_utils.activate_distributed_headers(tracer, int_config.myint, headers)
+    context = tracer.context_provider.active()
+
+    assert context.trace_id == 678910
+    assert context.span_id == 12345
+
+
+def test_activate_distributed_headers_disabled(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = False
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+    trace_utils.activate_distributed_headers(tracer, int_config.myint, headers)
+    context = tracer.context_provider.active()
+
+    assert context.trace_id is None
+    assert context.span_id is None
+
+
+def test_activate_distributed_headers_no_headers(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    trace_utils.activate_distributed_headers(tracer, int_config.myint, request_headers=None)
+    context = tracer.context_provider.active()
+
+    assert context.trace_id is None
+    assert context.span_id is None

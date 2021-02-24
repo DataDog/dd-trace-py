@@ -62,6 +62,8 @@ class Config(object):
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
         self.http_server.error_statuses = "500-599"
 
+        self.service_mapping = parse_tags_str(get_env("service", "mapping", default=""))
+
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
         if self.service and "service" in self.tags:
