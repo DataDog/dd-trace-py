@@ -266,3 +266,30 @@ def test_snapshot(monkeypatch):
     time.sleep(2)
     p.stop()
     assert len(all_events["EVENTS"][event.Event]) == 1
+
+
+def test_failed_start_collector(caplog, monkeypatch):
+    class ErrCollect(collector.Collector):
+        def start(self):
+            raise RuntimeError("could not import required module")
+
+        @staticmethod
+        def collect():
+            pass
+
+        @staticmethod
+        def snapshot():
+            raise Exception("error!")
+
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+
+    class TestProfiler(profiler._ProfilerInstance):
+        pass
+
+    p = TestProfiler()
+    err_collector = ErrCollect(p._recorder)
+    p._collectors = [err_collector]
+    p.start()
+    time.sleep(2)
+    p.stop()
+    assert caplog.record_tuples == []
