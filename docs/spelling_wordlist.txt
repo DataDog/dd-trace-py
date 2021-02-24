@@ -51,6 +51,7 @@ kombu
 kubernetes
 kwarg
 lifecycle
+lookups
 mako
 memcached
 metadata
