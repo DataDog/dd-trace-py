@@ -27,6 +27,7 @@ datastore
 dbapi
 ddtrace
 django
+dogpile
 dogstatsd
 elasticsearch
 enqueue
