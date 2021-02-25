@@ -31,7 +31,6 @@ def test_configure_keeps_api_hostname_and_port():
     previous overrides have been kept.
     """
     tracer = Tracer()
-    assert tracer.writer._hostname == "localhost"
     if AGENT_VERSION == "testagent":
         assert tracer.writer.agent_url == "http://localhost:9126"
     else:
