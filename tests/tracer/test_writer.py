@@ -411,7 +411,7 @@ def endpoint_test_reset_server():
 
 
 def test_flush_connection_timeout_connect():
-    writer = AgentWriter("http://%s:%s" % (_HOST, 2019))
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, 2019))
     if PY3:
         exc_type = OSError
     else:
@@ -421,13 +421,13 @@ def test_flush_connection_timeout_connect():
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
-    writer = AgentWriter("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
         writer._send_payload("foobar", 12)
 
 
 def test_flush_connection_reset(endpoint_test_reset_server):
-    writer = AgentWriter("http://%s:%s" % (_HOST, _RESET_PORT))
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _RESET_PORT))
     if PY3:
         exc_types = (httplib.BadStatusLine, ConnectionResetError)
     else:
@@ -437,12 +437,12 @@ def test_flush_connection_reset(endpoint_test_reset_server):
 
 
 def test_flush_connection_uds(endpoint_uds_server):
-    writer = AgentWriter("unix://%s" % endpoint_uds_server.server_address)
+    writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
     writer._send_payload("foobar", 12)
 
 
 def test_flush_queue_raise():
-    writer = AgentWriter("http://dne:1234")
+    writer = AgentWriter(agent_url="http://dne:1234")
 
     # Should not raise
     writer.write([])
