@@ -22,13 +22,13 @@ from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from ddtrace.span import Span
 
+from .. import DummyTracer
 from .. import override_env
-from .test_tracer import get_dummy_tracer
 
 
 @pytest.fixture
 def dummy_tracer():
-    return get_dummy_tracer()
+    return DummyTracer()
 
 
 def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
@@ -38,7 +38,7 @@ def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
 
 
 def create_span(tracer=None, name="test.span", service=""):
-    tracer = tracer or get_dummy_tracer()
+    tracer = tracer or DummyTracer()
     span = tracer.trace(name=name, service=service)
     span.finish()
     return span
@@ -63,7 +63,7 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = get_dummy_tracer()
+            tracer = DummyTracer()
             writer = tracer.writer
 
             tracer.sampler = RateSampler(sample_rate)
@@ -85,7 +85,7 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_deterministic_behavior(self):
         """ Test that for a given trace ID, the result is always the same """
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         tracer.sampler = RateSampler(0.5)
@@ -104,13 +104,13 @@ class RateSamplerTest(unittest.TestCase):
                 ), "sampling should give the same result for a given trace_id"
 
     def test_negative_sample_rate_raises_error(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
             tracer.sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):
         # Regression test for case where a sample rate of 0 caused the sample rate to be reset to 1
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         tracer.sampler = RateSampler(sample_rate=0)
         assert tracer.sampler.sample_rate == 0
 
@@ -130,7 +130,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = get_dummy_tracer()
+            tracer = DummyTracer()
             writer = tracer.writer
             tracer.configure(sampler=AllSampler())
             # We need to set the writer because tracer.configure overrides it,
@@ -183,7 +183,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             },
         ]
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         tracer.configure(sampler=AllSampler())
         priority_sampler = tracer.priority_sampler
         for case in cases:
@@ -406,7 +406,7 @@ def test_sampling_rule_matches_exception():
 
 @pytest.mark.parametrize("sample_rate", [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991])
 def test_sampling_rule_sample(sample_rate):
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=sample_rate)
 
     iterations = int(1e4 / sample_rate)
@@ -420,7 +420,7 @@ def test_sampling_rule_sample(sample_rate):
 
 
 def test_sampling_rule_sample_rate_1():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=1)
 
     iterations = int(1e4)
@@ -428,7 +428,7 @@ def test_sampling_rule_sample_rate_1():
 
 
 def test_sampling_rule_sample_rate_0():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=0)
 
     iterations = int(1e4)

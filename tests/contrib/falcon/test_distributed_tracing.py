@@ -1,8 +1,7 @@
 import falcon as falcon
 from falcon import testing
 
-from tests.tracer.test_tracer import get_dummy_tracer
-
+from ... import DummyTracer
 from .app import get_app
 
 
@@ -14,7 +13,7 @@ class DistributedTracingTestCase(testing.TestCase):
     def setUp(self):
         super(DistributedTracingTestCase, self).setUp()
         self._service = "falcon"
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
         self.version = falcon.__version__
         if self.version[0] != "1":
@@ -42,7 +41,7 @@ class DistributedTracingTestCase(testing.TestCase):
         assert traces[0][0].trace_id == 100
 
     def test_distributred_tracing_disabled(self):
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer, distributed_tracing=False)
         if self.version[0] != "1":
             self.client = testing.TestClient(self.api)

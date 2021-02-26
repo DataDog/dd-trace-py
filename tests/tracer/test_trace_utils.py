@@ -10,8 +10,8 @@ from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
+from tests import DummyTracer
 from tests import override_global_config
-from tests.tracer.test_tracer import get_dummy_tracer
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def int_config():
 
 @pytest.fixture
 def tracer():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     return tracer
 
 
