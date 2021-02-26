@@ -1,15 +1,18 @@
 import logging
-import mock
 import threading
 
+import mock
 import pytest
 
-from ddtrace.span import Span
 from ddtrace.context import Context
-from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
+from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.ext.priority import USER_KEEP
+from ddtrace.ext.priority import USER_REJECT
+from ddtrace.span import Span
+from tests import BaseTestCase
 
 from .test_tracer import get_dummy_tracer
-from tests import BaseTestCase
 
 
 @pytest.fixture

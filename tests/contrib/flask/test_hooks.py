@@ -1,6 +1,7 @@
 from flask import Blueprint
 
 from ddtrace.ext import http
+
 from . import BaseFlaskTestCase
 from ... import assert_span_http_status_code
 

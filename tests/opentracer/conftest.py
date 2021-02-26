@@ -6,8 +6,8 @@ https://docs.pytest.org/en/latest/writing_plugins.html#testing-plugins
 """
 import pytest
 
-from ddtrace.opentracer import Tracer, set_global_tracer
-
+from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import set_global_tracer
 from tests.tracer.test_tracer import get_dummy_tracer
 
 

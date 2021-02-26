@@ -1,6 +1,8 @@
 import pytest
 
-from ddtrace.internal.buffer import BufferFull, BufferItemTooLarge, TraceBuffer
+from ddtrace.internal.buffer import BufferFull
+from ddtrace.internal.buffer import BufferItemTooLarge
+from ddtrace.internal.buffer import TraceBuffer
 
 
 def test_buffer_put_get():

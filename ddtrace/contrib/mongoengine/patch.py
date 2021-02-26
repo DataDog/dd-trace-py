@@ -1,7 +1,8 @@
 import mongoengine
 
-from .trace import WrappedConnect
 from ...utils.deprecation import deprecated
+from .trace import WrappedConnect
+
 
 # Original connect function
 _connect = mongoengine.connect

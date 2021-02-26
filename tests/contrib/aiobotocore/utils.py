@@ -1,7 +1,8 @@
+from contextlib import contextmanager
+
 import aiobotocore.session
 
 from ddtrace import Pin
-from contextlib import contextmanager
 
 
 LOCALSTACK_ENDPOINT_URL = {

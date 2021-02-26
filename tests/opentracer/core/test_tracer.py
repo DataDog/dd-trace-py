@@ -1,23 +1,21 @@
 import time
 
+import mock
 import opentracing
-from opentracing import (
-    child_of,
-    Format,
-    InvalidCarrierException,
-    UnsupportedFormatException,
-    SpanContextCorruptedException,
-)
+from opentracing import Format
+from opentracing import InvalidCarrierException
+from opentracing import SpanContextCorruptedException
+from opentracing import UnsupportedFormatException
+from opentracing import child_of
+import pytest
 
 import ddtrace
 from ddtrace.ext.priority import AUTO_KEEP
-from ddtrace.opentracer import Tracer, set_global_tracer
+from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
-
-import mock
-import pytest
 
 
 class TestTracerConfig(object):

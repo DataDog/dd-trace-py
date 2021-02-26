@@ -1,11 +1,14 @@
 # 3p
 import psycopg2
-from ddtrace.vendor import wrapt
 
 # project
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.contrib import dbapi
-from ddtrace.ext import sql, net, db
+from ddtrace.ext import db
+from ddtrace.ext import net
+from ddtrace.ext import sql
+from ddtrace.vendor import wrapt
 
 
 config._add("psycopg", dict(

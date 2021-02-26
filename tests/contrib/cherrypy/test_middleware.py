@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import re
 import logging
+import re
 import time
 
 import cherrypy
@@ -9,12 +9,16 @@ from six.moves.urllib.parse import quote as url_quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.ext import http, errors
+from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.ext import errors
+from ddtrace.ext import http
+from tests import DummyTracer
+from tests import assert_span_http_status_code
+from tests import snapshot
 
-from tests import assert_span_http_status_code, DummyTracer, snapshot
 from .web import TestApp
+
 
 logger = logging.getLogger()
 logger.level = logging.DEBUG

@@ -2,9 +2,11 @@ from django.conf.urls import url
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.http import HttpResponse
-from django.views.generic import TemplateView
+from django.urls import include
+from django.urls import path
+from django.urls import re_path
 from django.views.decorators.cache import cache_page
-from django.urls import include, path, re_path
+from django.views.generic import TemplateView
 
 from .. import views
 

@@ -1,7 +1,9 @@
 import mock
 import pytest
 
-from ddtrace.internal.import_hooks import register_module_hook, ModuleHookRegistry, hooks as global_hooks
+from ddtrace.internal.import_hooks import ModuleHookRegistry
+from ddtrace.internal.import_hooks import hooks as global_hooks
+from ddtrace.internal.import_hooks import register_module_hook
 from tests import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 

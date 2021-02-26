@@ -1,22 +1,28 @@
-import mock
+import logging
 import os
 import subprocess
 import sys
 
+import mock
 import pytest
-from ddtrace.vendor import six
 
 import ddtrace
-from ddtrace.constants import (
-    MANUAL_DROP_KEY,
-    MANUAL_KEEP_KEY,
-)
-from ddtrace import Tracer, tracer
-from ddtrace.internal.writer import AgentWriter
+from ddtrace import Tracer
+from ddtrace import tracer
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.runtime import container
-from ddtrace.sampler import DatadogSampler, RateSampler, SamplingRule
-
-from tests import TracerTestCase, snapshot, AnyInt, override_global_config
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.sampler import DatadogSampler
+from ddtrace.sampler import RateSampler
+from ddtrace.sampler import SamplingRule
+from ddtrace.vendor import six
+from tests import AnyFloat
+from tests import AnyInt
+from tests import AnyStr
+from tests import TracerTestCase
+from tests import override_global_config
+from tests import snapshot
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
@@ -28,17 +34,14 @@ def test_configure_keeps_api_hostname_and_port():
     previous overrides have been kept.
     """
     tracer = Tracer()
-    assert tracer.writer._hostname == "localhost"
     if AGENT_VERSION == "testagent":
-        assert tracer.writer._port == 9126
+        assert tracer.writer.agent_url == "http://localhost:9126"
     else:
-        assert tracer.writer._port == 8126
+        assert tracer.writer.agent_url == "http://localhost:8126"
     tracer.configure(hostname="127.0.0.1", port=8127)
-    assert tracer.writer._hostname == "127.0.0.1"
-    assert tracer.writer._port == 8127
+    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
     tracer.configure(priority_sampling=True)
-    assert tracer.writer._hostname == "127.0.0.1"
-    assert tracer.writer._port == 8127
+    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
 
 
 def test_debug_mode():
@@ -205,11 +208,6 @@ def test_metrics():
             log.warning.assert_not_called()
             log.error.assert_not_called()
 
-        statsd_mock.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd_mock.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 5, tags=[]),
@@ -501,3 +499,16 @@ class TestTraces(TracerTestCase):
                 pass
 
         tracer.shutdown()
+
+
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
+def test_flush_log(caplog):
+    caplog.set_level(logging.INFO)
+
+    writer = AgentWriter()
+
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        writer.write([])
+        writer.flush_queue(raise_exc=True)
+        calls = [mock.call(logging.DEBUG, "sent %s in %.5fs", AnyStr(), AnyFloat())]
+        log.log.assert_has_calls(calls)

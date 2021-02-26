@@ -1,17 +1,16 @@
 from celery import signals
 
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.pin import _DD_PIN_NAME
 
 from .constants import APP
-from .signals import (
-    trace_prerun,
-    trace_postrun,
-    trace_before_publish,
-    trace_after_publish,
-    trace_failure,
-    trace_retry,
-)
+from .signals import trace_after_publish
+from .signals import trace_before_publish
+from .signals import trace_failure
+from .signals import trace_postrun
+from .signals import trace_prerun
+from .signals import trace_retry
 
 
 def patch_app(app, pin=None):

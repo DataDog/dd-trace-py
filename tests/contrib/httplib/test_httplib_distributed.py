@@ -8,7 +8,8 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
 from ... import TracerTestCase
-from .test_httplib import SOCKET, HTTPLibBaseMixin
+from .test_httplib import HTTPLibBaseMixin
+from .test_httplib import SOCKET
 
 
 class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):

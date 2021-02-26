@@ -1,13 +1,16 @@
-import pytest
 import MySQLdb
+import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.mysqldb.patch import patch, unpatch
-
+from ddtrace.contrib.mysqldb.patch import patch
+from ddtrace.contrib.mysqldb.patch import unpatch
 from tests.opentracer.utils import init_tracer
+
+from ... import TracerTestCase
+from ... import assert_dict_issuperset
+from ... import assert_is_measured
 from ..config import MYSQL_CONFIG
-from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 
 
 class MySQLCore(object):

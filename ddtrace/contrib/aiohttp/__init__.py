@@ -49,12 +49,14 @@ to the ``request`` object, so that it can be used in the application code::
 """
 from ...utils.importlib import require_modules
 
+
 required_modules = ["aiohttp"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
         from .middlewares import trace_app
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = [
             "patch",

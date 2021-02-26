@@ -28,6 +28,7 @@ Global Configuration
 
 from ...utils.importlib import require_modules
 
+
 required_modules = ["pynamodb.connection.base"]
 
 with require_modules(required_modules) as missing_modules:

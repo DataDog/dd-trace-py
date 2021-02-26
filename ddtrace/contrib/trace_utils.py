@@ -1,12 +1,15 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTPPropagator
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
 
@@ -173,3 +176,17 @@ def set_http_meta(
 
     if response_headers is not None:
         store_response_headers(dict(response_headers), span, integration_config)
+
+
+def activate_distributed_headers(tracer, int_config, request_headers=None):
+    """
+    Helper for activating a distributed trace headers' context if enabled in integration config.
+    """
+    int_config = int_config or {}
+
+    if int_config.get("distributed_tracing_enabled", False):
+        propagator = HTTPPropagator()
+        context = propagator.extract(request_headers)
+        # Only need to activate the new context if something was propagated
+        if context.trace_id:
+            tracer.context_provider.activate(context)

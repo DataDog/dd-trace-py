@@ -1,16 +1,18 @@
 import importlib
 
+import ddtrace
 from ddtrace.vendor import wrapt
 
-import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, db as dbx
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
 from ...utils.wrappers import unwrap
-from .. import trace_utils
 from .constants import APP
 
 

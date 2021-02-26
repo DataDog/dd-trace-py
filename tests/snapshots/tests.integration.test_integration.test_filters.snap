@@ -11,6 +11,7 @@
            "boop" "beep"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
               "system.pid" 42296}}
       {"name" "child"
        "service" nil

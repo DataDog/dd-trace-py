@@ -1,12 +1,11 @@
 import psycopg2
-
+import pytest
 from sqlalchemy.exc import ProgrammingError
 
-import pytest
-
-from .mixins import SQLAlchemyTestMixin
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import POSTGRES_CONFIG
-from ... import TracerTestCase, assert_is_measured
+from .mixins import SQLAlchemyTestMixin
 
 
 class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
