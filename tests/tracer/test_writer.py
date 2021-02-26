@@ -40,7 +40,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         for i in range(10):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
@@ -53,7 +53,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_bad_endpoint(self):
         statsd = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
         for i in range(10):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
@@ -74,7 +74,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
         for i in range(10):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
@@ -100,7 +100,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_metrics_multi(self):
         statsd = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=True, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True)
         for i in range(10):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
@@ -140,7 +140,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_bad_endpoint(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         writer._metrics_reset = writer_metrics_reset
         for i in range(10):
             writer.write(
@@ -157,7 +157,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         writer._metrics_reset = writer_metrics_reset
         for i in range(10):
             writer.write(
@@ -177,7 +177,7 @@ class AgentWriterTests(BaseTestCase):
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer = AgentWriter(buffer_size=5300, dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", buffer_size=5300, dogstatsd=statsd, report_metrics=False)
         writer._metrics_reset = writer_metrics_reset
         for i in range(10):
             writer.write(
@@ -197,7 +197,7 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder = mock.Mock()
         writer_metrics_reset = mock.Mock()
         writer_encoder.encode_trace.side_effect = Exception
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         writer._encoder = writer_encoder
         writer._metrics_reset = writer_metrics_reset
         for i in range(10):
@@ -217,7 +217,7 @@ class AgentWriterTests(BaseTestCase):
         writer_run_periodic = mock.Mock()
         writer_put = mock.Mock()
         writer_put.return_value = Response(status=200)
-        writer = AgentWriter(dogstatsd=statsd, report_metrics=False, hostname="asdf", port=1234)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         writer.run_periodic = writer_run_periodic
         writer._put = writer_put
 
@@ -411,7 +411,7 @@ def endpoint_test_reset_server():
 
 
 def test_flush_connection_timeout_connect():
-    writer = AgentWriter(_HOST, 2019)
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, 2019))
     if PY3:
         exc_type = OSError
     else:
@@ -421,13 +421,13 @@ def test_flush_connection_timeout_connect():
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
-    writer = AgentWriter(_HOST, _TIMEOUT_PORT)
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
         writer._send_payload("foobar", 12)
 
 
 def test_flush_connection_reset(endpoint_test_reset_server):
-    writer = AgentWriter(_HOST, _RESET_PORT)
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _RESET_PORT))
     if PY3:
         exc_types = (httplib.BadStatusLine, ConnectionResetError)
     else:
@@ -437,12 +437,12 @@ def test_flush_connection_reset(endpoint_test_reset_server):
 
 
 def test_flush_connection_uds(endpoint_uds_server):
-    writer = AgentWriter(uds_path=endpoint_uds_server.server_address)
+    writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
     writer._send_payload("foobar", 12)
 
 
 def test_flush_queue_raise():
-    writer = AgentWriter(hostname="dne", port=1234)
+    writer = AgentWriter(agent_url="http://dne:1234")
 
     # Should not raise
     writer.write([])
