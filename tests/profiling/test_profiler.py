@@ -1,8 +1,10 @@
+import logging
 import os
 import subprocess
 import sys
 import time
 
+import mock
 import pytest
 
 import ddtrace
@@ -273,3 +275,41 @@ def test_snapshot(monkeypatch):
     time.sleep(2)
     p.stop()
     assert len(all_events["EVENTS"][event.Event]) == 1
+
+
+def test_failed_start_collector(caplog, monkeypatch):
+    class ErrCollect(collector.Collector):
+        def start(self):
+            raise RuntimeError("could not import required module")
+
+        @staticmethod
+        def collect():
+            pass
+
+        @staticmethod
+        def snapshot():
+            raise Exception("error!")
+
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+
+    class Exporter(exporter.Exporter):
+        def export(self, events, *args, **kwargs):
+            pass
+
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self, *args, **kargs):
+            return [Exporter()]
+
+    p = TestProfiler()
+    err_collector = mock.MagicMock(wraps=ErrCollect(p._recorder))
+    p._collectors = [err_collector]
+    p.start()
+    assert caplog.record_tuples == [
+        (("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector))
+    ]
+    time.sleep(2)
+    p.stop()
+    assert err_collector.snapshot.call_count == 0
+    assert caplog.record_tuples == [
+        (("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector))
+    ]

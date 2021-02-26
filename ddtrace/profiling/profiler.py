@@ -288,12 +288,15 @@ class _ProfilerInstance(_service.Service):
     def start(self):
         """Start the profiler."""
         super(_ProfilerInstance, self).start()
+        collectors = []
         for col in self._collectors:
             try:
                 col.start()
             except RuntimeError:
-                # `tracemalloc` is unavailable?
-                pass
+                LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+            else:
+                collectors.append(col)
+        self._collectors = collectors
 
         if self._scheduler is not None:
             self._scheduler.start()
