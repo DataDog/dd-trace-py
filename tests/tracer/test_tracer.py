@@ -470,15 +470,30 @@ class TracerTestCases(TracerTestCase):
         self.assertIsNotNone(self.tracer._runtime_worker)
 
     def test_configure_dogstatsd_url_host_port(self):
-        self.tracer.configure(dogstatsd_url="foo:1234")
-        assert self.tracer.writer.dogstatsd.host == "foo"
-        assert self.tracer.writer.dogstatsd.port == 1234
+        tracer = Tracer()
+        tracer.configure(dogstatsd_url="foo:1234")
+        assert tracer.writer.dogstatsd.host == "foo"
+        assert tracer.writer.dogstatsd.port == 1234
+
+        tracer = Tracer()
+        writer = AgentWriter()
+        tracer.configure(writer=writer, dogstatsd_url="foo:1234")
+        assert tracer.writer.dogstatsd.host == "foo"
+        assert tracer.writer.dogstatsd.port == 1234
 
     def test_configure_dogstatsd_url_socket(self):
-        self.tracer.configure(dogstatsd_url="unix:///foo.sock")
-        assert self.tracer.writer.dogstatsd.host is None
-        assert self.tracer.writer.dogstatsd.port is None
-        assert self.tracer.writer.dogstatsd.socket_path == "/foo.sock"
+        tracer = Tracer()
+        tracer.configure(dogstatsd_url="unix:///foo.sock")
+        assert tracer.writer.dogstatsd.host is None
+        assert tracer.writer.dogstatsd.port is None
+        assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
+
+        tracer = Tracer()
+        writer = AgentWriter()
+        tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
+        assert tracer.writer.dogstatsd.host is None
+        assert tracer.writer.dogstatsd.port is None
+        assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
 
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
