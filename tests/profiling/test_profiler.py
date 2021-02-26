@@ -186,11 +186,18 @@ def test_tracer_url_https():
     _check_url(prof, "https://foobar:8126")
 
 
+def test_tracer_url_uds_hostname():
+    t = ddtrace.Tracer()
+    t.configure(hostname="foobar", uds_path="/foobar")
+    prof = profiler.Profiler(tracer=t)
+    _check_url(prof, "unix://foobar/foobar")
+
+
 def test_tracer_url_uds():
     t = ddtrace.Tracer()
-    t.configure(hostname="foobar", https=True, uds_path="/foobar")
+    t.configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "https://foobar:8126")
+    _check_url(prof, "unix:///foobar")
 
 
 def test_env_no_api_key():

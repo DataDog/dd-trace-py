@@ -15,13 +15,14 @@ from ..encoding import Encoder
 from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..utils.time import StopWatch
+from .agent import get_connection
+from .agent import get_trace_url
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
-from .uds import UDSHTTPConnection
 
 
 log = get_logger(__name__)
@@ -151,10 +152,7 @@ class AgentWriter(object):
 
     def __init__(
         self,
-        hostname="localhost",
-        port=8126,
-        uds_path=None,
-        https=False,
+        agent_url=None,
         shutdown_timeout=DEFAULT_TIMEOUT,
         sampler=None,
         priority_sampler=None,
@@ -179,15 +177,12 @@ class AgentWriter(object):
 
         self._strategy.register(self.flush_queue)
 
+        self.agent_url = get_trace_url() if agent_url is None else agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
-        self._hostname = hostname
-        self._port = int(port)
-        self._uds_path = uds_path
-        self._https = https
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
@@ -247,10 +242,7 @@ class AgentWriter(object):
 
     def recreate(self):
         writer = self.__class__(
-            hostname=self._hostname,
-            port=self._port,
-            uds_path=self._uds_path,
-            https=self._https,
+            agent_url=self.agent_url,
             shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
         )
@@ -260,13 +252,7 @@ class AgentWriter(object):
         return writer
 
     def _put(self, data, headers):
-        if self._uds_path is None:
-            if self._https:
-                conn = httplib.HTTPSConnection(self._hostname, self._port, timeout=self._timeout)
-            else:
-                conn = httplib.HTTPConnection(self._hostname, self._port, timeout=self._timeout)
-        else:
-            conn = UDSHTTPConnection(self._uds_path, self._https, self._hostname, self._port, timeout=self._timeout)
+        conn = get_connection(self.agent_url, self._timeout)
 
         with StopWatch() as sw:
             try:
@@ -281,16 +267,6 @@ class AgentWriter(object):
             else:
                 log_level = logging.DEBUG
             log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
-
-    @property
-    def agent_url(self):
-        if self._uds_path:
-            return "unix://" + self._uds_path
-        if self._https:
-            scheme = "https://"
-        else:
-            scheme = "http://"
-        return "%s%s:%s" % (scheme, self._hostname, self._port)
 
     def _downgrade(self, payload, response):
         if self._endpoint == "/v0.4/traces":

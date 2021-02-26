@@ -10,6 +10,7 @@ from typing import Optional
 import warnings
 
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal import uwsgi
 from ddtrace.profiling import _service
 from ddtrace.profiling import exporter
@@ -156,28 +157,13 @@ def _get_default_url(
     # Default URL changes if an API_KEY is provided in the env
     if api_key is None:
         if tracer is None:
-            default_hostname = "localhost"
-            default_port = 8126
-            scheme = "http"
-            path = ""
+            return agent.get_trace_url()
         else:
-            default_hostname = tracer.writer._hostname
-            default_port = tracer.writer._port
-            if tracer.writer._https:
-                scheme = "https"
-                path = ""
-            elif tracer.writer._uds_path is not None:
-                scheme = "unix"
-                path = tracer.writer._uds_path
+            # Only use the tracer writer URL if it has been modified by the user.
+            if tracer.writer.agent_url != agent.get_trace_url() and tracer.writer.agent_url != agent.DEFAULT_TRACE_URL:
+                return tracer.writer.agent_url
             else:
-                scheme = "http"
-                path = ""
-
-        hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", default_hostname))
-        port = int(os.environ.get("DD_TRACE_AGENT_PORT", default_port))
-
-        return os.environ.get("DD_TRACE_AGENT_URL", "%s://%s:%d%s" % (scheme, hostname, port, path))
-
+                return agent.get_trace_url()
     # Agentless mode
     legacy = os.environ.get("DD_PROFILING_API_URL")
     if legacy:
