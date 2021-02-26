@@ -83,7 +83,7 @@ class PymongoCore(object):
     def test_update(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
+
         db = client['testdb']
         db.drop_collection('songs')
         input_songs = [
@@ -103,7 +103,7 @@ class PymongoCore(object):
         assert result.modified_count == 2
 
         # ensure all is traced.
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
@@ -126,7 +126,7 @@ class PymongoCore(object):
     def test_delete(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
+
         db = client['testdb']
         collection_name = 'here.are.songs'
         db.drop_collection(collection_name)
@@ -153,7 +153,7 @@ class PymongoCore(object):
         assert songs.count(af) == 0
 
         # ensure all is traced.
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
@@ -180,7 +180,6 @@ class PymongoCore(object):
 
     def test_insert_find(self):
         tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
 
         start = time.time()
         db = client.testdb
@@ -220,7 +219,7 @@ class PymongoCore(object):
         assert queried[0]['name'] == 'Toronto Maple Leafs'
         assert queried[0]['established'] == 1917
 
-        spans = writer.pop()
+        spans = tracer.pop()
         for span in spans:
             # ensure all the of the common metadata is set
             assert_is_measured(span)
@@ -260,7 +259,6 @@ class PymongoCore(object):
         tracer, client = self.get_tracer_and_client()
         ot_tracer = init_tracer('mongo_svc', tracer)
 
-        writer = tracer.writer
         with ot_tracer.start_active_span('mongo_op'):
             db = client['testdb']
             db.drop_collection('songs')
@@ -280,7 +278,7 @@ class PymongoCore(object):
             assert result.modified_count == 2
 
         # ensure all is traced.
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 4
 
@@ -314,7 +312,7 @@ class PymongoCore(object):
         db = client['testdb']
         db.drop_collection('songs')
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
@@ -327,7 +325,7 @@ class PymongoCore(object):
             db = client['testdb']
             db.drop_collection('songs')
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
@@ -340,7 +338,7 @@ class PymongoCore(object):
             db = client['testdb']
             db.drop_collection('songs')
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
@@ -414,7 +412,6 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def test_patch_unpatch(self):
         tracer = DummyTracer()
-        writer = tracer.writer
 
         # Test patch idempotence
         patch()
@@ -426,7 +423,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client['testdb'].drop_collection('whatever')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -436,7 +433,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client['testdb'].drop_collection('whatever')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -448,7 +445,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client['testdb'].drop_collection('whatever')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -468,7 +465,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client["testdb"].drop_collection("whatever")
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
@@ -503,7 +500,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
@@ -522,7 +519,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         # Ensure patched pymongo's insert/find behave normally
         assert input_movies == docs_in_collection
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         # Check that we generated one get_socket span and one cmd span per cmd
         # drop(), insert_many(), find() drop_collection() -> four cmds
         count_commands_executed = 4
@@ -560,7 +557,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_server_info(self):
         self.client.server_info()
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])

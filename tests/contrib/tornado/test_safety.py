@@ -46,7 +46,7 @@ class TestAsyncConcurrency(TornadoTestCase):
             t.join()
 
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert REQUESTS_NUMBER == len(traces)
         assert 2 == len(traces[0])
 
@@ -64,7 +64,7 @@ class TestAppSafety(TornadoTestCase):
         response = self.fetch("/success/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 0 == len(traces)
 
     def test_trace_unpatch_not_traced(self):
@@ -75,7 +75,7 @@ class TestAppSafety(TornadoTestCase):
         response = self.fetch("/success/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 0 == len(traces)
 
     def test_trace_app_twice(self):
@@ -86,7 +86,7 @@ class TestAppSafety(TornadoTestCase):
         response = self.fetch("/success/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -95,7 +95,7 @@ class TestAppSafety(TornadoTestCase):
         response = self.fetch("/success/?magic_number=42")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -108,7 +108,7 @@ class TestAppSafety(TornadoTestCase):
         response = self.fetch("/does_not_exist/")
         assert 404 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -129,7 +129,7 @@ class TestAppSafety(TornadoTestCase):
         executor = ThreadPoolExecutor(max_workers=3)
         yield executor.submit(job)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -157,5 +157,5 @@ class TestCustomAppSafety(TornadoTestCase):
         response = self.fetch("/custom_handler/")
         assert 400 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 0 == len(traces)

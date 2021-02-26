@@ -36,7 +36,7 @@ class Jinja2Test(TracerTestCase):
         assert t.render(name='Jinja') == 'Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 2
 
         for span in spans:
@@ -54,7 +54,7 @@ class Jinja2Test(TracerTestCase):
         assert ''.join(t.generate(name='Jinja')) == 'Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 2
 
         for span in spans:
@@ -74,7 +74,7 @@ class Jinja2Test(TracerTestCase):
         assert t.render(name='Jinja') == 'Message: Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 5
 
         for span in spans:
@@ -112,7 +112,7 @@ class Jinja2Test(TracerTestCase):
         assert t.render(name='Jinja') == 'Message: Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 5
 
         for span in spans:
@@ -128,7 +128,7 @@ class Jinja2Test(TracerTestCase):
             assert t.render(name='Jinja') == 'Message: Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 6
 
         for span in spans:
@@ -146,6 +146,6 @@ class Jinja2Test(TracerTestCase):
         t = env.get_template("template.html")
         assert t.render(name="Jinja") == "Message: Hello Jinja!"
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         for span in spans:
             assert span.service == "mysvc"

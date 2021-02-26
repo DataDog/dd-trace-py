@@ -53,7 +53,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data, b"Hello Flask")
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         self.assertEqual(len(spans), 8)
 
         self.assertListEqual(

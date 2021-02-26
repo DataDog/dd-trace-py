@@ -90,7 +90,7 @@ class TestMoltenDI(TestCase):
 
     def tearDown(self):
         unpatch()
-        self.tracer.writer.pop()
+        self.tracer.pop()
 
     def test_di_can_inject_dependencies(self):
         # Given that I have a DI instance
@@ -114,7 +114,7 @@ class TestMoltenDI(TestCase):
         resolved_example = resolver.resolve(example)
         resolved_example()
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
 
         # TODO[tahir]: We could in future trace the resolve method on components
         self.assertEqual(len(spans), 0)

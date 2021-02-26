@@ -45,7 +45,7 @@ class PylonsTestCase(TracerTestCase):
         app = fixture.TestApp(app)
         app.get(url_for(controller='root', action='raise_exception'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
 
         assert spans, spans
         assert len(spans) == 1
@@ -77,7 +77,7 @@ class PylonsTestCase(TracerTestCase):
 
         app.get(url_for(controller='root', action='index'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
 
         assert spans, spans
         assert len(spans) == 1
@@ -106,7 +106,7 @@ class PylonsTestCase(TracerTestCase):
         with pytest.raises(Exception):
             app.get(url_for(controller='root', action='index'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
 
         assert spans, spans
         assert len(spans) == 1
@@ -130,7 +130,7 @@ class PylonsTestCase(TracerTestCase):
 
         app.get(url_for(controller='root', action='raise_exception'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -153,7 +153,7 @@ class PylonsTestCase(TracerTestCase):
 
         app.get(url_for(controller='root', action='raise_exception'), status=404)
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -176,7 +176,7 @@ class PylonsTestCase(TracerTestCase):
         res = self.app.get(url_for(controller='root', action='index') + fqs)
         assert res.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -266,7 +266,7 @@ class PylonsTestCase(TracerTestCase):
         res = self.app.get(url_for(controller='root', action='render'))
         assert res.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 2
         request = spans[0]
@@ -286,7 +286,7 @@ class PylonsTestCase(TracerTestCase):
         with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='render_exception'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 2
         request = spans[0]
@@ -308,7 +308,7 @@ class PylonsTestCase(TracerTestCase):
         with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_exception'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -325,7 +325,7 @@ class PylonsTestCase(TracerTestCase):
         with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_wrong_code'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -342,7 +342,7 @@ class PylonsTestCase(TracerTestCase):
         with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_custom_code'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -359,7 +359,7 @@ class PylonsTestCase(TracerTestCase):
         with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_code_method'))
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -381,7 +381,7 @@ class PylonsTestCase(TracerTestCase):
         res = self.app.get(url_for(controller='root', action='index'), headers=headers)
         assert res.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -403,7 +403,7 @@ class PylonsTestCase(TracerTestCase):
         res = self.app.get(url_for(controller='root', action='index'), headers=headers)
         assert res.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -420,7 +420,7 @@ class PylonsTestCase(TracerTestCase):
             res = self.app.get(url_for(controller='root', action='index'))
             assert res.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert spans, spans
         assert len(spans) == 2
         ot_span, dd_span = spans

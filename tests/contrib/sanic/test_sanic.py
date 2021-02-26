@@ -145,7 +145,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
             assert _response_status(response) == 200
             assert await _response_json(response) == {"hello": "world"}
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 2
     request_span = spans[0][0]
@@ -196,7 +196,7 @@ async def test_resource_name(tracer, client, url, expected_json, expected_resour
     assert _response_status(response) == 200
     assert await _response_json(response) == expected_json
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     request_span = spans[0][0]
     assert request_span.resource == expected_resource
 
@@ -206,7 +206,7 @@ async def test_streaming_response(tracer, client):
     assert _response_status(response) == 200
     assert (await _response_text(response)).endswith("foo,bar")
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -224,7 +224,7 @@ async def test_error_app(tracer, client):
     assert _response_status(response) == 404
     assert "not found" in await _response_text(response)
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -242,7 +242,7 @@ async def test_exception(tracer, client):
     assert _response_status(response) == 500
     assert "Something bad happened" in await _response_text(response)
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -265,7 +265,7 @@ async def test_multiple_requests(tracer, client):
     assert [_response_status(r) for r in responses] == [200] * 2
     assert [await _response_json(r) for r in responses] == [{"hello": "world"}] * 2
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 2
     assert len(spans[0]) == 2
     assert len(spans[1]) == 2
@@ -285,7 +285,7 @@ async def test_invalid_response_type_str(tracer, client):
     assert _response_status(response) == 500
     assert await _response_text(response) == "Invalid response type"
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -303,7 +303,7 @@ async def test_invalid_response_type_empty(tracer, client):
     assert _response_status(response) == 500
     assert await _response_text(response) == "Invalid response type"
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -327,7 +327,7 @@ async def test_http_request_header_tracing(tracer, client):
     )
     assert _response_status(response) == 200
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 2
     request_span = spans[0][0]

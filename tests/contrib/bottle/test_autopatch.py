@@ -46,7 +46,7 @@ class TraceBottleTest(TestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -69,7 +69,7 @@ class TraceBottleTest(TestCase):
         except Exception:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -91,7 +91,7 @@ class TraceBottleTest(TestCase):
         resp = self.app.get("/home/")
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"

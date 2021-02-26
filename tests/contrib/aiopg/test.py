@@ -58,7 +58,6 @@ class AiopgTestCase(AsyncioTestCase):
         except AttributeError:
             pass
 
-        writer = tracer.writer
         # Ensure we can run a query and it's correctly traced
         q = 'select \'foobarblah\''
         start = time.time()
@@ -68,7 +67,7 @@ class AiopgTestCase(AsyncioTestCase):
         end = time.time()
         assert rows == [('foobarblah',)]
         assert rows
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans
         assert len(spans) == 1
         span = spans[0]
@@ -89,7 +88,7 @@ class AiopgTestCase(AsyncioTestCase):
             yield from cursor.execute(q)
             rows = yield from cursor.fetchall()
             assert rows == [('foobarblah',)]
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         ot_span, dd_span = spans
         # confirm the parenting
@@ -113,7 +112,7 @@ class AiopgTestCase(AsyncioTestCase):
             pass
         else:
             assert 0, 'should have an error'
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -133,7 +132,7 @@ class AiopgTestCase(AsyncioTestCase):
         # these calls were crashing with a previous version of the code.
         yield from (yield from conn.cursor()).execute(query='select \'blah\'')
         yield from (yield from conn.cursor()).execute('select \'blah\'')
-        assert not tracer.writer.pop()
+        assert not tracer.pop()
 
     @mark_asyncio
     def test_manual_wrap_extension_types(self):
@@ -157,7 +156,6 @@ class AiopgTestCase(AsyncioTestCase):
     @mark_asyncio
     def test_patch_unpatch(self):
         tracer = DummyTracer()
-        writer = tracer.writer
 
         # Test patch idempotence
         patch()
@@ -170,7 +168,7 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -181,7 +179,7 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -192,7 +190,7 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 

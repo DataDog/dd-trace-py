@@ -101,7 +101,7 @@ class SQLAlchemyTestMixin(object):
         self.session.add(wayne)
         self.session.commit()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -122,7 +122,7 @@ class SQLAlchemyTestMixin(object):
         out = list(self.session.query(Player).filter_by(name='wayne'))
         assert len(out) == 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -144,7 +144,7 @@ class SQLAlchemyTestMixin(object):
             rows = conn.execute('SELECT * FROM players').fetchall()
             assert len(rows) == 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -168,7 +168,7 @@ class SQLAlchemyTestMixin(object):
                 rows = conn.execute('SELECT * FROM players').fetchall()
                 assert len(rows) == 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 2

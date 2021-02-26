@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import inspect
 import os
 import sys
+from typing import List
 
 import pytest
 
@@ -353,6 +354,14 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Required subclass method for TestSpanContainer"""
         return self.tracer.writer.spans
 
+    def pop_spans(self):
+        # type: () -> List[Span]
+        return self.tracer.pop()
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        return self.tracer.pop_traces()
+
     def reset(self):
         """Helper to reset the existing list of spans created"""
         self.tracer.writer.pop()
@@ -412,13 +421,13 @@ class DummyWriter(AgentWriter):
             self.services.update(services)
 
     def pop(self):
-        # dummy method
+        # type: () -> List[Span]
         s = self.spans
         self.spans = []
         return s
 
     def pop_traces(self):
-        # dummy method
+        # type: () -> List[List[Span]]
         traces = self.traces
         self.traces = []
         return traces
@@ -448,6 +457,14 @@ class DummyTracer(Tracer):
             self.writer = DummyWriter(
                 priority_sampler=self.writer._priority_sampler,
             )
+
+    def pop(self):
+        # type: () -> List[Span]
+        return self.writer.pop()
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        return self.writer.pop_traces()
 
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
@@ -660,9 +677,15 @@ class TracerSpanContainer(TestSpanContainer):
         """
         return self.tracer.writer.spans
 
+    def pop(self):
+        return self.tracer.pop()
+
+    def pop_traces(self):
+        return self.tracer.pop_traces()
+
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.writer.pop()
+        self.tracer.pop()
 
 
 class TestSpanNode(TestSpan, TestSpanContainer):
