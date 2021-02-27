@@ -42,6 +42,10 @@ def fn_middleware(get_response):
     return mw
 
 
+def empty_middleware(get_response):
+    pass
+
+
 class ClsMiddleware:
     """Class middleware."""
 
