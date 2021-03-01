@@ -85,17 +85,16 @@ def patch_conn(django, conn):
 
 
 def instrument_dbs(django):
-    def all_connections(wrapped, instance, args, kwargs):
-        conns = wrapped(*args, **kwargs)
-        for conn in conns:
-            try:
-                patch_conn(django, conn)
-            except Exception:
-                log.debug("Error instrumenting database connection %r", conn, exc_info=True)
-        return conns
+    def set_connection(wrapped, instance, args, kwargs):
+        _, conn = args
+        try:
+            patch_conn(django, conn)
+        except Exception:
+            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
+        return wrapped(*args, **kwargs)
 
-    if not isinstance(django.db.connections.all, wrapt.ObjectProxy):
-        django.db.connections.all = wrapt.FunctionWrapper(django.db.connections.all, all_connections)
+    if not isinstance(django.db.connections.__setitem__, wrapt.ObjectProxy):
+        django.db.connections.__setitem__ = wrapt.FunctionWrapper(django.db.connections.__setitem__, set_connection)
 
     if hasattr(django.db, "connection") and not isinstance(django.db.connection.cursor, wrapt.ObjectProxy):
         patch_conn(django, django.db.connection)
