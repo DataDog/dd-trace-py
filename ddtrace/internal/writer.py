@@ -249,15 +249,15 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             try:
                 conn.request("PUT", self._endpoint, data, headers)
                 resp = compat.get_connection_response(conn)
+                t = sw.elapsed()
+                if t >= self.interval:
+                    log_level = logging.WARNING
+                else:
+                    log_level = logging.DEBUG
+                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
-            t = sw.elapsed()
-            if t >= self.interval:
-                log_level = logging.WARNING
-            else:
-                log_level = logging.DEBUG
-            log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
 
     def _downgrade(self, payload, response):
         if self._endpoint == "/v0.4/traces":

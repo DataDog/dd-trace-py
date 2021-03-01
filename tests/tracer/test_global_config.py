@@ -6,8 +6,8 @@ import pytest
 from ddtrace import config as global_config
 from ddtrace.settings import Config
 
+from .. import DummyTracer
 from .. import override_env
-from .test_tracer import get_dummy_tracer
 
 
 class GlobalConfigTestCase(TestCase):
@@ -15,7 +15,7 @@ class GlobalConfigTestCase(TestCase):
 
     def setUp(self):
         self.config = Config()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings

@@ -910,3 +910,8 @@ class AnyStr(object):
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
+
+
+class AnyFloat(object):
+    def __eq__(self, other):
+        return isinstance(other, float)
