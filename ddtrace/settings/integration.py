@@ -28,15 +28,23 @@ class IntegrationConfig(AttrDict):
         """
         :param global_config:
         :type global_config: Config
+        :param name:
+        :type name: str
         :param args:
         :param kwargs:
         """
+        make_copy = kwargs.pop("copy", False)
         super(IntegrationConfig, self).__init__(*args, **kwargs)
 
         # Set internal properties for this `IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
         object.__setattr__(self, "global_config", global_config)
         object.__setattr__(self, "integration_name", name)
+
+        if make_copy:
+            # We are making a copy of the configuration so we skip unnecessary work
+            return
+
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
 
@@ -63,15 +71,15 @@ class IntegrationConfig(AttrDict):
         self.setdefault("service_name", service)
 
     def __deepcopy__(self, memodict=None):
-        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self), memodict))
-        new.hooks = deepcopy(self.hooks, memodict)
-        new.http = deepcopy(self.http, memodict)
+        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self), memodict), copy=True)
+        object.__setattr__(new, "hooks", deepcopy(self.hooks, memodict))
+        object.__setattr__(new, "http", deepcopy(self.http, memodict))
         return new
 
     def copy(self):
-        new = IntegrationConfig(self.global_config, self.integration_name, dict(self))
-        new.hooks = self.hooks
-        new.http = self.http
+        new = IntegrationConfig(self.global_config, self.integration_name, dict(self), copy=True)
+        object.__setattr__(new, "hooks", self.hooks)
+        object.__setattr__(new, "http", self.http)
         return new
 
     @property
