@@ -43,6 +43,7 @@ def fn_middleware(get_response):
 
 
 def empty_middleware(get_response):
+    """Empty function middleware for regression testing."""
 
     def mw(request):
         pass
