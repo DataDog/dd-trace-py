@@ -84,9 +84,7 @@ exclude = '''
        | sql.py
        | system.py
     )
-    | http/
     | profiling/exporter/pprof_pb2.py$
-    | propagation/
     | vendor/
   )
   | tests/
