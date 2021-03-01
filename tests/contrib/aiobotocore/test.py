@@ -5,8 +5,8 @@ from ddtrace.compat import stringify
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import assert_is_measured
 from ... import assert_span_http_status_code
 from ..asyncio.utils import AsyncioTestCase
@@ -20,7 +20,7 @@ class AIOBotocoreTest(AsyncioTestCase):
     def setUp(self):
         super(AIOBotocoreTest, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
 
     def tearDown(self):
         super(AIOBotocoreTest, self).tearDown()

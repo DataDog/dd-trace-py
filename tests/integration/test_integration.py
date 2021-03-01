@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import sys
@@ -16,7 +17,9 @@ from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from ddtrace.vendor import six
+from tests import AnyFloat
 from tests import AnyInt
+from tests import AnyStr
 from tests import TracerTestCase
 from tests import override_global_config
 from tests import snapshot
@@ -496,3 +499,16 @@ class TestTraces(TracerTestCase):
                 pass
 
         tracer.shutdown()
+
+
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
+def test_flush_log(caplog):
+    caplog.set_level(logging.INFO)
+
+    writer = AgentWriter()
+
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        writer.write([])
+        writer.flush_queue(raise_exc=True)
+        calls = [mock.call(logging.DEBUG, "sent %s in %.5fs", AnyStr(), AnyFloat())]
+        log.log.assert_has_calls(calls)

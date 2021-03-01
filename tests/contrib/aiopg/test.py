@@ -16,8 +16,8 @@ from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import assert_is_measured
 from ...subprocesstest import run_in_subprocess
 
@@ -145,7 +145,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     def test_connect_factory(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         services = ['db', 'another']
         for service in services:
@@ -161,7 +161,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence

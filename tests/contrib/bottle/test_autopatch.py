@@ -5,8 +5,8 @@ import webtest
 
 import ddtrace
 from ddtrace import compat
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import assert_span_http_status_code
 
 
@@ -20,7 +20,7 @@ class TraceBottleTest(TestCase):
 
     def setUp(self):
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app

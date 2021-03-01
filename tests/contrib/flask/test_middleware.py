@@ -11,8 +11,8 @@ from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import assert_span_http_status_code
 from .web import create_app
 
@@ -21,7 +21,7 @@ class TestFlask(TestCase):
     """Ensures Flask is properly instrumented."""
 
     def setUp(self):
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.app = create_app()
         self.traced_app = TraceMiddleware(
             self.app,

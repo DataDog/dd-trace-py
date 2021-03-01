@@ -5,13 +5,13 @@ import pytest
 import ddtrace
 from ddtrace.contrib.sanic import patch
 from ddtrace.contrib.sanic import unpatch
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests import DummyTracer
 
 
 @pytest.fixture
 def tracer():
     original_tracer = ddtrace.tracer
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
