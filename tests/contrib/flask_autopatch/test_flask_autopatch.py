@@ -6,15 +6,15 @@ import flask
 from ddtrace import Pin
 from ddtrace.ext import http
 from ddtrace.vendor import wrapt
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import assert_is_measured
 from ... import assert_span_http_status_code
 
 
 class FlaskAutopatchTestCase(unittest.TestCase):
     def setUp(self):
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.app = flask.Flask(__name__)
         Pin.override(self.app, service='test-flask', tracer=self.tracer)
         self.client = self.app.test_client()
