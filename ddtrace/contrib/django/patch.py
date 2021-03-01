@@ -270,7 +270,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             def wrapped_factory(func, instance, args, kwargs):
                 # r is the middleware handler function returned from the factory
                 r = func(*args, **kwargs)
-                return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
+                if r:
+                    return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
+                # If r is an empty middleware function (i.e. returns None), don't wrap since NoneType cannot be called
+                else:
+                    return r
 
             trace_utils.wrap(base, attr, wrapped_factory)
 
