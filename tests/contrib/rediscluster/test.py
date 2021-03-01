@@ -5,8 +5,8 @@ from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.rediscluster.patch import patch
 from ddtrace.contrib.rediscluster.patch import unpatch
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import TracerTestCase
 from ... import assert_is_measured
 from ..config import REDISCLUSTER_CONFIG
@@ -75,7 +75,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_metric('redis.pipeline_length') == 3
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence
