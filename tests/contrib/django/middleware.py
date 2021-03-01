@@ -43,6 +43,10 @@ def fn_middleware(get_response):
 
 
 def empty_middleware(get_response):
+
+    def mw(request):
+        pass
+
     pass
 
 
