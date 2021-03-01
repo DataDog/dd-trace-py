@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    The dbapi integration allows other dbapi-compatible integrations to override the base dbapi config. The existing implementation repeatedly copied the base config whenever a traced method was called. Instead, this can be performed once at the initialization of a traced connection or cursor.

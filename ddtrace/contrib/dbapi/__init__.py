@@ -34,7 +34,7 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or 'sql'
         self._self_datadog_name = '{}.query'.format(name)
         self._self_last_execute_operation = None
-        self._self_config = cfg or config.dbapi2
+        self._self_config = _get_config(cfg or config.dbapi2)
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -51,10 +51,9 @@ class TracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
-        cfg = _get_config(self._self_config)
 
         with pin.tracer.trace(
-            name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
                 s.set_tag(SPAN_MEASURED_KEY)
@@ -182,7 +181,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
-        self._self_config = cfg or config.dbapi2
+        self._self_config = _get_config(cfg or config.dbapi2)
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
@@ -218,10 +217,9 @@ class TracedConnection(wrapt.ObjectProxy):
                 return r
             else:
                 pin = Pin.get_from(self)
-                cfg = _get_config(self._self_config)
                 if not pin:
                     return r
-                return self._self_cursor_cls(r, pin, cfg)
+                return self._self_cursor_cls(r, pin, self._self_config)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -231,9 +229,8 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
-        cfg = _get_config(self._self_config)
 
-        with pin.tracer.trace(name, service=ext_service(pin, cfg)) as s:
+        with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -242,10 +239,9 @@ class TracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
         pin = Pin.get_from(self)
-        cfg = _get_config(self._self_config)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, cfg)
+        return self._self_cursor_cls(cursor, pin, self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
