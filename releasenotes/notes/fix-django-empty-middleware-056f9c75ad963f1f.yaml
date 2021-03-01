@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: removed bug causing an ImproperlyConfigured error to be caught on the tracer side instead of django.
