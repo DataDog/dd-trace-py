@@ -1,7 +1,11 @@
 from django.utils.functional import SimpleLazyObject
 
-from ...compat import PY3, binary_type, parse, to_unicode
+from ...compat import PY3
+from ...compat import binary_type
+from ...compat import parse
+from ...compat import to_unicode
 from ...internal.logger import get_logger
+
 
 log = get_logger(__name__)
 

@@ -1,21 +1,23 @@
 import logging
-import mock
 import threading
 
+import mock
 import pytest
 
-from ddtrace.span import Span
 from ddtrace.context import Context
-from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
-
-from .test_tracer import get_dummy_tracer
+from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.ext.priority import USER_KEEP
+from ddtrace.ext.priority import USER_REJECT
+from ddtrace.span import Span
 from tests import BaseTestCase
+from tests import DummyTracer
 
 
 @pytest.fixture
 def tracer_with_debug_logging():
     # All the tracers, dummy or not, shares the same logging object.
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     level = tracer.log.level
     tracer.log.setLevel(logging.DEBUG)
     try:
@@ -118,7 +120,7 @@ class TestTracingContext(BaseTestCase):
     @mock.patch("logging.Logger.debug")
     def test_log_unfinished_spans_disabled(self, log):
         # the trace finished status logging is disabled
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
         # manually create a root-child trace
         root = Span(tracer=tracer, name="root")
@@ -139,7 +141,7 @@ class TestTracingContext(BaseTestCase):
     @mock.patch("logging.Logger.debug")
     def test_log_unfinished_spans_when_ok(self, log):
         # if the unfinished spans logging is enabled but the trace is finished, don't log anything
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         ctx = Context()
         # manually create a root-child trace
         root = Span(tracer=tracer, name="root")

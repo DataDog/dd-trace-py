@@ -4,11 +4,12 @@ can be used to simplify some operations while handling
 Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
+
 import ddtrace
 
+from ...context import Context
 from .provider import CONTEXT_ATTR
 from .wrappers import wrapped_create_task
-from ...context import Context
 
 
 def set_call_context(task, ctx):

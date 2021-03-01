@@ -1,16 +1,16 @@
-from unittest import TestCase
-
-# Test base adapted from molten/tests/test_dependency_injection.py
-
 from inspect import Parameter
+from unittest import TestCase
 
 import molten
 from molten import DependencyInjector
 
 from ddtrace import Pin
-from ddtrace.contrib.molten import patch, unpatch
+from ddtrace.contrib.molten import patch
+from ddtrace.contrib.molten import unpatch
+from tests import DummyTracer
 
-from tests.tracer.test_tracer import get_dummy_tracer
+
+# Test base adapted from molten/tests/test_dependency_injection.py
 
 
 class Settings(dict):
@@ -85,7 +85,7 @@ class TestMoltenDI(TestCase):
 
     def setUp(self):
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         Pin.override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
 
     def tearDown(self):

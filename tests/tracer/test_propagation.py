@@ -1,15 +1,13 @@
 from unittest import TestCase
 
 from ddtrace.context import Context
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
-from ddtrace.propagation.http import (
-    HTTPPropagator,
-    HTTP_HEADER_TRACE_ID,
-    HTTP_HEADER_PARENT_ID,
-    HTTP_HEADER_SAMPLING_PRIORITY,
-    HTTP_HEADER_ORIGIN,
-)
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests import DummyTracer
 
 
 class TestHttpPropagation(TestCase):
@@ -19,7 +17,7 @@ class TestHttpPropagation(TestCase):
     """
 
     def test_inject(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
         tracer.context_provider.activate(ctx)
@@ -34,7 +32,7 @@ class TestHttpPropagation(TestCase):
             assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
 
     def test_extract(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         headers = {
             "x-datadog-trace-id": "1234",
@@ -55,7 +53,7 @@ class TestHttpPropagation(TestCase):
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         headers = {
             "HTTP_X_DATADOG_TRACE_ID": "1234",

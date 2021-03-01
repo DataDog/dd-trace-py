@@ -1,17 +1,21 @@
 import os
 
-from routes import url_for
 from paste import fixture
 from paste.deploy import loadapp
 import pytest
+from routes import url_for
 
 from ddtrace import config
-from ddtrace.ext import http, errors
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
-
+from ddtrace.ext import errors
+from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
+
+from ... import TracerTestCase
+from ... import assert_is_measured
+from ... import assert_span_http_status_code
 
 
 class PylonsTestCase(TracerTestCase):
@@ -64,7 +68,8 @@ class PylonsTestCase(TracerTestCase):
 
         No error should be reported in the span.
         """
-        from .app.middleware import ExceptionMiddleware, ExceptionToSuccessMiddleware
+        from .app.middleware import ExceptionMiddleware
+        from .app.middleware import ExceptionToSuccessMiddleware
         wsgiapp = ExceptionMiddleware(self._wsgiapp)
         wsgiapp = ExceptionToSuccessMiddleware(wsgiapp)
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')

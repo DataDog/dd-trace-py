@@ -5,17 +5,21 @@ Datadog trace code for cherrypy.
 # stdlib
 import logging
 
-# project
-from ddtrace import config
-from .. import trace_utils
-from ... import compat
-from ...ext import errors, SpanTypes
-from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool, get_env
-
 # 3p
 import cherrypy
 from cherrypy.lib.httputil import valid_status
+
+# project
+from ddtrace import config
+
+from .. import trace_utils
+from ... import compat
+from ...ext import SpanTypes
+from ...ext import errors
+from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool
+from ...utils.formats import get_env
+
 
 log = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 from unittest import TestCase
 
+from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.span import Span
-from ddtrace.ext.http import URL
 
 
 class FilterRequestOnUrlTests(TestCase):

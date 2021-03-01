@@ -1,7 +1,9 @@
-from django.conf.urls import url, include
+from django.conf.urls import include
+from django.conf.urls import url
 from django.contrib.auth.models import User
-
-from rest_framework import viewsets, routers, serializers
+from rest_framework import routers
+from rest_framework import serializers
+from rest_framework import viewsets
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):

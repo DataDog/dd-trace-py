@@ -3,12 +3,13 @@ import threading
 from tornado import httpclient
 from tornado.testing import gen_test
 
-from ddtrace.contrib.tornado import patch, unpatch
+from ddtrace.contrib.tornado import patch
+from ddtrace.contrib.tornado import unpatch
 from ddtrace.ext import http
 
 from . import web
-from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
+from .web.app import CustomDefaultHandler
 
 
 class TestAsyncConcurrency(TornadoTestCase):

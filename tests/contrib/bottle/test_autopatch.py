@@ -1,12 +1,13 @@
+from unittest import TestCase
+
 import bottle
-import ddtrace
 import webtest
 
-from unittest import TestCase
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import assert_span_http_status_code
-
+import ddtrace
 from ddtrace import compat
+
+from ... import DummyTracer
+from ... import assert_span_http_status_code
 
 
 SERVICE = "bottle-app"
@@ -19,7 +20,7 @@ class TraceBottleTest(TestCase):
 
     def setUp(self):
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app

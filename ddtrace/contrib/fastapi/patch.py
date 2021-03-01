@@ -2,11 +2,11 @@ import fastapi
 from fastapi.middleware import Middleware
 
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import get_resource
-from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.internal.logger import get_logger
+from ddtrace.utils.wrappers import unwrap as _u
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)

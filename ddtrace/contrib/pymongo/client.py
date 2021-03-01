@@ -4,16 +4,23 @@ import json
 
 # 3p
 import pymongo
-from ddtrace.vendor.wrapt import ObjectProxy
 
 # project
 import ddtrace
+from ddtrace.vendor.wrapt import ObjectProxy
+
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, mongo as mongox, net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import mongo as mongox
+from ...ext import net as netx
 from ...internal.logger import get_logger
 from ...settings import config
-from .parse import parse_spec, parse_query, parse_msg
+from .parse import parse_msg
+from .parse import parse_query
+from .parse import parse_spec
+
 
 # Original Client class
 _MongoClient = pymongo.MongoClient

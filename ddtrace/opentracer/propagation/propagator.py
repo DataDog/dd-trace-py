@@ -1,4 +1,6 @@
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
+from abc import abstractmethod
+
 
 # ref: https://stackoverflow.com/a/38668373
 ABC = ABCMeta("ABC", (object,), {"__slots__": ()})

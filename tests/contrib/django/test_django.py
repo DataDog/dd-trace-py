@@ -1,24 +1,39 @@
 import itertools
-import django
-from django.views.generic import TemplateView
-from django.test import modify_settings, override_settings
-from django.utils.functional import SimpleLazyObject
 import os
-import pytest
 import subprocess
 
+import django
+from django.core.signals import request_started
+from django.core.wsgi import get_wsgi_application
+from django.db import close_old_connections
+from django.test import modify_settings
+from django.test import override_settings
+from django.test.client import RequestFactory
+from django.utils.functional import SimpleLazyObject
+from django.views.generic import TemplateView
+import pytest
+
 from ddtrace import config
-from ddtrace.compat import string_type, binary_type
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
+from ddtrace.compat import binary_type
+from ddtrace.compat import string_type
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
-from ddtrace.ext import http, errors
+from ddtrace.ext import errors
+from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
-
-from tests import override_config, override_env, override_global_config, override_http_config, assert_dict_issuperset
+from tests import assert_dict_issuperset
+from tests import override_config
+from tests import override_env
+from tests import override_global_config
+from tests import override_http_config
 from tests.opentracer.utils import init_tracer
+
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
@@ -1541,3 +1556,94 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
             and isinstance(http_host, binary_type)
             and isinstance(request_uri, binary_type)
         ) or isinstance(request_uri, string_type)
+
+
+@pytest.fixture()
+def resource():
+    # setUp and tearDown for TestWSGI test cases.
+    request_started.disconnect(close_old_connections)
+    yield
+    request_started.connect(close_old_connections)
+
+
+class TestWSGI:
+    request_factory = RequestFactory()
+
+    def test_get_wsgi_application_200_request(self, test_spans, resource):
+        application = get_wsgi_application()
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/", CONTENT_TYPE="text/html; charset=utf-8", REQUEST_METHOD="GET"
+        )
+
+        def start_response(status, headers):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        response = application(environ, start_response)
+
+        expected_headers = [
+            ("my-response-header", "my_response_value"),
+            ("Content-Type", "text/html; charset=utf-8"),
+        ]
+        assert test_response["status"] == "200 OK"
+        assert all([header in test_response["headers"] for header in expected_headers])
+        assert response.content == b"Hello, test app."
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+
+        if django.VERSION >= (2, 2, 0):
+            resource = "GET ^$"
+        else:
+            resource = "GET tests.contrib.django.views.index"
+
+        meta = {
+            "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+            "django.response.class": "django.http.response.HttpResponse",
+            "django.user.is_authenticated": "False",
+            "django.view": "tests.contrib.django.views.index",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "http://testserver/",
+        }
+        if django.VERSION >= (2, 2, 0):
+            meta["http.route"] = "^$"
+
+        assert http.QUERY_STRING not in root.meta
+        root.assert_matches(
+            name="django.request",
+            service="django",
+            resource=resource,
+            parent_id=None,
+            span_type="web",
+            error=0,
+            meta=meta,
+        )
+
+    def test_get_wsgi_application_500_request(self, test_spans, resource):
+        application = get_wsgi_application()
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/error-500/", CONTENT_TYPE="text/html; charset=utf-8", REQUEST_METHOD="GET"
+        )
+
+        def start_response(status, headers):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        response = application(environ, start_response)
+        assert test_response["status"].upper() == "500 INTERNAL SERVER ERROR"
+        assert "Server Error" in str(response.content)
+
+        # Assert the structure of the root `django.request` span
+        root = test_spans.get_root_span()
+
+        assert root.error == 1
+        assert root.get_tag("http.status_code") == "500"
+        assert root.get_tag(http.URL) == "http://testserver/error-500/"
+        assert root.get_tag("django.response.class") == "django.http.response.HttpResponseServerError"
+        if django.VERSION >= (2, 2, 0):
+            assert root.resource == "GET ^error-500/$"
+        else:
+            assert root.resource == "GET tests.contrib.django.views.error_500"

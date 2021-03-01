@@ -1,10 +1,12 @@
 import falcon
 
-from ddtrace import config, tracer
+from ddtrace import config
+from ddtrace import tracer
 from ddtrace.vendor import wrapt
 
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from .middleware import TraceMiddleware
-from ...utils.formats import asbool, get_env
 
 
 def patch():

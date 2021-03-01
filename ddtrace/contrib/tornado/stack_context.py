@@ -1,16 +1,19 @@
+import sys
+
 import tornado
 from tornado.ioloop import IOLoop
-import sys
 
 from ...context import Context
 from ...provider import DefaultContextProvider
+
 
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
 # instead use DefaultContextProvider with ContextVarContextManager for asyncio
 _USE_STACK_CONTEXT = not (sys.version_info >= (3, 7) and tornado.version_info >= (5, 0))
 
 if _USE_STACK_CONTEXT:
-    from tornado.stack_context import StackContextInconsistentError, _state
+    from tornado.stack_context import StackContextInconsistentError
+    from tornado.stack_context import _state
 
     class TracerStackContext(DefaultContextProvider):
         """

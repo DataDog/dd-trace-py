@@ -1,13 +1,18 @@
+from flask import g
+from flask import request
+from flask import signals
+import flask.templating
+
+from ddtrace import config
+
+from .. import trace_utils
 from ... import compat
-from ...ext import SpanTypes, http, errors
+from ...ext import SpanTypes
+from ...ext import errors
+from ...ext import http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
-from .. import trace_utils
-from ddtrace import config
-
-import flask.templating
-from flask import g, request, signals
 
 
 log = get_logger(__name__)

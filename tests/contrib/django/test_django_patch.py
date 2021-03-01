@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from ddtrace.contrib.django import patch

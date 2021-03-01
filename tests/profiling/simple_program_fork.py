@@ -2,12 +2,12 @@ import os
 import sys
 import threading
 
+from ddtrace.profiling import _service
 import ddtrace.profiling.auto
 import ddtrace.profiling.bootstrap
-import ddtrace.profiling.profiler
-from ddtrace.profiling import _service
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading as cthreading
+import ddtrace.profiling.profiler
 
 
 lock = threading.Lock()

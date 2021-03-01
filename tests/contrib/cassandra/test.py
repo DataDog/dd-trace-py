@@ -1,25 +1,34 @@
 # stdlib
 import contextlib
 import logging
-import unittest
 from threading import Event
+import unittest
 
 # 3p
-from cassandra.cluster import Cluster, ResultSet
-from cassandra.query import BatchStatement, SimpleStatement
+from cassandra.cluster import Cluster
+from cassandra.cluster import ResultSet
+from cassandra.query import BatchStatement
+from cassandra.query import SimpleStatement
 
+from ddtrace import Pin
+from ddtrace import config
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.cassandra.patch import patch, unpatch
-from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
-from ddtrace.ext import net, cassandra as cassx, errors
-from ddtrace import config, Pin
-
+from ddtrace.contrib.cassandra.patch import patch
+from ddtrace.contrib.cassandra.patch import unpatch
+from ddtrace.contrib.cassandra.session import SERVICE
+from ddtrace.contrib.cassandra.session import get_traced_cassandra
+from ddtrace.ext import cassandra as cassx
+from ddtrace.ext import errors
+from ddtrace.ext import net
 # testing
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import TracerTestCase, assert_is_measured
+
+from ... import DummyTracer
+from ... import TracerTestCase
+from ... import assert_is_measured
+
 
 # Oftentimes our tests fails because Cassandra connection timeouts during keyspace drop. Slowness in keyspace drop
 # is known and is due to 'auto_snapshot' configuration. In our test env we should disable it, but the official cassandra
@@ -373,7 +382,7 @@ class TestCassPatchDefault(unittest.TestCase, CassandraBase):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
@@ -391,7 +400,7 @@ class TestCassPatchAll(TestCassPatchDefault):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -412,7 +421,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
         Pin(service='not-%s' % self.TEST_SERVICE).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -425,7 +434,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
         patch()
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(Cluster).clone(tracer=tracer).onto(Cluster)
 
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
@@ -471,7 +480,7 @@ class TestCassandraConfig(TracerTestCase):
     def setUp(self):
         super(TestCassandraConfig, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
         Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)

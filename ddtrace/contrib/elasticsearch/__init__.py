@@ -21,6 +21,7 @@
 """
 from ...utils.importlib import require_modules
 
+
 # DEV: We only require one of these modules to be available
 required_modules = [
     "elasticsearch",

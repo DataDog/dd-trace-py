@@ -2,20 +2,23 @@
 import redis
 
 import ddtrace
-from ddtrace import Pin, compat
+from ddtrace import Pin
+from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis import get_traced_redis
-from ddtrace.contrib.redis.patch import patch, unpatch
-
+from ddtrace.contrib.redis.patch import patch
+from ddtrace.contrib.redis.patch import unpatch
+from tests import DummyTracer
+from tests import TracerTestCase
+from tests import snapshot
 from tests.opentracer.utils import init_tracer
+
 from ..config import REDIS_CONFIG
-from tests.tracer.test_tracer import get_dummy_tracer
-from tests import TracerTestCase, snapshot
 
 
 def test_redis_legacy():
     # ensure the old interface isn't broken, but doesn't trace
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     TracedRedisCache = get_traced_redis(tracer, "foo")
     r = TracedRedisCache(port=REDIS_CONFIG["port"])
     r.set("a", "b")
@@ -158,7 +161,7 @@ class TestRedisPatch(TracerTestCase):
         assert "cheese" in span.meta and span.meta["cheese"] == "camembert"
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence
@@ -334,7 +337,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         r.get("cheese")
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence

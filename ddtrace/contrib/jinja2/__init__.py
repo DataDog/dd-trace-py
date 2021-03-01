@@ -34,7 +34,8 @@ required_modules = ['jinja2']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = [
             'patch',

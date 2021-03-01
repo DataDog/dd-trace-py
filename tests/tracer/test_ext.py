@@ -1,6 +1,6 @@
 import glob
-import os
 import json
+import os
 
 import pytest
 

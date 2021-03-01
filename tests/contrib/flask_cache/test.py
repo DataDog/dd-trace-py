@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 
 # project
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import net
-from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
-
 # 3rd party
 from flask import Flask
 
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.flask_cache import get_traced_cache
+from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
+from ddtrace.ext import net
 # testing
 from tests.opentracer.utils import init_tracer
-from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
-from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
+
+from ... import TracerTestCase
+from ... import assert_dict_issuperset
+from ... import assert_is_measured
+from ..config import MEMCACHED_CONFIG
+from ..config import REDIS_CONFIG
 
 
 class FlaskCacheTest(TracerTestCase):

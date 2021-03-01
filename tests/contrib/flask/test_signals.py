@@ -1,6 +1,5 @@
-import mock
-
 import flask
+import mock
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import unpatch

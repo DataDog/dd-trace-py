@@ -1,5 +1,6 @@
 import os.path
 
+
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:

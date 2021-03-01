@@ -1,6 +1,7 @@
 import pytest
+
 from ddtrace.opentracer.span import Span
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests import DummyTracer
 
 
 @pytest.fixture
@@ -9,7 +10,7 @@ def nop_tracer():
 
     tracer = Tracer(service_name="mysvc", config={})
     # use the same test tracer used by the primary tests
-    tracer._tracer = get_dummy_tracer()
+    tracer._tracer = DummyTracer()
     return tracer
 
 
@@ -70,6 +71,7 @@ class TestSpan(object):
     def test_log_dd_kv(self, nop_span):
         """Ensure keys that can be handled by our impl. are indeed handled. """
         import traceback
+
         from ddtrace.ext import errors
 
         stack_trace = str(traceback.format_stack())

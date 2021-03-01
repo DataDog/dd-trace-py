@@ -1,9 +1,9 @@
-import os
-import jinja2
 import asyncio
-import aiohttp_jinja2
+import os
 
 from aiohttp import web
+import aiohttp_jinja2
+import jinja2
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))

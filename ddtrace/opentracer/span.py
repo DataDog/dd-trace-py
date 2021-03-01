@@ -2,11 +2,12 @@ import threading
 
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
-from ddtrace.span import Span as DatadogSpan
+
 from ddtrace.ext import errors
-from .tags import Tags
+from ddtrace.span import Span as DatadogSpan
 
 from .span_context import SpanContext
+from .tags import Tags
 
 
 class Span(OpenTracingSpan):

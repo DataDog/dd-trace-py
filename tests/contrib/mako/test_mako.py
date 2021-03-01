@@ -1,15 +1,20 @@
 import os.path
 
-# 3rd party
-from mako.template import Template
 from mako.lookup import TemplateLookup
 from mako.runtime import Context
+# 3rd party
+from mako.template import Template
 
 from ddtrace import Pin
-from ddtrace.contrib.mako import patch, unpatch
-from ddtrace.compat import StringIO, to_unicode
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import TracerTestCase, assert_is_measured
+from ddtrace.compat import StringIO
+from ddtrace.compat import to_unicode
+from ddtrace.contrib.mako import patch
+from ddtrace.contrib.mako import unpatch
+
+from ... import DummyTracer
+from ... import TracerTestCase
+from ... import assert_is_measured
+
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')
@@ -18,7 +23,7 @@ TMPL_DIR = os.path.join(TEST_DIR, 'templates')
 class MakoTest(TracerTestCase):
     def setUp(self):
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         Pin.override(Template, tracer=self.tracer)
 
     def tearDown(self):

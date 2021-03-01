@@ -1,5 +1,5 @@
-import pytest
 from opentracing.scope_managers.tornado import TornadoScopeManager
+import pytest
 
 
 @pytest.fixture()

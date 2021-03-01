@@ -1,27 +1,31 @@
 # 3p
 import pytest
-from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
-from ddtrace import Pin, config
-from ddtrace.settings.config import _deepmerge
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.vertica.patch import patch, unpatch
+from ddtrace.contrib.vertica.patch import patch
+from ddtrace.contrib.vertica.patch import unpatch
 from ddtrace.ext import errors
-
-# testing
-from ... import TracerTestCase, assert_is_measured
+from ddtrace.settings.config import _deepmerge
+from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
+
+# testing
+from ... import DummyTracer
+from ... import TracerTestCase
+from ... import assert_is_measured
+
 
 TEST_TABLE = "test_table"
 
 
 @pytest.fixture(scope="function")
 def test_tracer(request):
-    request.cls.test_tracer = get_dummy_tracer()
+    request.cls.test_tracer = DummyTracer()
     return request.cls.test_tracer
 
 
@@ -129,7 +133,7 @@ class TestVertica(TracerTestCase):
             patch()
             import vertica_python
 
-            test_tracer = get_dummy_tracer()
+            test_tracer = DummyTracer()
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
@@ -163,7 +167,7 @@ class TestVertica(TracerTestCase):
             patch()
             import vertica_python
 
-            test_tracer = get_dummy_tracer()
+            test_tracer = DummyTracer()
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
             Pin.override(conn, service="mycustomservice", tracer=test_tracer)

@@ -1,8 +1,11 @@
 import threading
 
-from .constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .constants import ORIGIN_KEY
+from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
-from .utils.formats import asbool, get_env
+from .utils.formats import asbool
+from .utils.formats import get_env
+
 
 log = get_logger(__name__)
 

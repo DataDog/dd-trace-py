@@ -1,9 +1,14 @@
-import ddtrace
 import tornado
 
+import ddtrace
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from . import handlers, application, decorators, template, compat, context_provider
+from . import application
+from . import compat
+from . import context_provider
+from . import decorators
+from . import handlers
+from . import template
 from ...utils.wrappers import unwrap as _u
 
 

@@ -27,6 +27,7 @@ datastore
 dbapi
 ddtrace
 django
+dogpile
 dogstatsd
 elasticsearch
 enqueue
@@ -50,6 +51,7 @@ kombu
 kubernetes
 kwarg
 lifecycle
+lookups
 mako
 memcached
 metadata

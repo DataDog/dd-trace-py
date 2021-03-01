@@ -1,11 +1,15 @@
 from tornado.web import HTTPError
 
-from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
-from .stack_context import TracerStackContext
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
+from .constants import CONFIG_KEY
+from .constants import REQUEST_CONTEXT_KEY
+from .constants import REQUEST_SPAN_KEY
+from .stack_context import TracerStackContext
 
 
 def execute(func, handler, args, kwargs):
