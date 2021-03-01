@@ -56,7 +56,7 @@ if debug_mode and not hasHandlers(log):
         logging.basicConfig(level=logging.DEBUG)
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = ["custom", "template", "web", "worker"]
+_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 
 
 class Tracer(object):
