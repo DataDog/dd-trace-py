@@ -400,6 +400,14 @@ def test_middleware_handled_view_exception_success(client, test_spans):
     assert "Error 500" in view_span.get_tag("error.stack")
 
 
+@pytest.mark.skipif(django.VERSION < (1, 10, 0), reason="Middleware functions only implemented since 1.10.0")
+def test_empty_middleware_func_is_raised_in_django(client, test_spans):
+    # Ensures potential empty middleware function (that returns None) is caught in django's end and not in our tracer
+    with override_settings(MIDDLEWARE=["tests.contrib.django.middleware.empty_middleware"]):
+        with pytest.raises(django.core.exceptions.ImproperlyConfigured):
+            client.get("/")
+
+
 """
 View tests
 """
