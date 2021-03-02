@@ -253,8 +253,8 @@ class Tracer(object):
             self.writer = writer
             # Ensure dogstatsd client has been created for the writer being configured
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        elif any([x is not None for x in [hostname, port, uds_path, https, priority_sampling, sampler]]):
-            if any([x is not None for x in [hostname, port, uds_path, https]]):
+        elif any(x is not None for x in [hostname, port, uds_path, https, priority_sampling, sampler]):
+            if any(x is not None for x in [hostname, port, uds_path, https]):
                 # If any of the parts of the URL have updated, merge them with
                 # the previous writer values.
                 if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
@@ -293,6 +293,8 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
             )
+        elif self.writer:
+            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
         if context_provider is not None:
             self.context_provider = context_provider
