@@ -512,11 +512,11 @@ class TestTraces(TracerTestCase):
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
 def test_flush_log(caplog):
     caplog.set_level(logging.INFO)
-
-    writer = AgentWriter()
+    tracer = Tracer()
+    with tracer.trace("test"):
+        pass
 
     with mock.patch("ddtrace.internal.writer.log") as log:
-        writer.write([])
-        writer.flush_queue()
+        tracer.writer.flush_queue()
         calls = [mock.call(logging.DEBUG, "sent %s in %.5fs", AnyStr(), AnyFloat())]
         log.log.assert_has_calls(calls)
