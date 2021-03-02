@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Cache the WSGI header to HTTP header conversion results for better
+    peformance.

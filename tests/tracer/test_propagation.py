@@ -6,6 +6,7 @@ from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.propagation.utils import _CACHE_HEADER_MAX_SIZE
 from ddtrace.propagation.utils import _cached_headers
 from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.propagation.utils import get_wsgi_header
@@ -86,12 +87,31 @@ class TestPropagationUtils(object):
 
         # Check for the expected cache content
         assert _cached_headers == {
-            "HTTP_TEST_HEADER": "Test-Header",
-            "UNHANDLED_HEADER": None,
-            "CONTENT_TYPE": "Content-Type",
+            "HTTP_TEST_HEADER": ("Test-Header", 1),
+            "UNHANDLED_HEADER": (None, 1),
+            "CONTENT_TYPE": ("Content-Type", 1),
         }
 
         # Check that the caching is not affecting the returned results
         assert from_wsgi_header("HTTP_TEST_HEADER") == "Test-Header"
         assert from_wsgi_header("UNHANDLED_HEADER") is None
         assert from_wsgi_header("CONTENT_TYPE") == "Content-Type"
+
+        # Check that the cache is not growing indefinitely
+        _cached_headers.clear()
+
+        for i in range(_CACHE_HEADER_MAX_SIZE >> 1):
+            from_wsgi_header("HTTP_TEST_HEADER" + str(i))
+
+        for i in range(_CACHE_HEADER_MAX_SIZE):
+            from_wsgi_header("HTTP_TEST_HEADER" + str(i))
+
+        MAX_TEXT_HEADER = "HTTP_TEST_HEADER" + str(_CACHE_HEADER_MAX_SIZE - 1)
+        assert _cached_headers["HTTP_TEST_HEADER0"] == ("Test-Header0", 2)
+        assert _cached_headers[MAX_TEXT_HEADER] == ("Test-Header" + str(_CACHE_HEADER_MAX_SIZE - 1), 1)
+        assert len(_cached_headers) == _CACHE_HEADER_MAX_SIZE
+
+        from_wsgi_header("HTTP_LAST_DROP")
+        assert len(_cached_headers) == (_CACHE_HEADER_MAX_SIZE >> 1) + 1
+        assert MAX_TEXT_HEADER not in _cached_headers
+        assert "HTTP_LAST_DROP" in _cached_headers
