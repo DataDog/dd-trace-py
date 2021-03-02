@@ -35,10 +35,10 @@ Here is the end result, in a sample app::
 from ...utils.importlib import require_modules
 
 
-required_modules = ['flask_cache']
+required_modules = ["flask_cache"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .tracers import get_traced_cache
 
-        __all__ = ['get_traced_cache']
+        __all__ = ["get_traced_cache"]

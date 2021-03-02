@@ -48,7 +48,6 @@ exclude = '''
       | cassandra
       | celery
       | dbapi
-      | flask_cache
       | grpc/
       (
         __init__.py
@@ -83,8 +82,6 @@ exclude = '''
       | cassandra
       | config.py
       | dbapi
-      | flask_autopatch
-      | flask_cache
       | grpc
       | jinja2
       | kombu
