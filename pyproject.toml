@@ -69,21 +69,6 @@ exclude = '''
       | sqlalchemy
       | util.py
     )
-    | ext/
-    (
-       cassandra.py
-       | db.py
-       | elasticsearch.py
-       | errors.py
-       | http.py
-       | kombu.py
-       | memcached.py
-       | mongo.py
-       | net.py
-       | priority.py
-       | sql.py
-       | system.py
-    )
     | profiling/exporter/pprof_pb2.py$
     | vendor/
   )
