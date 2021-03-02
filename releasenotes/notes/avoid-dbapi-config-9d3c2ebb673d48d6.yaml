@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Replace all `DD_*_DBAPI2_*` environment variables and `config.dbapi2` configuration with the equivalent configuration option for specific dbapi-compliant library.

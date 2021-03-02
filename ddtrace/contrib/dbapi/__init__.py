@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+
 from ddtrace.vendor import debtcollector
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -61,10 +62,9 @@ class TracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
-        cfg = _get_config(self._self_config)
 
         with pin.tracer.trace(
-            name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
                 s.set_tag(SPAN_MEASURED_KEY)
@@ -77,7 +77,7 @@ class TracedCursor(wrapt.ObjectProxy):
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
-                    config.dbapi2.get_analytics_sample_rate()
+                    self._self_config.get_analytics_sample_rate()
                 )
 
             try:
@@ -165,14 +165,6 @@ class FetchTracedCursor(TracedCursor):
                                   *args, **kwargs)
 
 
-def _get_config(new_cfg):
-    # Need to backwards support the dbapi2 config entry
-    # but give precedence to the given config.
-    cfg = config.dbapi2.copy()
-    cfg.update(new_cfg)
-    return cfg
-
-
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
@@ -190,8 +182,12 @@ class TracedConnection(wrapt.ObjectProxy):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedCursor
+<<<<<<< HEAD
             # Deprecation of config.dbapi2 requires we add a check
             if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
+=======
+            if cfg.trace_fetch_methods:
+>>>>>>> 9ea7f6f6f (refactor,perf: avoid multiple dbapi configs)
                 cursor_cls = FetchTracedCursor
 
         super(TracedConnection, self).__init__(conn)
@@ -238,10 +234,9 @@ class TracedConnection(wrapt.ObjectProxy):
                 return r
             else:
                 pin = Pin.get_from(self)
-                cfg = _get_config(self._self_config)
                 if not pin:
                     return r
-                return self._self_cursor_cls(r, pin, cfg)
+                return self._self_cursor_cls(r, pin, self._self_config)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -251,9 +246,8 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
-        cfg = _get_config(self._self_config)
 
-        with pin.tracer.trace(name, service=ext_service(pin, cfg)) as s:
+        with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -262,10 +256,9 @@ class TracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
         pin = Pin.get_from(self)
-        cfg = _get_config(self._self_config)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, cfg)
+        return self._self_cursor_cls(cursor, pin, self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')

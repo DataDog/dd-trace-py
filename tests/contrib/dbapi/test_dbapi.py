@@ -6,8 +6,9 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.settings import config as global_config
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.span import Span
-from ddtrace.utils.attrdict import AttrDict
 
 from ... import TracerTestCase
 from ... import assert_is_measured
@@ -193,7 +194,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        cfg = AttrDict(service="cfg-service")
+        cfg = IntegrationConfig(global_config, "test", service="cfg-service")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -222,7 +223,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        cfg = AttrDict(_default_service="default-svc")
+        cfg = IntegrationConfig(global_config, "test", _default_service="default-svc")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -237,7 +238,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin("pin-svc", app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
-        cfg = AttrDict(_default_service="cfg-svc")
+        cfg = IntegrationConfig(global_config, "test", _default_service="cfg-svc")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
