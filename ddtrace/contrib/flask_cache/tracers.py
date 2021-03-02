@@ -2,18 +2,14 @@
 Datadog trace code for flask_cache
 """
 
-# stdlib
 import logging
 
-# 3rd party
 from flask.ext.cache import Cache
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...settings import config
-
-# project
 from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
 

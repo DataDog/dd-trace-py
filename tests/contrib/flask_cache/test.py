@@ -1,15 +1,10 @@
 # -*- coding: utf-8 -*-
-
-# project
-# 3rd party
 from flask import Flask
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.ext import net
-
-# testing
 from tests.opentracer.utils import init_tracer
 
 from ... import TracerTestCase
