@@ -517,6 +517,6 @@ def test_flush_log(caplog):
 
     with mock.patch("ddtrace.internal.writer.log") as log:
         writer.write([])
-        writer.flush_queue(raise_exc=True)
+        writer.flush_queue()
         calls = [mock.call(logging.DEBUG, "sent %s in %.5fs", AnyStr(), AnyFloat())]
         log.log.assert_has_calls(calls)
