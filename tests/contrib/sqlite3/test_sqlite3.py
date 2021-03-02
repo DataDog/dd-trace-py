@@ -44,9 +44,6 @@ class TestSQLite(TracerTestCase):
 
         sqlite3.connect(":memory:")
 
-        services = self.tracer.writer.pop_services()
-        self.assertEqual(services, {})
-
         ddtrace.tracer = backup_tracer
 
     def test_sqlite(self):

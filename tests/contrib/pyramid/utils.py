@@ -77,11 +77,6 @@ class PyramidTestCase(PyramidBase):
             assert http.QUERY_STRING not in s.meta
         assert s.meta.get("pyramid.route.name") == "index"
 
-        # ensure services are set correctly
-        services = writer.pop_services()
-        expected = {}
-        assert services == expected
-
     def test_200_query_string(self):
         return self.test_200("foo=bar")
 

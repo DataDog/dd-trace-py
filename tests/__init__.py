@@ -423,15 +423,6 @@ class DummyWriter(AgentWriter):
         self.traces = []
         return traces
 
-    def pop_services(self):
-        # dummy method
-
-        # Setting service info has been deprecated, we want to make sure nothing ever gets written here
-        assert self.services == {}
-        s = self.services
-        self.services = {}
-        return s
-
 
 class DummyTracer(Tracer):
     """
