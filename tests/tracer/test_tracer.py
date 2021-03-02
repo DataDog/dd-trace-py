@@ -898,7 +898,9 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agent_config_with_lambda_extension(self):
-        mock_os_path_exists = lambda path: path == DATADOG_LAMBDA_EXTENSION_PATH
+        def mock_os_path_exists(path):
+            return path == DATADOG_LAMBDA_EXTENSION_PATH
+
         with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
             tracer = DummyTracer()
             assert isinstance(tracer.original_writer, AgentWriter)
