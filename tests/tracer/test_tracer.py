@@ -8,7 +8,6 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
-import warnings
 
 import mock
 import pytest
@@ -469,34 +468,6 @@ class TracerTestCases(TracerTestCase):
         # configure tracer with runtime metrics collection
         self.tracer.configure(collect_metrics=True)
         self.assertIsNotNone(self.tracer._runtime_worker)
-
-    def test_configure_dogstatsd_host(self):
-        with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter("always")
-            self.tracer.configure(dogstatsd_host="foo")
-            assert self.tracer.writer.dogstatsd.host == "foo"
-            assert self.tracer.writer.dogstatsd.port == 8125
-            # verify warnings triggered
-            assert len(ws) >= 1
-            for w in ws:
-                if issubclass(w.category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning):
-                    assert "Use `dogstatsd_url`" in str(w.message)
-                    break
-            else:
-                assert 0, "dogstatsd warning not found"
-
-    def test_configure_dogstatsd_host_port(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            self.tracer.configure(dogstatsd_host="foo", dogstatsd_port="1234")
-            assert self.tracer.writer.dogstatsd.host == "foo"
-            assert self.tracer.writer.dogstatsd.port == 1234
-            # verify warnings triggered
-            assert len(w) >= 2
-            assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert "Use `dogstatsd_url`" in str(w[0].message)
-            assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert "Use `dogstatsd_url`" in str(w[1].message)
 
     def test_configure_dogstatsd_url_host_port(self):
         self.tracer.configure(dogstatsd_url="foo:1234")
