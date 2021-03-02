@@ -62,7 +62,8 @@ class MemoryCollector(collector.PeriodicCollector):
     def start(self):
         """Start collecting memory profiles."""
         if _memalloc is None:
-            raise RuntimeError("memalloc is unavailable")
+            raise collector.CollectorUnavailable
+
         _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
         super(MemoryCollector, self).start()
 
