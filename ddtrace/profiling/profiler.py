@@ -12,6 +12,7 @@ import warnings
 import ddtrace
 from ddtrace.internal import uwsgi
 from ddtrace.profiling import _service
+from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
@@ -306,7 +307,9 @@ class _ProfilerInstance(_service.Service):
         for col in self._collectors:
             try:
                 col.start()
-            except RuntimeError:
+            except collector.CollectorUnavailable:
+                LOG.debug("Collector %r is unavailable, disabling", col)
+            except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
             else:
                 collectors.append(col)
