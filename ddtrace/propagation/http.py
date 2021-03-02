@@ -57,10 +57,12 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract_header_value(possible_header_names, headers, default=None):
-        for header, value in headers.items():
-            for header_name in possible_header_names:
-                if header.lower() == header_name.lower():
-                    return value
+        normalized_headers = {name.lower(): v for name, v in headers.items()}
+        for header in (_.lower() for _ in possible_header_names):
+            try:
+                return normalized_headers[header]
+            except KeyError:
+                pass
 
         return default
 
