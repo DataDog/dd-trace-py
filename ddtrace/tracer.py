@@ -6,8 +6,6 @@ from os import getpid
 from os import path
 import sys
 
-from ddtrace.vendor import debtcollector
-
 from . import _hooks
 from . import compat
 from .constants import ENV_KEY
@@ -37,7 +35,6 @@ from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .settings import config
 from .span import Span
-from .utils.deprecation import RemovedInDDTrace10Warning
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
 from .utils.formats import get_env
@@ -58,7 +55,7 @@ if debug_mode and not hasHandlers(log):
         logging.basicConfig(level=logging.DEBUG)
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = ["custom", "template", "web", "worker"]
+_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 
 
 class Tracer(object):
@@ -197,12 +194,6 @@ class Tracer(object):
         return self.context_provider.active(*args, **kwargs)
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
-    @debtcollector.removals.removed_kwarg(
-        "dogstatsd_host", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
-    )
-    @debtcollector.removals.removed_kwarg(
-        "dogstatsd_port", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
-    )
     def configure(
         self,
         enabled=None,
@@ -216,8 +207,6 @@ class Tracer(object):
         priority_sampling=None,
         settings=None,
         collect_metrics=None,
-        dogstatsd_host=None,
-        dogstatsd_port=None,
         dogstatsd_url=None,
         writer=None,
     ):
@@ -241,8 +230,6 @@ class Tracer(object):
         :param priority_sampling: enable priority sampling, this is required for
             complete distributed tracing support. Enabled by default.
         :param collect_metrics: Whether to enable runtime metrics collection.
-        :param str dogstatsd_host: Host for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
-        :param int dogstatsd_port: Port for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
@@ -262,9 +249,6 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
-
-        if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or agent.get_stats_port())
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
