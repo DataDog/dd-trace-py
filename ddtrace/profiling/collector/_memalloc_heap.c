@@ -1,11 +1,11 @@
-#include <stdbool.h>
-
 #define PY_SSIZE_T_CLEAN
 #include "_memalloc_heap.h"
 #include "_memalloc_tb.h"
 
 typedef struct
 {
+    /* Granularity of the heap profiler in bytes */
+    uint32_t sample_size;
     traceback_array_t allocs;
     /* Allocated memory counter in bytes */
     uint32_t allocated_memory;
@@ -29,6 +29,7 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
     ptr_array_init(&heap_tracker->freezer.frees);
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
+    heap_tracker->sample_size = 0;
 }
 
 static void
@@ -98,9 +99,10 @@ heap_tracker_thaw(heap_tracker_t* heap_tracker)
 /* Public API */
 
 void
-memalloc_heap_tracker_init(void)
+memalloc_heap_tracker_init(uint32_t sample_size)
 {
     heap_tracker_init(&global_heap_tracker);
+    global_heap_tracker.sample_size = sample_size;
 }
 
 void
@@ -137,23 +139,26 @@ memalloc_heap_untrack(void* ptr)
         heap_tracker_untrack_thawed(&global_heap_tracker, ptr);
 }
 
-void
-memalloc_heap_track(uint32_t heap_sample_size, uint16_t max_nframe, void* ptr, size_t size)
+/* Track a memory allocation in the heap profiler.
+
+   Returns true if the allocation was tracked, false otherwise. */
+bool
+memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size)
 {
     /* Heap tracking is disabled */
-    if (heap_sample_size == 0)
-        return;
+    if (global_heap_tracker.sample_size == 0)
+        return false;
 
     /* Check for overflow */
     global_heap_tracker.allocated_memory = Py_MIN(global_heap_tracker.allocated_memory + size, MAX_HEAP_SAMPLE_SIZE);
 
     /* Check if we have enough sample or not */
-    if (global_heap_tracker.allocated_memory < heap_sample_size)
-        return;
+    if (global_heap_tracker.allocated_memory < global_heap_tracker.sample_size)
+        return false;
 
     /* Cannot add more sample */
     if (global_heap_tracker.allocs.count >= TRACEBACK_ARRAY_MAX_COUNT)
-        return;
+        return false;
 
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory);
     if (tb) {
@@ -163,7 +168,11 @@ memalloc_heap_track(uint32_t heap_sample_size, uint16_t max_nframe, void* ptr, s
             traceback_array_append(&global_heap_tracker.allocs, tb);
         /* Reset the counter to 0 */
         global_heap_tracker.allocated_memory = 0;
+
+        return true;
     }
+
+    return false;
 }
 
 PyObject*
