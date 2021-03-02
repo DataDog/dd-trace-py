@@ -5,6 +5,14 @@ from ddtrace.profiling import _service
 from ddtrace.vendor import attr
 
 
+class CollectorError(Exception):
+    pass
+
+
+class CollectorUnavailable(CollectorError):
+    pass
+
+
 @attr.s
 class Collector(_service.Service):
     """A profile collector."""
