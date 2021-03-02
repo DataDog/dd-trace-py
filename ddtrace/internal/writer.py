@@ -164,6 +164,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         timeout=2,
         dogstatsd=None,
         report_metrics=False,
+        sync_flush_mode=False,
     ):
         super(AgentWriter, self).__init__(
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
@@ -203,6 +204,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._report_metrics = report_metrics
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._sync_flush_mode = sync_flush_mode
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -236,6 +238,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             agent_url=self.agent_url,
             shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
+            sync_flush_mode=self._sync_flush_mode,
         )
         writer._encoder = self._encoder
         writer._headers = self._headers
@@ -318,7 +321,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
-        if self.started is False:
+        if self.started is False and self._sync_flush_mode is False:
             with self._started_lock:
                 if self.started is False:
                     self.start()
@@ -355,6 +358,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             else:
                 self._metrics_dist("buffer.accepted.traces", 1)
                 self._metrics_dist("buffer.accepted.spans", len(spans))
+                if self._sync_flush_mode:
+                    self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
         enc_traces = self._buffer.get()
