@@ -8,12 +8,12 @@ import sys
 
 from . import _hooks
 from . import compat
+from .constants import DATADOG_LAMBDA_EXTENSION_PATH
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
-from .constants import DATADOG_LAMBDA_EXTENSION_PATH
 from .context import Context
 from .ext import system
 from .ext.priority import AUTO_KEEP

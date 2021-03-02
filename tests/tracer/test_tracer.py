@@ -13,6 +13,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.constants import DATADOG_LAMBDA_EXTENSION_PATH
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -20,7 +21,6 @@ from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.constants import DATADOG_LAMBDA_EXTENSION_PATH
 from ddtrace.context import Context
 from ddtrace.ext import priority
 from ddtrace.ext import system
