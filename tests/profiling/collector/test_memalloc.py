@@ -196,7 +196,7 @@ def test_memory_collector_ignore_profiler(ignore_profiler):
 
 def test_heap():
     max_nframe = 32
-    _memalloc.start(max_nframe, 10, 8 * 1024)
+    _memalloc.start(max_nframe, 10, 1024)
     x = _allocate_1k()
     # Check that at least one sample comes from the main thread
     thread_found = False
