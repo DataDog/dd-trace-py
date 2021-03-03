@@ -15,12 +15,12 @@ HTTP_HEADER_ORIGIN = "x-datadog-origin"
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
 # versions of these headers
-POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset([HTTP_HEADER_TRACE_ID, get_wsgi_header(HTTP_HEADER_TRACE_ID)])
-POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset([HTTP_HEADER_PARENT_ID, get_wsgi_header(HTTP_HEADER_PARENT_ID)])
+POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset([HTTP_HEADER_TRACE_ID, get_wsgi_header(HTTP_HEADER_TRACE_ID).lower()])
+POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset([HTTP_HEADER_PARENT_ID, get_wsgi_header(HTTP_HEADER_PARENT_ID).lower()])
 POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
-    [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY)]
+    [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY).lower()]
 )
-POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN)])
+POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
 
 
 class HTTPPropagator(object):
@@ -58,7 +58,7 @@ class HTTPPropagator(object):
     @staticmethod
     def extract_header_value(possible_header_names, headers, default=None):
         normalized_headers = {name.lower(): v for name, v in headers.items()}
-        for header in (_.lower() for _ in possible_header_names):
+        for header in possible_header_names:
             try:
                 return normalized_headers[header]
             except KeyError:
