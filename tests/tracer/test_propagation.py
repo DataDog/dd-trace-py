@@ -23,8 +23,7 @@ class TestHttpPropagation(TestCase):
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             headers = {}
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers)
 
             assert int(headers[HTTP_HEADER_TRACE_ID]) == span.trace_id
             assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
@@ -41,8 +40,7 @@ class TestHttpPropagation(TestCase):
             "x-datadog-origin": "synthetics",
         }
 
-        propagator = HTTPPropagator()
-        context = propagator.extract(headers)
+        context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
@@ -62,8 +60,7 @@ class TestHttpPropagation(TestCase):
             "HTTP_X_DATADOG_ORIGIN": "synthetics",
         }
 
-        propagator = HTTPPropagator()
-        context = propagator.extract(headers)
+        context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
