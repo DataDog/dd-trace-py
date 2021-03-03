@@ -117,10 +117,6 @@ class TestFlask(TestCase):
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
 
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
-
     def test_template(self):
         start = time.time()
         rv = self.client.get("/tmpl")
