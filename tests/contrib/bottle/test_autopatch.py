@@ -55,9 +55,6 @@ class TraceBottleTest(TestCase):
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
 
-        services = self.tracer.writer.pop_services()
-        assert services == {}
-
     def test_500(self):
         @self.app.route("/hi")
         def hi():
