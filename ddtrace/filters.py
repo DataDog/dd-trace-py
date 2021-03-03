@@ -1,9 +1,26 @@
+import abc
 import re
+from typing import List
+from typing import Optional
+
+from ddtrace import Span
+from ddtrace.vendor import six
 
 from .ext import http
 
 
-class FilterRequestsOnUrl(object):
+class TraceFilter(six.with_metaclass(abc.ABCMeta)):
+    @abc.abstractmethod
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        """Processes a trace.
+
+        None can be returned to prevent the trace from being exported.
+        """
+        pass
+
+
+class FilterRequestsOnUrl(TraceFilter):
     r"""Filter out traces from incoming http requests based on the request's url.
 
     This class takes as argument a list of regular expression patterns

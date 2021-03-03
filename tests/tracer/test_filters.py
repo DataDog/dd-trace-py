@@ -1,7 +1,10 @@
 from unittest import TestCase
 
+import pytest
+
 from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
+from ddtrace.filters import TraceFilter
 from ddtrace.span import Span
 
 
@@ -33,3 +36,11 @@ class FilterRequestOnUrlTests(TestCase):
         filtr = FilterRequestsOnUrl([r"http://domain\.example\.com", r"http://anotherdomain\.example\.com"])
         trace = filtr.process_trace([span])
         self.assertIsNotNone(trace)
+
+
+def test_not_implemented_trace_filter():
+    class Filter(TraceFilter):
+        pass
+
+    with pytest.raises(TypeError):
+        Filter()
