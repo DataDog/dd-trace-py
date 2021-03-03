@@ -25,6 +25,7 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
+from .internal.processor import TraceProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
@@ -112,6 +113,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
             )
         self.writer = writer
+        self.processor = TraceProcessor([])
         self._hooks = _hooks.Hooks()
 
     def on_start_span(self, func):
@@ -270,6 +272,7 @@ class Tracer(object):
             report_metrics=config.health_metrics_enabled,
         )
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        self.processor = TraceProcessor(filters=self._filters)
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -608,7 +611,7 @@ class Tracer(object):
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
         """
-        if not spans:
+        if not spans or not self.enabled:
             return  # nothing to do
 
         if self.log.isEnabledFor(logging.DEBUG):
@@ -616,16 +619,8 @@ class Tracer(object):
             for span in spans:
                 self.log.debug("\n%s", span.pprint())
 
-        if self.enabled and self.writer:
-            for filtr in self._filters:
-                try:
-                    spans = filtr.process_trace(spans)
-                except Exception:
-                    log.error("error while applying filter %s to traces", filtr, exc_info=True)
-                else:
-                    if not spans:
-                        return
-
+        spans = self.processor.process(spans)
+        if spans is not None:
             self.writer.write(spans=spans)
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
