@@ -132,7 +132,7 @@ class LogWriter:
         writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
-    def write(self, spans=None, services=None):
+    def write(self, spans=None):
         if not spans:
             return
 

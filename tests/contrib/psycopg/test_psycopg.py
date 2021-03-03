@@ -255,11 +255,6 @@ class PsycopgCore(TracerTestCase):
             conn = self._get_conn(service=service)
             self.assert_conn_is_traced(conn, service)
 
-        # ensure we have the service types
-        service_meta = self.tracer.writer.pop_services()
-        expected = {}
-        self.assertEquals(service_meta, expected)
-
     def test_commit(self):
         conn = self._get_conn()
         conn.commit()
