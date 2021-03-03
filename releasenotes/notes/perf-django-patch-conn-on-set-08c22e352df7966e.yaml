@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Django connections are intercepted for patching only during registration
+    with the ConnectionHandler instance to avoid overheads in other paths.
