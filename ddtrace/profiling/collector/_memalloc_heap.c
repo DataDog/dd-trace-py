@@ -1,3 +1,6 @@
+#include <math.h>
+#include <stdlib.h>
+
 #define PY_SSIZE_T_CLEAN
 #include "_memalloc_heap.h"
 #include "_memalloc_tb.h"
@@ -6,6 +9,9 @@ typedef struct
 {
     /* Granularity of the heap profiler in bytes */
     uint32_t sample_size;
+    /* Current sample size of the heap profiler in bytes */
+    uint32_t current_sample_size;
+    /* Tracked allocations */
     traceback_array_t allocs;
     /* Allocated memory counter in bytes */
     uint32_t allocated_memory;
@@ -21,6 +27,16 @@ typedef struct
 
 static heap_tracker_t global_heap_tracker;
 
+static uint32_t
+heap_tracker_next_sample_size(uint32_t sample_size)
+{
+    /* Get a value between [0, 1[ */
+    double q = (double)rand() / ((double)RAND_MAX + 1);
+    /* Get a value between ]-inf, 0[, more likely close to 0 */
+    double log_val = log2(q);
+    return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
+}
+
 static void
 heap_tracker_init(heap_tracker_t* heap_tracker)
 {
@@ -30,6 +46,7 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
     heap_tracker->allocated_memory = 0;
     heap_tracker->frozen = false;
     heap_tracker->sample_size = 0;
+    heap_tracker->current_sample_size = 0;
 }
 
 static void
@@ -103,6 +120,7 @@ memalloc_heap_tracker_init(uint32_t sample_size)
 {
     heap_tracker_init(&global_heap_tracker);
     global_heap_tracker.sample_size = sample_size;
+    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
 }
 
 void
@@ -153,7 +171,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size)
     global_heap_tracker.allocated_memory = Py_MIN(global_heap_tracker.allocated_memory + size, MAX_HEAP_SAMPLE_SIZE);
 
     /* Check if we have enough sample or not */
-    if (global_heap_tracker.allocated_memory < global_heap_tracker.sample_size)
+    if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size)
         return false;
 
     /* Cannot add more sample */
@@ -166,8 +184,12 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size)
             traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
         else
             traceback_array_append(&global_heap_tracker.allocs, tb);
+
         /* Reset the counter to 0 */
         global_heap_tracker.allocated_memory = 0;
+
+        /* Compute the new target sample size */
+        global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
 
         return true;
     }
