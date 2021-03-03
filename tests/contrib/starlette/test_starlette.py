@@ -1,7 +1,6 @@
 import asyncio
 import sys
 
-from app import get_app
 import httpx
 import pytest
 import sqlalchemy
@@ -15,9 +14,10 @@ from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
 from ddtrace.contrib.starlette import patch as starlette_patch
 from ddtrace.contrib.starlette import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
+from tests import DummyTracer
 from tests import override_http_config
 from tests import snapshot
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.contrib.starlette.app import get_app
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def engine():
 @pytest.fixture
 def tracer(engine):
     original_tracer = ddtrace.tracer
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider

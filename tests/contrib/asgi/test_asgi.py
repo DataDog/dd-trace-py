@@ -9,8 +9,8 @@ import pytest
 
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.propagation import http as http_propagation
+from tests import DummyTracer
 from tests import override_http_config
-from tests.tracer.test_tracer import get_dummy_tracer
 
 
 @pytest.fixture(
@@ -53,7 +53,7 @@ def scope(request):
 
 @pytest.fixture
 def tracer():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider

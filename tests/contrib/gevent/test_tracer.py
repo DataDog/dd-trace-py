@@ -11,9 +11,9 @@ from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
 from ddtrace.ext.priority import USER_KEEP
+from tests import DummyTracer
 from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
 
 from .utils import silence_errors
 
@@ -26,7 +26,7 @@ class TestGeventTracer(TracerTestCase):
 
     def setUp(self):
         # use a dummy tracer
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # trace gevent

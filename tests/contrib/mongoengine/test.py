@@ -9,8 +9,8 @@ from ddtrace.contrib.mongoengine.patch import patch
 from ddtrace.contrib.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import TracerTestCase
 from ... import assert_is_measured
 from ..config import MONGO_CONFIG
@@ -219,7 +219,7 @@ class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
         mongoengine.connection.disconnect()
 
     def get_tracer_and_connect(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(mongoengine.connect).clone(tracer=tracer).onto(mongoengine.connect)
         mongoengine.connect(port=MONGO_CONFIG["port"])
 
@@ -253,7 +253,7 @@ class TestMongoEnginePatchClientDefault(TracerTestCase, MongoEngineCore):
         mongoengine.connection.disconnect()
 
     def get_tracer_and_connect(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
@@ -266,7 +266,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
     TEST_SERVICE = "test-mongo-patch-client"
 
     def get_tracer_and_connect(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # Set a connect-level service, to check that we properly override it
         Pin(service="not-%s" % self.TEST_SERVICE).onto(mongoengine.connect)
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
@@ -275,7 +275,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         return tracer
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         # Test patch idempotence
         patch()

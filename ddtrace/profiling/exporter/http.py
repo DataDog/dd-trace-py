@@ -9,8 +9,8 @@ import platform
 import tenacity
 
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal import runtime
-from ddtrace.internal import uds
 from ddtrace.internal.runtime import container
 from ddtrace.profiling import _attr
 from ddtrace.profiling import exporter
@@ -19,7 +19,6 @@ from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import attr
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import parse as urlparse
 
 
 HOSTNAME = platform.node()
@@ -172,16 +171,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )
         headers["Content-Type"] = content_type
 
-        parsed = urlparse.urlparse(self.endpoint)
-        if parsed.scheme == "https":
-            client = http_client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.timeout)
-        elif parsed.scheme == "http":
-            client = http_client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.timeout)
-        elif parsed.scheme == "unix":
-            client = uds.UDSHTTPConnection(parsed.path, False, parsed.hostname, parsed.port, timeout=self.timeout)
-        else:
-            raise ValueError("Unknown connection scheme %s" % parsed.scheme)
-
+        client = agent.get_connection(self.endpoint, self.timeout)
         self._upload(client, self.endpoint_path, body, headers)
 
     def _upload(self, client, path, body, headers):

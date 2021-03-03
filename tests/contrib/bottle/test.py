@@ -74,9 +74,6 @@ class TraceBottleTest(TracerTestCase):
         else:
             assert http.QUERY_STRING not in s.meta
 
-        services = self.tracer.writer.pop_services()
-        assert services == {}
-
     def test_query_string(self):
         return self.test_200("foo=bar")
 
@@ -436,9 +433,6 @@ class TraceBottleTest(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_tag("http.method") == "GET"
         assert dd_span.get_tag(http.URL) == "http://localhost:80/hi/dougie"
-
-        services = self.tracer.writer.pop_services()
-        assert services == {}
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):

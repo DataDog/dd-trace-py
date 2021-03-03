@@ -15,8 +15,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import mongo as mongox
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
 
+from ... import DummyTracer
 from ... import TracerTestCase
 from ... import assert_is_measured
 from ..config import MONGO_CONFIG
@@ -351,7 +351,7 @@ class TestPymongoTraceClient(TracerTestCase, PymongoCore):
     TEST_SERVICE = 'test-mongo-trace-client'
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         original_client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client = trace_mongo_client(original_client, tracer, service=self.TEST_SERVICE)
         # No need to disable tcp spans tracer here as trace_mongo_client does not call
@@ -371,21 +371,12 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         return tracer, client
-
-    def test_service(self):
-        tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
-        db = client['testdb']
-        db.drop_collection('songs')
-
-        services = writer.pop_services()
-        assert services == {}
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client
@@ -414,7 +405,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
@@ -422,7 +413,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         return tracer, client
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         writer = tracer.writer
 
         # Test patch idempotence
@@ -471,7 +462,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         from ddtrace import config
         assert config.service == "mysvc"
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
@@ -488,7 +479,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     """
     def setUp(self):
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         # Override server pin's tracer with our dummy tracer
         Pin.override(pymongo.server.Server, tracer=self.tracer)
         # maxPoolSize controls the number of sockets that the client can instanciate

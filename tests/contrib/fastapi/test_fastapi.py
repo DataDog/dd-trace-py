@@ -9,10 +9,10 @@ import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.propagation import http as http_propagation
+from tests import DummyTracer
 from tests import override_config
 from tests import override_http_config
 from tests import snapshot
-from tests.tracer.test_tracer import get_dummy_tracer
 
 from . import app
 
@@ -20,7 +20,7 @@ from . import app
 @pytest.fixture
 def tracer():
     original_tracer = ddtrace.tracer
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider

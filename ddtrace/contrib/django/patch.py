@@ -270,7 +270,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             def wrapped_factory(func, instance, args, kwargs):
                 # r is the middleware handler function returned from the factory
                 r = func(*args, **kwargs)
-                return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
+                if r:
+                    return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
+                # If r is an empty middleware function (i.e. returns None), don't wrap since NoneType cannot be called
+                else:
+                    return r
 
             trace_utils.wrap(base, attr, wrapped_factory)
 
@@ -314,10 +318,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     try:
         request_headers = request.META
 
-        if config.django.distributed_tracing_enabled:
-            context = propagator.extract(request_headers)
-            if context.trace_id:
-                pin.tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(pin.tracer, config.django, request_headers=request_headers)
 
         # Determine the resolver and resource name for this request
         resolver = get_resolver(getattr(request, "urlconf", None))
@@ -609,8 +610,8 @@ def patch():
 
 def _unpatch(django):
     trace_utils.unwrap(django.apps.registry.Apps, "populate")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "lotrace_utils.ad_middleware")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "getrace_utils.t_response")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "load_middleware")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response")
     trace_utils.unwrap(django.template.base.Template, "render")
     trace_utils.unwrap(django.conf.urls.static, "static")
     trace_utils.unwrap(django.conf.urls, "url")

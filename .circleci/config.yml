@@ -716,6 +716,7 @@ jobs:
 
   grpc:
     <<: *contrib_job
+    parallelism: 6
     steps:
       - run_test:
           pattern: "grpc"

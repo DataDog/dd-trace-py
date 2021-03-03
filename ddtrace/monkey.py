@@ -69,6 +69,7 @@ PATCH_MODULES = {
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
+    "dogpile_cache": True,
 }
 
 _LOCK = threading.Lock()

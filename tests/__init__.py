@@ -10,11 +10,13 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.compat import httplib
+from ddtrace.compat import parse
 from ddtrace.compat import to_unicode
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -421,15 +423,6 @@ class DummyWriter(AgentWriter):
         self.traces = []
         return traces
 
-    def pop_services(self):
-        # dummy method
-
-        # Setting service info has been deprecated, we want to make sure nothing ever gets written here
-        assert self.services == {}
-        s = self.services
-        self.services = {}
-        return s
-
 
 class DummyTracer(Tracer):
     """
@@ -445,18 +438,14 @@ class DummyTracer(Tracer):
         # some tests
         if not isinstance(self.writer, DummyWriter):
             self.original_writer = self.writer
-        # LogWriters don't have an api property, so we test that
-        # exists before using it to assign hostname/port
         if isinstance(self.writer, AgentWriter):
             self.writer = DummyWriter(
-                hostname=self.writer._hostname,
-                port=self.writer._port,
+                agent_url=self.writer.agent_url,
                 priority_sampler=self.writer._priority_sampler,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
             )
         else:
             self.writer = DummyWriter(
-                hostname="",
-                port=0,
                 priority_sampler=self.writer._priority_sampler,
             )
 
@@ -844,7 +833,8 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token
 
-        conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+        parsed = parse.urlparse(tracer.writer.agent_url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         try:
             # clear queue in case traces have been generated before test case is
             # itself run
@@ -880,7 +870,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
                     del tracer.writer._headers["X-Datadog-Test-Token"]
 
             # Query for the results of the test.
-            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             r = conn.getresponse()
             if r.status != 200:
@@ -893,7 +883,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
         except Exception as e:
             # Even though it's unlikely any traces have been sent, make the
             # final request to the test agent so that the test case is finished.
-            conn = httplib.HTTPConnection(tracer.writer._hostname, tracer.writer._port)
+            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
             conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
             conn.getresponse()
             pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
@@ -911,3 +901,8 @@ class AnyStr(object):
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
+
+
+class AnyFloat(object):
+    def __eq__(self, other):
+        return isinstance(other, float)
