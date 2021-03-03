@@ -9,6 +9,7 @@ import pytest
 from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
 from tests import DummyTracer
+from tests import TracerSpanContainer
 
 
 @pytest.fixture()
@@ -37,6 +38,13 @@ def ot_tracer(ot_tracer_factory):
     return ot_tracer_factory()
 
 
+@pytest.fixture
+def test_spans(ot_tracer):
+    container = TracerSpanContainer(ot_tracer._dd_tracer)
+    yield container
+    container.reset()
+
+
 @pytest.fixture()
 def global_tracer(ot_tracer):
     """A function similar to one OpenTracing users would write to initialize
@@ -45,11 +53,6 @@ def global_tracer(ot_tracer):
     set_global_tracer(ot_tracer)
 
     return ot_tracer
-
-
-@pytest.fixture()
-def writer(ot_tracer):
-    return ot_tracer._dd_tracer.writer
 
 
 @pytest.fixture()

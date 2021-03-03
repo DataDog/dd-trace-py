@@ -5,6 +5,7 @@ import pytest
 
 import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
+from tests import TracerSpanContainer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 
@@ -20,14 +21,14 @@ def ot_tracer(request, ot_tracer_factory):  # noqa: F811
         scope_manager=AsyncioScopeManager(),
         context_provider=ddtrace.contrib.asyncio.context_provider,
     )
-    request.instance.ot_writer = request.instance.ot_tracer._dd_tracer.writer
     request.instance.dd_tracer = request.instance.ot_tracer._dd_tracer
+    request.instance.test_spans = TracerSpanContainer(request.instance.ot_tracer._dd_tracer)
 
 
 @pytest.mark.usefixtures("ot_tracer")
 class TestTracerAsyncio(AsyncioTestCase):
     def reset(self):
-        self.ot_writer.pop_traces()
+        self.test_spans.reset()
 
     @mark_asyncio
     def test_trace_coroutine(self):
@@ -35,7 +36,7 @@ class TestTracerAsyncio(AsyncioTestCase):
         with self.ot_tracer.start_span("coroutine"):
             pass
 
-        traces = self.ot_writer.pop_traces()
+        traces = self.test_spans.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -57,7 +58,7 @@ class TestTracerAsyncio(AsyncioTestCase):
         # the coroutine has been called correctly
         assert value == 42
         # a single trace has been properly reported
-        traces = self.ot_writer.pop_traces()
+        traces = self.test_spans.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 2
         assert traces[0][0].name == "coroutine_1"
@@ -76,7 +77,7 @@ class TestTracerAsyncio(AsyncioTestCase):
         with pytest.raises(Exception):
             yield from f1()
 
-        traces = self.ot_writer.pop_traces()
+        traces = self.test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -99,7 +100,7 @@ class TestTracerAsyncio(AsyncioTestCase):
         for future in futures:
             yield from future
 
-        traces = self.ot_writer.pop_traces()
+        traces = self.test_spans.pop_traces()
 
         assert len(traces) == 10
         assert len(traces[0]) == 1
@@ -130,7 +131,7 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
         # the coroutine has been called correctly
         assert value == 42
         # a single trace has been properly reported
-        traces = self.ot_tracer._dd_tracer.writer.pop_traces()
+        traces = self.ot_tracer._dd_tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 2
         assert traces[0][0].name == "coroutine_1"
@@ -159,7 +160,7 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
         # the coroutine has been called correctly
         assert value == 42
         # a single trace has been properly reported
-        traces = self.ot_tracer._dd_tracer.writer.pop_traces()
+        traces = self.ot_tracer._dd_tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 2
         assert traces[0][0].name == "coroutine_1"
