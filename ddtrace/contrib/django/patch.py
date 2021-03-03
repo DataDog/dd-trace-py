@@ -106,7 +106,7 @@ def _set_request_tags(django, span, request):
 
     user = getattr(request, "user", None)
     if user is not None:
-        try:
+        try:  # getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from Django
             if hasattr(user, "is_authenticated"):
                 span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
             uid = getattr(user, "pk", None)
@@ -118,7 +118,7 @@ def _set_request_tags(django, span, request):
                 if username:
                     span.set_tag("django.user.name", username)
         except django.core.exceptions.ImproperlyConfigured:
-            log.debug("Error authenticating user %r", user, exc_info=True)
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
 
 
 @trace_utils.with_traced_module

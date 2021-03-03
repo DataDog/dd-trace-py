@@ -11,6 +11,7 @@ from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
+import mock
 import pytest
 
 from ddtrace import config
@@ -18,6 +19,7 @@ from ddtrace.compat import binary_type
 from ddtrace.compat import string_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.django.patch import _set_request_tags
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
@@ -1323,6 +1325,25 @@ def test_middleware_trace_request_ot(client, test_spans, tracer):
     assert sp_request.get_tag(http.URL) == "http://testserver/users/"
     assert sp_request.get_tag("django.user.is_authenticated") == "False"
     assert sp_request.get_tag("http.method") == "GET"
+
+
+def test_set_request_tags_handles_improperly_configured_error(client):
+    """
+    Since it's difficult to reproduce the ImproperlyConfigured error via django (server setup), will instead
+    mimic the failure by mocking the user_is_authenticated to raise an error.
+    """
+    request = _HttpRequest()
+    request.user = mock.Mock()
+    span = mock.Mock()
+    if django.VERSION >= (1, 10, 1):
+        type(request.user).is_authenticated = mock.PropertyMock(side_effect=django.core.exceptions.ImproperlyConfigured)
+    else:
+        request.user.is_authenticated = mock.Mock(side_effect=django.core.exceptions.ImproperlyConfigured)
+
+    try:
+        _set_request_tags(django, span, request)
+    except django.core.exceptions.ImproperlyConfigured:
+        assert False  # Should be handled and not raised
 
 
 """
