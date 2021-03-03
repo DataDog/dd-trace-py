@@ -88,7 +88,7 @@ attrs
 
 Website: http://www.attrs.org/
 Source: https://github.com/python-attrs/attrs
-Version: 19.3.0
+Version: 20.3.0
 License: MIT
 
 

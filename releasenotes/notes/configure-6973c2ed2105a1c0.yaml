@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The deprecated `dogstatsd_host` and `dogstatsd_port` arguments to
+    `tracer.configure()` have been removed.
