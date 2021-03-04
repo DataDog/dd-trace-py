@@ -46,7 +46,6 @@ exclude = '''
       | boto
       | botocore
       | cassandra
-      | celery
       | dbapi
       | grpc/
       (
