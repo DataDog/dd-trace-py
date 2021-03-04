@@ -1340,18 +1340,13 @@ def test_set_request_tags_handles_improperly_configured_error(client):
     Since it's difficult to reproduce the ImproperlyConfigured error via django (server setup), will instead
     mimic the failure by mocking the user_is_authenticated to raise an error.
     """
-    request = _HttpRequest()
-    request.user = mock.Mock()
-    span = mock.Mock()
-    if django.VERSION >= (1, 10, 1):
-        type(request.user).is_authenticated = mock.PropertyMock(side_effect=django.core.exceptions.ImproperlyConfigured)
-    else:
-        request.user.is_authenticated = mock.Mock(side_effect=django.core.exceptions.ImproperlyConfigured)
-
-    try:
-        _set_request_tags(django, span, request)
-    except django.core.exceptions.ImproperlyConfigured:
-        assert False  # Should be handled and not raised
+    # patch django._patch - django.__init__.py imports patch.py module as _patch
+    with mock.patch("ddtrace.contrib.django._patch.user_is_authenticated",
+                    side_effect=django.core.exceptions.ImproperlyConfigured):
+        try:
+            client.get("/")
+        except django.core.exceptions.ImproperlyConfigured:
+            assert False  # Should be handled, not raised
 
 
 """
