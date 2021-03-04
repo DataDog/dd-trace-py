@@ -4,7 +4,6 @@ import werkzeug
 from ddtrace import Pin
 from ddtrace import compat
 from ddtrace import config
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -39,9 +38,6 @@ config._add(
         distributed_tracing_enabled=True,
         template_default_name="<memory>",
         trace_signals=True,
-        # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
-        # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
-        extra_error_codes=set(),
     ),
 )
 
@@ -315,19 +311,6 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                     s.resource = u"{} {}".format(request.method, code)
 
                 trace_utils.set_http_meta(s, config.flask, status_code=code, response_headers=headers)
-
-                extra_error_codes = config.flask.get("extra_error_codes")
-                if extra_error_codes:
-                    debtcollector.deprecate(
-                        (
-                            "ddtrace.config.flask['extra_error_codes'] is now deprecated, "
-                            "use ddtrace.config.http_server.error_statuses"
-                        ),
-                        removal_version="0.47.0",
-                    )
-                    if code in extra_error_codes:
-                        s.error = 1
-
                 return func(status_code, headers)
 
             return traced_start_response
