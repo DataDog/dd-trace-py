@@ -580,7 +580,6 @@ class TestFetchTracedCursor(TracerTestCase):
         self.reset()
 
 
-
 class TestTracedConnection(TracerTestCase):
     def setUp(self):
         super(TestTracedConnection, self).setUp()
