@@ -143,7 +143,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
     with pin.tracer.trace(
         "urllib3.request", service=trace_utils.ext_service(pin, config.urllib3), span_type=SpanTypes.HTTP
     ) as span:
-
         span.service = _extract_service_name(span, hostname, config.urllib3["split_by_domain"])
 
         # If distributed tracing is enabled, propagate the tracing headers to downstream services
@@ -160,19 +159,20 @@ def _wrap_urlopen(func, instance, args, kwargs):
             span.set_tag(http.RETRIES_REMAIN, str(request_retries.total))
 
         # Call the target function
-        resp = func(*args, **kwargs)
+        response = None
+        try:
+            response = func(*args, **kwargs)
+        finally:
+            span.error = response is None or int(response.status >= 500)
+            trace_utils.set_http_meta(
+                span,
+                integration_config=config.urllib3,
+                method=request_method,
+                url=sanitized_url,
+                status_code=None if response is None else response.status,
+                query=parsed_uri.query,
+                request_headers=request_headers,
+                response_headers={} if response is None else dict(response.headers),
+            )
 
-        span.error = int(resp.status >= 500)
-
-        trace_utils.set_http_meta(
-            span,
-            integration_config=config.urllib3,
-            method=request_method,
-            url=sanitized_url,
-            status_code=resp.status,
-            query=parsed_uri.query,
-            request_headers=request_headers,
-            response_headers=dict(resp.headers),
-        )
-
-        return resp
+        return response

@@ -149,7 +149,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_200_query_string(self):
         """Tests query string tag is added when trace_query_string config is set"""
         query_string = "key=value&key2=value2"
-        with self.override_config("urllib3", dict(trace_query_string=True)):
+        with self.override_http_config("urllib3", dict(trace_query_string=True)):
             out = self.http.request("GET", URL_200 + "?" + query_string)
         assert out.status == 200
 
