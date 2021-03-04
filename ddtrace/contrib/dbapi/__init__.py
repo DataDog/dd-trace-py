@@ -43,6 +43,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 ),
                 removal_version="0.49.0",
             )
+            cfg = config.dbapi2
         self._self_config = cfg
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
