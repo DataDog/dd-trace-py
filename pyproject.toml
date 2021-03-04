@@ -44,7 +44,6 @@ exclude = '''
       aiobotocore
       | aiopg
       | boto
-      | botocore
       | cassandra
       | celery
       | dbapi
@@ -78,7 +77,6 @@ exclude = '''
       aiobotocore
       | aiopg
       | boto
-      | botocore
       | cassandra
       | config.py
       | dbapi
