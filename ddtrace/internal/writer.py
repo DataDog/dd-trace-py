@@ -420,6 +420,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         self.flush_queue(raise_exc=False)
 
     def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
         if self.is_alive():
             super(AgentWriter, self).stop()
             self.join(timeout=timeout)

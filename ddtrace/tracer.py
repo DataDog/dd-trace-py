@@ -283,7 +283,9 @@ class Tracer(object):
                 # get the URL from.
                 url = None
 
-            self.writer.stop()
+            if hasattr(self, "writer"):
+                self.writer.stop()
+
             self.writer = AgentWriter(
                 url,
                 sampler=self.sampler,
