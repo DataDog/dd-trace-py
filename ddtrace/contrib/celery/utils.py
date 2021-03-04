@@ -6,9 +6,24 @@ from .constants import CTX_KEY
 def tags_from_context(context):
     """Helper to extract meta values from a Celery Context"""
     tag_keys = (
-        'compression', 'correlation_id', 'countdown', 'delivery_info', 'eta',
-        'exchange', 'expires', 'hostname', 'id', 'priority', 'queue', 'reply_to',
-        'retries', 'routing_key', 'serializer', 'timelimit', 'origin', 'state',
+        "compression",
+        "correlation_id",
+        "countdown",
+        "delivery_info",
+        "eta",
+        "exchange",
+        "expires",
+        "hostname",
+        "id",
+        "priority",
+        "queue",
+        "reply_to",
+        "retries",
+        "routing_key",
+        "serializer",
+        "timelimit",
+        "origin",
+        "state",
     )
 
     tags = {}
@@ -16,25 +31,25 @@ def tags_from_context(context):
         value = context.get(key)
 
         # Skip this key if it is not set
-        if value is None or value == '':
+        if value is None or value == "":
             continue
 
         # Skip `timelimit` if it is not set (it's default/unset value is a
         # tuple or a list of `None` values
-        if key == 'timelimit' and value in [(None, None), [None, None]]:
+        if key == "timelimit" and value in [(None, None), [None, None]]:
             continue
 
         # Skip `retries` if it's value is `0`
-        if key == 'retries' and value == 0:
+        if key == "retries" and value == 0:
             continue
 
         # Celery 4.0 uses `origin` instead of `hostname`; this change preserves
         # the same name for the tag despite Celery version
-        if key == 'origin':
-            key = 'hostname'
+        if key == "origin":
+            key = "hostname"
 
         # prefix the tag as 'celery'
-        tag_name = 'celery.{}'.format(key)
+        tag_name = "celery.{}".format(key)
         tags[tag_name] = value
     return tags
 
@@ -96,11 +111,11 @@ def retrieve_task_id(context):
     detailed in the official documentation:
     http://docs.celeryproject.org/en/latest/internals/protocol.html
     """
-    headers = context.get('headers')
-    body = context.get('body')
+    headers = context.get("headers")
+    body = context.get("body")
     if headers:
         # Protocol Version 2 (default from Celery 4.0)
-        return headers.get('id')
+        return headers.get("id")
     else:
         # Protocol Version 1
-        return body.get('id')
+        return body.get("id")
