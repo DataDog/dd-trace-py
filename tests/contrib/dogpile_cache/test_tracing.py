@@ -62,10 +62,10 @@ def test_doesnt_trace_with_no_pin(tracer, single_cache, multi_cache, test_spans)
     unpatch()
 
     assert single_cache(1) == 2
-    assert tracer.pop_traces() == []
+    assert test_spans.pop_traces() == []
 
     assert multi_cache(2, 3) == [4, 6]
-    assert tracer.pop_traces() == []
+    assert test_spans.pop_traces() == []
 
 
 def test_doesnt_trace_with_disabled_pin(tracer, single_cache, multi_cache, test_spans):

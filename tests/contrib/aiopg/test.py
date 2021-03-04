@@ -67,7 +67,7 @@ class AiopgTestCase(AsyncioTestCase):
         end = time.time()
         assert rows == [('foobarblah',)]
         assert rows
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans
         assert len(spans) == 1
         span = spans[0]
@@ -88,7 +88,7 @@ class AiopgTestCase(AsyncioTestCase):
             yield from cursor.execute(q)
             rows = yield from cursor.fetchall()
             assert rows == [('foobarblah',)]
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans
         # confirm the parenting
@@ -112,7 +112,7 @@ class AiopgTestCase(AsyncioTestCase):
             pass
         else:
             assert 0, 'should have an error'
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -132,7 +132,7 @@ class AiopgTestCase(AsyncioTestCase):
         # these calls were crashing with a previous version of the code.
         yield from (yield from conn.cursor()).execute(query='select \'blah\'')
         yield from (yield from conn.cursor()).execute('select \'blah\'')
-        assert not tracer.pop()
+        assert not self.pop_spans()
 
     @mark_asyncio
     def test_manual_wrap_extension_types(self):
@@ -168,7 +168,7 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -179,7 +179,7 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
@@ -190,7 +190,7 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
