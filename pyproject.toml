@@ -48,14 +48,6 @@ exclude = '''
       | cassandra
       | celery
       | dbapi
-      | grpc/
-      (
-        __init__.py
-        | constants.py
-        | patch.py
-        | server_interceptor.py
-        | utils.py
-      )
       | jinja2
       | kombu
       | mako
@@ -82,7 +74,11 @@ exclude = '''
       | cassandra
       | config.py
       | dbapi
-      | grpc
+      | grpc/
+      (
+        hello_pb2_grpc.py
+        | hello_pb2.py
+      )
       | jinja2
       | kombu
       | mako
