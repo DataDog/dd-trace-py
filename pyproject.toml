@@ -45,14 +45,12 @@ exclude = '''
       | aiopg
       | boto
       | cassandra
-      | celery
       | dbapi
       | jinja2
       | kombu
       | mako
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
@@ -78,7 +76,6 @@ exclude = '''
       | patch.py
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster

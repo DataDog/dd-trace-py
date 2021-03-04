@@ -5,6 +5,7 @@ class ExceptionWithCodeMethod(Exception):
     """Use case where the status code is defined by
     the `code()` method.
     """
+
     def __init__(self, message):
         super(ExceptionWithCodeMethod, self).__init__(message)
 
@@ -14,6 +15,7 @@ class ExceptionWithCodeMethod(Exception):
 
 class AppGlobals(object):
     """Object used to store application globals."""
+
     pass
 
 
