@@ -56,10 +56,5 @@ def global_tracer(ot_tracer):
 
 
 @pytest.fixture()
-def writer(ot_tracer):
-    return ot_tracer._dd_tracer.writer
-
-
-@pytest.fixture()
 def dd_tracer(ot_tracer):
     return ot_tracer._dd_tracer
