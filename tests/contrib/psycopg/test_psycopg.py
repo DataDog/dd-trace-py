@@ -163,7 +163,7 @@ class PsycopgCore(TracerTestCase):
         assert_is_measured(self.get_spans()[1])
         self.reset()
 
-        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+        with self.override_config('psycopg', dict(trace_fetch_methods=True)):
             db = self._get_conn()
             ot_tracer = init_tracer('psycopg-svc', self.tracer)
 
@@ -321,7 +321,7 @@ class PsycopgCore(TracerTestCase):
 
     def test_analytics_with_rate(self):
         with self.override_config(
-                'dbapi2',
+                'psycopg',
                 dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             conn = self._get_conn()
@@ -334,7 +334,7 @@ class PsycopgCore(TracerTestCase):
 
     def test_analytics_without_rate(self):
         with self.override_config(
-                'dbapi2',
+                'psycopg',
                 dict(analytics_enabled=True)
         ):
             conn = self._get_conn()

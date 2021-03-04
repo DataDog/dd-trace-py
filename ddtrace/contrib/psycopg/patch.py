@@ -10,9 +10,13 @@ from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.vendor import wrapt
 
+from ...utils.formats import asbool
+from ...utils.formats import get_env
+
 
 config._add("psycopg", dict(
-    _default_service="postgres"
+    _default_service="postgres",
+    trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
 ))
 
 # Original connect method
@@ -70,7 +74,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = Psycopg2TracedCursor
-            if config.dbapi2.trace_fetch_methods:
+            if config.psycopg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
                 cursor_cls = Psycopg2FetchTracedCursor
 
         super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
