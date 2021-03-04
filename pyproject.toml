@@ -45,7 +45,6 @@ exclude = '''
       | aiopg
       | boto
       | cassandra
-      | celery
       | dbapi
       | jinja2
       | kombu
