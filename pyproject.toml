@@ -45,16 +45,7 @@ exclude = '''
       | aiopg
       | boto
       | cassandra
-      | celery
       | dbapi
-      | grpc/
-      (
-        __init__.py
-        | constants.py
-        | patch.py
-        | server_interceptor.py
-        | utils.py
-      )
       | jinja2
       | kombu
       | mako
@@ -79,7 +70,6 @@ exclude = '''
       | cassandra
       | config.py
       | dbapi
-      | grpc
       | jinja2
       | kombu
       | mako
