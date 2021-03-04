@@ -38,7 +38,7 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or "sql"
         self._self_datadog_name = "{}.query".format(name)
         self._self_last_execute_operation = None
-        self._self_config = cfg or config.dbapi2
+        self._self_config = cfg
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -176,11 +176,14 @@ class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
     def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
+        if not cfg:
+            cfg = config.dbapi2
         # Set default cursor class if one was not provided
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedCursor
-            if config.dbapi2.trace_fetch_methods:
+            # Deprecation of config.dbapi2 requires we add a check
+            if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
                 cursor_cls = FetchTracedCursor
 
         super(TracedConnection, self).__init__(conn)
@@ -191,7 +194,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
-        self._self_config = cfg or config.dbapi2
+        self._self_config = cfg
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
