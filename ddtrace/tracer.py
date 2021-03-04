@@ -23,8 +23,8 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
+from .internal.runtime.runtime_metrics import RuntimeWorker
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .provider import DefaultContextProvider
@@ -79,7 +79,6 @@ class Tracer(object):
         self.log = log
         self.sampler = None
         self.priority_sampler = None
-        self._runtime_worker = None
         self._filters = []
 
         configure_kwargs = {}
@@ -121,6 +120,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
+        self._runtime_metrics_enabled = RuntimeWorker.is_enabled()
 
         # Apply the default configuration
         self.configure(
@@ -302,17 +302,6 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        # Since we've recreated our dogstatsd agent, we need to restart metric collection with that new agent
-        if self._runtime_worker:
-            runtime_metrics_was_running = True
-            self._shutdown_runtime_worker()
-            self._runtime_worker = None
-        else:
-            runtime_metrics_was_running = False
-
-        if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
-            self._start_runtime_worker()
-
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
                 info = debug.collect(self)
@@ -425,7 +414,7 @@ class Tracer(object):
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
-            if self._runtime_worker and self._is_span_internal(span):
+            if self._runtime_metrics_enabled and self._is_span_internal(span):
                 span.meta["language"] = "python"
 
             span.sampled = self.sampler.sample(span)
@@ -481,23 +470,9 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-            # The constant tags for the dogstatsd client needs to updated with any new
-            # service(s) that may have been added.
-            if self._runtime_worker:
-                self._runtime_worker.update_runtime_tags()
-
         self._hooks.emit(self.__class__.start_span, span)
 
         return span
-
-    def _start_runtime_worker(self):
-        if not self._dogstatsd_url:
-            return
-
-        self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
-        # force an immediate update constant tags since we have reset services
-        # and generated a new runtime id
-        self._runtime_worker.update_runtime_tags()
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -529,9 +504,6 @@ class Tracer(object):
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
-
-        if self._runtime_worker is not None:
-            self._start_runtime_worker()
 
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
@@ -772,16 +744,6 @@ class Tracer(object):
 
         self.writer.stop()
         self.writer.join(timeout=timeout)
-
-        if self._runtime_worker:
-            self._shutdown_runtime_worker()
-
-    def _shutdown_runtime_worker(self, timeout=None):
-        if not self._runtime_worker.is_alive():
-            return
-
-        self._runtime_worker.stop()
-        self._runtime_worker.join(timeout=timeout)
 
     @staticmethod
     def _is_agentless_environment():

@@ -9,6 +9,7 @@ from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+from ddtrace.internal.runtime.runtime_metrics import enable_runtime_metrics
 from tests import BaseTestCase
 from tests import TracerTestCase
 from tests import override_env
@@ -69,7 +70,7 @@ class TestRuntimeWorker(TracerTestCase):
             # configure tracer for runtime metrics
             interval = 1.0 / 4
             with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))):
-                self.tracer.configure(collect_metrics=True)
+                runtime_worker = enable_runtime_metrics()
                 self.tracer.set_tags({"env": "tests.dog"})
 
                 with self.override_global_tracer(self.tracer):
@@ -81,7 +82,7 @@ class TestRuntimeWorker(TracerTestCase):
                     self.start_span("query", service="db", span_type=SpanTypes.SQL, child_of=child.context)
                     time.sleep(interval * 4)
                     # Get the mocked socket for inspection later
-                    statsd_socket = self.tracer._runtime_worker._dogstatsd_client.socket
+                    statsd_socket = runtime_worker._dogstatsd_client.socket
                     # now stop collection
                     self.tracer.configure(collect_metrics=False)
 

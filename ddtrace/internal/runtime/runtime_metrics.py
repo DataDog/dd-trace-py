@@ -1,6 +1,11 @@
 import itertools
+import os
 
+import ddtrace
+
+from .. import agent
 from ... import _worker
+from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
@@ -55,22 +60,33 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     FLUSH_INTERVAL = 10
 
-    def __init__(self, dogstatsd_url, flush_interval=None):
+    def __init__(self, tracer=None, dogstatsd_url=agent.get_stats_url(), flush_interval=None):
         super(RuntimeWorker, self).__init__(
             interval=flush_interval or float(get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)),
             name=self.__class__.__name__,
         )
+        self.tracer = tracer or ddtrace.tracer
         self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url)
+
         # Initialize collector
         self._runtime_metrics = RuntimeMetrics()
-        # Start worker thread
-        self.start()
+        self._services = {}
 
     def flush(self):
+        # The constant tags for the dogstatsd client needs to updated with any new
+        # service(s) that may have been added.
+        if self._services != self.tracer._services:
+            self._services = self.tracer._services
+            self.update_runtime_tags()
+
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.gauge(key, value)
+
+    @staticmethod
+    def is_enabled():
+        return asbool(get_env("runtime_metrics", "enabled"))
 
     def update_runtime_tags(self):
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
@@ -86,3 +102,21 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
             self.__class__.__name__,
             self._runtime_metrics,
         )
+
+
+def enable_runtime_metrics():
+    # type: () -> RuntimeWorker
+    runtime_worker = RuntimeWorker()
+    runtime_worker.start()
+    # force an immediate update constant tags
+    runtime_worker.update_runtime_tags()
+
+    def _restart():
+        runtime_worker.stop()
+        runtime_worker.join()
+        enable_runtime_metrics()
+
+    if hasattr(os, "register_at_fork"):
+        os.register_at_fork(after_in_child=_restart)
+
+    return runtime_worker
