@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import inspect
 import os
 import sys
+from typing import List
 
 import pytest
 
@@ -449,6 +450,14 @@ class DummyTracer(Tracer):
                 priority_sampler=self.writer._priority_sampler,
             )
 
+    def pop(self):
+        # type: () -> List[Span]
+        return self.writer.pop()
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        return self.writer.pop_traces()
+
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
@@ -659,6 +668,12 @@ class TracerSpanContainer(TestSpanContainer):
         :rtype: list
         """
         return self.tracer.writer.spans
+
+    def pop(self):
+        return self.tracer.writer.pop()
+
+    def pop_traces(self):
+        return self.tracer.writer.pop_traces()
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
