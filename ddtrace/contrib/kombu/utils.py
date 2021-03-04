@@ -15,7 +15,7 @@ HEADER_POS = 4
 def extract_conn_tags(connection):
     """ Transform kombu conn info into dogtrace metas """
     try:
-        host, port = connection.host.split(':')
+        host, port = connection.host.split(":")
         return {
             net.TARGET_HOST: host,
             net.TARGET_PORT: port,
