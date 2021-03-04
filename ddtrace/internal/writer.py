@@ -9,7 +9,6 @@ import ddtrace
 from .. import _worker
 from .. import compat
 from ..compat import httplib
-from ..compat import reraise
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..encoding import Encoder
 from ..encoding import JSONEncoderV2
@@ -132,7 +131,7 @@ class LogWriter:
         writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
-    def write(self, spans=None, services=None):
+    def write(self, spans=None):
         if not spans:
             return
 
@@ -370,8 +369,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))
                 if raise_exc:
-                    exc_type, exc_val, exc_tb = sys.exc_info()
-                    reraise(exc_type, exc_val, exc_tb)
+                    raise
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:

@@ -154,11 +154,6 @@ class AiopgTestCase(AsyncioTestCase):
             yield from self.assert_conn_is_traced(tracer, conn, service)
             conn.close()
 
-        # ensure we have the service types
-        service_meta = tracer.writer.pop_services()
-        expected = {}
-        assert service_meta == expected
-
     @mark_asyncio
     def test_patch_unpatch(self):
         tracer = DummyTracer()
