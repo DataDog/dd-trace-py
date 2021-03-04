@@ -17,7 +17,6 @@ from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
 
-from ... import DummyTracer
 from ... import assert_is_measured
 from ...subprocesstest import run_in_subprocess
 
@@ -144,19 +143,15 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     def test_connect_factory(self):
-        tracer = DummyTracer()
-
         services = ['db', 'another']
         for service in services:
             conn, _ = yield from self._get_conn_and_tracer()
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-            yield from self.assert_conn_is_traced(tracer, conn, service)
+            Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
+            yield from self.assert_conn_is_traced(self.tracer, conn, service)
             conn.close()
 
     @mark_asyncio
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
@@ -164,7 +159,7 @@ class AiopgTestCase(AsyncioTestCase):
         service = 'fo'
 
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
@@ -186,7 +181,7 @@ class AiopgTestCase(AsyncioTestCase):
         patch()
 
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 

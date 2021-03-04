@@ -28,7 +28,6 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.vendor import six
-from tests import DummyTracer
 from tests import DummyWriter
 from tests import TracerTestCase
 from tests import override_global_config
@@ -1094,24 +1093,22 @@ def test_multiple_tracer_ctx():
     assert s2.trace_id == s1.trace_id
 
 
-def test_filters():
-    t = DummyTracer()
-
+def test_filters(tracer, test_spans):
     class FilterAll(object):
         def process_trace(self, trace):
             return None
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterAll()],
         }
     )
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.pop()
+    spans = test_spans.pop()
     assert len(spans) == 0
 
     class FilterMutate(object):
@@ -1124,34 +1121,34 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterMutate("boop", "beep")],
         }
     )
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     s1, s2 = spans
     assert s1.get_tag("boop") == "beep"
     assert s2.get_tag("boop") == "beep"
 
     # Test multiple filters
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")],
         }
     )
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     for s in spans:
         assert s.get_tag("boop") == "beep"
@@ -1161,52 +1158,51 @@ def test_filters():
         def process_trace(self, trace):
             _ = 1 / 0
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterBroken()],
         }
     )
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterMutate("boop", "beep"), FilterBroken()],
         }
     )
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     for s in spans:
         assert s.get_tag("boop") == "beep"
 
 
-def test_early_exit():
-    t = DummyTracer()
-    s1 = t.trace("1")
-    s2 = t.trace("2")
+def test_early_exit(tracer, test_spans):
+    s1 = tracer.trace("1")
+    s2 = tracer.trace("2")
     s1.finish()
     s2.finish()
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
-    traces = t.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 2
 
-    s1 = t.trace("1-1")
+    s1 = tracer.trace("1-1")
     s1.finish()
     assert s1.parent_id is None
 
-    s1 = t.trace("1-2")
+    s1 = tracer.trace("1-2")
     s1.finish()
     assert s1.parent_id is None
 
@@ -1275,9 +1271,7 @@ def test_unicode_config_vals():
     t.shutdown()
 
 
-def test_ctx():
-    tracer = DummyTracer()
-
+def test_ctx(tracer, test_spans):
     with tracer.trace("test") as s1:
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
@@ -1319,7 +1313,7 @@ def test_ctx():
     assert SAMPLING_PRIORITY_KEY not in s2.metrics
     assert ORIGIN_KEY not in s1.meta
 
-    t = tracer.pop_traces()
+    t = test_spans.pop_traces()
     assert len(t) == 1
     assert len(t[0]) == 4
     _s1, _s2, _s3, _s4 = t[0]
@@ -1333,9 +1327,7 @@ def test_ctx():
         assert s.trace_id != s1.trace_id
 
 
-def test_multithreaded():
-    tracer = DummyTracer()
-
+def test_multithreaded(tracer, test_spans):
     def target():
         with tracer.trace("s1"):
             with tracer.trace("s2"):
@@ -1351,16 +1343,14 @@ def test_multithreaded():
         for t in ts:
             t.join()
 
-        traces = tracer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 10
 
         for trace in traces:
             assert len(trace) == 3
 
 
-def test_ctx_distributed():
-    tracer = DummyTracer()
-
+def test_ctx_distributed(tracer, test_spans):
     # Test activating an invalid context.
     ctx = Context(span_id=None, trace_id=None)
     tracer.context_provider.activate(ctx)
@@ -1373,7 +1363,7 @@ def test_ctx_distributed():
         assert tracer.get_call_context().span_id == s1.span_id
         assert s1.parent_id is None
 
-    trace = tracer.pop_traces()
+    trace = test_spans.pop_traces()
     assert len(trace) == 1
 
     # Test activating a valid context.
@@ -1388,69 +1378,61 @@ def test_ctx_distributed():
         assert tracer.get_call_context().span_id == s2.span_id
         assert s2.parent_id == 1234
 
-    trace = tracer.pop_traces()
+    trace = test_spans.pop_traces()
     assert len(trace) == 1
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
 
 
-def test_manual_keep():
-    tracer = DummyTracer()
-
+def test_manual_keep(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
 
 
-def test_manual_keep_then_drop():
-    tracer = DummyTracer()
-
+def test_manual_keep_then_drop(tracer, test_spans):
     # Test changing the value before finish.
     with tracer.trace("asdf") as root:
         with tracer.trace("child") as child:
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
 
-def test_manual_drop():
-    tracer = DummyTracer()
-
+def test_manual_drop(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_enabled(get_hostname):
+def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    tracer = DummyTracer()
-
     with override_global_config(dict(report_hostname=True)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) == "test-hostname"
@@ -1458,16 +1440,14 @@ def test_get_report_hostname_enabled(get_hostname):
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_disabled(get_hostname):
+def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    tracer = DummyTracer()
-
     with override_global_config(dict(report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) is None
@@ -1475,16 +1455,14 @@ def test_get_report_hostname_disabled(get_hostname):
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_default(get_hostname):
+def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    tracer = DummyTracer()
-
     with override_global_config(dict(report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) is None
