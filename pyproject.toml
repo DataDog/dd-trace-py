@@ -72,11 +72,6 @@ exclude = '''
       | cassandra
       | config.py
       | dbapi
-      | grpc/
-      (
-        hello_pb2_grpc.py
-        | hello_pb2.py
-      )
       | jinja2
       | kombu
       | mako
