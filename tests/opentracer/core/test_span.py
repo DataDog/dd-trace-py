@@ -111,7 +111,7 @@ class TestSpan(object):
         assert nop_span.finished
 
         # there should be no traces (see above comment)
-        spans = nop_span.tracer._tracer.writer.pop()
+        spans = nop_span.tracer._tracer.pop()
         assert len(spans) == 0
 
     def test_immutable_span_context(self, nop_span):
