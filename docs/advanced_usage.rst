@@ -168,11 +168,10 @@ all traces of incoming requests to a specific url::
         ],
     })
 
-All the filters in the filters list will be evaluated sequentially
-for each trace and the resulting trace will either be sent to the Agent or
-discarded depending on the output.
+The filters in the filters list will be applied sequentially to each trace
+and the resulting trace will either be sent to the Agent or discarded.
 
-**Use the standard filters**
+**Built-in filters**
 
 The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
 filter out incoming requests to specific urls:
@@ -180,25 +179,23 @@ filter out incoming requests to specific urls:
 .. autoclass:: ddtrace.filters.FilterRequestsOnUrl
     :members:
 
-**Write a custom filter**
+**Writing a custom filter**
 
-Creating your own filters is as simple as implementing a class with a
-``process_trace`` method and adding it to the filters parameter of
-Tracer.configure. process_trace should either return a trace to be fed to the
-next step of the pipeline or ``None`` if the trace should be discarded::
+Create a filter by implementing a class with a ``process_trace`` method and
+providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+``process_trace`` should either return a trace to be fed to the next step of
+the pipeline or ``None`` if the trace should be discarded::
 
-    from ddtrace import tracer
+    from ddtrace import Span, tracer
+    from ddtrace.filters import TraceFilter
 
-
-    class FilterExample(object):
+    class FilterExample(TraceFilter):
         def process_trace(self, trace):
-            # write here your logic to return the `trace` or None;
-            # `trace` instance is owned by the thread and you can alter
-            # each single span or the whole trace if needed
+            # type: (List[Span]) -> Optional[List[Span]]
+            ...
 
-    # And then instantiate it with
-    filters = [FilterExample()]
-    tracer.configure(settings={'FILTERS': filters})
+    # And then configure it with
+    tracer.configure(settings={'FILTERS': [FilterExample()]})
 
 (see filters.py for other example implementations)
 
