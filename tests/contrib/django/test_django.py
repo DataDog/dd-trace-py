@@ -19,7 +19,6 @@ from ddtrace.compat import binary_type
 from ddtrace.compat import string_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.django.patch import _set_request_tags
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
@@ -1341,8 +1340,9 @@ def test_set_request_tags_handles_improperly_configured_error(client):
     mimic the failure by mocking the user_is_authenticated to raise an error.
     """
     # patch django._patch - django.__init__.py imports patch.py module as _patch
-    with mock.patch("ddtrace.contrib.django._patch.user_is_authenticated",
-                    side_effect=django.core.exceptions.ImproperlyConfigured):
+    with mock.patch(
+        "ddtrace.contrib.django._patch.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+    ):
         try:
             client.get("/")
         except django.core.exceptions.ImproperlyConfigured:

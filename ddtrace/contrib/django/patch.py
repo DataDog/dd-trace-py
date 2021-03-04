@@ -118,7 +118,6 @@ def _set_request_tags(django, span, request):
                 span.set_tag("django.user.name", username)
 
 
-
 @trace_utils.with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
     if not config.django.instrument_caches:
