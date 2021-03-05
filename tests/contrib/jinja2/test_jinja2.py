@@ -8,7 +8,6 @@ from ddtrace import config
 from ddtrace.contrib.jinja2 import patch
 from ddtrace.contrib.jinja2 import unpatch
 
-from ... import DummyTracer
 from ... import TracerTestCase
 from ... import assert_is_measured
 from ... import assert_is_not_measured
@@ -20,14 +19,14 @@ TMPL_DIR = os.path.join(TEST_DIR, 'templates')
 
 class Jinja2Test(TracerTestCase):
     def setUp(self):
+        super(Jinja2Test, self).setUp()
         patch()
         # prevent cache effects when using Template('code...')
         jinja2.environment._spontaneous_environments.clear()
-        # provide a dummy tracer
-        self.tracer = DummyTracer()
         Pin.override(jinja2.environment.Environment, tracer=self.tracer)
 
     def tearDown(self):
+        super(Jinja2Test, self).tearDown()
         # restore the tracer
         unpatch()
 
@@ -36,7 +35,7 @@ class Jinja2Test(TracerTestCase):
         assert t.render(name='Jinja') == 'Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         for span in spans:
@@ -54,7 +53,7 @@ class Jinja2Test(TracerTestCase):
         assert ''.join(t.generate(name='Jinja')) == 'Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         for span in spans:
@@ -74,7 +73,7 @@ class Jinja2Test(TracerTestCase):
         assert t.render(name='Jinja') == 'Message: Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 5
 
         for span in spans:
@@ -112,7 +111,7 @@ class Jinja2Test(TracerTestCase):
         assert t.render(name='Jinja') == 'Message: Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 5
 
         for span in spans:
@@ -128,7 +127,7 @@ class Jinja2Test(TracerTestCase):
             assert t.render(name='Jinja') == 'Message: Hello Jinja!'
 
         # tests
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 6
 
         for span in spans:
@@ -146,6 +145,6 @@ class Jinja2Test(TracerTestCase):
         t = env.get_template("template.html")
         assert t.render(name="Jinja") == "Message: Hello Jinja!"
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         for span in spans:
             assert span.service == "mysvc"
