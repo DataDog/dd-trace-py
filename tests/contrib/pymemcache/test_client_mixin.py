@@ -26,7 +26,7 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
     def get_spans(self):
         pin = Pin.get_from(self.client)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         return spans
 
     def check_spans(self, num_expected, resources_expected, queries_expected):

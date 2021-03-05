@@ -59,23 +59,23 @@ def application(environ, start_response):
         return [body]
 
 
-def test_middleware(tracer):
+def test_middleware(tracer, test_spans):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/")
     assert resp.status == "200 OK"
     assert resp.status_int == 200
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 4
 
     with pytest.raises(Exception):
         app.get("/error")
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
 
 
-def test_distributed_tracing(tracer):
+def test_distributed_tracing(tracer, test_spans):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
@@ -83,7 +83,7 @@ def test_distributed_tracing(tracer):
     assert resp.status == "200 OK"
     assert resp.status_int == 200
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 4
     root = spans[0]
     assert root.name == "wsgi.request"
@@ -97,7 +97,7 @@ def test_distributed_tracing(tracer):
         assert resp.status == "200 OK"
         assert resp.status_int == 200
 
-        spans = tracer.writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 4
         root = spans[0]
         assert root.name == "wsgi.request"
@@ -105,7 +105,7 @@ def test_distributed_tracing(tracer):
         assert root.parent_id != 1234
 
 
-def test_query_string_tracing(tracer):
+def test_query_string_tracing(tracer, test_spans):
     with override_http_config("wsgi", dict(trace_query_string=True)):
         app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
         response = app.get("/?foo=bar&x=y")
@@ -113,7 +113,7 @@ def test_query_string_tracing(tracer):
         assert response.status_int == 200
         assert response.status == "200 OK"
 
-        spans = tracer.writer.pop_traces()
+        spans = test_spans.pop_traces()
         assert len(spans) == 1
         assert len(spans[0]) == 4
         request_span = spans[0][0]
@@ -130,18 +130,18 @@ def test_query_string_tracing(tracer):
         assert spans[0][3].name == "wsgi.response"
 
 
-def test_http_request_header_tracing(tracer):
+def test_http_request_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-header"])
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/", headers={"my-header": "test_value"})
 
     assert resp.status == "200 OK"
     assert resp.status_int == 200
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
 
 
-def test_http_response_header_tracing(tracer):
+def test_http_response_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-response-header"])
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/", headers={"my-header": "test_value"})
@@ -149,28 +149,28 @@ def test_http_response_header_tracing(tracer):
     assert resp.status == "200 OK"
     assert resp.status_int == 200
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
 
 
-def test_service_name_can_be_overriden(tracer):
+def test_service_name_can_be_overriden(tracer, test_spans):
     with override_config("wsgi", dict(service_name="test-override-service")):
         app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
         response = app.get("/")
         assert response.status_code == 200
 
-        spans = tracer.writer.pop_traces()
+        spans = test_spans.pop_traces()
         assert len(spans) > 0
         span = spans[0][0]
         assert span.service == "test-override-service"
 
 
-def test_generator_exit_ignored_in_top_level_span(tracer):
+def test_generator_exit_ignored_in_top_level_span(tracer, test_spans):
     with pytest.raises(generatorExit):
         app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
         app.get("/generatorError")
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[2].error == 1
     assert "GeneratorExit" in spans[2].get_tag("error.type")
     assert spans[0].error == 0
@@ -183,7 +183,7 @@ def test_generator_exit_ignored_in_top_level_span_snapshot():
         app.get("/generatorError")
 
 
-def test_chunked_response(tracer):
+def test_chunked_response(tracer, test_spans):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/chunked")
     assert resp.status == "200 OK"
@@ -191,7 +191,7 @@ def test_chunked_response(tracer):
     assert resp.text.startswith("0123456789")
     assert resp.text.endswith("999")
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     span = spans[0][0]
     assert span.resource == "GET /chunked"
     assert span.name == "wsgi.request"

@@ -42,7 +42,7 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run(file_name)
         rec.assertoutcome(passed=1)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 0
 
@@ -60,7 +60,7 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run(file_name)
         rec.assertoutcome(passed=1)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 1
 
@@ -79,7 +79,7 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=3, failed=1, skipped=1)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 5
 
@@ -100,7 +100,7 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
@@ -123,7 +123,7 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 1
         assert spans[0].get_tag("world") == "hello"
@@ -141,7 +141,7 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 1
         assert spans[0].service == "pytest"
