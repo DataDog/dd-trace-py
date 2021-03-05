@@ -1,5 +1,4 @@
 from inspect import Parameter
-from unittest import TestCase
 
 import molten
 from molten import DependencyInjector
@@ -7,7 +6,7 @@ from molten import DependencyInjector
 from ddtrace import Pin
 from ddtrace.contrib.molten import patch
 from ddtrace.contrib.molten import unpatch
-from tests import DummyTracer
+from tests import TracerTestCase
 
 
 # Test base adapted from molten/tests/test_dependency_injection.py
@@ -78,19 +77,19 @@ class AccountsComponent:
         return Accounts(db)
 
 
-class TestMoltenDI(TestCase):
+class TestMoltenDI(TracerTestCase):
     """"Ensures Molten dependency injection is properly instrumented."""
 
     TEST_SERVICE = "molten-patch-di"
 
     def setUp(self):
+        super(TestMoltenDI, self).setUp()
         patch()
-        self.tracer = DummyTracer()
         Pin.override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
 
     def tearDown(self):
         unpatch()
-        self.tracer.writer.pop()
+        super(TestMoltenDI, self).tearDown()
 
     def test_di_can_inject_dependencies(self):
         # Given that I have a DI instance
@@ -114,7 +113,7 @@ class TestMoltenDI(TestCase):
         resolved_example = resolver.resolve(example)
         resolved_example()
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         # TODO[tahir]: We could in future trace the resolve method on components
         self.assertEqual(len(spans), 0)

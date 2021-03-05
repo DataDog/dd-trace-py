@@ -57,7 +57,7 @@ class TraceBottleTest(TracerTestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -101,7 +101,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == "GET /2xx"
@@ -121,7 +121,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -147,7 +147,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -173,7 +173,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -211,7 +211,7 @@ class TraceBottleTest(TracerTestCase):
             self.app.get("/5XX-1")
         except webtest.AppError:
             pass
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].error == 1
 
@@ -219,7 +219,7 @@ class TraceBottleTest(TracerTestCase):
             self.app.get("/5XX-2")
         except webtest.AppError:
             pass
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].error == 1
 
@@ -227,7 +227,7 @@ class TraceBottleTest(TracerTestCase):
             self.app.get("/5XX-3")
         except webtest.AppError:
             pass
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].error == 1
 
@@ -244,7 +244,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -268,7 +268,7 @@ class TraceBottleTest(TracerTestCase):
         resp = self.app.get("/home/")
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -416,7 +416,7 @@ class TraceBottleTest(TracerTestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -473,7 +473,7 @@ class TraceBottleTest(TracerTestCase):
         )
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -496,7 +496,7 @@ class TraceBottleTest(TracerTestCase):
         )
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 

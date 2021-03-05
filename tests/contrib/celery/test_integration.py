@@ -33,7 +33,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         for result in results:
             assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == (200 if self.ASYNC_USE_CELERY_FIXTURES else 100)
 
     def test_idempotent_patch(self):
@@ -48,7 +48,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert t.successful()
         assert 42 == t.result
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -65,7 +65,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert t.successful()
         assert 42 == t.result
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 0 == len(traces)
 
     def test_fn_task_run(self):
@@ -78,7 +78,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         t = fn_task.run()
         assert t == 42
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 0 == len(traces)
 
     def test_fn_task_call(self):
@@ -91,7 +91,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         t = fn_task()
         assert t == 42
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 0 == len(traces)
 
     def test_fn_task_apply(self):
@@ -104,7 +104,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert t.successful()
         assert 42 == t.result
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -129,7 +129,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert t.successful()
         assert "fn_task" in t.result.name
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -152,7 +152,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
         assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)
@@ -191,7 +191,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         t = fn_task_parameters.delay("user", force_logout=True)
         assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)
@@ -231,7 +231,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert t.failed()
         assert "Task class is failing" in t.traceback
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -258,7 +258,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert t.failed()
         assert "Task class is failing" in t.traceback
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -282,7 +282,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert not t.failed()
         assert "Task class is being retried" in t.traceback
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -317,7 +317,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert r.successful()
         assert 42 == r.result
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -347,7 +347,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert r.failed()
         assert "Task class is failing" in r.traceback
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -382,7 +382,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert r.failed()
         assert "Task class is failing" in r.traceback
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -405,7 +405,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         res = add.apply([2, 2])
         assert res.result == 4
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -432,7 +432,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             self.assertTrue(t.successful())
             self.assertEqual(42, t.result)
 
-            traces = self.tracer.writer.pop_traces()
+            traces = self.pop_traces()
             self.assertEqual(1, len(traces))
             self.assertEqual(1, len(traces[0]))
             span = traces[0][0]
@@ -449,7 +449,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t = fn_task.delay()
             assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-            traces = self.tracer.writer.pop_traces()
+            traces = self.pop_traces()
 
             if self.ASYNC_USE_CELERY_FIXTURES:
                 assert 2 == len(traces)
@@ -475,7 +475,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         self.assertTrue(t.successful())
         self.assertEqual(42, t.result)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(1, len(traces))
         self.assertEqual(1, len(traces[0]))
         span = traces[0][0]
@@ -493,7 +493,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             self.assertTrue(t.successful())
             self.assertEqual(42, t.result)
 
-            traces = self.tracer.writer.pop_traces()
+            traces = self.pop_traces()
             self.assertEqual(1, len(traces))
             self.assertEqual(1, len(traces[0]))
             span = traces[0][0]
@@ -511,7 +511,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             self.assertTrue(t.successful())
             self.assertEqual(42, t.result)
 
-            traces = self.tracer.writer.pop_traces()
+            traces = self.pop_traces()
             self.assertEqual(1, len(traces))
             self.assertEqual(1, len(traces[0]))
             span = traces[0][0]
@@ -526,7 +526,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         t = fn_task.delay()
         assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             self.assertEqual(2, len(traces))
@@ -548,7 +548,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t = fn_task.delay()
             assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-            traces = self.tracer.writer.pop_traces()
+            traces = self.pop_traces()
 
             if self.ASYNC_USE_CELERY_FIXTURES:
                 self.assertEqual(2, len(traces))
@@ -570,7 +570,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t = fn_task.delay()
             assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-            traces = self.tracer.writer.pop_traces()
+            traces = self.pop_traces()
 
             if self.ASYNC_USE_CELERY_FIXTURES:
                 self.assertEqual(2, len(traces))
@@ -594,7 +594,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
             assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)
@@ -687,7 +687,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
 
         fn_task.apply()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         span = traces[0][0]
         assert span.trace_id == 99999
@@ -706,7 +706,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         with self.override_config("celery", dict(distributed_tracing=True)):
             fn_task.apply(headers=headers)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         span = traces[0][0]
         assert span.trace_id == 12345
 
@@ -725,7 +725,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             result = fn_task.apply_async(headers=headers)
             assert result.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert 2 == len(traces)

@@ -47,7 +47,7 @@ class AiopgTestCase(AsyncioTestCase):
             rows.append(row)
 
         assert rows == [('foobarblah',)]
-        spans = tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == 'postgres.query'

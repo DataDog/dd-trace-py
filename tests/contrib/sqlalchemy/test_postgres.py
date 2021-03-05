@@ -32,7 +32,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
