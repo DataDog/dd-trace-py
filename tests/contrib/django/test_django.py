@@ -1334,7 +1334,7 @@ def test_middleware_trace_request_ot(client, test_spans, tracer):
     assert sp_request.get_tag("http.method") == "GET"
 
 
-def test_set_request_tags_handles_improperly_configured_error(client, test_spans):
+def test_collecting_requests_handles_improperly_configured_error(client, test_spans):
     """
     Since it's difficult to reproduce the ImproperlyConfigured error via django (server setup), will instead
     mimic the failure by mocking the user_is_authenticated to raise an error.
@@ -1343,24 +1343,21 @@ def test_set_request_tags_handles_improperly_configured_error(client, test_spans
     with mock.patch(
         "ddtrace.contrib.django._patch.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
     ):
-        try:
-            resp = client.get("/")
-            assert resp.status_code == 200
-            assert resp.content == b"Hello, test app."
+        # If ImproperlyConfigured error bubbles up, should automatically fail the test.
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
 
-            # Assert the correct number of traces and spans
-            if django.VERSION >= (2, 0, 0):
-                test_spans.assert_span_count(26)
-            elif django.VERSION < (1, 11, 0):
-                test_spans.assert_span_count(15)
-            else:
-                test_spans.assert_span_count(16)
+        # Assert the correct number of traces and spans
+        if django.VERSION >= (2, 0, 0):
+            test_spans.assert_span_count(26)
+        elif django.VERSION < (1, 11, 0):
+            test_spans.assert_span_count(15)
+        else:
+            test_spans.assert_span_count(16)
 
-            root = test_spans.get_root_span()
-            root.assert_matches(name="django.request")
-
-        except django.core.exceptions.ImproperlyConfigured:
-            assert False  # Should be handled, not raised
+        root = test_spans.get_root_span()
+        root.assert_matches(name="django.request")
 
 
 """
