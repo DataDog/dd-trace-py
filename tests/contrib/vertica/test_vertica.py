@@ -49,7 +49,7 @@ def test_conn(request, test_tracer):
             TEST_TABLE
         )
     )
-    test_tracer.writer.pop()
+    test_tracer.pop()
 
     request.cls.test_conn = (conn, cur)
     return conn, cur
@@ -140,7 +140,7 @@ class TestVertica(TracerTestCase):
             Pin.override(cur, tracer=test_tracer)
             with conn:
                 cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
-        spans = test_tracer.writer.pop()
+        spans = test_tracer.pop()
         assert len(spans) == 1
         assert spans[0].service == "test_svc_name"
 
@@ -173,7 +173,7 @@ class TestVertica(TracerTestCase):
             Pin.override(conn, service="mycustomservice", tracer=test_tracer)
             conn.cursor()  # should be traced now
             conn.close()
-        spans = test_tracer.writer.pop()
+        spans = test_tracer.pop()
         assert len(spans) == 1
         assert spans[0].name == "get_cursor"
         assert spans[0].service == "mycustomservice"
@@ -188,7 +188,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 2
 
         # check all the metadata
@@ -216,7 +216,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 2
 
         # check all the metadata
@@ -241,7 +241,7 @@ class TestVertica(TracerTestCase):
         with conn, pytest.raises(VerticaSyntaxError):
             cur.execute("INVALID QUERY")
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 2
 
         # check all the metadata
@@ -289,7 +289,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             cur.rowcount == 5
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 9
 
         # check all the rowcounts
@@ -314,7 +314,7 @@ class TestVertica(TracerTestCase):
             cur.execute("SELECT * FROM {0}; SELECT * FROM {0}".format(TEST_TABLE))
             cur.nextset()
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 3
 
         # check all the rowcounts
@@ -335,7 +335,7 @@ class TestVertica(TracerTestCase):
                 "1,foo\n2,bar",
             )
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 2
 
         # check all the rowcounts
@@ -355,7 +355,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             conn.close()
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -382,7 +382,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         self.assertEqual(len(spans), 2)
         self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
@@ -396,7 +396,7 @@ class TestVertica(TracerTestCase):
                 cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
@@ -410,7 +410,7 @@ class TestVertica(TracerTestCase):
                 cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
@@ -430,7 +430,7 @@ class TestVertica(TracerTestCase):
                 cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.writer.pop()
+        spans = self.test_tracer.pop()
         assert len(spans) == 2
         span = spans[0]
         assert span.service != "mysvc"

@@ -33,7 +33,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -53,7 +53,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -73,7 +73,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -92,7 +92,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -110,7 +110,7 @@ class TestTraceTemplate(TraceTestCase):
         assert 500 == request.status
         yield from request.text()
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]

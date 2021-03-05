@@ -20,13 +20,13 @@ class BaseFlaskTestCase(TracerTestCase):
 
     def tearDown(self):
         # Remove any remaining spans
-        self.tracer.writer.pop()
+        self.tracer.pop()
 
         # Unpatch Flask
         unpatch()
 
     def get_spans(self):
-        return self.tracer.writer.pop()
+        return self.tracer.pop()
 
     def assert_is_wrapped(self, obj):
         self.assertTrue(isinstance(obj, wrapt.ObjectProxy), "{} is not wrapped".format(obj))
