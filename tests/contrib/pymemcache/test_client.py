@@ -228,7 +228,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         for _, client in self.client.clients.items():
             pin = Pin.get_from(client)
             tracer = pin.tracer
-            spans.extend(tracer.writer.pop())
+            spans.extend(tracer.pop())
         return spans
 
     def make_client_pool(self, hostname, mock_socket_values, serializer=None, **kwargs):
@@ -305,7 +305,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
 
         self.assertEqual(spans[0].service, 'mysvc')
 
@@ -318,7 +318,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
 
         self.assertEqual(spans[0].service, 'mysvc2')
 
@@ -337,6 +337,6 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
 
         assert spans[0].service != "mysvc"

@@ -34,7 +34,7 @@ class TestStackContext(TornadoTestCase):
             with self.tracer.trace("tornado"):
                 sleep(0.01)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         assert traces[0][0].trace_id == 100
@@ -51,7 +51,7 @@ class TestStackContext(TornadoTestCase):
         with self.tracer.trace("tornado"):
             sleep(0.01)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         assert traces[0][0].trace_id != 100
