@@ -143,26 +143,26 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor = TracedCursor(cursor, pin, {})
 
         assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         assert '__result__' == traced_cursor.executemany('arg_1', kwarg1='kwarg1')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.callproc.return_value = 'callproc'
         assert 'callproc' == traced_cursor.callproc('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.fetchone.return_value = 'fetchone'
         assert 'fetchone' == traced_cursor.fetchone('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.fetchmany.return_value = 'fetchmany'
         assert 'fetchmany' == traced_cursor.fetchmany('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.fetchall.return_value = 'fetchall'
         assert 'fetchall' == traced_cursor.fetchall('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
     def test_span_info(self):
         cursor = self.cursor
@@ -175,7 +175,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
         assert span.meta['pin1'] == 'value_pin1', 'Pin tags are preserved'
@@ -200,7 +200,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         assert span.service == 'cfg-service'
 
     def test_default_service(self):
@@ -214,7 +214,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         assert span.service == "db"
 
     def test_default_service_cfg(self):
@@ -229,7 +229,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         assert span.service == "default-svc"
 
     def test_service_cfg_and_pin(self):
@@ -244,7 +244,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         assert span.service == "pin-svc"
 
     def test_django_traced_cursor_backward_compatibility(self):
@@ -261,7 +261,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
@@ -276,7 +276,7 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
-        span = self.tracer.writer.pop()[0]
+        span = self.pop_spans()[0]
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_cursor_analytics_with_rate(self):
@@ -293,7 +293,7 @@ class TestTracedCursor(TracerTestCase):
             # DEV: We always pass through the result
             assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.writer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_cursor_analytics_without_rate(self):
@@ -310,7 +310,7 @@ class TestTracedCursor(TracerTestCase):
             # DEV: We always pass through the result
             assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.writer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
@@ -441,26 +441,26 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         assert '__result__' == traced_cursor.executemany('arg_1', kwarg1='kwarg1')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.callproc.return_value = 'callproc'
         assert 'callproc' == traced_cursor.callproc('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.fetchone.return_value = 'fetchone'
         assert 'fetchone' == traced_cursor.fetchone('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.fetchmany.return_value = 'fetchmany'
         assert 'fetchmany' == traced_cursor.fetchmany('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
         cursor.fetchall.return_value = 'fetchall'
         assert 'fetchall' == traced_cursor.fetchall('arg_1', 'arg_2')
-        assert len(tracer.writer.pop()) == 0
+        assert len(tracer.pop()) == 0
 
     def test_span_info(self):
         cursor = self.cursor
@@ -473,7 +473,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         assert span.meta['pin1'] == 'value_pin1', 'Pin tags are preserved'
         assert span.meta['extra1'] == 'value_extra1', 'Extra tags are merged into pin tags'
         assert span.name == 'my_name', 'Span name is respected'
@@ -498,7 +498,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
@@ -516,7 +516,7 @@ class TestFetchTracedCursor(TracerTestCase):
             traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.writer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
             cursor = self.cursor
@@ -526,7 +526,7 @@ class TestFetchTracedCursor(TracerTestCase):
             traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.writer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
             cursor = self.cursor
@@ -536,7 +536,7 @@ class TestFetchTracedCursor(TracerTestCase):
             traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.writer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_unknown_rowcount(self):
@@ -553,7 +553,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
-        span = tracer.writer.pop()[0]  # type: Span
+        span = tracer.pop()[0]  # type: Span
         assert span.get_metric('db.rowcount') is None
         assert span.get_metric('sql.rows') is None
 
@@ -609,7 +609,7 @@ class TestTracedConnection(TracerTestCase):
         pin = Pin('pin_name', tracer=tracer)
         traced_connection = TracedConnection(connection, pin)
         traced_connection.commit()
-        assert tracer.writer.pop()[0].name == 'mock.connection.commit'
+        assert tracer.pop()[0].name == 'mock.connection.commit'
         connection.commit.assert_called_with()
 
     def test_rollback_is_traced(self):
@@ -619,7 +619,7 @@ class TestTracedConnection(TracerTestCase):
         pin = Pin('pin_name', tracer=tracer)
         traced_connection = TracedConnection(connection, pin)
         traced_connection.rollback()
-        assert tracer.writer.pop()[0].name == 'mock.connection.rollback'
+        assert tracer.pop()[0].name == 'mock.connection.rollback'
         connection.rollback.assert_called_with()
 
     def test_connection_analytics_with_rate(self):
@@ -633,7 +633,7 @@ class TestTracedConnection(TracerTestCase):
             pin = Pin('pin_name', tracer=tracer)
             traced_connection = TracedConnection(connection, pin)
             traced_connection.commit()
-            span = tracer.writer.pop()[0]
+            span = tracer.pop()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_connection_context_manager(self):
@@ -676,7 +676,7 @@ class TestTracedConnection(TracerTestCase):
         conn = TracedConnection(ConnectionConnection(), pin)
         with conn as conn2:
             conn2.commit()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         with conn as conn2:
@@ -684,7 +684,7 @@ class TestTracedConnection(TracerTestCase):
                 cursor.execute("query")
                 cursor.fetchall()
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         # If a cursor is returned from the context manager
@@ -703,7 +703,7 @@ class TestTracedConnection(TracerTestCase):
         with TracedConnection(ConnectionCursor(), pin) as cursor:
             cursor.execute("query")
             cursor.fetchall()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         # If a traced cursor is returned then it should not
@@ -725,7 +725,7 @@ class TestTracedConnection(TracerTestCase):
         with TracedConnection(ConnectionTracedCursor(), pin) as cursor:
             cursor.execute("query")
             cursor.fetchall()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         # Check when a different connection object is returned
@@ -750,7 +750,7 @@ class TestTracedConnection(TracerTestCase):
         conn = TracedConnection(ConnectionDifferentConnection(), pin)
         with conn as conn2:
             conn2.commit()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         with conn as conn2:
@@ -758,7 +758,7 @@ class TestTracedConnection(TracerTestCase):
                 cursor.execute("query")
                 cursor.fetchall()
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         # When some unexpected value is returned from the context manager
@@ -780,7 +780,7 @@ class TestTracedConnection(TracerTestCase):
         conn = TracedConnection(ConnectionDifferentConnection(), pin)
         with conn as conn2:
             conn2.commit()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         with conn as conn2:
@@ -788,7 +788,7 @@ class TestTracedConnection(TracerTestCase):
                 cursor.execute("query")
                 cursor.fetchall()
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         # Errors should be the same when no context management is defined.
@@ -809,5 +809,5 @@ class TestTracedConnection(TracerTestCase):
             with conn as conn2:
                 pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
