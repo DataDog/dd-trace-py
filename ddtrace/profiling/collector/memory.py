@@ -51,7 +51,8 @@ class MemoryCollector(collector.PeriodicCollector, collector.CaptureSamplerColle
     def start(self):
         """Start collecting memory profiles."""
         if tracemalloc is None:
-            raise RuntimeError("tracemalloc is unavailable")
+            raise collector.CollectorUnavailable
+
         super(MemoryCollector, self).start()
 
     def stop(self):

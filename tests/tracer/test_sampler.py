@@ -64,7 +64,6 @@ class RateSamplerTest(unittest.TestCase):
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            writer = tracer.writer
 
             tracer.sampler = RateSampler(sample_rate)
 
@@ -74,7 +73,7 @@ class RateSamplerTest(unittest.TestCase):
                 span = tracer.trace(i)
                 span.finish()
 
-            samples = writer.pop()
+            samples = tracer.pop()
 
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
@@ -86,7 +85,6 @@ class RateSamplerTest(unittest.TestCase):
     def test_deterministic_behavior(self):
         """ Test that for a given trace ID, the result is always the same """
         tracer = DummyTracer()
-        writer = tracer.writer
 
         tracer.sampler = RateSampler(0.5)
 
@@ -94,7 +92,7 @@ class RateSamplerTest(unittest.TestCase):
             span = tracer.trace(i)
             span.finish()
 
-            samples = writer.pop()
+            samples = tracer.pop()
             assert len(samples) <= 1, "there should be 0 or 1 spans"
             sampled = 1 == len(samples)
             for j in range(10):
@@ -147,7 +145,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(i)
                 span.finish()
 
-            samples = writer.pop()
+            samples = tracer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
@@ -494,7 +492,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     mock_sample.return_value = True
     with dummy_tracer.trace("test"):
         pass
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
 
@@ -506,7 +504,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     mock_sample.return_value = False
     with dummy_tracer.trace("test"):
         pass
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
 
@@ -609,7 +607,7 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, d
     dummy_tracer.configure(sampler=sampler)
     with dummy_tracer.trace("span"):
         pass
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
 
     # A span is always expected as DatadogSamplers are used.
     assert len(spans) > 0
@@ -643,7 +641,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
@@ -671,7 +669,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
     assert spans[0].get_metric(SAMPLING_LIMIT_DECISION) is None
@@ -699,7 +697,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_not_called()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 0
@@ -728,7 +726,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
             rule_spy.sample.assert_called_once_with(parent)
             limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
@@ -757,7 +755,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule_spy.sample.assert_called_once_with(span)
     limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0

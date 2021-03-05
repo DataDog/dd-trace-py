@@ -378,15 +378,6 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         return tracer, client
 
-    def test_service(self):
-        tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
-        db = client['testdb']
-        db.drop_collection('songs')
-
-        services = writer.pop_services()
-        assert services == {}
-
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client
         conf = {

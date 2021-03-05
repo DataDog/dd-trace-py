@@ -16,7 +16,7 @@ def from_wsgi_header(header):
     UNPREFIXED_HEADERS = {"CONTENT_TYPE", "CONTENT_LENGTH"}
 
     if header.startswith(HTTP_PREFIX):
-        header = header[len(HTTP_PREFIX):]
+        header = header[len(HTTP_PREFIX) :]
     elif header not in UNPREFIXED_HEADERS:
         return None
     return header.replace("_", "-").title()
