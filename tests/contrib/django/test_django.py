@@ -1662,5 +1662,6 @@ class TestWSGI:
 def test_connections_patched():
     from django.db import connections
 
+    assert len(connections.all())
     for conn in connections.all():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
