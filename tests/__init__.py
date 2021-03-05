@@ -354,6 +354,14 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Required subclass method for TestSpanContainer"""
         return self.tracer.writer.spans
 
+    def pop_spans(self):
+        # type: () -> List[Span]
+        return self.tracer.pop()
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        return self.tracer.pop_traces()
+
     def reset(self):
         """Helper to reset the existing list of spans created"""
         self.tracer.writer.pop()
@@ -392,11 +400,10 @@ class DummyWriter(AgentWriter):
         # dummy components
         self.spans = []
         self.traces = []
-        self.services = {}
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = MsgpackEncoder()
 
-    def write(self, spans=None, services=None):
+    def write(self, spans=None):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
@@ -407,19 +414,14 @@ class DummyWriter(AgentWriter):
             self.spans += spans
             self.traces += trace
 
-        if services:
-            self.json_encoder.encode_services(services)
-            self.msgpack_encoder.encode_services(services)
-            self.services.update(services)
-
     def pop(self):
-        # dummy method
+        # type: () -> List[Span]
         s = self.spans
         self.spans = []
         return s
 
     def pop_traces(self):
-        # dummy method
+        # type: () -> List[List[Span]]
         traces = self.traces
         self.traces = []
         return traces
@@ -670,14 +672,14 @@ class TracerSpanContainer(TestSpanContainer):
         return self.tracer.writer.spans
 
     def pop(self):
-        return self.tracer.writer.pop()
+        return self.tracer.pop()
 
     def pop_traces(self):
-        return self.tracer.writer.pop_traces()
+        return self.tracer.pop_traces()
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.writer.pop()
+        self.tracer.pop()
 
 
 class TestSpanNode(TestSpan, TestSpanContainer):
