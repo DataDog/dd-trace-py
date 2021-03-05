@@ -456,10 +456,8 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         response_headers=response_headers,
                     )
 
-            except django.core.exceptions.ImproperlyConfigured:
-                log.debug("Error retrieving authentication information for user %r", request.user, exc_info=True)
             except Exception:
-                log.debug("Error setting request/response headers")
+                log.debug("Error collecting tags for request", exc_info=True)
 
             return response
 
