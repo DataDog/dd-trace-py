@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Remove references to runtime metrics from the Tracer object and into its own
+    API, similarly to what is done for the profiling service.

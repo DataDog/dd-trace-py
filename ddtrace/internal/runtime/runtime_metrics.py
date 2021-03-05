@@ -60,13 +60,13 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     FLUSH_INTERVAL = 10
 
-    def __init__(self, tracer=None, dogstatsd_url=agent.get_stats_url(), flush_interval=None):
+    def __init__(self, tracer=None, dogstatsd_url=None, flush_interval=None):
         super(RuntimeWorker, self).__init__(
             interval=flush_interval or float(get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)),
             name=self.__class__.__name__,
         )
         self.tracer = tracer or ddtrace.tracer
-        self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url)
+        self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url or agent.get_stats_url())
 
         # Initialize collector
         self._runtime_metrics = RuntimeMetrics()
