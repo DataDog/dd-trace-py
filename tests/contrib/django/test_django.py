@@ -733,7 +733,7 @@ def test_cache_incr_1XX(test_spans):
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
-    test_spans.tracer.writer.spans = []
+    test_spans.reset()
 
     cache.incr("value")
 
@@ -769,7 +769,7 @@ def test_cache_incr_2XX(test_spans):
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
-    test_spans.tracer.writer.spans = []
+    test_spans.reset()
 
     cache.incr("value")
 
@@ -798,7 +798,7 @@ def test_cache_decr_1XX(test_spans):
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
-    test_spans.tracer.writer.spans = []
+    test_spans.reset()
 
     cache.decr("value")
 
@@ -841,7 +841,7 @@ def test_cache_decr_2XX(test_spans):
     # get the default cache, set the value and reset the spans
     cache = django.core.cache.caches["default"]
     cache.set("value", 0)
-    test_spans.tracer.writer.spans = []
+    test_spans.reset()
 
     cache.decr("value")
 
