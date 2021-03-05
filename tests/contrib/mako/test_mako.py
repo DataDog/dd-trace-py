@@ -11,7 +11,6 @@ from ddtrace.compat import to_unicode
 from ddtrace.contrib.mako import patch
 from ddtrace.contrib.mako import unpatch
 
-from ... import DummyTracer
 from ... import TracerTestCase
 from ... import assert_is_measured
 
@@ -22,11 +21,12 @@ TMPL_DIR = os.path.join(TEST_DIR, 'templates')
 
 class MakoTest(TracerTestCase):
     def setUp(self):
+        super(MakoTest, self).setUp()
         patch()
-        self.tracer = DummyTracer()
         Pin.override(Template, tracer=self.tracer)
 
     def tearDown(self):
+        super(MakoTest, self).tearDown()
         unpatch()
 
     def test_render(self):
@@ -34,7 +34,7 @@ class MakoTest(TracerTestCase):
         t = Template('Hello ${name}!')
         self.assertEqual(t.render(name='mako'), 'Hello mako!')
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
 
         assert_is_measured(spans[0])
@@ -47,7 +47,7 @@ class MakoTest(TracerTestCase):
         # render_unicode
         t = Template('Hello ${name}!')
         self.assertEqual(t.render_unicode(name='mako'), to_unicode('Hello mako!'))
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, 'mako')
@@ -62,7 +62,7 @@ class MakoTest(TracerTestCase):
         c = Context(buf, name='mako')
         t.render_context(c)
         self.assertEqual(buf.getvalue(), 'Hello mako!')
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, 'mako')
@@ -76,7 +76,7 @@ class MakoTest(TracerTestCase):
         t = tmpl_lookup.get_template('template.html')
         self.assertEqual(t.render(name='mako'), 'Hello mako!\n')
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
 
         template_name = os.path.join(TMPL_DIR, 'template.html')
@@ -98,7 +98,7 @@ class MakoTest(TracerTestCase):
         t = tmpl_lookup.get_template('template.html')
         self.assertEqual(t.render(name='mako'), 'Hello mako!\n')
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
 
         assert spans[0].service == "mysvc"

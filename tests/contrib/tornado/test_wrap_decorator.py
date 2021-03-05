@@ -13,7 +13,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # it should trace a handler that calls a coroutine
         response = self.fetch("/nested_wrap/")
         assert 200 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -39,7 +39,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # it should trace a handler that calls a coroutine that raises an exception
         response = self.fetch("/nested_exception_wrap/")
         assert 500 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -69,7 +69,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # it should trace a handler that calls a coroutine
         response = self.fetch("/sync_nested_wrap/")
         assert 200 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -95,7 +95,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # it should trace a handler that calls a coroutine that raises an exception
         response = self.fetch("/sync_nested_exception_wrap/")
         assert 500 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -125,7 +125,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # it should trace a handler that calls a blocking function in a different executor
         response = self.fetch("/executor_wrap_handler/")
         assert 200 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -152,7 +152,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         # executor that raises an exception
         response = self.fetch("/executor_wrap_exception/")
         assert 500 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span

@@ -30,8 +30,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             "x-datadog-origin": "synthetics",
         }
         self.app.get("/", headers=headers, status=200)
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]

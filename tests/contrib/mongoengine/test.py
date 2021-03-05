@@ -39,7 +39,7 @@ class MongoEngineCore(object):
         end = time.time()
 
         # ensure we get a drop collection span
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
 
@@ -57,7 +57,7 @@ class MongoEngineCore(object):
         end = time.time()
 
         # ensure we get an insert span
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -77,7 +77,7 @@ class MongoEngineCore(object):
         # query names should be used in pymongo>3.1
         name = "find" if pymongo.version_tuple >= (3, 1, 0) else "query"
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -95,7 +95,7 @@ class MongoEngineCore(object):
         assert artists[0].first_name == "Joni"
         assert artists[0].last_name == "Mitchell"
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -110,7 +110,7 @@ class MongoEngineCore(object):
         joni.save()
         end = time.time()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -124,7 +124,7 @@ class MongoEngineCore(object):
         joni.delete()
         end = time.time()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -144,7 +144,7 @@ class MongoEngineCore(object):
             end = time.time()
 
         # ensure we get a drop collection span
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -165,7 +165,7 @@ class MongoEngineCore(object):
         tracer = self.get_tracer_and_connect()
         Artist.drop_collection()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
@@ -174,7 +174,7 @@ class MongoEngineCore(object):
             tracer = self.get_tracer_and_connect()
             Artist.drop_collection()
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
@@ -183,7 +183,7 @@ class MongoEngineCore(object):
             tracer = self.get_tracer_and_connect()
             Artist.drop_collection()
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
@@ -200,7 +200,7 @@ class MongoEngineCore(object):
         tracer = self.get_tracer_and_connect()
         Artist.drop_collection()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
@@ -285,12 +285,12 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         Artist.drop_collection()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
         mongoengine.connection.disconnect()
-        tracer.writer.pop()
+        tracer.pop()
 
         # Test unpatch
         unpatch()
@@ -298,7 +298,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         mongoengine.connect(port=MONGO_CONFIG["port"])
 
         Artist.drop_collection()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -308,7 +308,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         Artist.drop_collection()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 

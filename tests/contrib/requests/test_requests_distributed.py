@@ -90,7 +90,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert 200 == resp.status_code
             assert "bar" == resp.text
 
-        spans = self.tracer.writer.spans
+        spans = self.pop_spans()
         root, req = spans
         assert "root" == root.name
         assert "requests.request" == req.name
@@ -130,7 +130,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert 200 == resp.status_code
             assert "bar" == resp.text
 
-        spans = self.tracer.writer.spans
+        spans = self.pop_spans()
         root, req = spans
         assert "root" == root.name
         assert "requests.request" == req.name
@@ -154,7 +154,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert 200 == resp.status_code
             assert "bar" == resp.text
 
-        spans = self.tracer.writer.spans
+        spans = self.pop_spans()
         root, req = spans
         assert "root" == root.name
         assert "requests.request" == req.name
