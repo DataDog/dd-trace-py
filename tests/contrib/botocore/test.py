@@ -1,7 +1,9 @@
 # 3p
 import base64
+import datetime
 import io
 import json
+import unittest
 import zipfile
 
 import botocore.session
@@ -24,6 +26,10 @@ from tests.opentracer.utils import init_tracer
 from ... import TracerTestCase
 from ... import assert_is_measured
 from ... import assert_span_http_status_code
+
+
+# Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
+BOTOCORE_VERSION = tuple(int(x) for x in botocore.__version__.split("."))
 
 
 def get_zip_lambda():
@@ -686,3 +692,19 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(dd_span.service, "test-botocore-tracing.ec2")
         self.assertEqual(dd_span.resource, "ec2.describeinstances")
         self.assertEqual(dd_span.name, "ec2.command")
+
+    @unittest.skipIf(BOTOCORE_VERSION < (1, 9, 0), "Skipping for older versions of botocore without Stubber")
+    def test_stubber_no_response_metadata(self):
+        """When no ResponseMetadata key is provided in the response"""
+        from botocore.stub import Stubber
+
+        response = {
+            "Owner": {"ID": "foo", "DisplayName": "bar"},
+            "Buckets": [{"CreationDate": datetime.datetime(2016, 1, 20, 22, 9), "Name": "baz"}],
+        }
+
+        s3 = self.session.create_client("s3", aws_access_key_id="foo", aws_secret_access_key="bar")
+        with Stubber(s3) as stubber:
+            stubber.add_response("list_buckets", response, {})
+            service_response = s3.list_buckets()
+            assert service_response == response
