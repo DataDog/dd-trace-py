@@ -761,7 +761,13 @@ class Tracer(object):
     def shutdown(self, timeout=None):
         """Shutdown the tracer.
 
-        This will stop the background writer/worker and flush any finished traces in the buffer.
+        This will stop the background writer/worker and flush any finished
+        traces in the buffer.
+
+        Note that the tracer *cannot* be used after it has been shutdown. Any
+        traces generated after a shutdown will result in a ``RuntimeError``
+        being raised on ``span.finish()`` (or when the span context manager
+        exits).
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)

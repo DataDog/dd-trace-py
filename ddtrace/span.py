@@ -444,12 +444,9 @@ class Span(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            if exc_type:
-                self.set_exc_info(exc_type, exc_val, exc_tb)
-            self.finish()
-        except Exception:
-            log.exception("error closing trace")
+        if exc_type:
+            self.set_exc_info(exc_type, exc_val, exc_tb)
+        self.finish()
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (

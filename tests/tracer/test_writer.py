@@ -452,3 +452,17 @@ def test_flush_queue_raise():
     with pytest.raises(error):
         writer.write([])
         writer.flush_queue(raise_exc=True)
+
+
+def test_stop_start():
+    writer = AgentWriter(agent_url="http://dne:1234")
+
+    writer.write([])
+    assert writer.started
+    assert writer.is_alive()
+    writer.stop()
+    writer.join()
+
+    with pytest.raises(RuntimeError):
+        writer.write([])
+

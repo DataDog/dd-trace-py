@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    Generating traces after a `tracer.shutdown()` will now result in a
+    `RuntimeError` instead of silently failing.

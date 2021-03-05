@@ -317,10 +317,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
-        if self.started is False:
+        if not self.started:
             with self._started_lock:
-                if self.started is False:
+                if not self.started:
                     self.start()
+        elif not self.is_alive():
+            raise RuntimeError("Writer thread is shutdown")
 
         self._metrics_dist("writer.accepted.traces")
         self._set_keep_rate(spans)

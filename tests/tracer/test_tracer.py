@@ -1511,3 +1511,16 @@ def test_configure_url_partial():
     assert tracer.writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
     assert tracer.writer.agent_url == "http://abc:431"
+
+
+def test_trace_after_shutdown():
+    tracer = Tracer()
+
+    with tracer.trace("test"):
+        pass
+
+    tracer.shutdown()
+
+    with pytest.raises(RuntimeError):
+        with tracer.trace("test2"):
+            pass
