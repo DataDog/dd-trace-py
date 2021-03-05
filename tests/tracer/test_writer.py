@@ -455,6 +455,7 @@ def test_flush_queue_raise():
 
 
 def test_double_stop():
+    # Ensure double stopping doesn't result in an exception.
     writer = AgentWriter(agent_url="http://dne:1234")
     writer.write([])
     assert writer.started
@@ -464,7 +465,3 @@ def test_double_stop():
     writer.stop()
     assert writer.started
     assert not writer.is_alive()
-
-    # Make sure it can start again.
-    writer.write([])
-    assert writer.started
