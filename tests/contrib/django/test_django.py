@@ -1,3 +1,4 @@
+from ddtrace.vendor import wrapt
 import itertools
 import os
 import subprocess
@@ -1647,3 +1648,11 @@ class TestWSGI:
             assert root.resource == "GET ^error-500/$"
         else:
             assert root.resource == "GET tests.contrib.django.views.error_500"
+
+
+@pytest.mark.django_db
+def test_connections_patched():
+    from django.db import connections
+
+    for conn in connections.all():
+        assert isinstance(conn.cursor, wrapt.ObjectProxy)
