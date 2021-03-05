@@ -120,7 +120,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         assert weak_dict.get(key)
         # flush data and force the GC
         weak_dict.get(key).finish()
-        self.tracer.pop()
+        self.pop_spans()
         self.pop_traces()
         gc.collect()
         assert weak_dict.get(key) is None

@@ -397,33 +397,32 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     TEST_SERVICE = 'test-mongo-trace-client'
 
     def setUp(self):
+        super(TestPymongoPatchConfigured, self).setUp()
         patch()
 
     def tearDown(self):
         unpatch()
+        super(TestPymongoPatchConfigured, self).tearDown()
 
     def get_tracer_and_client(self):
-        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
-        return tracer, client
+        return self.tracer, client
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client['testdb'].drop_collection('whatever')
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -433,19 +432,19 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client['testdb'].drop_collection('whatever')
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client['testdb'].drop_collection('whatever')
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -475,8 +474,8 @@ class TestPymongoSocketTracing(TracerTestCase):
     Test suite which checks that tcp socket creation/retrieval is correctly traced
     """
     def setUp(self):
+        super(TestPymongoSocketTracing, self).setUp()
         patch()
-        self.tracer = DummyTracer()
         # Override server pin's tracer with our dummy tracer
         Pin.override(pymongo.server.Server, tracer=self.tracer)
         # maxPoolSize controls the number of sockets that the client can instanciate
@@ -489,6 +488,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     def tearDown(self):
         unpatch()
         self.client.close()
+        super(TestPymongoSocketTracing, self).tearDown()
 
     @staticmethod
     def check_socket_metadata(span):
@@ -500,7 +500,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
@@ -519,7 +519,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         # Ensure patched pymongo's insert/find behave normally
         assert input_movies == docs_in_collection
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         # Check that we generated one get_socket span and one cmd span per cmd
         # drop(), insert_many(), find() drop_collection() -> four cmds
         count_commands_executed = 4
@@ -557,7 +557,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_server_info(self):
         self.client.server_info()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])

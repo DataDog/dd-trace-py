@@ -489,7 +489,7 @@ class TestCassandraConfig(TracerTestCase):
         assert config.service == "mysvc"
 
         self.session.execute(self.TEST_QUERY)
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert spans
         assert len(spans) == 1
         query = spans[0]

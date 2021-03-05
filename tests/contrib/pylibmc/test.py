@@ -314,7 +314,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
 
         client.set('a', 1)
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -324,7 +324,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         client = pylibmc.Client([url])
         client.set('a', 1)
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
@@ -334,6 +334,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set('a', 1)
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1

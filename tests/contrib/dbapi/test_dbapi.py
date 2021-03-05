@@ -276,7 +276,7 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
-        span = self.tracer.pop()[0]
+        span = self.pop_spans()[0]
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_cursor_analytics_with_rate(self):
@@ -293,7 +293,7 @@ class TestTracedCursor(TracerTestCase):
             # DEV: We always pass through the result
             assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_cursor_analytics_without_rate(self):
@@ -310,7 +310,7 @@ class TestTracedCursor(TracerTestCase):
             # DEV: We always pass through the result
             assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
@@ -516,7 +516,7 @@ class TestFetchTracedCursor(TracerTestCase):
             traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
             cursor = self.cursor
@@ -526,7 +526,7 @@ class TestFetchTracedCursor(TracerTestCase):
             traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
             cursor = self.cursor
@@ -536,7 +536,7 @@ class TestFetchTracedCursor(TracerTestCase):
             traced_cursor = FetchTracedCursor(cursor, pin, {})
             assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
 
-            span = self.tracer.pop()[0]
+            span = self.pop_spans()[0]
             self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_unknown_rowcount(self):
@@ -654,7 +654,7 @@ class TestTracedConnection(TracerTestCase):
         conn = TracedConnection(ConnectionConnection(), pin)
         with conn as conn2:
             conn2.commit()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         with conn as conn2:
@@ -662,7 +662,7 @@ class TestTracedConnection(TracerTestCase):
                 cursor.execute("query")
                 cursor.fetchall()
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         # If a cursor is returned from the context manager
@@ -681,7 +681,7 @@ class TestTracedConnection(TracerTestCase):
         with TracedConnection(ConnectionCursor(), pin) as cursor:
             cursor.execute("query")
             cursor.fetchall()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         # If a traced cursor is returned then it should not
@@ -703,7 +703,7 @@ class TestTracedConnection(TracerTestCase):
         with TracedConnection(ConnectionTracedCursor(), pin) as cursor:
             cursor.execute("query")
             cursor.fetchall()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         # Check when a different connection object is returned
@@ -728,7 +728,7 @@ class TestTracedConnection(TracerTestCase):
         conn = TracedConnection(ConnectionDifferentConnection(), pin)
         with conn as conn2:
             conn2.commit()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         with conn as conn2:
@@ -736,7 +736,7 @@ class TestTracedConnection(TracerTestCase):
                 cursor.execute("query")
                 cursor.fetchall()
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         # When some unexpected value is returned from the context manager
@@ -758,7 +758,7 @@ class TestTracedConnection(TracerTestCase):
         conn = TracedConnection(ConnectionDifferentConnection(), pin)
         with conn as conn2:
             conn2.commit()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         with conn as conn2:
@@ -766,7 +766,7 @@ class TestTracedConnection(TracerTestCase):
                 cursor.execute("query")
                 cursor.fetchall()
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
         # Errors should be the same when no context management is defined.
@@ -787,5 +787,5 @@ class TestTracedConnection(TracerTestCase):
             with conn as conn2:
                 pass
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0

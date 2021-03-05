@@ -11,7 +11,6 @@ from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
 from ddtrace.ext.priority import USER_KEEP
-from tests import DummyTracer
 from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
 
@@ -25,8 +24,7 @@ class TestGeventTracer(TracerTestCase):
     """
 
     def setUp(self):
-        # use a dummy tracer
-        self.tracer = DummyTracer()
+        super(TestGeventTracer, self).setUp()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # trace gevent
@@ -360,7 +358,7 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         self._assert_spawn_multiple_greenlets(spans)
 
     def test_trace_spawn_multiple_greenlets_multiple_traces_ot(self):
@@ -388,7 +386,7 @@ class TestGeventTracer(TracerTestCase):
 
         gevent.spawn(entrypoint).join()
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         self._assert_spawn_multiple_greenlets(spans)
 
     def test_ddtracerun(self):
