@@ -6,12 +6,20 @@ from ddtrace.contrib.dogpile_cache.patch import patch
 from ddtrace.contrib.dogpile_cache.patch import unpatch
 
 from ... import DummyTracer
+from ... import TracerSpanContainer
 from ... import assert_is_measured
 
 
 @pytest.fixture
 def tracer():
     return DummyTracer()
+
+
+@pytest.fixture
+def test_spans(tracer):
+    container = TracerSpanContainer(tracer)
+    yield container
+    container.reset()
 
 
 @pytest.fixture
@@ -49,30 +57,30 @@ def multi_cache(region):
     return fn
 
 
-def test_doesnt_trace_with_no_pin(tracer, single_cache, multi_cache):
+def test_doesnt_trace_with_no_pin(tracer, single_cache, multi_cache, test_spans):
     # No pin is set
     unpatch()
 
     assert single_cache(1) == 2
-    assert tracer.writer.pop_traces() == []
+    assert test_spans.pop_traces() == []
 
     assert multi_cache(2, 3) == [4, 6]
-    assert tracer.writer.pop_traces() == []
+    assert test_spans.pop_traces() == []
 
 
-def test_doesnt_trace_with_disabled_pin(tracer, single_cache, multi_cache):
+def test_doesnt_trace_with_disabled_pin(tracer, single_cache, multi_cache, test_spans):
     tracer.enabled = False
 
     assert single_cache(1) == 2
-    assert tracer.writer.pop_traces() == []
+    assert test_spans.pop_traces() == []
 
     assert multi_cache(2, 3) == [4, 6]
-    assert tracer.writer.pop_traces() == []
+    assert test_spans.pop_traces() == []
 
 
-def test_traces_get_or_create(tracer, single_cache):
+def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert single_cache(1) == 2
-    traces = tracer.writer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     spans = traces[0]
     assert len(spans) == 1
@@ -90,7 +98,7 @@ def test_traces_get_or_create(tracer, single_cache):
 
     # Now the results should be cached.
     assert single_cache(1) == 2
-    traces = tracer.writer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     spans = traces[0]
     assert len(spans) == 1
@@ -107,9 +115,9 @@ def test_traces_get_or_create(tracer, single_cache):
     assert span.meta["region"] == "TestRegion"
 
 
-def test_traces_get_or_create_multi(tracer, multi_cache):
+def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert multi_cache(2, 3) == [4, 6]
-    traces = tracer.writer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     spans = traces[0]
     assert len(spans) == 1
@@ -128,7 +136,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
 
     # Partial hit
     assert multi_cache(2, 4) == [4, 8]
-    traces = tracer.writer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     spans = traces[0]
     assert len(spans) == 1
@@ -146,7 +154,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
 
     # Full hit
     assert multi_cache(2, 4) == [4, 8]
-    traces = tracer.writer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     spans = traces[0]
     assert len(spans) == 1

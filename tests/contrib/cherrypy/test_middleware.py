@@ -13,7 +13,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from tests import DummyTracer
+from tests import TracerTestCase
 from tests import assert_span_http_status_code
 from tests import snapshot
 
@@ -24,7 +24,7 @@ logger = logging.getLogger()
 logger.level = logging.DEBUG
 
 
-class TestCherrypy(helper.CPWebCase):
+class TestCherrypy(TracerTestCase, helper.CPWebCase):
     """
     FIXME: the tests using getPage() are not synchronous and so require a
            delay afterwards.
@@ -41,7 +41,7 @@ class TestCherrypy(helper.CPWebCase):
         )
 
     def setUp(self):
-        self.tracer = DummyTracer()
+        super(TestCherrypy, self).setUp()
         self.traced_app = TraceMiddleware(
             cherrypy,
             self.tracer,
@@ -60,7 +60,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertStatus("200 OK")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     def test_double_instrumentation_config(self):
@@ -78,7 +78,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertStatus("200 OK")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         assert cherrypy.tools.tracer.service == "new-intake"
@@ -91,7 +91,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertBody("child")
 
         # ensure trace worked
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         spans_by_name = {s.name: s for s in spans}
@@ -120,7 +120,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertBody("Hello world!")
 
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -137,7 +137,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertBody("alias")
 
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -153,7 +153,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -169,7 +169,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure the request was traced.
         assert not self.tracer.current_span()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -185,7 +185,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertErrorPage(500)
 
         assert not self.tracer.current_span()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -209,7 +209,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -226,7 +226,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -251,7 +251,7 @@ class TestCherrypy(helper.CPWebCase):
         self.assertBody("Hello world!")
 
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -278,7 +278,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -307,7 +307,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -326,7 +326,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -347,7 +347,7 @@ class TestCherrypy(helper.CPWebCase):
         )
         time.sleep(0.1)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -359,7 +359,7 @@ class TestCherrypy(helper.CPWebCase):
         self.getPage("/response_headers")
         time.sleep(0.1)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -375,7 +375,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -396,7 +396,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.cherrypy.service"
@@ -416,7 +416,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "my_cherrypy_service"
@@ -438,7 +438,7 @@ class TestCherrypy(helper.CPWebCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "my_cherrypy_service2"
