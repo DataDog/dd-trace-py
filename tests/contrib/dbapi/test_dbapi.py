@@ -557,6 +557,28 @@ class TestFetchTracedCursor(TracerTestCase):
         assert span.get_metric('db.rowcount') is None
         assert span.get_metric('sql.rows') is None
 
+    def test_callproc_can_handle_arbitrary_args(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        pin = Pin('pin_name', tracer=tracer)
+        cursor.callproc.return_value = "gme --> moon"
+        traced_cursor = TracedCursor(cursor, pin, {})
+
+        traced_cursor.callproc("proc_name", "arg_1")
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        self.reset()
+
+        traced_cursor.callproc("proc_name", "arg_1", "arg_2")
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        self.reset()
+
+        traced_cursor.callproc("proc_name", "arg_1", "arg_2", {"arg_key": "arg_value"})
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        self.reset()
+
 
 class TestTracedConnection(TracerTestCase):
     def setUp(self):
