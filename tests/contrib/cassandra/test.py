@@ -118,11 +118,11 @@ class CassandraBase(object):
 
     def _test_query_base(self, execute_fn):
         session, tracer = self._traced_session()
-        writer = tracer.writer
+
         result = execute_fn(session, self.TEST_QUERY)
         self._assert_result_correct(result)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # another for the actual query
@@ -158,8 +158,7 @@ class CassandraBase(object):
             session, tracer = self._traced_session()
             session.execute(self.TEST_QUERY)
 
-            writer = tracer.writer
-            spans = writer.pop()
+            spans = tracer.pop()
             assert spans, spans
             # another for the actual query
             assert len(spans) == 1
@@ -175,8 +174,7 @@ class CassandraBase(object):
             session, tracer = self._traced_session()
             session.execute(self.TEST_QUERY)
 
-            writer = tracer.writer
-            spans = writer.pop()
+            spans = tracer.pop()
             assert spans, spans
             # another for the actual query
             assert len(spans) == 1
@@ -191,13 +189,12 @@ class CassandraBase(object):
 
         session, tracer = self._traced_session()
         ot_tracer = init_tracer('cass_svc', tracer)
-        writer = tracer.writer
 
         with ot_tracer.start_active_span('cass_op'):
             result = execute_fn(session, self.TEST_QUERY)
             self._assert_result_correct(result)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # another for the actual query
@@ -253,14 +250,14 @@ class CassandraBase(object):
 
     def test_paginated_query(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
+
         statement = SimpleStatement(self.TEST_QUERY_PAGINATED, fetch_size=1)
         result = session.execute(statement)
         # iterate over all pages
         results = list(result)
         assert len(results) == 3
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # There are 4 spans for 3 results since the driver makes a request with
@@ -285,9 +282,9 @@ class CassandraBase(object):
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
+
         session.execute(self.TEST_QUERY)
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans
         assert len(spans) == 1
         query = spans[0]
@@ -295,7 +292,6 @@ class CassandraBase(object):
 
     def test_trace_error(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         try:
             session.execute('select * from test.i_dont_exist limit 1')
@@ -304,7 +300,7 @@ class CassandraBase(object):
         else:
             assert 0
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans
         query = spans[0]
         assert query.error == 1
@@ -313,7 +309,6 @@ class CassandraBase(object):
 
     def test_bound_statement(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         query = 'INSERT INTO test.person_write (name, age, description) VALUES (?, ?, ?)'
         prepared = session.prepare(query)
@@ -323,14 +318,13 @@ class CassandraBase(object):
         bound_stmt = prepared.bind(('leo', 16, 'fr'))
         session.execute(bound_stmt)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         for s in spans:
             assert s.resource == query
 
     def test_batch_statement(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         batch = BatchStatement()
         batch.add(
@@ -343,7 +337,7 @@ class CassandraBase(object):
         )
         session.execute(batch)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == 'BatchStatement'
@@ -352,7 +346,6 @@ class CassandraBase(object):
 
     def test_batched_bound_statement(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         batch = BatchStatement()
 
@@ -362,7 +355,7 @@ class CassandraBase(object):
         )
         session.execute(batch)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == 'BatchStatement'
@@ -440,7 +433,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -450,7 +443,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -460,7 +453,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
 
@@ -496,7 +489,7 @@ class TestCassandraConfig(TracerTestCase):
         assert config.service == "mysvc"
 
         self.session.execute(self.TEST_QUERY)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert spans
         assert len(spans) == 1
         query = spans[0]

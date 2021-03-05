@@ -53,7 +53,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -80,7 +80,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
