@@ -30,7 +30,7 @@ config._add(
     },
 )
 
-propagator = HTTPPropagator()
+propagator = HTTPPropagator
 
 
 def patch():

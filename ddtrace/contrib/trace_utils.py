@@ -185,8 +185,7 @@ def activate_distributed_headers(tracer, int_config, request_headers=None):
     int_config = int_config or {}
 
     if int_config.get("distributed_tracing_enabled", False):
-        propagator = HTTPPropagator()
-        context = propagator.extract(request_headers)
+        context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
             tracer.context_provider.activate(context)

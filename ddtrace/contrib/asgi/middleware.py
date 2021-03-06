@@ -89,8 +89,7 @@ class TraceMiddleware:
         headers = _extract_headers(scope)
 
         if self.integration_config.distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(headers)
+            context = HTTPPropagator.extract(headers)
             if context.trace_id:
                 self.tracer.context_provider.activate(context)
 
