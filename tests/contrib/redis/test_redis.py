@@ -24,7 +24,7 @@ def test_redis_legacy():
     r.set("a", "b")
     got = r.get("a")
     assert compat.to_unicode(got) == "b"
-    assert not tracer.writer.pop()
+    assert not tracer.pop()
 
 
 class TestRedisPatch(TracerTestCase):
@@ -162,7 +162,6 @@ class TestRedisPatch(TracerTestCase):
 
     def test_patch_unpatch(self):
         tracer = DummyTracer()
-        writer = tracer.writer
 
         # Test patch idempotence
         patch()
@@ -172,7 +171,7 @@ class TestRedisPatch(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -182,7 +181,7 @@ class TestRedisPatch(TracerTestCase):
         r = redis.Redis(port=REDIS_CONFIG["port"])
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -192,7 +191,7 @@ class TestRedisPatch(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -338,7 +337,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
 
     def test_patch_unpatch(self):
         tracer = DummyTracer()
-        writer = tracer.writer
 
         # Test patch idempotence
         patch()
@@ -348,7 +346,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -358,7 +356,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         r = redis.Redis(port=REDIS_CONFIG["port"])
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -368,7 +366,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 

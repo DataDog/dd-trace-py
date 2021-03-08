@@ -39,11 +39,10 @@ class BotoTest(TracerTestCase):
     @mock_ec2
     def test_ec2_client(self):
         ec2 = boto.ec2.connect_to_region('us-west-2')
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
         ec2.get_all_instances()
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -55,7 +54,7 @@ class BotoTest(TracerTestCase):
 
         # Create an instance
         ec2.run_instances(21)
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -76,12 +75,11 @@ class BotoTest(TracerTestCase):
                 dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             ec2 = boto.ec2.connect_to_region('us-west-2')
-            writer = self.tracer.writer
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
             ec2.get_all_instances()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         span = spans[0]
         self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
@@ -93,12 +91,11 @@ class BotoTest(TracerTestCase):
                 dict(analytics_enabled=True)
         ):
             ec2 = boto.ec2.connect_to_region('us-west-2')
-            writer = self.tracer.writer
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
             ec2.get_all_instances()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         span = spans[0]
         self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
@@ -106,12 +103,10 @@ class BotoTest(TracerTestCase):
     @mock_s3
     def test_s3_client(self):
         s3 = boto.s3.connect_to_region('us-east-1')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
         s3.get_all_buckets()
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -122,7 +117,7 @@ class BotoTest(TracerTestCase):
 
         # Create a bucket command
         s3.create_bucket('cheese')
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -134,7 +129,7 @@ class BotoTest(TracerTestCase):
 
         # Get the created bucket
         s3.get_bucket('cheese')
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -150,7 +145,7 @@ class BotoTest(TracerTestCase):
         try:
             s3.get_bucket('big_bucket')
         except Exception:
-            spans = writer.pop()
+            spans = self.pop_spans()
             assert spans
             span = spans[0]
             self.assertEqual(span.resource, 's3.head')
@@ -158,8 +153,6 @@ class BotoTest(TracerTestCase):
     @mock_s3
     def test_s3_put(self):
         s3 = boto.s3.connect_to_region('us-east-1')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
         s3.create_bucket('mybucket')
         bucket = s3.get_bucket('mybucket')
@@ -167,7 +160,7 @@ class BotoTest(TracerTestCase):
         k.key = 'foo'
         k.set_contents_from_string('bar')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         # create bucket
         self.assertEqual(len(spans), 3)
@@ -188,21 +181,17 @@ class BotoTest(TracerTestCase):
     @mock_lambda
     def test_unpatch(self):
         lamb = boto.awslambda.connect_to_region('us-east-2')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
         unpatch()
 
         # multiple calls
         lamb.list_functions()
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
     @mock_s3
     def test_double_patch(self):
         s3 = boto.s3.connect_to_region('us-east-1')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
         patch()
@@ -210,22 +199,20 @@ class BotoTest(TracerTestCase):
 
         # Get the created bucket
         s3.create_bucket('cheese')
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 1)
 
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region('us-east-2')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         # multiple calls
         lamb.list_functions()
         lamb.list_functions()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 2)
         span = spans[0]
@@ -240,13 +227,11 @@ class BotoTest(TracerTestCase):
     @mock_sts
     def test_sts_client(self):
         sts = boto.sts.connect_to_region('us-west-2')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         span = spans[0]
         assert_is_measured(span)
@@ -265,13 +250,11 @@ class BotoTest(TracerTestCase):
     )
     def test_elasticache_client(self):
         elasticache = boto.elasticache.connect_to_region('us-west-2')
-
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(elasticache)
 
         elasticache.describe_cache_clusters()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         span = spans[0]
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
@@ -281,16 +264,13 @@ class BotoTest(TracerTestCase):
     @mock_ec2
     def test_ec2_client_ot(self):
         """OpenTracing compatibility check of the test_ec2_client test."""
-
         ec2 = boto.ec2.connect_to_region('us-west-2')
-
         ot_tracer = init_tracer('my_svc', self.tracer)
-        writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
         with ot_tracer.start_active_span('ot_span'):
             ec2.get_all_instances()
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 2)
         ot_span, dd_span = spans
@@ -307,7 +287,7 @@ class BotoTest(TracerTestCase):
 
         with ot_tracer.start_active_span('ot_span'):
             ec2.run_instances(21)
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         self.assertEqual(len(spans), 2)
         ot_span, dd_span = spans

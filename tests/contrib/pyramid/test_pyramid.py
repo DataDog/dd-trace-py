@@ -18,7 +18,7 @@ class TestPyramid(PyramidTestCase):
         # not log rendering
         self.override_settings({"pyramid.tweens": "pyramid.tweens.excview_tween_factory"})
         self.app.get("/json", status=200)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_http_request_header_tracing(self):
@@ -32,7 +32,7 @@ class TestPyramid(PyramidTestCase):
         )
 
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -44,7 +44,7 @@ class TestPyramid(PyramidTestCase):
         self.app.get("/")
 
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -67,8 +67,7 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
             "x-datadog-origin": "synthetics",
         }
         self.app.get("/", headers=headers, status=200)
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
@@ -95,8 +94,7 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
             "x-datadog-origin": "synthetics",
         }
         self.app.get("/", headers=headers, status=200)
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]

@@ -28,7 +28,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/success/" + fqs)
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -59,7 +59,7 @@ class TestTornadoWeb(TornadoTestCase):
         # using the automatic Context retrieval
         response = self.fetch("/nested/")
         assert 200 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -87,7 +87,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -109,7 +109,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/http_exception/")
         assert 501 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -131,7 +131,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/http_exception_500/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -153,7 +153,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/sync_success/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -173,7 +173,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/sync_exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -195,7 +195,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/does_not_exist/")
         assert 404 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -216,7 +216,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 200 == response.code
 
         # we trace two different calls: the RedirectHandler and the SuccessHandler
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0])
         assert 1 == len(traces[1])
@@ -248,7 +248,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 200 == response.code
         assert "Static file\n" == response.body.decode("utf-8")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -269,7 +269,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/success/", headers=headers)
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -301,7 +301,7 @@ class TestTornadoWeb(TornadoTestCase):
             response = self.fetch("/success/")
             assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # dd_span will start and stop before the ot_span finishes
@@ -458,7 +458,7 @@ class TestNoPropagationTornadoWeb(TornadoTestCase):
         response = self.fetch("/success/", headers=headers)
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -494,7 +494,7 @@ class TestCustomTornadoWeb(TornadoTestCase):
         response = self.fetch("/custom_handler/")
         assert 400 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
