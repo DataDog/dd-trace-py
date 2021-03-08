@@ -203,7 +203,6 @@ class Tracer(object):
         wrap_executor=None,
         priority_sampling=None,
         settings=None,
-        collect_metrics=None,
         dogstatsd_url=None,
         writer=None,
     ):

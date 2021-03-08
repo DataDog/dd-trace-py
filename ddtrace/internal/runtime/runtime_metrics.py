@@ -5,7 +5,6 @@ import ddtrace
 
 from .. import agent
 from ... import _worker
-from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
@@ -59,6 +58,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
     """
 
     FLUSH_INTERVAL = 10
+    _instance = None
 
     def __init__(self, tracer=None, dogstatsd_url=None, flush_interval=None):
         super(RuntimeWorker, self).__init__(
@@ -71,6 +71,28 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         # Initialize collector
         self._runtime_metrics = RuntimeMetrics()
         self._services = {}
+
+    @staticmethod
+    def enable():
+        # type: () -> None
+        if RuntimeWorker._instance is not None:
+            return
+
+        runtime_worker = RuntimeWorker()
+        runtime_worker.start()
+        # force an immediate update constant tags
+        runtime_worker.update_runtime_tags()
+
+        def _restart():
+            runtime_worker.stop()
+            runtime_worker.join()
+            RuntimeWorker._instance = None
+            RuntimeWorker.enable()
+
+        if hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=_restart)
+
+        RuntimeWorker._instance = runtime_worker
 
     def flush(self):
         # The constant tags for the dogstatsd client needs to updated with any new
@@ -86,7 +108,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     @staticmethod
     def is_enabled():
-        return asbool(get_env("runtime_metrics", "enabled"))
+        return RuntimeWorker._instance is not None
 
     def update_runtime_tags(self):
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
@@ -102,21 +124,3 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
             self.__class__.__name__,
             self._runtime_metrics,
         )
-
-
-def enable_runtime_metrics():
-    # type: () -> RuntimeWorker
-    runtime_worker = RuntimeWorker()
-    runtime_worker.start()
-    # force an immediate update constant tags
-    runtime_worker.update_runtime_tags()
-
-    def _restart():
-        runtime_worker.stop()
-        runtime_worker.join()
-        enable_runtime_metrics()
-
-    if hasattr(os, "register_at_fork"):
-        os.register_at_fork(after_in_child=_restart)
-
-    return runtime_worker

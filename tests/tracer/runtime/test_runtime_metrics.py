@@ -1,3 +1,4 @@
+import contextlib
 import time
 
 import mock
@@ -9,10 +10,22 @@ from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
-from ddtrace.internal.runtime.runtime_metrics import enable_runtime_metrics
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from tests import BaseTestCase
+from tests import DummyTracer
 from tests import TracerTestCase
 from tests import override_env
+
+
+@contextlib.contextmanager
+def runtime_metrics_service():
+    RuntimeWorker.enable()
+    assert RuntimeWorker.is_enabled()
+
+    yield RuntimeWorker._instance
+
+    RuntimeWorker._instance.stop()
+    RuntimeWorker._instance = None
 
 
 class TestRuntimeTags(TracerTestCase):
@@ -70,7 +83,7 @@ class TestRuntimeWorker(TracerTestCase):
             # configure tracer for runtime metrics
             interval = 1.0 / 4
             with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))):
-                runtime_worker = enable_runtime_metrics()
+                RuntimeWorker.enable()
                 self.tracer.set_tags({"env": "tests.dog"})
 
                 with self.override_global_tracer(self.tracer):
@@ -82,9 +95,8 @@ class TestRuntimeWorker(TracerTestCase):
                     self.start_span("query", service="db", span_type=SpanTypes.SQL, child_of=child.context)
                     time.sleep(interval * 4)
                     # Get the mocked socket for inspection later
-                    statsd_socket = runtime_worker._dogstatsd_client.socket
-                    # now stop collection
-                    self.tracer.configure(collect_metrics=False)
+                    statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
+                    RuntimeWorker._instance.stop()
 
                 received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
@@ -108,3 +120,49 @@ class TestRuntimeWorker(TracerTestCase):
             self.assertRegexpMatches(gauge, "lang_version:")
             self.assertRegexpMatches(gauge, "lang:python")
             self.assertRegexpMatches(gauge, "tracer_version:")
+
+
+def test_only_root_span_runtime_internal_span_types():
+    with runtime_metrics_service():
+        tracer = DummyTracer()
+        for span_type in ("custom", "template", "web", "worker"):
+            with tracer.start_span("root", span_type=span_type) as root:
+                with tracer.start_span("child", child_of=root) as child:
+                    pass
+            assert root.get_tag("language") == "python"
+            assert child.get_tag("language") is None
+
+
+def test_span_no_runtime_tags():
+    tracer = DummyTracer()
+    with tracer.start_span("root") as root:
+        with tracer.start_span("child", child_of=root.context) as child:
+            pass
+
+    assert root.get_tag("language") is None
+    assert child.get_tag("language") is None
+
+
+def test_only_root_span_runtime_external_span_types():
+    with runtime_metrics_service():
+        tracer = DummyTracer()
+
+        for span_type in (
+            "algoliasearch.search",
+            "boto",
+            "cache",
+            "cassandra",
+            "elasticsearch",
+            "grpc",
+            "kombu",
+            "http",
+            "memcached",
+            "redis",
+            "sql",
+            "vertica",
+        ):
+            with tracer.start_span("root", span_type=span_type) as root:
+                with tracer.start_span("child", child_of=root) as child:
+                    pass
+            assert root.get_tag("language") is None
+            assert child.get_tag("language") is None
