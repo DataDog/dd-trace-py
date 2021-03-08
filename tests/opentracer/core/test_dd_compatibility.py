@@ -33,13 +33,13 @@ class TestTracerCompatibility(object):
         assert ot_tracer._dd_tracer is dd_tracer
         assert dd_tracer is ddtrace.tracer
 
-    def test_ot_dd_nested_trace(self, ot_tracer, dd_tracer, writer):
+    def test_ot_dd_nested_trace(self, ot_tracer, dd_tracer, test_spans):
         """Ensure intertwined usage of the opentracer and ddtracer."""
 
         with ot_tracer.start_span("my_ot_span") as ot_span:
             with dd_tracer.trace("my_dd_span") as dd_span:
                 pass
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 2
 
         # confirm the ordering
@@ -50,12 +50,12 @@ class TestTracerCompatibility(object):
         assert spans[0].parent_id is None
         assert spans[1].parent_id == spans[0].span_id
 
-    def test_dd_ot_nested_trace(self, ot_tracer, dd_tracer, writer):
+    def test_dd_ot_nested_trace(self, ot_tracer, dd_tracer, test_spans):
         """Ensure intertwined usage of the opentracer and ddtracer."""
         with dd_tracer.trace("my_dd_span") as dd_span:
             with ot_tracer.start_span("my_ot_span") as ot_span:
                 pass
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 2
 
         # confirm the ordering
@@ -66,7 +66,7 @@ class TestTracerCompatibility(object):
         assert spans[0].parent_id is None
         assert spans[1].parent_id is spans[0].span_id
 
-    def test_ot_dd_ot_dd_nested_trace(self, ot_tracer, dd_tracer, writer):
+    def test_ot_dd_ot_dd_nested_trace(self, ot_tracer, dd_tracer, test_spans):
         """Ensure intertwined usage of the opentracer and ddtracer."""
         with ot_tracer.start_span("my_ot_span") as ot_span:
             with dd_tracer.trace("my_dd_span") as dd_span:
@@ -74,7 +74,7 @@ class TestTracerCompatibility(object):
                     with dd_tracer.trace("my_dd_span") as dd_span2:
                         pass
 
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 4
 
         # confirm the ordering
@@ -89,7 +89,7 @@ class TestTracerCompatibility(object):
         assert spans[2].parent_id is spans[1].span_id
         assert spans[3].parent_id is spans[2].span_id
 
-    def test_ot_ot_dd_ot_dd_nested_trace_active(self, ot_tracer, dd_tracer, writer):
+    def test_ot_ot_dd_ot_dd_nested_trace_active(self, ot_tracer, dd_tracer, test_spans):
         """Ensure intertwined usage of the opentracer and ddtracer."""
         with ot_tracer.start_active_span("my_ot_span") as ot_scope:
             with ot_tracer.start_active_span("my_ot_span") as ot_scope2:
@@ -98,7 +98,7 @@ class TestTracerCompatibility(object):
                         with dd_tracer.trace("my_dd_span") as dd_span2:
                             pass
 
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 5
 
         # confirm the ordering
@@ -115,7 +115,7 @@ class TestTracerCompatibility(object):
         assert spans[3].parent_id == spans[2].span_id
         assert spans[4].parent_id == spans[3].span_id
 
-    def test_consecutive_trace(self, ot_tracer, dd_tracer, writer):
+    def test_consecutive_trace(self, ot_tracer, dd_tracer, test_spans):
         """Ensure consecutive usage of the opentracer and ddtracer."""
         with ot_tracer.start_active_span("my_ot_span") as ot_scope:
             pass
@@ -129,7 +129,7 @@ class TestTracerCompatibility(object):
         with dd_tracer.trace("my_dd_span") as dd_span2:
             pass
 
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 4
 
         # confirm the ordering
@@ -144,7 +144,7 @@ class TestTracerCompatibility(object):
         assert spans[2].parent_id is None
         assert spans[3].parent_id is None
 
-    def test_ddtrace_wrapped_fn(self, ot_tracer, dd_tracer, writer):
+    def test_ddtrace_wrapped_fn(self, ot_tracer, dd_tracer, test_spans):
         """Ensure ddtrace wrapped functions work with the opentracer"""
 
         @dd_tracer.wrap()
@@ -155,7 +155,7 @@ class TestTracerCompatibility(object):
         with ot_tracer.start_active_span("ot_span_outer"):
             fn()
 
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 3
 
         # confirm the ordering
@@ -168,7 +168,7 @@ class TestTracerCompatibility(object):
         assert spans[1].parent_id is spans[0].span_id
         assert spans[2].parent_id is spans[1].span_id
 
-    def test_distributed_trace_propagation(self, ot_tracer, dd_tracer, writer):
+    def test_distributed_trace_propagation(self, ot_tracer, dd_tracer, test_spans):
         """Ensure that a propagated span context is properly activated."""
         span_ctx = SpanContext(trace_id=123, span_id=456)
         carrier = {}
@@ -184,5 +184,5 @@ class TestTracerCompatibility(object):
         assert span.parent_id == 456
         assert span.trace_id == 123
 
-        spans = writer.pop()
+        spans = test_spans.pop()
         assert len(spans) == 1

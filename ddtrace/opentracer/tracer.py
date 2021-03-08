@@ -98,8 +98,8 @@ class Tracer(opentracing.Tracer):
             context_provider=dd_context_provider,
         )
         self._propagators = {
-            Format.HTTP_HEADERS: HTTPPropagator(),
-            Format.TEXT_MAP: HTTPPropagator(),
+            Format.HTTP_HEADERS: HTTPPropagator,
+            Format.TEXT_MAP: HTTPPropagator,
         }
 
     @property

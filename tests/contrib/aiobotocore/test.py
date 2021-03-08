@@ -32,7 +32,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("ec2", self.tracer) as ec2:
             yield from ec2.describe_instances()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
@@ -66,7 +66,7 @@ class AIOBotocoreTest(AsyncioTestCase):
             yield from s3.list_buckets()
             yield from s3.list_buckets()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 2)
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
@@ -86,7 +86,7 @@ class AIOBotocoreTest(AsyncioTestCase):
             yield from s3.create_bucket(Bucket="mybucket")
             yield from s3.put_object(**params)
 
-        spans = [trace[0] for trace in self.tracer.writer.pop_traces()]
+        spans = [trace[0] for trace in self.pop_traces()]
         assert spans
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_tag("aws.operation"), "CreateBucket")
@@ -110,7 +110,7 @@ class AIOBotocoreTest(AsyncioTestCase):
                 # FIXME: add proper clean-up to tearDown
                 yield from s3.list_objects(Bucket="doesnotexist")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
@@ -126,12 +126,12 @@ class AIOBotocoreTest(AsyncioTestCase):
             # prepare S3 and flush traces if any
             yield from s3.create_bucket(Bucket="tracing")
             yield from s3.put_object(Bucket="tracing", Key="apm", Body=b"")
-            self.tracer.writer.pop_traces()
+            self.pop_traces()
             # calls under test
             response = yield from s3.get_object(Bucket="tracing", Key="apm")
             yield from response["Body"].read()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         version = aiobotocore.__version__.split(".")
         pre_08 = int(version[0]) == 0 and int(version[1]) < 8
         if pre_08:
@@ -166,7 +166,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("sqs", self.tracer) as sqs:
             yield from sqs.list_queues()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
 
@@ -184,7 +184,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("kinesis", self.tracer) as kinesis:
             yield from kinesis.list_streams()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
 
@@ -203,7 +203,7 @@ class AIOBotocoreTest(AsyncioTestCase):
             # https://github.com/spulec/moto/issues/906
             yield from lambda_client.list_functions(MaxItems=5)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
 
@@ -221,7 +221,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("kms", self.tracer) as kms:
             yield from kms.list_keys(Limit=21)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
 
@@ -242,7 +242,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("kinesis", self.tracer) as kinesis:
             yield from kinesis.list_streams()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 0)
 
     @mark_asyncio
@@ -251,7 +251,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("sqs", self.tracer) as sqs:
             yield from sqs.list_queues()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
 
@@ -265,7 +265,7 @@ class AIOBotocoreTest(AsyncioTestCase):
             with aiobotocore_client("ec2", self.tracer) as ec2:
                 yield from ec2.describe_instances()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 2)
         ot_span = traces[0][0]
@@ -302,7 +302,7 @@ class AIOBotocoreTest(AsyncioTestCase):
                 with ot_tracer.start_active_span("ot_inner_span2"):
                     pass
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 5)
         ot_outer_span = traces[0][0]
@@ -345,7 +345,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         with aiobotocore_client("ec2", self.tracer) as ec2:
             yield from ec2.describe_instances()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]

@@ -20,7 +20,7 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_handler/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0])
         assert 1 == len(traces[1])
@@ -51,7 +51,7 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_submit_handler/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0])
         assert 1 == len(traces[1])
@@ -81,7 +81,7 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0])
         assert 1 == len(traces[1])
@@ -118,7 +118,7 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_custom_handler/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0])
         assert 1 == len(traces[1])
@@ -152,7 +152,7 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_custom_args_handler/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 

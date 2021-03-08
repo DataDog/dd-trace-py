@@ -282,7 +282,7 @@ class Tracer(object):
                 # get the URL from.
                 url = None
 
-            if hasattr(self, "writer") and self.writer.is_alive():
+            if hasattr(self, "writer"):
                 self.writer.stop()
 
             self.writer = AgentWriter(
@@ -738,11 +738,7 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if not self.writer.is_alive():
-            return
-
-        self.writer.stop()
-        self.writer.join(timeout=timeout)
+        self.writer.stop(timeout=timeout)
 
     @staticmethod
     def _is_agentless_environment():
