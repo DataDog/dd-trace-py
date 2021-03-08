@@ -37,8 +37,7 @@ def trace_middleware(app, handler):
 
         # Create a new context based on the propagated information.
         if distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(request.headers)
+            context = HTTPPropagator.extract(request.headers)
             # Only need to active the new context if something was propagated
             if context.trace_id:
                 tracer.context_provider.activate(context)

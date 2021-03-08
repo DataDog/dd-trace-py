@@ -49,7 +49,7 @@ async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_po
     assert [r.status_code for r in responses] == [200] * 2
     assert [r.json() for r in responses] == [{"hello": "world"}] * 2
 
-    spans = tracer.writer.pop_traces()
+    spans = tracer.pop_traces()
     assert len(spans) == 2
     assert len(spans[0]) == 2
     assert len(spans[1]) == 2

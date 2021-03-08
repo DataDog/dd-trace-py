@@ -19,7 +19,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert 200 == response.code
         assert 'This is a rendered page called "home"\n' == response.body.decode("utf-8")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
 
@@ -48,7 +48,7 @@ class TestTornadoTemplate(TornadoTestCase):
         value = t.generate(name="world")
         assert value == b"Hello world!"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -66,7 +66,7 @@ class TestTornadoTemplate(TornadoTestCase):
         assert 200 == response.code
         assert "This is a list:\n\n* python\n\n\n* go\n\n\n* ruby\n\n\n" == response.body.decode("utf-8")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 5 == len(traces[0])
 
@@ -121,7 +121,7 @@ class TestTornadoTemplate(TornadoTestCase):
         response = self.fetch("/template_exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
 
@@ -154,7 +154,7 @@ class TestTornadoTemplate(TornadoTestCase):
         with pytest.raises(NameError):
             t.generate()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 

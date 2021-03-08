@@ -194,8 +194,7 @@ class _ClientInterceptor(
         # propagate distributed tracing headers if available
         headers = {}
         if config.grpc.distributed_tracing_enabled:
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers)
 
         metadata = []
         if client_call_details.metadata is not None:

@@ -104,10 +104,10 @@ class TracedCursor(wrapt.ObjectProxy):
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
-    def callproc(self, proc, args):
+    def callproc(self, proc, *args):
         """ Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
