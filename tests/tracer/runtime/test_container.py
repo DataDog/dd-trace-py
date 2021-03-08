@@ -58,6 +58,18 @@ def test_cgroup_info_init():
                 pod_id=None,
             ),
         ),
+        # Valid, fargate >= 1.4.0
+        (
+            "1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+            CGroupInfo(
+                id="1",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+                container_id="34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+                pod_id=None,
+            ),
+        ),
         # Invalid container_ids
         (
             # One character too short
@@ -213,6 +225,7 @@ def test_cgroup_info_from_line(line, expected_info):
 3:blkio:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
 2:memory:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
 1:name=systemd:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
+1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
             """,
             "432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da",
         ),
