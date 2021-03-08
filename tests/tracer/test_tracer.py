@@ -566,15 +566,20 @@ def test_tracer_shutdown_no_timeout():
 
     # The writer thread does not start until the first write.
     t.shutdown()
-    assert not t.writer.stop.called
+    assert t.writer.stop.called
     assert not t.writer.join.called
 
     # Do a write to start the writer.
     with t.trace("something"):
         pass
+    assert t.writer.is_alive()
     t.shutdown()
-    t.writer.stop.assert_called_once_with()
-    t.writer.join.assert_called_once_with(timeout=None)
+    t.writer.stop.assert_has_calls(
+        [
+            mock.call(timeout=None),
+            mock.call(timeout=None),
+        ]
+    )
 
 
 def test_tracer_configure_writer_stop_unstarted():
@@ -582,9 +587,9 @@ def test_tracer_configure_writer_stop_unstarted():
     t.writer = mock.Mock(wraps=t.writer)
     orig_writer = t.writer
 
-    # Make sure we aren't calling stop for an unstarted writer
+    # Stop should be called when replacing the writer.
     t.configure(hostname="localhost", port=8126)
-    assert not orig_writer.stop.called
+    assert orig_writer.stop.called
 
 
 def test_tracer_configure_writer_stop_started():
@@ -608,8 +613,7 @@ def test_tracer_shutdown_timeout():
         pass
 
     t.shutdown(timeout=2)
-    t.writer.stop.assert_called_once_with()
-    t.writer.join.assert_called_once_with(timeout=2)
+    t.writer.stop.assert_called_once_with(timeout=2)
 
 
 def test_tracer_dogstatsd_url():

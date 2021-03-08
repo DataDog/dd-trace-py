@@ -26,7 +26,8 @@ POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTT
 class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
-    def inject(self, span_context, headers):
+    @staticmethod
+    def inject(span_context, headers):
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -37,8 +38,7 @@ class HTTPPropagator(object):
             def parent_call():
                 with tracer.trace('parent_span') as span:
                     headers = {}
-                    propagator = HTTPPropagator()
-                    propagator.inject(span.context, headers)
+                    HTTPPropagator.inject(span.context, headers)
                     url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
@@ -100,7 +100,8 @@ class HTTPPropagator(object):
             headers,
         )
 
-    def extract(self, headers):
+    @staticmethod
+    def extract(headers):
         """Extract a Context from HTTP headers into a new Context.
 
         Here is an example from a web endpoint::
@@ -108,8 +109,7 @@ class HTTPPropagator(object):
             from ddtrace.propagation.http import HTTPPropagator
 
             def my_controller(url, headers):
-                propagator = HTTPPropagator()
-                context = propagator.extract(headers)
+                context = HTTPPropagator.extract(headers)
                 if context:
                     tracer.context_provider.activate(context)
 

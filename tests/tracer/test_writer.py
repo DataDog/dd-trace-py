@@ -466,3 +466,15 @@ def test_stop_start():
     with pytest.raises(RuntimeError):
         writer.write([])
 
+
+def test_double_stop():
+    # Ensure double stopping doesn't result in an exception.
+    writer = AgentWriter(agent_url="http://dne:1234")
+    writer.write([])
+    assert writer.started
+    writer.stop()
+    assert writer.started
+    assert not writer.is_alive()
+    writer.stop()
+    assert writer.started
+    assert not writer.is_alive()

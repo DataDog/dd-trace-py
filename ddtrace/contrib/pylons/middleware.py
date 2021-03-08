@@ -35,8 +35,7 @@ class PylonsTraceMiddleware(object):
         if self._distributed_tracing:
             # retrieve distributed tracing headers
             request = Request(environ)
-            propagator = HTTPPropagator()
-            context = propagator.extract(request.headers)
+            context = HTTPPropagator.extract(request.headers)
             # only need to active the new context if something was propagated
             if context.trace_id:
                 self._tracer.context_provider.activate(context)
