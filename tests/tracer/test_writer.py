@@ -452,3 +452,16 @@ def test_flush_queue_raise():
     with pytest.raises(error):
         writer.write([])
         writer.flush_queue(raise_exc=True)
+
+
+def test_double_stop():
+    # Ensure double stopping doesn't result in an exception.
+    writer = AgentWriter(agent_url="http://dne:1234")
+    writer.write([])
+    assert writer.started
+    writer.stop()
+    assert writer.started
+    assert not writer.is_alive()
+    writer.stop()
+    assert writer.started
+    assert not writer.is_alive()
