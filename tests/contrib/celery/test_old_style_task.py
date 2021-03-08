@@ -33,7 +33,7 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         t = CelerySubClass()
         res = t.apply()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         run_span = traces[0][0]

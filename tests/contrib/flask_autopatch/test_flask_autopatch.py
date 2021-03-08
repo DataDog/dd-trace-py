@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
-import unittest
-
 import flask
 
 from ddtrace import Pin
 from ddtrace.ext import http
 from ddtrace.vendor import wrapt
 
-from ... import DummyTracer
+from ... import TracerTestCase
 from ... import assert_is_measured
 from ... import assert_span_http_status_code
 
 
-class FlaskAutopatchTestCase(unittest.TestCase):
+class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
-        self.tracer = DummyTracer()
+        super(FlaskAutopatchTestCase, self).setUp()
         self.app = flask.Flask(__name__)
         Pin.override(self.app, service="test-flask", tracer=self.tracer)
         self.client = self.app.test_client()
@@ -53,7 +51,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data, b"Hello Flask")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 8)
 
         self.assertListEqual(

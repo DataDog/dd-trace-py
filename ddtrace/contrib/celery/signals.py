@@ -17,7 +17,7 @@ from .utils import tags_from_context
 
 
 log = get_logger(__name__)
-propagator = HTTPPropagator()
+propagator = HTTPPropagator
 
 
 def trace_prerun(*args, **kwargs):

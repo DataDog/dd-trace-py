@@ -1,5 +1,3 @@
-from unittest import TestCase
-
 import bottle
 import webtest
 
@@ -7,13 +5,14 @@ import ddtrace
 from ddtrace import compat
 
 from ... import DummyTracer
+from ... import TracerTestCase
 from ... import assert_span_http_status_code
 
 
 SERVICE = "bottle-app"
 
 
-class TraceBottleTest(TestCase):
+class TraceBottleTest(TracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
@@ -46,7 +45,7 @@ class TraceBottleTest(TestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -69,7 +68,7 @@ class TraceBottleTest(TestCase):
         except Exception:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -91,7 +90,7 @@ class TraceBottleTest(TestCase):
         resp = self.app.get("/home/")
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"

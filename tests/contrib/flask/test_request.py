@@ -813,7 +813,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 },
             )
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         span = traces[0][0]
         assert span.get_tag("http.request.headers.my-header") == "my_value"
@@ -829,7 +829,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         with self.override_http_config("flask", dict(trace_headers=["my-response-header"])):
             self.client.get("/response_headers")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         span = traces[0][0]
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
