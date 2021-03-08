@@ -495,9 +495,6 @@ class Tracer(object):
             return
 
         self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
-        # force an immediate update constant tags since we have reset services
-        # and generated a new runtime id
-        self._runtime_worker.update_runtime_tags()
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
