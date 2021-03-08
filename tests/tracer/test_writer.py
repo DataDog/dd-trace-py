@@ -468,3 +468,16 @@ def test_racing_start():
         t.join()
 
     assert len(writer._buffer) == 100
+
+
+def test_double_stop():
+    # Ensure double stopping doesn't result in an exception.
+    writer = AgentWriter(agent_url="http://dne:1234")
+    writer.write([])
+    assert writer.started
+    writer.stop()
+    assert writer.started
+    assert not writer.is_alive()
+    writer.stop()
+    assert writer.started
+    assert not writer.is_alive()
