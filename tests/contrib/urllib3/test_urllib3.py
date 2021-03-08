@@ -204,7 +204,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == SOCKET
+        assert s.service == config.urllib3["_default_service"]
 
     def test_user_set_service_name(self):
         """Test the user-set service name is set on the span"""
@@ -235,59 +235,45 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.name == "urllib3.request"
         assert s.service == SOCKET
 
-    def test_parent_service_name_precedence(self):
-        """
-        Tests the request span inherits the service name from the parent
-        when split_by_domain is False
-        """
-        with self.override_config("urllib3", dict(split_by_domain=False)):
-            with self.tracer.trace("parent.span", service="web"):
+    def test_parent_without_service_name(self):
+        """Test that span with a parent with no service defaults to the hostname"""
+        with self.override_config("urllib3", dict(split_by_domain=True)):
+            with self.tracer.trace("parent.span"):
                 out = self.http.request("GET", URL_200)
                 assert out.status == 200
 
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 2
-        s = spans[1]
+            spans = self.tracer.writer.pop()
+            assert len(spans) == 2
+            s = spans[1]
 
-        assert s.name == "urllib3.request"
-        assert s.service == "web"
-
-    def test_parent_without_service_name(self):
-        """Test that span with a parent with no service defaults to the hostname"""
-        with self.tracer.trace("parent.span"):
-            out = self.http.request("GET", URL_200)
-            assert out.status == 200
-
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 2
-        s = spans[1]
-
-        assert s.name == "urllib3.request"
-        assert s.service == SOCKET
+            assert s.name == "urllib3.request"
+            assert s.service == SOCKET
 
     def test_split_by_domain_remove_auth_in_url(self):
         """Tests that only the hostname is used as the default service name"""
-        out = self.http.request("GET", "http://user:pass@{}".format(SOCKET))
-        assert out.status == 200
+        with self.override_config("urllib3", dict(split_by_domain=True)):
+            out = self.http.request("GET", "http://user:pass@{}".format(SOCKET))
+            assert out.status == 200
 
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 1
-        s = spans[0]
+            spans = self.tracer.writer.pop()
+            assert len(spans) == 1
+            s = spans[0]
 
-        assert s.service == SOCKET
+            assert s.service == SOCKET
 
     def test_split_by_domain_includes_port(self):
         """Test the port is included if not 80 or 443"""
-        with pytest.raises(Exception):
-            # Using a port the service is not listening on will throw an error, which is fine
-            self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
+        with self.override_config("urllib3", dict(split_by_domain=True)):
+            with pytest.raises(Exception):
+                # Using a port the service is not listening on will throw an error, which is fine
+                self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
 
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 1
-        s = spans[0]
+            spans = self.tracer.writer.pop()
+            assert len(spans) == 1
+            s = spans[0]
 
-        assert s.error == 1
-        assert s.service == "httpbin.org:8000"
+            assert s.error == 1
+            assert s.service == "httpbin.org:8000"
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""

@@ -23,12 +23,12 @@ DROP_PORTS = (80, 443)
 config._add(
     "urllib3",
     {
-        "service_name": get_env("urllib3", "service_name", "urllib3"),
+        "_default_service": "urllib3",
         "distributed_tracing": asbool(get_env("urllib3", "distributed_tracing", default=True)),
         "analytics_enabled": asbool(get_env("urllib3", "analytics_enabled", default=False)),
         "analytics_sample_rate": float(get_env("urllib3", "analytics_sample_rate", default=1.0)),
         "trace_query_string": asbool(get_env("urllib3", "trace_query_string", default=False)),
-        "split_by_domain": asbool(get_env("urllib3", "split_by_domain", default=True)),
+        "split_by_domain": asbool(get_env("urllib3", "split_by_domain", default=False)),
     },
 )
 
@@ -39,10 +39,7 @@ def patch():
         return
     setattr(urllib3, "__datadog_patch", True)
 
-    from urllib3.connectionpool import HTTPConnectionPool
-
-    _w("urllib3.connectionpool", "HTTPConnectionPool.urlopen", _wrap_urlopen)
-    Pin(service="urllib3").onto(HTTPConnectionPool)
+    _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
 
 
 def unpatch():
@@ -51,29 +48,6 @@ def unpatch():
         setattr(urllib3, "__datadog_patch", False)
 
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
-
-
-def _extract_service_name(span, hostname, split_by_domain):
-    """
-    Determines the service_name to use based on the span and whether split_by_domain
-    is set.
-
-    - if `split_by_domain` is true, use the hostname
-    - if the span has a parent service, use that service name
-    - otherwise use the default service name for this config
-
-    :param span: The span whose service name is to be determined
-    :param hostname: The hostname of the requested service
-    :split_by_domain: Boolean indicating whether split_by_domain flag is set
-    :return: The service name to use
-    """
-    if split_by_domain:
-        return hostname
-
-    service_name = config.urllib3["service_name"]
-    if span._parent is not None and span._parent.service is not None:
-        service_name = span._parent.service
-    return service_name
 
 
 def _infer_argument_value(args, kwargs, pos, kw, default=None):
@@ -143,17 +117,18 @@ def _wrap_urlopen(func, instance, args, kwargs):
     with pin.tracer.trace(
         "urllib3.request", service=trace_utils.ext_service(pin, config.urllib3), span_type=SpanTypes.HTTP
     ) as span:
-        span.service = _extract_service_name(span, hostname, config.urllib3["split_by_domain"])
+        if config.urllib3.split_by_domain:
+            span.service = hostname
 
         # If distributed tracing is enabled, propagate the tracing headers to downstream services
-        if config.urllib3["distributed_tracing"]:
+        if config.urllib3.distributed_tracing:
             if request_headers is None:
                 request_headers = {}
                 kwargs["headers"] = request_headers
             propagator = HTTPPropagator()
             propagator.inject(span.context, request_headers)
 
-        if config.urllib3["analytics_enabled"]:
+        if config.urllib3.analytics_enabled:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
         if isinstance(request_retries, urllib3.util.retry.Retry):
             span.set_tag(http.RETRIES_REMAIN, str(request_retries.total))
