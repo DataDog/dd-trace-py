@@ -44,45 +44,17 @@ exclude = '''
       aiobotocore
       | aiopg
       | boto
-      | botocore
       | cassandra
-      | celery
       | dbapi
-      | flask_cache
-      | grpc/
-      (
-        __init__.py
-        | constants.py
-        | patch.py
-        | server_interceptor.py
-        | utils.py
-      )
       | jinja2
-      | kombu
       | mako
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
       | sqlalchemy
       | util.py
-    )
-    | ext/
-    (
-       cassandra.py
-       | db.py
-       | elasticsearch.py
-       | errors.py
-       | http.py
-       | kombu.py
-       | memcached.py
-       | mongo.py
-       | net.py
-       | priority.py
-       | sql.py
-       | system.py
     )
     | profiling/exporter/pprof_pb2.py$
     | vendor/
@@ -94,20 +66,14 @@ exclude = '''
       aiobotocore
       | aiopg
       | boto
-      | botocore
       | cassandra
       | config.py
       | dbapi
-      | flask_autopatch
-      | flask_cache
-      | grpc
       | jinja2
-      | kombu
       | mako
       | patch.py
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
