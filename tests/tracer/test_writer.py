@@ -481,3 +481,14 @@ def test_double_stop():
     writer.stop()
     assert writer.started
     assert not writer.is_alive()
+
+
+def test_bad_url():
+    with pytest.raises(ValueError):
+        AgentWriter(agent_url="bad://dne:1234")
+
+    with pytest.raises(ValueError):
+        AgentWriter(agent_url="http://:1234")
+
+    with pytest.raises(ValueError):
+        AgentWriter(agent_url="unix://")
