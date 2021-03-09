@@ -31,13 +31,13 @@ class AIOBotocoreTest(AsyncioTestCase):
             # prepare S3 and flush traces if any
             await s3.create_bucket(Bucket='tracing')
             await s3.put_object(Bucket='tracing', Key='apm', Body=b'')
-            self.tracer.writer.pop_traces()
+            self.pop_traces()
             # `async with` under test
             response = await s3.get_object(Bucket='tracing', Key='apm')
             async with response['Body'] as stream:
                 await stream.read()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         version = aiobotocore.__version__.split('.')
         pre_08 = int(version[0]) == 0 and int(version[1]) < 8

@@ -45,13 +45,13 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
             conn.getresponse()
 
     def check_enabled(self):
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         assert self.headers_here(self.tracer, span)
 
     def check_disabled(self):
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         assert self.headers_not_here(self.tracer)
 

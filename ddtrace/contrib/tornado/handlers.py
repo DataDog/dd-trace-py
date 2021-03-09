@@ -30,8 +30,7 @@ def execute(func, handler, args, kwargs):
 
         # Read and use propagated context from HTTP headers
         if distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(handler.request.headers)
+            context = HTTPPropagator.extract(handler.request.headers)
             if context.trace_id:
                 tracer.context_provider.activate(context)
 
