@@ -441,7 +441,8 @@ class TestTraces(TracerTestCase):
         tracer.configure(
             settings={
                 "FILTERS": [FilterMutate("boop", "beep")],
-            }
+            },
+            writer=tracer.writer,
         )
 
         with tracer.trace("root"):

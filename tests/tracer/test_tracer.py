@@ -550,10 +550,10 @@ def test_tracer_url():
     assert t.writer.agent_url == "unix:///foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.agent_url == "http://localhost:80"
+    assert t.writer.agent_url == "http://localhost"
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.agent_url == "https://localhost:443"
+    assert t.writer.agent_url == "https://localhost"
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
@@ -1510,7 +1510,7 @@ def test_configure_url_partial():
     assert tracer.writer.agent_url == "http://abc:123"
 
     tracer = ddtrace.Tracer(url="http://abc")
-    assert tracer.writer.agent_url == "http://abc:80"
+    assert tracer.writer.agent_url == "http://abc"
     tracer.configure(port=123)
     assert tracer.writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
