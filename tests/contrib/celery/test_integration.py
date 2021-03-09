@@ -701,7 +701,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         # by the before_publish signal. Rip it out if Celery ever fixes their bug.
         current_context = Pin.get_from(self.app).tracer.context_provider.active()
         headers = {}
-        HTTPPropagator().inject(current_context, headers)
+        HTTPPropagator.inject(current_context, headers)
 
         with self.override_config("celery", dict(distributed_tracing=True)):
             fn_task.apply(headers=headers)
@@ -719,7 +719,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         # by the before_publish signal. Rip it out if Celery ever fixes their bug.
         current_context = Pin.get_from(self.app).tracer.context_provider.active()
         headers = {}
-        HTTPPropagator().inject(current_context, headers)
+        HTTPPropagator.inject(current_context, headers)
 
         with self.override_config("celery", dict(distributed_tracing=True)):
             result = fn_task.apply_async(headers=headers)
