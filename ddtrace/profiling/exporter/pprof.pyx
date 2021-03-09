@@ -3,16 +3,9 @@ import itertools
 import operator
 import sys
 
-
-try:
-    import tracemalloc
-except ImportError:
-    tracemalloc = None
-
 from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
-from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof_pb2
@@ -478,26 +471,6 @@ class PprofExporter(exporter.Exporter):
                 exc_type_name,
                 list(se_events),
             )
-
-        if tracemalloc:
-            # Handle MemorySampleEvent
-            # Merge all the memory snapshots
-            traces = []
-            traceback_limit = None
-            sampling_pct_sum = 0
-            nb_events = 0
-            for event in events.get(memory.MemorySampleEvent, []):
-                sampling_pct_sum += event.sampling_pct
-                nb_events += 1
-                traces.extend(event.snapshot.traces._traces)
-                # Assume they are all the same
-                traceback_limit = event.snapshot.traceback_limit
-                # Ignore period for memory events are it's not a time-based sampling
-
-            if nb_events:
-                sampling_ratio_avg = sampling_pct_sum / (nb_events * 100.0)  # convert percentage to ratio
-                for stats in tracemalloc.Snapshot(traces, traceback_limit).statistics("traceback"):
-                    converter.convert_memory_event(stats, sampling_ratio_avg)
 
         if memalloc._memalloc:
             for (
