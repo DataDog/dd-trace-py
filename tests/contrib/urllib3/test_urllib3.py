@@ -41,7 +41,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         # Test a relative URL
         r = pool.request("GET", "/status/200")
         assert r.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == URL_200
@@ -49,14 +49,14 @@ class TestUrllib3(BaseUrllib3TestCase):
         # Test an absolute URL
         r = pool.request("GET", URL_200)
         assert r.status == 200
-        assert len(self.tracer.writer.pop()) == 1
+        assert len(self.pop_spans()) == 1
 
     def test_traced_connection_from_url(self):
         """Tests tracing from ``connection_from_url`` is set up"""
         conn = urllib3.connectionpool.connection_from_url(URL_200)
         resp = conn.request("GET", "/")
         assert resp.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
@@ -65,7 +65,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Tests that a successful request tags a single span with the URL"""
         resp = self.http.request("GET", URL_200)
         assert resp.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
@@ -75,7 +75,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         self.tracer.enabled = False
         out = self.http.request("GET", URL_200)
         assert out.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_args_kwargs(self):
@@ -103,7 +103,7 @@ class TestUrllib3(BaseUrllib3TestCase):
                 pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
                 out = pool.urlopen(*args, **kwargs)
             assert out.status == 200
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == "POST"
@@ -118,7 +118,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         out = self.http.request("GET", URL_200)
         assert out.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_double_patch(self):
@@ -129,14 +129,14 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     def test_200(self):
         """Test 200 span tags"""
         out = self.http.request("GET", URL_200)
         assert out.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == "GET"
@@ -153,7 +153,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             out = self.http.request("GET", URL_200 + "?" + query_string)
         assert out.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == "GET"
@@ -167,7 +167,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Test a request with method POST and expected status 500"""
         out = self.http.request("POST", URL_500)
         assert out.status == 500
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == "POST"
@@ -185,7 +185,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         else:
             assert 0, "expected error"
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 4  # Default retry behavior is 3 retries + original request
         for i, s in enumerate(spans):
             assert s.get_tag(http.METHOD) == "GET"
@@ -201,7 +201,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Test the default service name is set"""
         out = self.http.request("GET", URL_200)
         assert out.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == config.urllib3["_default_service"]
@@ -212,7 +212,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             config.urllib3["service_name"] = "clients"
             out = self.http.request("GET", URL_200)
         assert out.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -228,7 +228,7 @@ class TestUrllib3(BaseUrllib3TestCase):
                 out = self.http.request("GET", URL_200)
                 assert out.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
@@ -242,7 +242,7 @@ class TestUrllib3(BaseUrllib3TestCase):
                 out = self.http.request("GET", URL_200)
                 assert out.status == 200
 
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
             s = spans[1]
 
@@ -255,7 +255,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             out = self.http.request("GET", "http://user:pass@{}".format(SOCKET))
             assert out.status == 200
 
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
 
@@ -268,7 +268,7 @@ class TestUrllib3(BaseUrllib3TestCase):
                 # Using a port the service is not listening on will throw an error, which is fine
                 self.http.request("GET", "http://httpbin.org:8000/hello", timeout=0.0001, retries=0)
 
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
 
@@ -284,7 +284,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             out = self.http.request("GET", URL_200)
             assert out.status == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         ot_span, dd_span = spans
@@ -304,7 +304,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_request_and_response_headers(self):
         """Tests the headers are added as tag when the headers are whitelisted"""
         self.http.request("GET", URL_200, headers={"my-header": "my_value"})
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") is None
@@ -314,7 +314,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         with self.override_config("urllib3", {}):
             config.urllib3.http.trace_headers(["my-header", "access-control-allow-origin"])
             self.http.request("GET", URL_200, headers={"my-header": "my_value"})
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") == "my_value"
@@ -324,7 +324,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Tests the default behavior of analytics integration is disabled"""
         r = self.http.request("GET", URL_200)
         assert r.status == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
@@ -334,7 +334,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         with self.override_config("urllib3", dict(analytics_enabled=False, analytics_sample_rate=0.5)):
             self.http.request("GET", URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
@@ -344,7 +344,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         with self.override_config("urllib3", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             self.http.request("GET", URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
@@ -360,7 +360,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             s = spans[0]
             expected_headers = {
                 "x-datadog-trace-id": str(s.trace_id),

@@ -125,8 +125,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
             if request_headers is None:
                 request_headers = {}
                 kwargs["headers"] = request_headers
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, request_headers)
+            HTTPPropagator.inject(span.context, request_headers)
 
         if config.urllib3.analytics_enabled:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())

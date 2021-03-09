@@ -6,10 +6,7 @@ from ddtrace.contrib.urllib3 import patch
 from tests.contrib.patch import PatchTestCase
 
 
-pytestmark = pytest.mark.skipif("TEST_DATADOG_URLLIB3_MIGRATION" in os.environ, reason="test only without migration")
-
-
-class TestDjangoPatch(PatchTestCase.Base):
+class TestUrllib3Patch(PatchTestCase.Base):
     __integration_name__ = "urllib3"
     __module_name__ = "urllib3"
     __patch_func__ = patch

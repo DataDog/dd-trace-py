@@ -2,31 +2,65 @@
 The ``urllib3`` integration instruments tracing on http calls with optional
 support for distributed tracing across services the client communicates with.
 
-The ``patch`` function must be called before importing and using the library.
-Note that instrumentation is turned off by default when using the ``patch_all``
-command and you must specifically patch urllib3 to enable tracing.
-For example:
+
+Enabling
+~~~~~~~~
+
+The ``urllib3`` integration is not enabled by default. Use :ref:`patch()<patch>`
+to manually enable the integration before importing and using ``urllib3``::
 
     from ddtrace import patch
     patch(urllib3=True)
-    import urllib3
 
-    http = urllib3.PoolManager()
-    r = http.request('GET', 'https://example.com/')
+    # use urllib3 like usual
 
-    print(r.status)
-    print(r.data)
 
-The auto-instrumentation of requests can be further tuned by configuring
-urllib3 through the Configuration API:
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
 
-    from ddtrace import config
+.. py:data:: ddtrace.config.urllib3['service']
 
-    # disable distributed tracing
-    config.urllib3['distributed_tracing'] = False
+   The service name reported by default for urllib3 client instances.
 
-    # enable app analytics
-    config.urllib3['analytics_enabled'] = True
+   This option can also be set with the ``DD_URLLIB3_SERVICE`` environment
+   variable.
+
+   Default: ``"urllib3"``
+
+
+.. py:data:: ddtrace.config.urllib3['distributed_tracing']
+
+   Whether or not to parse distributed tracing headers.
+
+   Default: ``True``
+
+
+.. py:data:: ddtrace.config.urllib3['trace_query_string']
+
+   Whether or not to include the query string as a tag.
+
+   Default: ``False``
+
+
+.. py:data:: ddtrace.config.urllib3['analytics_sample_rate']
+
+   The analytics sample rate.
+
+   Default: ``1.0``
+
+
+.. py:data:: ddtrace.config.urllib3['analytics_enabled']
+
+   Whether or not to include the analytics sample rate as a tag.
+
+   Default: ``False``
+
+
+.. py:data:: ddtrace.config.urllib3['split_by_domain']
+
+   Whether or not to split by domain instead of service name.
+
+   Default: ``False``
 """
 from ...utils.importlib import require_modules
 from .patch import patch
