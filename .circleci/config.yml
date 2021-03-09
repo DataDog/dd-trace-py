@@ -659,13 +659,13 @@ jobs:
           pattern: '^dogpile_contrib-'
 
   elasticsearch:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *elasticsearch_image
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'elasticsearch'
+          snapshot: true
+          docker_services: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
