@@ -283,7 +283,7 @@ class Tracer(object):
                 # get the URL from.
                 url = None
 
-            if hasattr(self, "writer") and self.writer.is_alive():
+            if hasattr(self, "writer"):
                 self.writer.stop()
 
             self.writer = AgentWriter(
@@ -495,9 +495,6 @@ class Tracer(object):
             return
 
         self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
-        # force an immediate update constant tags since we have reset services
-        # and generated a new runtime id
-        self._runtime_worker.update_runtime_tags()
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -767,12 +764,7 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if not self.writer.is_alive():
-            return
-
-        self.writer.stop()
-        self.writer.join(timeout=timeout)
-
+        self.writer.stop(timeout=timeout)
         if self._runtime_worker:
             self._shutdown_runtime_worker()
 
