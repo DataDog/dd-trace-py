@@ -397,10 +397,13 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Set HTTP Request tags
             response = func(*args, **kwargs)
 
-            # Note: this call must be done after the function call because
-            # some attributes (like `user`) are added to the request through
-            # the middleware chain
+            # The following block can lead to ImproperlyConfigured errors from Django as user/template
+            # attributes are accessed. To prevent internal server errors and log these potential errors, this is handled
+            # in a try/except and debug logged.
             try:
+                # Note: this call must be done after the function call because
+                # some attributes (like `user`) are added to the request through
+                # the middleware chain
                 _set_request_tags(django, span, request)
 
                 if response:
