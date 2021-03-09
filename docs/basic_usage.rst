@@ -91,7 +91,7 @@ Profiling
 Via module
 ----------
 To automatically profile your code, you can import the `ddtrace.profiling.auto` module.
-As soon as it is imported, it will start catching CPU profiling information on
+As soon as it is imported, it will start capturing CPU profiling information on
 your behalf::
 
   import ddtrace.profiling.auto

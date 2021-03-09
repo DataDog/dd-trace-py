@@ -81,9 +81,8 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
     # Configure distributed tracing
     if config.molten.get("distributed_tracing", True):
-        propagator = HTTPPropagator()
         # request.headers is type Iterable[Tuple[str, str]]
-        context = propagator.extract(dict(request.headers))
+        context = HTTPPropagator.extract(dict(request.headers))
         # Only need to activate the new context if something was propagated
         if context.trace_id:
             pin.tracer.context_provider.activate(context)

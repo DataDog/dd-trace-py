@@ -85,8 +85,7 @@ def _wrap_send(func, instance, args, kwargs):
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, request.headers)
+            HTTPPropagator.inject(span.context, request.headers)
 
         response = None
         try:
