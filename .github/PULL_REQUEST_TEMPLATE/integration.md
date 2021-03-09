@@ -31,7 +31,9 @@ This PR adds support for [`<integration>`](<!--link to relevant integration docs
   - [ ] Distributed tracing propagation is implemented.
   - [ ] Use [`trace_utils.set_http_meta`](https://github.com/DataDog/dd-trace-py/blob/90d1d5981c72ea312c21ac04e5be47521d0f0f2e/ddtrace/contrib/trace_utils.py#L143-L152) to set http tags
 - [ ] Tests
-  - [ ] Tests are provided for all of the above.
+  - [ ] Use `pytest` fixtures found in `tests/conftest.py` or the test helpers on `TracerTestCase` if
+    writing `unittest` style test cases.
+  - [ ] Tests are provided for all the above.
   - [ ] Tests are added to CI (`.circleci/config.yml`).
   - [ ] Functionality is maintained from original library.
   - [ ] Patch test cases are added (see `test_django_patch.py` for an example).
