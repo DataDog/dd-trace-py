@@ -63,8 +63,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def _fn(self, method_kind, behavior, args, kwargs):
         if config.grpc_server.distributed_tracing_enabled:
             headers = dict(self._handler_call_details.invocation_metadata)
-            propagator = HTTPPropagator()
-            context = propagator.extract(headers)
+            context = HTTPPropagator.extract(headers)
 
             if context.trace_id:
                 self._pin.tracer.context_provider.activate(context)

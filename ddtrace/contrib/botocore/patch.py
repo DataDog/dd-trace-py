@@ -31,7 +31,6 @@ ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = ["params", "path", "verb"]
 
 log = get_logger(__name__)
-propagator = HTTPPropagator()
 
 # Botocore default settings
 config._add(
@@ -54,7 +53,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
 
 def inject_trace_to_sqs_batch_message(args, span):
     trace_data = {}
-    propagator.inject(span.context, trace_data)
+    HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
 
     for entry in params["Entries"]:
@@ -63,7 +62,7 @@ def inject_trace_to_sqs_batch_message(args, span):
 
 def inject_trace_to_sqs_message(args, span):
     trace_data = {}
-    propagator.inject(span.context, trace_data)
+    HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
 
     inject_trace_data_to_message_attributes(trace_data, params)
@@ -88,14 +87,14 @@ def modify_client_context(client_context_base64, trace_headers):
 
 def inject_trace_to_client_context(args, span):
     trace_headers = {}
-    propagator.inject(span.context, trace_headers)
+    HTTPPropagator.inject(span.context, trace_headers)
 
     params = args[1]
     if "ClientContext" in params:
         params["ClientContext"] = modify_client_context(params["ClientContext"], trace_headers)
     else:
         trace_headers = {}
-        propagator.inject(span.context, trace_headers)
+        HTTPPropagator.inject(span.context, trace_headers)
         client_context_object = {"custom": {"_datadog": trace_headers}}
         json_context = json.dumps(client_context_object).encode("utf-8")
         params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")
