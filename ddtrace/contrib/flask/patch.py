@@ -263,8 +263,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
     # Configure distributed tracing
     if config.flask.get("distributed_tracing_enabled", False):
-        propagator = HTTPPropagator()
-        context = propagator.extract(request.headers)
+        context = HTTPPropagator.extract(request.headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
             pin.tracer.context_provider.activate(context)
