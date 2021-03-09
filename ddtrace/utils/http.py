@@ -7,3 +7,15 @@ def normalize_header_name(header_name):
     :rtype: str
     """
     return header_name.strip().lower() if header_name is not None else None
+
+
+def strip_query_string(url):
+    """
+    Strips the query string from a URL for use as tag in spans.
+    :param url: The URL to be stripped
+    :return: The given URL without query strings
+    """
+    # type: (str) -> str
+    hqs, fs, f = url.partition("#")
+    h, _, _ = hqs.partition("?")
+    return h + fs + f

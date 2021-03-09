@@ -194,3 +194,14 @@ def test_activate_distributed_headers_no_headers(int_config):
 
     assert context.trace_id is None
     assert context.span_id is None
+
+
+def test_sanitized_url_in_http_meta(span, int_config):
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url="http://example.com/search?q=test+query#frag?ment",
+        status_code=200,
+    )
+    assert span.meta[http.URL] == "http://example.com/search#frag?ment"
