@@ -205,7 +205,7 @@ class _ProfilerInstance(_service.Service):
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
-                file.PprofFileExporter(_OUTPUT_PPROF),
+                file.PprofFileExporter(_OUTPUT_PPROF),  # type: ignore[call-arg]
             ]
 
         api_key = _get_api_key()
@@ -219,7 +219,7 @@ class _ProfilerInstance(_service.Service):
         endpoint = _get_default_url(tracer, api_key) if url is None else url
 
         return [
-            http.PprofHTTPExporter(
+            http.PprofHTTPExporter(  # type: ignore[call-arg]
                 service=service,
                 env=env,
                 tags=tags,
