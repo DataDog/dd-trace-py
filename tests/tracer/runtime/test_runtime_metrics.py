@@ -18,9 +18,9 @@ from tests import override_env
 
 
 @contextlib.contextmanager
-def runtime_metrics_service():
-    RuntimeWorker.enable()
-    assert RuntimeWorker.is_enabled()
+def runtime_metrics_service(tracer=None):
+    RuntimeWorker.enable(tracer=tracer)
+    assert RuntimeWorker._instance is not None
 
     yield RuntimeWorker._instance
 
@@ -82,8 +82,7 @@ class TestRuntimeWorker(TracerTestCase):
         with mock.patch("socket.socket"):
             # configure tracer for runtime metrics
             interval = 1.0 / 4
-            with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))):
-                RuntimeWorker.enable()
+            with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))), runtime_metrics_service():
                 self.tracer.set_tags({"env": "tests.dog"})
 
                 with self.override_global_tracer(self.tracer):
@@ -96,7 +95,6 @@ class TestRuntimeWorker(TracerTestCase):
                     time.sleep(interval * 4)
                     # Get the mocked socket for inspection later
                     statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
-                    RuntimeWorker._instance.stop()
 
                 received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
@@ -123,8 +121,8 @@ class TestRuntimeWorker(TracerTestCase):
 
 
 def test_only_root_span_runtime_internal_span_types():
-    with runtime_metrics_service():
-        tracer = DummyTracer()
+    tracer = DummyTracer()
+    with runtime_metrics_service(tracer=tracer):
         for span_type in ("custom", "template", "web", "worker"):
             with tracer.start_span("root", span_type=span_type) as root:
                 with tracer.start_span("child", child_of=root) as child:

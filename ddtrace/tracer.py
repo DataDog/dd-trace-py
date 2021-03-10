@@ -24,7 +24,6 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.runtime import get_runtime_id
-from .internal.runtime.runtime_metrics import RuntimeWorker
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .provider import DefaultContextProvider
@@ -120,7 +119,6 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
-        self._runtime_metrics_enabled = RuntimeWorker.is_enabled()
 
         # Apply the default configuration
         self.configure(
@@ -411,10 +409,6 @@ class Tracer(object):
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
-            # add tags to root span to correlate trace with runtime metrics
-            # only applied to spans with types that are internal to applications
-            if self._runtime_metrics_enabled and self._is_span_internal(span):
-                span.meta["language"] = "python"
 
             span.sampled = self.sampler.sample(span)
             # Old behavior

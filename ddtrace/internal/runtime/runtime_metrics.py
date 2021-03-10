@@ -1,5 +1,6 @@
 import itertools
 import os
+from typing import Optional
 
 import ddtrace
 
@@ -72,13 +73,22 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         self._runtime_metrics = RuntimeMetrics()
         self._services = {}
 
+        # Register span hook
+        self.tracer.on_start_span(self._set_language_on_span)
+
+    def _set_language_on_span(self, span):
+        # add tags to root span to correlate trace with runtime metrics
+        # only applied to spans with types that are internal to applications
+        if span.parent_id is None and self.tracer._is_span_internal(span):
+            span.meta["language"] = "python"
+
     @staticmethod
-    def enable():
-        # type: () -> None
+    def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
+        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
         if RuntimeWorker._instance is not None:
             return
 
-        runtime_worker = RuntimeWorker()
+        runtime_worker = RuntimeWorker(tracer, dogstatsd_url, flush_interval)
         runtime_worker.start()
         # force an immediate update constant tags
         runtime_worker.update_runtime_tags()
@@ -106,9 +116,10 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.gauge(key, value)
 
-    @staticmethod
-    def is_enabled():
-        return RuntimeWorker._instance is not None
+    def stop(self):
+        # De-register span hook
+        self.tracer.deregister_on_start_span(self._set_language_on_span)
+        super(RuntimeWorker, self).stop()
 
     def update_runtime_tags(self):
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
