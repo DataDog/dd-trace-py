@@ -405,65 +405,58 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # the middleware chain
             _set_request_tags(django, span, request)
 
-            # The following block can lead to ImproperlyConfigured errors from Django as template
-            # attributes are accessed. To prevent internal server errors and log these potential errors, this is handled
-            # in a try/except and debug logged.
-            try:
-                if response:
-                    status = response.status_code
-                    span.set_tag("django.response.class", func_name(response))
-                    if hasattr(response, "template_name"):
-                        # template_name is a bit of a misnomer, as it could be any of:
-                        # a list of strings, a tuple of strings, a single string, or an instance of Template
-                        # for more detail, see:
-                        # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
-                        template = response.template_name
+            if response:
+                status = response.status_code
+                span.set_tag("django.response.class", func_name(response))
+                if hasattr(response, "template_name"):
+                    # template_name is a bit of a misnomer, as it could be any of:
+                    # a list of strings, a tuple of strings, a single string, or an instance of Template
+                    # for more detail, see:
+                    # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+                    template = response.template_name
 
-                        if isinstance(template, six.string_types):
-                            template_names = [template]
-                        elif isinstance(
-                            template,
-                            (
-                                list,
-                                tuple,
-                            ),
-                        ):
-                            template_names = template
-                        elif hasattr(template, "template"):
-                            # ^ checking by attribute here because
-                            # django backend implementations don't have a common base
-                            # `.template` is also the most consistent across django versions
-                            template_names = [template.template.name]
-                        else:
-                            template_names = None
-
-                        utils.set_tag_array(span, "django.response.template", template_names)
-
-                    url = utils.get_request_uri(request)
-
-                    if django.VERSION >= (2, 2, 0):
-                        request_headers = request.headers
+                    if isinstance(template, six.string_types):
+                        template_names = [template]
+                    elif isinstance(
+                        template,
+                        (
+                            list,
+                            tuple,
+                        ),
+                    ):
+                        template_names = template
+                    elif hasattr(template, "template"):
+                        # ^ checking by attribute here because
+                        # django backend implementations don't have a common base
+                        # `.template` is also the most consistent across django versions
+                        template_names = [template.template.name]
                     else:
-                        request_headers = {}
-                        for header, value in request.META.items():
-                            name = from_wsgi_header(header)
-                            if name:
-                                request_headers[name] = value
+                        template_names = None
 
-                    response_headers = dict(response.items())
-                    trace_utils.set_http_meta(
-                        span,
-                        config.django,
-                        method=request.method,
-                        url=url,
-                        status_code=status,
-                        query=request.META.get("QUERY_STRING", None),
-                        request_headers=request_headers,
-                        response_headers=response_headers,
-                    )
+                    utils.set_tag_array(span, "django.response.template", template_names)
 
-            except Exception:
-                log.debug("Error collecting tags for request", exc_info=True)
+                url = utils.get_request_uri(request)
+
+                if django.VERSION >= (2, 2, 0):
+                    request_headers = request.headers
+                else:
+                    request_headers = {}
+                    for header, value in request.META.items():
+                        name = from_wsgi_header(header)
+                        if name:
+                            request_headers[name] = value
+
+                response_headers = dict(response.items())
+                trace_utils.set_http_meta(
+                    span,
+                    config.django,
+                    method=request.method,
+                    url=url,
+                    status_code=status,
+                    query=request.META.get("QUERY_STRING", None),
+                    request_headers=request_headers,
+                    response_headers=response_headers,
+                )
 
             return response
 
