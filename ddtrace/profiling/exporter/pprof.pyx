@@ -20,13 +20,13 @@ _ATTRGETTER_ID = operator.attrgetter("id")
 
 @attr.s
 class _Sequence(object):
-    start_at = attr.ib(default=1)
-    next_id = attr.ib(init=False, default=None)
+    start_at = attr.ib(default=1, type=int)
+    next_id = attr.ib(init=False, default=None, type=int)
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         self.next_id = self.start_at
 
-    def generate(self):
+    def generate(self) -> int:
         """Generate a new unique id and return it."""
         generated_id = self.next_id
         self.next_id += 1
@@ -38,7 +38,7 @@ class _StringTable(object):
     _strings = attr.ib(init=False, factory=lambda: {"": 0})
     _seq_id = attr.ib(init=False, factory=_Sequence)
 
-    def to_id(self, string):
+    def to_id(self, string: str) -> int:
         try:
             return self._strings[string]
         except KeyError:
@@ -49,7 +49,7 @@ class _StringTable(object):
         for string, _ in sorted(self._strings.items(), key=_ITEMGETTER_ONE):
             yield string
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._strings)
 
 
@@ -228,7 +228,7 @@ class _PprofConverter(object):
         self._location_values[location_key]["alloc-samples"] = int(stats.count / sampling_ratio)
         self._location_values[location_key]["alloc-space"] = int(stats.size / sampling_ratio)
 
-    def _build_profile(self, start_time_ns, duration_ns, period, sample_types, program_name):
+    def _build_profile(self, start_time_ns, duration_ns, period, sample_types, program_name) -> pprof_pb2.Profile:
         pprof_sample_type = [
             pprof_pb2.ValueType(type=self._str(type_), unit=self._str(unit)) for type_, unit in sample_types
         ]
@@ -266,6 +266,7 @@ class _PprofConverter(object):
         )
 
 
+@attr.s
 class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
@@ -394,7 +395,7 @@ class PprofExporter(exporter.Exporter):
             return a
         return max(a, b)
 
-    def export(self, events, start_time_ns, end_time_ns):
+    def export(self, events, start_time_ns, end_time_ns) -> pprof_pb2.Profile:  # type: ignore[valid-type]
         """Convert events to pprof format.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
