@@ -105,7 +105,13 @@ def main():
     log.debug("program executable: %s", executable)
 
     if os.path.basename(executable) == "uwsgi":
-        log.warning("ddtrace-run is not supported with uwsgi. Use manual configuration.")
+        log.error(
+            (
+                "ddtrace-run is not supported with uwsgi. "
+                "See https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi for details."
+            )
+        )
+        sys.exit(1)
 
     try:
         # Raises OSError for permissions errors in Python 2
