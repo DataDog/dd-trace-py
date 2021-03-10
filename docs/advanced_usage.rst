@@ -20,6 +20,14 @@ You can also use a Unix Domain Socket to connect to the agent::
 
     tracer.configure(uds_path="/path/to/socket")
 
+Runtime Metrics
+---------------
+
+To enable the collection of runtime metrics for the Python process, you can use the ``DD_RUNTIME_METRICS_ENABLED`` environment variable when using ``ddtrace-run`` or use :meth:`ddtrace.Tracer.configure()`` with ``collect_metrics`` if manually configuring the tracer::
+
+    from ddtrace import tracer
+
+    tracer.configure(collect_metrics=True)
 
 Distributed Tracing
 -------------------

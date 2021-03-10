@@ -120,5 +120,9 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
+   * - ``DD_RUNTIME_METRICS_ENABLED``
+     - Boolean
+     - False
+     - Enable runtime metrics when using ``ddtrace-run``.
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
