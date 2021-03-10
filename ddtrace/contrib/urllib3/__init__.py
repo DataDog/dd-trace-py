@@ -58,7 +58,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.urllib3['split_by_domain']
 
-   Whether or not to split by domain instead of service name.
+   Whether or not to use the domain name of requests as the service name.
 
    Default: ``False``
 """
