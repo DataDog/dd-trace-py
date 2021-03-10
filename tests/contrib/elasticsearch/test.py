@@ -1,14 +1,33 @@
 import datetime
+from importlib import import_module
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.elasticsearch.elasticsearch import elasticsearch
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
 
 from ... import TracerTestCase
 from ..config import ELASTICSEARCH_CONFIG
+
+
+module_names = (
+    "elasticsearch",
+    "elasticsearch1",
+    "elasticsearch2",
+    "elasticsearch5",
+    "elasticsearch6",
+    "elasticsearch7",
+)
+
+for module_name in module_names:
+    try:
+        elasticsearch = import_module(module_name)
+        break
+    except ImportError:
+        pass
+else:
+    raise ImportError("could not import any of {0!r}".format(module_names))
 
 
 class ElasticsearchPatchTest(TracerTestCase):

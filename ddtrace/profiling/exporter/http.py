@@ -18,7 +18,7 @@ from ddtrace.profiling.exporter import pprof
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import attr
 from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client
+from ddtrace.vendor.six.moves import http_client  # type: ignore[import]
 
 
 HOSTNAME = platform.node()
@@ -46,7 +46,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     tags = attr.ib(factory=dict)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    _retry_upload = attr.ib(init=None, default=None, eq=False)
+    _retry_upload = attr.ib(init=False, eq=False)
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
