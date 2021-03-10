@@ -1,4 +1,9 @@
 ---
+upgrade:
+  - |
+    The ``collect_metrics`` argument of the ``tracer.configure`` method has been
+    removed. Runtime metrics are now enabled only via the
+    ``DD_RUNTIME_METRICS_ENABLED`` environment variable.
 other:
   - |
     Remove references to runtime metrics from the Tracer object and into its own
