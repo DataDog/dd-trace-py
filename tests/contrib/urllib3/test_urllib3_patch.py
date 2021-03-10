@@ -1,7 +1,3 @@
-import os
-
-import pytest
-
 from ddtrace.contrib.urllib3 import patch
 from tests.contrib.patch import PatchTestCase
 
