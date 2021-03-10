@@ -17,6 +17,7 @@ backend
 bikeshedding
 boto
 botocore
+cgroups
 cherrypy
 config
 coroutine
@@ -33,6 +34,7 @@ elasticsearch
 enqueue
 entrypoint
 entrypoints
+Fargate
 fastapi
 gRPC
 gevent
