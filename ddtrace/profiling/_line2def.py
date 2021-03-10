@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 import ast
 
-import intervaltree
+import intervaltree  # type: ignore[import]
 
 
 try:
@@ -9,7 +9,7 @@ try:
 except ImportError:
     # This is for Python 2 but Python 2 does not use this module.
     # It's just useful for unit tests.
-    def lru_cache(maxsize):
+    def lru_cache(maxsize):  # type: ignore[no-redef]
         def w(f):
             return f
 
@@ -20,7 +20,7 @@ try:
     # Python 2 does not have this.
     from tokenize import open as source_open
 except ImportError:
-    source_open = open
+    source_open = open  # type: ignore[assignment]
 
 from ddtrace.vendor import six
 
