@@ -321,10 +321,12 @@ class Tracer(object):
             try:
                 uwsgi.check_uwsgi(self._init_runtime_worker, atexit=self._shutdown_runtime_worker)
             except uwsgi.uWSGIMasterProcess:
+                print("in master process")
                 self._runtime_worker = None
             else:
                 # We want to still initialize the runtime worker if it had not been started by
                 # the above uwsgi check.
+                print("_init_runtime_worker_called = {}".format(self._init_runtime_worker_called))
                 if not self._init_runtime_worker_called:
                     self._init_runtime_worker()
 
@@ -506,6 +508,7 @@ class Tracer(object):
         return span
 
     def _init_runtime_worker(self):
+        print("exec _init_runtime_worker")
         if not self._dogstatsd_url:
             return
 
