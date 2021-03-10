@@ -12,14 +12,12 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from tests import BaseTestCase
-from tests import DummyTracer
 from tests import TracerTestCase
-from tests import override_env
 
 
 @contextlib.contextmanager
-def runtime_metrics_service(tracer=None):
-    RuntimeWorker.enable(tracer=tracer)
+def runtime_metrics_service(tracer=None, flush_interval=None):
+    RuntimeWorker.enable(tracer=tracer, flush_interval=flush_interval)
     assert RuntimeWorker._instance is not None
 
     yield RuntimeWorker._instance
@@ -82,7 +80,7 @@ class TestRuntimeWorker(TracerTestCase):
         with mock.patch("socket.socket"):
             # configure tracer for runtime metrics
             interval = 1.0 / 4
-            with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))), runtime_metrics_service():
+            with runtime_metrics_service(tracer=self.tracer, flush_interval=interval):
                 self.tracer.set_tags({"env": "tests.dog"})
 
                 with self.override_global_tracer(self.tracer):
@@ -119,48 +117,41 @@ class TestRuntimeWorker(TracerTestCase):
             self.assertRegexpMatches(gauge, "lang:python")
             self.assertRegexpMatches(gauge, "tracer_version:")
 
+    def test_only_root_span_runtime_internal_span_types(self):
+        with runtime_metrics_service(tracer=self.tracer):
+            for span_type in ("custom", "template", "web", "worker"):
+                with self.start_span("root", span_type=span_type) as root:
+                    with self.start_span("child", child_of=root) as child:
+                        pass
+                assert root.get_tag("language") == "python"
+                assert child.get_tag("language") is None
 
-def test_only_root_span_runtime_internal_span_types():
-    tracer = DummyTracer()
-    with runtime_metrics_service(tracer=tracer):
-        for span_type in ("custom", "template", "web", "worker"):
-            with tracer.start_span("root", span_type=span_type) as root:
-                with tracer.start_span("child", child_of=root) as child:
-                    pass
-            assert root.get_tag("language") == "python"
-            assert child.get_tag("language") is None
+    def test_span_no_runtime_tags(self):
+        with self.start_span("root") as root:
+            with self.start_span("child", child_of=root.context) as child:
+                pass
 
+        assert root.get_tag("language") is None
+        assert child.get_tag("language") is None
 
-def test_span_no_runtime_tags():
-    tracer = DummyTracer()
-    with tracer.start_span("root") as root:
-        with tracer.start_span("child", child_of=root.context) as child:
-            pass
-
-    assert root.get_tag("language") is None
-    assert child.get_tag("language") is None
-
-
-def test_only_root_span_runtime_external_span_types():
-    with runtime_metrics_service():
-        tracer = DummyTracer()
-
-        for span_type in (
-            "algoliasearch.search",
-            "boto",
-            "cache",
-            "cassandra",
-            "elasticsearch",
-            "grpc",
-            "kombu",
-            "http",
-            "memcached",
-            "redis",
-            "sql",
-            "vertica",
-        ):
-            with tracer.start_span("root", span_type=span_type) as root:
-                with tracer.start_span("child", child_of=root) as child:
-                    pass
-            assert root.get_tag("language") is None
-            assert child.get_tag("language") is None
+    def test_only_root_span_runtime_external_span_types(self):
+        with runtime_metrics_service(tracer=self.tracer):
+            for span_type in (
+                "algoliasearch.search",
+                "boto",
+                "cache",
+                "cassandra",
+                "elasticsearch",
+                "grpc",
+                "kombu",
+                "http",
+                "memcached",
+                "redis",
+                "sql",
+                "vertica",
+            ):
+                with self.start_span("root", span_type=span_type) as root:
+                    with self.start_span("child", child_of=root) as child:
+                        pass
+                assert root.get_tag("language") is None
+                assert child.get_tag("language") is None
