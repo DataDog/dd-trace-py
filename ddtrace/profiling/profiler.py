@@ -18,13 +18,11 @@ from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import memalloc
-from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 from ddtrace.utils import deprecation
-from ddtrace.utils import formats
 from ddtrace.vendor import attr
 
 
@@ -238,9 +236,6 @@ class _ProfilerInstance(_service.Service):
                 # Allow to store up to 10 threads for 60 seconds at 100 Hz
                 stack.StackSampleEvent: 10 * 60 * 100,
                 stack.StackExceptionSampleEvent: 10 * 60 * 100,
-                # This can generate one event every 0.1s if 100% are taken — though we take 5% by default.
-                # = (60 seconds / 0.1 seconds)
-                memory.MemorySampleEvent: int(60 / 0.1),
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
@@ -251,14 +246,9 @@ class _ProfilerInstance(_service.Service):
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
 
-        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "true")):
-            mem_collector = memalloc.MemoryCollector(r)
-        else:
-            mem_collector = memory.MemoryCollector(r)
-
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
-            mem_collector,
+            memalloc.MemoryCollector(r),
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
