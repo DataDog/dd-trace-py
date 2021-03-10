@@ -5,6 +5,8 @@ from os import environ
 from os import getpid
 import sys
 
+from ddtrace.vendor import debtcollector
+
 from . import _hooks
 from . import compat
 from .constants import ENV_KEY
@@ -24,6 +26,7 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.runtime import get_runtime_id
+from .internal.runtime.runtime_metrics import RuntimeWorker
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .provider import DefaultContextProvider
@@ -189,6 +192,7 @@ class Tracer(object):
         return self.context_provider.active(*args, **kwargs)
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
+    @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.49")
     def configure(
         self,
         enabled=None,
@@ -201,6 +205,7 @@ class Tracer(object):
         wrap_executor=None,
         priority_sampling=None,
         settings=None,
+        collect_metrics=None,
         dogstatsd_url=None,
         writer=None,
     ):
@@ -298,6 +303,14 @@ class Tracer(object):
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
+
+        runtime_metrics_was_running = False
+        if RuntimeWorker._instance is not None:
+            runtime_metrics_was_running = True
+            RuntimeWorker.disable()
+
+        if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
+            RuntimeWorker.enable(tracer=self, dogstatsd_url=self._dogstatsd_url)
 
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:

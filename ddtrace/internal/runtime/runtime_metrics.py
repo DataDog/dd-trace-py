@@ -83,6 +83,12 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
             span.meta["language"] = "python"
 
     @staticmethod
+    def disable():
+        RuntimeWorker._instance.stop()
+        RuntimeWorker._instance.join()
+        RuntimeWorker._instance = None
+
+    @staticmethod
     def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
         # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
         if RuntimeWorker._instance is not None:
@@ -94,9 +100,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         runtime_worker.update_runtime_tags()
 
         def _restart():
-            runtime_worker.stop()
-            runtime_worker.join()
-            RuntimeWorker._instance = None
+            RuntimeWorker.disable()
             RuntimeWorker.enable()
 
         if hasattr(os, "register_at_fork"):

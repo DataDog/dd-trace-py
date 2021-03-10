@@ -8,7 +8,7 @@ class RuntimeMetrics(object):
     Runtime metrics service API.
 
     This is normally started automatically by ``ddtrace-run`` when the
-    DD_RUNTIME_METRICS_ENABLED variable is set.
+    ``DD_RUNTIME_METRICS_ENABLED`` variable is set.
 
     To start the service manually, invoke the ``enable`` static method::
 
@@ -37,10 +37,7 @@ class RuntimeMetrics(object):
         Disable the runtime metrics collection service.
         """
         # type: () -> None
-        runtime_worker = ddtrace.internal.runtime.runtime_metrics.RuntimeWorker._instance
-        runtime_worker.stop()
-        runtime_worker.join()
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker._instance = None
+        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()
 
 
 __all__ = ["RuntimeMetrics"]
