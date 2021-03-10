@@ -30,7 +30,13 @@ def get_stats_port():
 
 def get_trace_url():
     # type: () -> str
-    return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    """Return the Agent URL computed from the environment.
+
+    Raises a ``ValueError`` if the URL is not supported by the Agent.
+    """
+    url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    verify_url(url)
+    return url
 
 
 def get_stats_url():
@@ -40,7 +46,10 @@ def get_stats_url():
 
 def verify_url(url):
     # type: (str) -> compat.parse.ParseResult
-    """Verify that a URL can be used to communicate with the Datadog Agent."""
+    """Verify that a URL can be used to communicate with the Datadog Agent.
+
+    Raises a ``ValueError`` if the URL is not supported by the Agent.
+    """
     parsed = compat.parse.urlparse(url)
 
     schemes = ("http", "https", "unix")
