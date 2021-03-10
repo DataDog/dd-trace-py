@@ -83,7 +83,7 @@ _PATCH_ON_IMPORT = {
     "aiohttp": ("aiohttp",),
     "aiobotocore": ("aiobotocore",),
     "celery": ("celery",),
-    "flask": ("flask, "),
+    "flask": ("flask",),
     "gevent": ("gevent",),
     "requests": ("requests",),
     "botocore": ("botocore",),
