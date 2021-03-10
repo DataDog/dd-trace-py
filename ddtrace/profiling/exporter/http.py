@@ -39,7 +39,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     endpoint = attr.ib()
     api_key = attr.ib(default=None)
-    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
+    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", agent.DEFAULT_TIMEOUT, float), type=float)
     service = attr.ib(default=None)
     env = attr.ib(default=None)
     version = attr.ib(default=None)

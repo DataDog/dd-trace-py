@@ -11,6 +11,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace.vendor import six
 
+from . import agent
 from .. import _worker
 from .. import compat
 from ..compat import httplib
@@ -31,7 +32,7 @@ from .sma import SimpleMovingAverage
 
 log = get_logger(__name__)
 
-DEFAULT_TIMEOUT = 5
+DEFAULT_SHUTDOWN_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 # The window size should be chosen so that the look-back period is
@@ -180,7 +181,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
     def __init__(
         self,
         agent_url=None,
-        shutdown_timeout=DEFAULT_TIMEOUT,
+        shutdown_timeout=DEFAULT_SHUTDOWN_TIMEOUT,
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
@@ -188,7 +189,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         # to flush dynamically.
         buffer_size=8 * 1000000,
         max_payload_size=8 * 1000000,
-        timeout=2,
+        timeout=agent.DEFAULT_TIMEOUT,
         dogstatsd=None,
         report_metrics=False,
     ):

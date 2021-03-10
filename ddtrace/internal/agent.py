@@ -10,6 +10,7 @@ DEFAULT_HOSTNAME = "localhost"
 DEFAULT_TRACE_PORT = 8126
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
+DEFAULT_TIMEOUT = 2
 
 
 def get_hostname():
@@ -37,7 +38,7 @@ def get_stats_url():
     return get_env("dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port()))
 
 
-def get_connection(url, timeout):
+def get_connection(url, timeout=DEFAULT_TIMEOUT):
     """Return an HTTP connection to the given URL."""
     parsed = compat.parse.urlparse(url)
     hostname = parsed.hostname or ""
