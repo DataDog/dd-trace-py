@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    tracer: updated to capture the task ID from cgroups file for Fargate >= 1.4.0
-    and report to the agent as Datadog-Container-ID tag.
+    The tracer now captures the task ID from the cgroups file for Fargate >= 1.4.0
+    and reports it to the agent as the Datadog-Container-ID tag.
