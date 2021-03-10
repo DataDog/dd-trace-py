@@ -39,17 +39,19 @@ def get_stats_url():
 
 
 def verify_url(url):
+    # type: (str) -> compat.parse.ParseResult
     """Verify that a URL can be used to communicate with the Datadog Agent."""
     parsed = compat.parse.urlparse(url)
 
-    if parsed.scheme not in ["http", "https", "unix"]:
+    schemes = ("http", "https", "unix")
+    if parsed.scheme not in schemes:
         raise ValueError(
-            "Unsupported protocol '%s' in Agent URL '%s'. Must be: 'http', 'https' or 'unix'." % (parsed.scheme, url)
+            "Unsupported protocol '%s' in Agent URL '%s'. Must be one of: %s" % (parsed.scheme, url, ", ".join(schemes))
         )
     elif parsed.scheme in ["http", "https"] and not parsed.hostname:
-        raise ValueError("Invalid hostname in Agent URL '%s'." % url)
+        raise ValueError("Invalid hostname in Agent URL '%s'" % url)
     elif parsed.scheme == "unix" and not parsed.path:
-        raise ValueError("Invalid file path in Agent URL '%s'." % url)
+        raise ValueError("Invalid file path in Agent URL '%s'" % url)
 
     return parsed
 
