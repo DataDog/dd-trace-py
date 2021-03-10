@@ -55,8 +55,8 @@ def test_uwsgi_multiple_requests(uwsgi):
 def test_uwsgi_single_request_with_runtime_metrics(uwsgi, monkeypatch):
     monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "1")
     monkeypatch.setenv("DD_RUNTIME_METRICS_INTERVAL", "1")
-    proc = uwsgi("--enable-threads", "--processes", "1", "--master")
-    _wait_uwsgi_workers_spawned(proc, 1)
+    proc = uwsgi("--enable-threads", "--processes", "2", "--master")
+    _wait_uwsgi_workers_spawned(proc, 2)
     try:
         conn = httplib.HTTPConnection("localhost", HTTP_PORT)
         conn.request("GET", "/")
