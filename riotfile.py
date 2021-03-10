@@ -52,6 +52,11 @@ venv = Venv(
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
         ),
         Venv(
+            name="runtime",
+            command="pytest {cmdargs} tests/runtime/",
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+        ),
+        Venv(
             name="cherrypy",
             command="pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[
