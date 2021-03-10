@@ -107,15 +107,18 @@ def _set_request_tags(django, span, request):
     user = getattr(request, "user", None)
     if user is not None:
         # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from Django
-        if hasattr(user, "is_authenticated"):
-            span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
-        uid = getattr(user, "pk", None)
-        if uid:
-            span.set_tag("django.user.id", uid)
-        if config.django.include_user_name:
-            username = getattr(user, "username", None)
-            if username:
-                span.set_tag("django.user.name", username)
+        try:
+            if hasattr(user, "is_authenticated"):
+                span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
+            uid = getattr(user, "pk", None)
+            if uid:
+                span.set_tag("django.user.id", uid)
+            if config.django.include_user_name:
+                username = getattr(user, "username", None)
+                if username:
+                    span.set_tag("django.user.name", username)
+        except django.core.exceptions.ImproperlyConfigured:
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
 
 
 @trace_utils.with_traced_module
@@ -397,15 +400,15 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Set HTTP Request tags
             response = func(*args, **kwargs)
 
-            # The following block can lead to ImproperlyConfigured errors from Django as user/template
+            # Note: this call must be done after the function call because
+            # some attributes (like `user`) are added to the request through
+            # the middleware chain
+            _set_request_tags(django, span, request)
+
+            # The following block can lead to ImproperlyConfigured errors from Django as template
             # attributes are accessed. To prevent internal server errors and log these potential errors, this is handled
             # in a try/except and debug logged.
             try:
-                # Note: this call must be done after the function call because
-                # some attributes (like `user`) are added to the request through
-                # the middleware chain
-                _set_request_tags(django, span, request)
-
                 if response:
                     status = response.status_code
                     span.set_tag("django.response.class", func_name(response))
