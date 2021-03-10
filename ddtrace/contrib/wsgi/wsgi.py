@@ -28,7 +28,7 @@ from .. import trace_utils
 
 log = get_logger(__name__)
 
-propagator = HTTPPropagator()
+propagator = HTTPPropagator
 
 config._add(
     "wsgi",

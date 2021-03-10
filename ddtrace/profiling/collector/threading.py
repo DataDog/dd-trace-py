@@ -11,7 +11,7 @@ from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
 from ddtrace.vendor import attr
 from ddtrace.vendor import wrapt
-from ddtrace.vendor.six.moves import _thread
+from ddtrace.vendor.six.moves import _thread  # type: ignore[import]
 
 
 @event.event_class
@@ -55,7 +55,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
+        import ddtrace.vendor.wrapt._wrappers as _w  # type: ignore[import] # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:

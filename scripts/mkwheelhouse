@@ -17,6 +17,12 @@ def build_wheels():
         'scripts/build-dist', build_dir,
     ]
     mkwheelhouse.spawn(args)
+    # Need to separately build cp27 wheels with an older release of manylinux2010
+    # as support for Python 2 was dropped.
+    args = [
+        'scripts/build-dist-cp27', build_dir,
+    ]
+    mkwheelhouse.spawn(args)
     return build_dir
 
 
