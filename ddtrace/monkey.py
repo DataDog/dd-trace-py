@@ -89,12 +89,9 @@ _PATCH_ON_IMPORT = {
     "botocore": ("botocore",),
     "elasticsearch": (
         "elasticsearch",
-        "elasticsearch1",
         "elasticsearch2",
-        "elasticsearch3",
-        "elasticsearch4",
         "elasticsearch5",
-        "elasticearch6",
+        "elasticsearch6",
         "elasticsearch7",
     ),
     "pynamodb": ("pynamodb",),

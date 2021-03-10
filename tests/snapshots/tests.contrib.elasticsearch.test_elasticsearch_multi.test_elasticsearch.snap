@@ -6,9 +6,9 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1615330894991349000
-   "duration" 48445000
-   "meta" {"runtime-id" "afaf0b47354049c5be499a7fadd04448"
+   "start" 1615404339005889000
+   "duration" 94071000
+   "meta" {"runtime-id" "f64590d3c3cf4b578d03f6de8cdf1b5c"
            "elasticsearch.method" "PUT"
            "elasticsearch.url" "/ddtrace_index"
            "elasticsearch.params" "ignore=400"
@@ -16,27 +16,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 28195
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "elasticsearch.query"
-   "service" "elasticsearch"
-   "resource" "PUT /ddtrace_index/ddtrace_type/?"
-   "type" "elasticsearch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 1
-   "parent_id" nil
-   "start" 1615330895040119000
-   "duration" 44587000
-   "meta" {"runtime-id" "afaf0b47354049c5be499a7fadd04448"
-           "elasticsearch.method" "PUT"
-           "elasticsearch.url" "/ddtrace_index/ddtrace_type/10"
-           "elasticsearch.params" ""
-           "http.status_code" "201"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_dd.measured" 1
-              "_sampling_priority_v1" 1
-              "system.pid" 28195
+              "system.pid" 51885
               "_dd.tracer_kr" 1.0}}]
  [{"name" "elasticsearch.query"
    "service" "elasticsearch"
@@ -44,11 +24,11 @@
    "type" "elasticsearch"
    "error" 0
    "span_id" 0
-   "trace_id" 2
+   "trace_id" 1
    "parent_id" nil
-   "start" 1615330895084800000
-   "duration" 17247000
-   "meta" {"runtime-id" "afaf0b47354049c5be499a7fadd04448"
+   "start" 1615404339100245000
+   "duration" 46499000
+   "meta" {"runtime-id" "f64590d3c3cf4b578d03f6de8cdf1b5c"
            "elasticsearch.method" "DELETE"
            "elasticsearch.url" "/ddtrace_index"
            "elasticsearch.params" "ignore=%5B400%2C+404%5D"
@@ -56,43 +36,5 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 28195
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "elasticsearch.query"
-   "service" "elasticsearch"
-   "resource" "PUT /ddtrace_index"
-   "type" "elasticsearch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 3
-   "parent_id" nil
-   "start" 1615330895102342000
-   "duration" 41015000
-   "meta" {"runtime-id" "afaf0b47354049c5be499a7fadd04448"
-           "elasticsearch.method" "PUT"
-           "elasticsearch.url" "/ddtrace_index"
-           "elasticsearch.params" "ignore=400"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_dd.measured" 1
-              "_sampling_priority_v1" 1
-              "system.pid" 28195
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "elasticsearch.query"
-   "service" "elasticsearch"
-   "resource" "DELETE /ddtrace_index"
-   "type" "elasticsearch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 4
-   "parent_id" nil
-   "start" 1615330895143484000
-   "duration" 33361000
-   "meta" {"runtime-id" "afaf0b47354049c5be499a7fadd04448"
-           "elasticsearch.method" "DELETE"
-           "elasticsearch.url" "/ddtrace_index"
-           "elasticsearch.params" "ignore=%5B400%2C+404%5D"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_dd.measured" 1
-              "_sampling_priority_v1" 1
-              "system.pid" 28195
+              "system.pid" 51885
               "_dd.tracer_kr" 1.0}}]]
