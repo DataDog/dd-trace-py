@@ -499,9 +499,7 @@ Tracing is not supported when using ``ddtrace-run`` with uWSGI as the tracer nee
 
 
   patch_all()
-  tracer.configure(
-      collect_metrics=environ.get("DD_RUNTIME_METRICS_ENABLED"),
-  )
+  tracer.configure(collect_metrics=True)
 
   def application(env, start_response):
       with tracer.trace("uwsgi-app"):
