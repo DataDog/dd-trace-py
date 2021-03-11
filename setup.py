@@ -167,7 +167,6 @@ setup(
             "funcsigs>=1.0.0; python_version=='2.7'",
             "typing; python_version<'3.5'",
             "protobuf>=3",
-            "intervaltree",
             "tenacity>=5",
         ],
         extras_require={
