@@ -117,8 +117,8 @@ def _set_request_tags(django, span, request):
                 username = getattr(user, "username", None)
                 if username:
                     span.set_tag("django.user.name", username)
-        except Exception as e:
-            log.debug("Error retrieving authentication information for user %r with error: %s", user, e, exc_info=True)
+        except Exception:
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
 
 
 @trace_utils.with_traced_module
