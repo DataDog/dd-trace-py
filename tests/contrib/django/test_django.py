@@ -1,4 +1,3 @@
-from ddtrace.vendor import wrapt
 import itertools
 import os
 import subprocess
@@ -28,6 +27,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
+from ddtrace.vendor import wrapt
 from tests import assert_dict_issuperset
 from tests import override_config
 from tests import override_env
