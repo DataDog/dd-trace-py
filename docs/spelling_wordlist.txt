@@ -46,6 +46,7 @@ http
 httplib
 https
 iPython
+initializer
 integration
 integrations
 jinja
