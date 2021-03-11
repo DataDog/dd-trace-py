@@ -3,7 +3,6 @@ import itertools
 import operator
 import sys
 
-from ddtrace.profiling import _line2def
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
@@ -88,7 +87,7 @@ class _PprofConverter(object):
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
             if funcname is None:
-                real_funcname = _line2def.filename_and_lineno_to_def(filename, lineno)
+                real_funcname = "<unknown function>"
             else:
                 real_funcname = funcname
             location = pprof_pb2.Location(
