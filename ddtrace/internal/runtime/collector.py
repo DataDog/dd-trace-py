@@ -1,4 +1,5 @@
 import importlib
+from typing import List
 
 from ..logger import get_logger
 
@@ -20,7 +21,7 @@ class ValueCollector(object):
 
     enabled = True
     periodic = False
-    required_modules = []
+    required_modules = []  # type: List[str]
     value = None
     value_loaded = False
 

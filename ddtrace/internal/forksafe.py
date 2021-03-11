@@ -3,6 +3,8 @@ An API to provide after_in_child fork hooks across all Pythons.
 """
 import logging
 import os
+from typing import Callable
+from typing import List
 
 
 __all__ = [
@@ -14,7 +16,7 @@ __all__ = [
 log = logging.getLogger(__name__)
 
 
-registry = []
+registry = []  # type: List[Callable]
 
 
 def ddtrace_after_in_child():
@@ -43,10 +45,10 @@ if hasattr(os, "register_at_fork"):
 else:
     import threading
 
-    _threading_after_fork = threading._after_fork
+    _threading_after_fork = threading._after_fork  # type: ignore[attr-defined]
 
     def _after_fork():
         _threading_after_fork()
         ddtrace_after_in_child()
 
-    threading._after_fork = _after_fork
+    threading._after_fork = _after_fork  # type: ignore[attr-defined]

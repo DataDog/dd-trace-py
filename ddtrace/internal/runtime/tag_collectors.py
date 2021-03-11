@@ -9,7 +9,7 @@ from .constants import TRACER_VERSION
 
 class RuntimeTagCollector(ValueCollector):
     periodic = False
-    value = []
+    value = []  # type: ignore[assignment]
 
 
 class TracerTagCollector(RuntimeTagCollector):
@@ -42,7 +42,7 @@ class PlatformTagCollector(RuntimeTagCollector):
 
     """
 
-    required_modules = ("platform", "ddtrace")
+    required_modules = ("platform", "ddtrace")  # type: ignore[assignment]
 
     def collect_fn(self, keys):
         platform = self.modules.get("platform")

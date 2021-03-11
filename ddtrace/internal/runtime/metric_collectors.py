@@ -14,7 +14,7 @@ from .constants import THREAD_COUNT
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []
+    value = []  # type: ignore[assignment]
     periodic = True
 
 
