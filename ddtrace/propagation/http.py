@@ -115,14 +115,12 @@ class HTTPPropagator(object):
 
             # Try to parse values into their expected types
             try:
-                trace_id = int(trace_id)
-                parent_id = int(parent_id)
                 if sampling_priority is not None:
                     sampling_priority = int(sampling_priority)
 
                 return Context(
-                    trace_id=trace_id,
-                    span_id=parent_span_id,
+                    trace_id=int(trace_id),
+                    span_id=int(parent_span_id),
                     sampling_priority=sampling_priority,
                     dd_origin=origin,
                 )
@@ -131,7 +129,7 @@ class HTTPPropagator(object):
                 log.debug(
                     "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
                     trace_id,
-                    parent_id,
+                    parent_span_id,
                     sampling_priority,
                     origin,
                 )
