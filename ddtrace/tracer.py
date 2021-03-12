@@ -82,34 +82,6 @@ class Tracer(object):
         self._runtime_worker = None
         self._filters = []
 
-        configure_kwargs = {}
-        writer = None
-        if self._is_agentless_environment() and url is None:
-            writer = LogWriter()
-        elif url is not None:
-            url_parsed = agent.verify_url(url)
-
-            if url_parsed.scheme == "unix":
-                configure_kwargs["uds_path"] = url_parsed.path
-            elif url_parsed.scheme == "http":
-                configure_kwargs.update(
-                    {
-                        "hostname": url_parsed.hostname,
-                        "port": 80 if url_parsed.port is None else url_parsed.port,
-                        "https": False,
-                    }
-                )
-            elif url_parsed.scheme == "https":
-                configure_kwargs.update(
-                    {
-                        "hostname": url_parsed.hostname,
-                        "port": 443 if url_parsed.port is None else url_parsed.port,
-                        "https": True,
-                    }
-                )
-            else:
-                raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
-
         # globally set tags
         self.tags = config.tags.copy()
 
@@ -121,16 +93,24 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
+        self.context_provider = DefaultContextProvider()
+        self.sampler = DatadogSampler()
+        self.priority_sampler = RateByServiceSampler()
+        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
-        # Apply the default configuration
-        self.configure(
-            sampler=DatadogSampler(),
-            context_provider=DefaultContextProvider(),
-            dogstatsd_url=agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url,
-            writer=writer,
-            **configure_kwargs
-        )
-
+        if self._is_agentless_environment() and url is None:
+            writer = LogWriter()
+        else:
+            url = url or agent.get_trace_url()
+            agent.verify_url(url)
+            writer = AgentWriter(
+                agent_url=url,
+                sampler=self.sampler,
+                priority_sampler=self.priority_sampler,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+                report_metrics=config.health_metrics_enabled,
+            )
+        self.writer = writer
         self._hooks = _hooks.Hooks()
 
     def on_start_span(self, func):
@@ -249,54 +229,46 @@ class Tracer(object):
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
-        if writer:
-            self.writer = writer
-            # Ensure dogstatsd client has been created for the writer being configured
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        elif any(x is not None for x in [hostname, port, uds_path, https, priority_sampling, sampler]):
-            if any(x is not None for x in [hostname, port, uds_path, https]):
-                # If any of the parts of the URL have updated, merge them with
-                # the previous writer values.
-                if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                    prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
-                else:
-                    prev_url_parsed = compat.parse.urlparse("")
-
-                if uds_path is not None:
-                    if hostname is None and prev_url_parsed.scheme == "unix":
-                        hostname = prev_url_parsed.hostname
-                    url = "unix://%s%s" % (hostname or "", uds_path)
-                else:
-                    if https is None:
-                        https = prev_url_parsed.scheme == "https"
-                    if hostname is None:
-                        hostname = prev_url_parsed.hostname or ""
-                    if port is None:
-                        port = prev_url_parsed.port
-                    scheme = "https" if https else "http"
-                    url = "%s://%s:%s" % (scheme, hostname, port)
-            elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                # Reuse the URL from the previous writer if there was one.
-                url = self.writer.agent_url
+        if any(x is not None for x in [hostname, port, uds_path, https]):
+            # If any of the parts of the URL have updated, merge them with
+            # the previous writer values.
+            if isinstance(self.writer, AgentWriter):
+                prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
             else:
-                # No URL parts have updated and there's no previous writer to
-                # get the URL from.
-                url = None
+                prev_url_parsed = compat.parse.urlparse("")
 
-            if hasattr(self, "writer"):
-                self.writer.stop()
+            if uds_path is not None:
+                if hostname is None and prev_url_parsed.scheme == "unix":
+                    hostname = prev_url_parsed.hostname
+                url = "unix://%s%s" % (hostname or "", uds_path)
+            else:
+                if https is None:
+                    https = prev_url_parsed.scheme == "https"
+                if hostname is None:
+                    hostname = prev_url_parsed.hostname or ""
+                if port is None:
+                    port = prev_url_parsed.port
+                scheme = "https" if https else "http"
+                url = "%s://%s:%s" % (scheme, hostname, port)
+        elif isinstance(self.writer, AgentWriter):
+            # Reuse the URL from the previous writer if there was one.
+            url = self.writer.agent_url
+        else:
+            # No URL parts have updated and there's no previous writer to
+            # get the URL from.
+            url = None
 
-            if url:
-                agent.verify_url(url)
-            self.writer = AgentWriter(
-                url,
-                sampler=self.sampler,
-                priority_sampler=self.priority_sampler,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
-            )
-        elif self.writer:
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        self.writer.stop()
+        if url:
+            agent.verify_url(url)
+        self.writer = writer or AgentWriter(
+            url,
+            sampler=self.sampler,
+            priority_sampler=self.priority_sampler,
+            dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+            report_metrics=config.health_metrics_enabled,
+        )
+        self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
         if context_provider is not None:
             self.context_provider = context_provider

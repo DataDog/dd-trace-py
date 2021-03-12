@@ -395,6 +395,9 @@ class DummyWriter(AgentWriter):
 
     def __init__(self, *args, **kwargs):
         # original call
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = "http://localhost:8126"
+
         super(DummyWriter, self).__init__(*args, **kwargs)
 
         # dummy components
