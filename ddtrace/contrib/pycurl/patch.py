@@ -1,13 +1,15 @@
 import pycurl
 
+from .. import trace_utils
 from ... import config
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool, get_env
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ...vendor import wrapt
-from .. import trace_utils
+
 
 log = get_logger(__name__)
 
