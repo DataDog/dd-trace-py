@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add tracing support for `PycURL <https://pypi.org/project/pycurl/>`_.
