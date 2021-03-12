@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -8,7 +9,6 @@ from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ...settings import config
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...vendor import six
