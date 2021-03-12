@@ -87,7 +87,7 @@ class Tracer(object):
         if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         elif url is not None:
-            url_parsed = compat.parse.urlparse(url)
+            url_parsed = agent.verify_url(url)
 
             if url_parsed.scheme == "unix":
                 configure_kwargs["uds_path"] = url_parsed.path
@@ -286,6 +286,8 @@ class Tracer(object):
             if hasattr(self, "writer"):
                 self.writer.stop()
 
+            if url:
+                agent.verify_url(url)
             self.writer = AgentWriter(
                 url,
                 sampler=self.sampler,
