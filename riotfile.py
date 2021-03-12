@@ -305,7 +305,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {posargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -324,7 +324,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {posargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
