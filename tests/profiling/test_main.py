@@ -20,8 +20,9 @@ def call_program(*args):
 def test_call_script(monkeypatch):
     # Set a very short timeout to exit fast
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     stdout, stderr, exitcode, pid = call_program(
-        "pyddprofile", os.path.join(os.path.dirname(__file__), "simple_program.py")
+        "ddtrace-run", os.path.join(os.path.dirname(__file__), "simple_program.py")
     )
     assert exitcode == 42
     hello, interval, stacks = stdout.decode().strip().split("\n")
@@ -54,7 +55,8 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
-    _, _, exitcode, pid = call_program("pyddprofile", os.path.join(os.path.dirname(__file__), "simple_program.py"))
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    _, _, exitcode, pid = call_program("ddtrace-run", os.path.join(os.path.dirname(__file__), "simple_program.py"))
     assert exitcode == 42
     check_pprof_file(filename + "." + str(pid) + ".1")
     return filename, pid
