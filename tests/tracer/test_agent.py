@@ -33,10 +33,6 @@ def test_trace_url(monkeypatch):
     monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://saturn:1111")
     assert agent.get_trace_url() == "http://saturn:1111"
 
-    monkeypatch.setenv("DD_TRACE_AGENT_URL", "malformed://saturn:1111")
-    with pytest.raises(ValueError):
-        agent.get_trace_url()
-
 
 def test_stats_url(monkeypatch):
     assert agent.get_stats_url() == "udp://localhost:8125"
