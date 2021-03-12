@@ -38,6 +38,8 @@ class TracedCurl(wrapt.CallableObjectProxy):
         return instance
 
     def setopt(self, option, value):
+        # TODO: Do we need to handle pycurl.SHARE?
+
         # In libcurl >=7.72.0 we can call getinfo(CURLINFO_EFFECTIVE_METHOD)
         # however, pycurl does not expose this option and does type checking
         # on calls to `Curl.getinfo` and will raise if it gets an unknown option
