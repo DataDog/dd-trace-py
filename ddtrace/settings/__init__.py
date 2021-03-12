@@ -5,9 +5,6 @@ from .http import HttpConfig
 from .integration import IntegrationConfig
 
 
-# Default global config
-config = Config()
-
 __all__ = [
     "config",
     "Config",
