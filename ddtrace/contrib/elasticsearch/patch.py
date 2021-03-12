@@ -1,5 +1,6 @@
 from importlib import import_module
 
+from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...compat import urlencode
@@ -9,7 +10,6 @@ from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
 from ...pin import Pin
-from ...settings import config
 from ...utils.wrappers import unwrap as _u
 from .quantize import quantize
 
