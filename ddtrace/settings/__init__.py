@@ -4,6 +4,7 @@ from .exceptions import ConfigException
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
+
 # Default global config
 _config = Config()
 
