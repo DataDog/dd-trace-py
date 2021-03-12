@@ -180,7 +180,6 @@ setup(
         entry_points={
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-                "pyddprofile = ddtrace.profiling.__main__:main",
             ],
             "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
             "gevent.plugins.monkey.did_patch_all": [
