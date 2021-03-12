@@ -456,14 +456,13 @@ venv = Venv(
                 "googleapis-common-protos": latest,
             },
             venvs=[
+                # Versions between 1.14 and 1.20 have known threading issues
+                # See https://github.com/grpc/grpc/issues/18994
                 Venv(
                     pys=select_pys(max_version=3.6),
                     pkgs={
                         "grpcio": [
                             "~=1.12.0",
-                            "~=1.15.0",
-                            # Versions between 1.14 and 1.20 have known threading issues
-                            # See https://github.com/grpc/grpc/issues/18994
                             "~=1.20.0",
                             "~=1.21.0",
                             "~=1.22.0",
@@ -474,8 +473,6 @@ venv = Venv(
                     pys=["3.7"],
                     pkgs={
                         "grpcio": [
-                            "~=1.17.0",
-                            "~=1.18.0",
                             "~=1.20.0",
                             "~=1.21.0",
                             "~=1.22.0",
