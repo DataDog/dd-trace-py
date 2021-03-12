@@ -27,7 +27,7 @@
 from _ast import *
 
 
-def parse(source, filename='<unknown>', mode='exec'):
+def parse(source, filename="<unknown>", mode="exec"):
     """
     Parse the source into an AST node.
     Equivalent to compile(source, filename, mode, PyCF_ONLY_AST).
@@ -43,24 +43,27 @@ def literal_eval(node_or_string):
     sets, booleans, and None.
     """
     if isinstance(node_or_string, str):
-        node_or_string = parse(node_or_string, mode='eval')
+        node_or_string = parse(node_or_string, mode="eval")
     if isinstance(node_or_string, Expression):
         node_or_string = node_or_string.body
+
     def _convert_num(node):
         if isinstance(node, Constant):
             if isinstance(node.value, (int, float, complex)):
                 return node.value
         elif isinstance(node, Num):
             return node.n
-        raise ValueError('malformed node or string: ' + repr(node))
+        raise ValueError("malformed node or string: " + repr(node))
+
     def _convert_signed_num(node):
         if isinstance(node, UnaryOp) and isinstance(node.op, (UAdd, USub)):
             operand = _convert_num(node.operand)
             if isinstance(node.op, UAdd):
-                return + operand
+                return +operand
             else:
-                return - operand
+                return -operand
         return _convert_num(node)
+
     def _convert(node):
         if isinstance(node, Constant):
             return node.value
@@ -75,8 +78,7 @@ def literal_eval(node_or_string):
         elif isinstance(node, Set):
             return set(map(_convert, node.elts))
         elif isinstance(node, Dict):
-            return dict(zip(map(_convert, node.keys),
-                            map(_convert, node.values)))
+            return dict(zip(map(_convert, node.keys), map(_convert, node.values)))
         elif isinstance(node, NameConstant):
             return node.value
         elif isinstance(node, BinOp) and isinstance(node.op, (Add, Sub)):
@@ -88,6 +90,7 @@ def literal_eval(node_or_string):
                 else:
                     return left - right
         return _convert_signed_num(node)
+
     return _convert(node_or_string)
 
 
@@ -100,24 +103,24 @@ def dump(node, annotate_fields=True, include_attributes=False):
     numbers and column offsets are not dumped by default.  If this is wanted,
     *include_attributes* can be set to True.
     """
+
     def _format(node):
         if isinstance(node, AST):
             fields = [(a, _format(b)) for a, b in iter_fields(node)]
-            rv = '%s(%s' % (node.__class__.__name__, ', '.join(
-                ('%s=%s' % field for field in fields)
-                if annotate_fields else
-                (b for a, b in fields)
-            ))
+            rv = "%s(%s" % (
+                node.__class__.__name__,
+                ", ".join(("%s=%s" % field for field in fields) if annotate_fields else (b for a, b in fields)),
+            )
             if include_attributes and node._attributes:
-                rv += fields and ', ' or ' '
-                rv += ', '.join('%s=%s' % (a, _format(getattr(node, a)))
-                                for a in node._attributes)
-            return rv + ')'
+                rv += fields and ", " or " "
+                rv += ", ".join("%s=%s" % (a, _format(getattr(node, a))) for a in node._attributes)
+            return rv + ")"
         elif isinstance(node, list):
-            return '[%s]' % ', '.join(_format(x) for x in node)
+            return "[%s]" % ", ".join(_format(x) for x in node)
         return repr(node)
+
     if not isinstance(node, AST):
-        raise TypeError('expected AST, got %r' % node.__class__.__name__)
+        raise TypeError("expected AST, got %r" % node.__class__.__name__)
     return _format(node)
 
 
@@ -126,9 +129,8 @@ def copy_location(new_node, old_node):
     Copy source location (`lineno` and `col_offset` attributes) from
     *old_node* to *new_node* if possible, and return *new_node*.
     """
-    for attr in 'lineno', 'col_offset':
-        if attr in old_node._attributes and attr in new_node._attributes \
-           and hasattr(old_node, attr):
+    for attr in "lineno", "col_offset":
+        if attr in old_node._attributes and attr in new_node._attributes and hasattr(old_node, attr):
             setattr(new_node, attr, getattr(old_node, attr))
     return new_node
 
@@ -141,19 +143,21 @@ def fix_missing_locations(node):
     recursively where not already set, by setting them to the values of the
     parent node.  It works recursively starting at *node*.
     """
+
     def _fix(node, lineno, col_offset):
-        if 'lineno' in node._attributes:
-            if not hasattr(node, 'lineno'):
+        if "lineno" in node._attributes:
+            if not hasattr(node, "lineno"):
                 node.lineno = lineno
             else:
                 lineno = node.lineno
-        if 'col_offset' in node._attributes:
-            if not hasattr(node, 'col_offset'):
+        if "col_offset" in node._attributes:
+            if not hasattr(node, "col_offset"):
                 node.col_offset = col_offset
             else:
                 col_offset = node.col_offset
         for child in iter_child_nodes(node):
             _fix(child, lineno, col_offset)
+
     _fix(node, 1, 0)
     return node
 
@@ -164,8 +168,8 @@ def increment_lineno(node, n=1):
     This is useful to "move code" to a different location in a file.
     """
     for child in walk(node):
-        if 'lineno' in child._attributes:
-            child.lineno = getattr(child, 'lineno', 0) + n
+        if "lineno" in child._attributes:
+            child.lineno = getattr(child, "lineno", 0) + n
     return node
 
 
@@ -206,7 +210,7 @@ def get_docstring(node, clean=True):
     """
     if not isinstance(node, (AsyncFunctionDef, FunctionDef, ClassDef, Module)):
         raise TypeError("%r can't have docstrings" % node.__class__.__name__)
-    if not(node.body and isinstance(node.body[0], Expr)):
+    if not (node.body and isinstance(node.body[0], Expr)):
         return None
     node = node.body[0].value
     if isinstance(node, Str):
@@ -217,6 +221,7 @@ def get_docstring(node, clean=True):
         return None
     if clean:
         import inspect
+
         text = inspect.cleandoc(text)
     return text
 
@@ -228,6 +233,7 @@ def walk(node):
     only want to modify nodes in place and don't care about the context.
     """
     from collections import deque
+
     todo = deque([node])
     while todo:
         node = todo.popleft()
@@ -257,7 +263,7 @@ class NodeVisitor(object):
 
     def visit(self, node):
         """Visit a node."""
-        method = 'visit_' + node.__class__.__name__
+        method = "visit_" + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)
 
