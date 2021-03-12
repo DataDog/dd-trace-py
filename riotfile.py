@@ -60,6 +60,25 @@ venv = Venv(
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
         ),
         Venv(
+            name="ddtracerun",
+            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
+            pys=select_pys(),
+            pkgs={
+                "redis": latest,
+                "gevent": latest,
+            },
+        ),
+        Venv(
+            name="vendor",
+            command="pytest {posargs} tests/vendor/",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="test_logging",
+            command="pytest {posargs} tests/contrib/logging",
+            pys=select_pys(),
+        ),
+        Venv(
             name="cherrypy",
             command="pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[

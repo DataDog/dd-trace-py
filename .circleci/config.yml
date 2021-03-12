@@ -540,8 +540,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-vendor'
+      - run_test:
+          pattern: 'vendor'
 
   futures:
     <<: *contrib_job
@@ -564,15 +564,15 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py..-ddtracerun$'
+          pattern: 'ddtracerun'
 
   test_logging:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_logging$'
+      - run_test:
+          pattern: 'test_logging'
 
   asyncio:
     <<: *contrib_job
