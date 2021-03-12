@@ -22,11 +22,6 @@ config._add(
 )
 
 
-# https://github.com/curl/curl/blob/44872aefc2d54f297caf2b0cc887df321bc9d791/include/curl/curl.h#L2762
-# Available from libcurl >=7.72.0
-CURLINFO_EFFECTIVE_METHOD = 0x100000 + 58
-
-
 class TracedCurl(wrapt.CallableObjectProxy):
     # This is called for Curl.__init__ and returns back a wrapped instance
     def __init__(self, *args, **kwargs):
