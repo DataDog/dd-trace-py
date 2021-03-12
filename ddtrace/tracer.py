@@ -5,6 +5,8 @@ from os import environ
 from os import getpid
 import sys
 
+from ddtrace import config
+
 from . import _hooks
 from . import compat
 from .constants import ENV_KEY
@@ -31,7 +33,6 @@ from .provider import DefaultContextProvider
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
-from .settings import config
 from .span import Span
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
