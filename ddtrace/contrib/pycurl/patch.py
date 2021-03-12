@@ -18,7 +18,6 @@ config._add(
     "pycurl",
     {
         "distributed_tracing": asbool(get_env("pycurl", "distributed_tracing", default=True)),
-        # "split_by_domain": asbool(get_env("pycurl", "split_by_domain", default=False)),
     },
 )
 
