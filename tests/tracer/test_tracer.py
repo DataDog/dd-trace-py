@@ -476,7 +476,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.port == 1234
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="foo:1234")
         assert tracer.writer.dogstatsd.host == "foo"
         assert tracer.writer.dogstatsd.port == 1234
@@ -489,7 +489,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
         assert tracer.writer.dogstatsd.host is None
         assert tracer.writer.dogstatsd.port is None
@@ -550,10 +550,10 @@ def test_tracer_url():
     assert t.writer.agent_url == "unix:///foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.agent_url == "http://localhost:80"
+    assert t.writer.agent_url == "http://localhost"
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.agent_url == "https://localhost:443"
+    assert t.writer.agent_url == "https://localhost"
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
@@ -1512,7 +1512,7 @@ def test_configure_url_partial():
     assert tracer.writer.agent_url == "http://abc:123"
 
     tracer = ddtrace.Tracer(url="http://abc")
-    assert tracer.writer.agent_url == "http://abc:80"
+    assert tracer.writer.agent_url == "http://abc"
     tracer.configure(port=123)
     assert tracer.writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
