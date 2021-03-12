@@ -707,7 +707,7 @@ jobs:
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
-          pattern: 'flask(_cache)?
+          pattern: 'flask(_cache)?'
 
   gevent:
     <<: *contrib_job
