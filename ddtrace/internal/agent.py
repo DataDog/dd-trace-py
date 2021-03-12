@@ -35,7 +35,6 @@ def get_trace_url():
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
     url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
-    verify_url(url)
     return url
 
 
