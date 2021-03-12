@@ -4,6 +4,11 @@ import logging
 from os import environ
 from os import getpid
 import sys
+from typing import Dict
+from typing import Callable
+from typing import List
+from typing import Optional
+from typing import Union
 
 from . import _hooks
 from . import compat
@@ -14,8 +19,10 @@ from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
 from .ext import system
+from .ext import SpanTypes
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
+from .filters import TraceFilter
 from .internal import _rand
 from .internal import agent
 from .internal import debug
@@ -31,7 +38,10 @@ from .provider import DefaultContextProvider
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
-from .settings import config
+
+from ddtrace import config
+
+# from .settings import config  # TODO: type hint this bad boy OR just import directly from ddtrace
 from .span import Span
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
@@ -68,7 +78,11 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
-    def __init__(self, url=None, dogstatsd_url=None):
+    def __init__(
+            self,
+            url=None,  # type: Optional[str]
+            dogstatsd_url=None  # type: Optional[str]
+    ):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -80,7 +94,7 @@ class Tracer(object):
         self.sampler = None
         self.priority_sampler = None
         self._runtime_worker = None
-        self._filters = []
+        self._filters = []  # type: List[TraceFilter]
 
         configure_kwargs = {}
         writer = None
@@ -134,6 +148,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
 
     def on_start_span(self, func):
+        # type: (Callable) -> Callable
         """Register a function to execute when a span start.
 
         Can be used as a decorator.
@@ -145,6 +160,7 @@ class Tracer(object):
         return func
 
     def deregister_on_start_span(self, func):
+        # type: (Callable) -> Callable
         """Unregister a function registered to execute when a span starts.
 
         Can be used as a decorator.
@@ -159,7 +175,7 @@ class Tracer(object):
     def debug_logging(self):
         return self.log.isEnabledFor(logging.DEBUG)
 
-    @debug_logging.setter
+    @debug_logging.setter  # type: ignore[misc]
     @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
         self.log.setLevel(logging.DEBUG if value else logging.WARN)
@@ -173,6 +189,7 @@ class Tracer(object):
         """The global tracer except hook."""
 
     def get_call_context(self, *args, **kwargs):
+        # type: (...) -> Context
         """
         Return the current active ``Context`` for this traced execution. This method is
         automatically called in the ``tracer.trace()``, but it can be used in the application
@@ -333,7 +350,14 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
-    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
+    def start_span(
+            self,
+            name,  # type: str
+            child_of=None,  # type: Optional[Union[Span, Context]]
+            service=None,  # type: Optional[str]
+            resource=None,  # type: Optional[str]
+            span_type=None  # type: Optional[Union[str, SpanTypes]]
+    ):
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -389,9 +413,9 @@ class Tracer(object):
             if parent:
                 service = parent.service
             else:
-                service = config.service
+                service = config.service  # type: ignore[attr-defined]
 
-        mapped_service = config.service_mapping.get(service, service)
+        mapped_service = config.service_mapping.get(service, service)  # type: ignore[attr-defined]
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -423,7 +447,7 @@ class Tracer(object):
             )
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
-            if config.report_hostname:
+            if config.report_hostname:  # type: ignore[attr-defined]
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
@@ -461,8 +485,8 @@ class Tracer(object):
         if self.tags:
             span.set_tags(self.tags)
 
-        if config.env:
-            span._set_str_tag(ENV_KEY, config.env)
+        if config.env:  # type: ignore[attr-defined]
+            span._set_str_tag(ENV_KEY, config.env)  # type: ignore[attr-defined]
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -471,10 +495,10 @@ class Tracer(object):
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == config.service) or (
+            if (root_span is None and service == config.service) or (  # type: ignore[attr-defined]
                 root_span and root_span.service == service and VERSION_KEY in root_span.meta
             ):
-                span._set_str_tag(VERSION_KEY, config.version)
+                span._set_str_tag(VERSION_KEY, config.version)  # type: ignore[attr-defined]
 
         # add it to the current context
         context.add_span(span)
@@ -554,7 +578,13 @@ class Tracer(object):
         else:
             self.log.log(level, msg)
 
-    def trace(self, name, service=None, resource=None, span_type=None):
+    def trace(
+            self,
+            name,  # type: str
+            service=None,  # type: Optional[str]
+            resource=None,  # type: Optional[str]
+            span_type=None  # type: Optional[Union[str, SpanTypes]]
+    ):
         """
         Return a span that will trace an operation called `name`. The context that created
         the span as well as the span parenting, are automatically handled by the tracing
@@ -602,6 +632,7 @@ class Tracer(object):
         )
 
     def current_root_span(self):
+        # type: () -> Optional[Span]
         """Returns the root span of the current context.
 
         This is useful for attaching information related to the trace as a
@@ -621,6 +652,7 @@ class Tracer(object):
         return None
 
     def current_span(self):
+        # type: () -> Optional[Span]
         """
         Return the active span for the current call context or ``None``
         if no spans are available.
@@ -631,6 +663,7 @@ class Tracer(object):
         return None
 
     def write(self, spans):
+        # type: (List[Span]) -> None
         """
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
@@ -660,7 +693,13 @@ class Tracer(object):
         """Set the information about the given service."""
         return
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None):
+    def wrap(
+            self,
+            name=None,  # type: Optional[str]
+            service=None,  # type: Optional[str]
+            resource=None,  # type: Optional[str]
+            span_type=None  # type: Optional[str]
+    ):
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
@@ -750,6 +789,7 @@ class Tracer(object):
         return wrap_decorator
 
     def set_tags(self, tags):
+        # type: (Dict[str, str]) -> None
         """Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
@@ -758,6 +798,7 @@ class Tracer(object):
         self.tags.update(tags)
 
     def shutdown(self, timeout=None):
+        # type: (Optional[float]) -> None
         """Shutdown the tracer.
 
         This will stop the background writer/worker and flush any finished traces in the buffer.
