@@ -70,12 +70,12 @@ venv = Venv(
         ),
         Venv(
             name="vendor",
-            command="pytest {posargs} tests/vendor/",
+            command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
         ),
         Venv(
             name="test_logging",
-            command="pytest {posargs} tests/contrib/logging",
+            command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),
         ),
         Venv(
