@@ -454,6 +454,22 @@ def test_flush_queue_raise():
         writer.flush_queue(raise_exc=True)
 
 
+def test_racing_start():
+    writer = AgentWriter(agent_url="http://dne:1234")
+
+    def do_write(i):
+        writer.write([Span(None, str(i))])
+
+    ts = [threading.Thread(target=do_write, args=(i,)) for i in range(100)]
+    for t in ts:
+        t.start()
+
+    for t in ts:
+        t.join()
+
+    assert len(writer._buffer) == 100
+
+
 def test_double_stop():
     # Ensure double stopping doesn't result in an exception.
     writer = AgentWriter(agent_url="http://dne:1234")

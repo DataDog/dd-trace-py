@@ -1515,3 +1515,26 @@ def test_configure_url_partial():
     assert tracer.writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
     assert tracer.writer.agent_url == "http://abc:431"
+
+
+def test_bad_agent_url(monkeypatch):
+    with pytest.raises(ValueError):
+        Tracer(url="bad://localhost:8126")
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "bad://localhost:1234")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert (
+        str(e.value)
+        == "Unsupported protocol 'bad' in Agent URL 'bad://localhost:1234'. Must be one of: http, https, unix"
+    )
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"

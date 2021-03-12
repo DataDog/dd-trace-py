@@ -101,6 +101,8 @@ class Tracer(object):
         if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         else:
+            url = url or agent.get_trace_url()
+            agent.verify_url(url)
             writer = AgentWriter(
                 agent_url=url,
                 sampler=self.sampler,
@@ -257,6 +259,8 @@ class Tracer(object):
             url = None
 
         self.writer.stop()
+        if url:
+            agent.verify_url(url)
         self.writer = writer or AgentWriter(
             url,
             sampler=self.sampler,

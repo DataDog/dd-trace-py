@@ -8,7 +8,7 @@ from ddtrace.vendor import six
 
 
 try:
-    import gevent.monkey
+    import gevent.monkey  # type: ignore[import]
 except ImportError:
 
     def get_original(module, func):
@@ -31,8 +31,8 @@ try:
 except AttributeError:
     threading_get_native_id = None
 
-start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")
-thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")
+start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")  # type: ignore[attr-defined]
+thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")  # type: ignore[attr-defined]
 Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
 
@@ -65,7 +65,7 @@ if is_module_patched("threading"):
 
 
 else:
-    DoubleLock = threading.Lock
+    DoubleLock = threading.Lock  # type:  ignore[misc,assignment]
 
 
 if is_module_patched("threading"):
