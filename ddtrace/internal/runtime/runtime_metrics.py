@@ -62,6 +62,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
     _instance = None
 
     def __init__(self, tracer=None, dogstatsd_url=None, flush_interval=None):
+        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
         super(RuntimeWorker, self).__init__(
             interval=flush_interval or float(get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)),
             name=self.__class__.__name__,
@@ -84,6 +85,10 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     @staticmethod
     def disable():
+        # type: () -> None
+        if RuntimeWorker._instance is None:
+            return
+
         RuntimeWorker._instance.stop()
         RuntimeWorker._instance.join()
         RuntimeWorker._instance = None

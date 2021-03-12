@@ -21,6 +21,10 @@ class RuntimeMetrics(object):
         """
         Enable the runtime metrics collection service.
 
+        If the service has already been activated before, this method does
+        nothing. Use ``disable`` to turn off the runtime metric collection
+        service.
+
         :param tracer: The tracer instance to correlate with.
         :param dogstatsd_url: The DogStatsD URL.
         :param flush_interval: The flush interval.
@@ -35,6 +39,9 @@ class RuntimeMetrics(object):
     def disable():
         """
         Disable the runtime metrics collection service.
+
+        Once disabled, runtime metrics can be re-enabled by calling ``enable``
+        again.
         """
         # type: () -> None
         ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()

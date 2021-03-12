@@ -9,3 +9,15 @@ def test_runtime_metrics_api():
 
     RuntimeMetrics.disable()
     assert RuntimeWorker._instance is None
+
+
+def test_runtime_metrics_api_idempotency():
+    RuntimeMetrics.enable()
+    instance = RuntimeWorker._instance
+    assert instance is not None
+    RuntimeMetrics.enable()
+    assert RuntimeWorker._instance is instance
+
+    RuntimeMetrics.disable()
+    assert RuntimeWorker._instance is None
+    RuntimeMetrics.disable()
