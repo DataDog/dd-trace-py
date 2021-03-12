@@ -71,21 +71,13 @@ exclude = '''
       | dbapi
       | jinja2
       | mako
-      | patch.py
       | psycopg
       | pylibmc
       | pymemcache
       | pymongo
       | rediscluster
       | sqlalchemy
-      | test_utils.py
     )
-    | ddtrace_run.py
-    | profiling/_ast_test_file.py
-    | subprocesstest.py
-    | tracer/fixtures
-    | vendor
-    | wait-for-services.py
   )
 )
 '''

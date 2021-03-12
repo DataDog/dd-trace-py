@@ -30,7 +30,13 @@ def get_stats_port():
 
 def get_trace_url():
     # type: () -> str
-    return os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    """Return the Agent URL computed from the environment.
+
+    Raises a ``ValueError`` if the URL is not supported by the Agent.
+    """
+    url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    verify_url(url)
+    return url
 
 
 def get_stats_url():
@@ -38,9 +44,31 @@ def get_stats_url():
     return get_env("dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port()))
 
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    """Return an HTTP connection to the given URL."""
+def verify_url(url):
+    # type: (str) -> compat.parse.ParseResult
+    """Verify that a URL can be used to communicate with the Datadog Agent.
+
+    Raises a ``ValueError`` if the URL is not supported by the Agent.
+    """
     parsed = compat.parse.urlparse(url)
+
+    schemes = ("http", "https", "unix")
+    if parsed.scheme not in schemes:
+        raise ValueError(
+            "Unsupported protocol '%s' in Agent URL '%s'. Must be one of: %s" % (parsed.scheme, url, ", ".join(schemes))
+        )
+    elif parsed.scheme in ["http", "https"] and not parsed.hostname:
+        raise ValueError("Invalid hostname in Agent URL '%s'" % url)
+    elif parsed.scheme == "unix" and not parsed.path:
+        raise ValueError("Invalid file path in Agent URL '%s'" % url)
+
+    return parsed
+
+
+def get_connection(url, timeout=DEFAULT_TIMEOUT):
+    # type: (str, float) -> compat.httplib.HTTPConnection
+    """Return an HTTP connection to the given URL."""
+    parsed = verify_url(url)
     hostname = parsed.hostname or ""
 
     if parsed.scheme == "https":
@@ -50,6 +78,6 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     elif parsed.scheme == "unix":
         conn = UDSHTTPConnection(parsed.path, parsed.scheme == "https", hostname, parsed.port, timeout=timeout)
     else:
-        raise ValueError("Unknown agent protocol %s" % parsed.scheme)
+        raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
 
     return conn
