@@ -119,8 +119,9 @@ class HTTPPropagator(object):
                     sampling_priority = int(sampling_priority)
 
                 return Context(
-                    trace_id=int(trace_id),
-                    span_id=int(parent_span_id),
+                    # DEV: Do not allow `0` for trace id or span id, use None instead
+                    trace_id=int(trace_id) or None,
+                    span_id=int(parent_span_id) or None,
                     sampling_priority=sampling_priority,
                     dd_origin=origin,
                 )
