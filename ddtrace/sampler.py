@@ -120,7 +120,6 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
 
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
-    DEFAULT_SAMPLE_RATE = None
 
     def __init__(self, rules=None, default_sample_rate=None, rate_limit=None):
         """
@@ -136,15 +135,8 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
         :type rate_limit: :obj:`int`
         """
         if default_sample_rate is None:
-            # If no sample rate was provided explicitly in code, try to load from environment variable
-            sample_rate = get_env("trace", "sample_rate", default=self.DEFAULT_SAMPLE_RATE)
-
-            # If no env variable was found, just use the default
-            if sample_rate is None:
-                default_sample_rate = self.DEFAULT_SAMPLE_RATE
-
-            # Otherwise, try to convert it to a float
-            else:
+            sample_rate = get_env("trace", "sample_rate")
+            if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
@@ -163,9 +155,10 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
 
-        # Default to previous default behavior of RateByServiceSampler
-        self.default_sampler = RateByServiceSampler()
-        if default_sample_rate is not None:
+        if default_sample_rate is None:
+            # Default to previous default behavior of RateByServiceSampler
+            self.default_sampler = RateByServiceSampler()
+        else:
             self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
 
     def update_rate_by_service_sample_rates(self, sample_rates):
