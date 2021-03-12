@@ -292,7 +292,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/flask",
             pkgs={
                 "blinker": latest,
-                "pytest": "~=3.0",
             },
             venvs=[
                 # Flask 0.10, 0.11
@@ -342,21 +341,20 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
-                "pytest": "~=3.0",
             },
             venvs=[
-                Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
-                        "Flask-Cache": ["~=0.13.0", latest],
-                    },
-                ),
                 Venv(
                     pys=select_pys(max_version=2.7),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
                         "Flask-Cache": ["~=0.12.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
+                        "Flask-Cache": ["~=0.13.0", latest],
                     },
                 ),
             ],
