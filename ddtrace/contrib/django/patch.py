@@ -106,7 +106,9 @@ def _set_request_tags(django, span, request):
 
     user = getattr(request, "user", None)
     if user is not None:
-        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from Django
+        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
+        # Django's get_user_model(): https://github.com/django/django/blob/main/django/contrib/auth/__init__.py#L155
+
         try:
             if hasattr(user, "is_authenticated"):
                 span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
