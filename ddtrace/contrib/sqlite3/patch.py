@@ -9,7 +9,7 @@ from ddtrace.vendor import wrapt
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
-from ...settings import config
+from ...pin import Pin
 
 
 # Original connect method
