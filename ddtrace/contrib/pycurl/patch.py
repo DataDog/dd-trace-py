@@ -23,11 +23,12 @@ config._add(
 
 
 class TracedCurl(wrapt.CallableObjectProxy):
-    # This is called for Curl.__init__ and returns back a wrapped instance
+    # This is called on the creation of a new wrapper
     def __init__(self, *args, **kwargs):
         super(TracedCurl, self).__init__(*args, **kwargs)
         self._self_last_method_used = "GET"
 
+    # This is called for Curl.__init__ and returns back a wrapped instance
     def __call__(self, *args, **kwargs):
         instance = TracedCurl(self.__wrapped__(*args, **kwargs))
         Pin(app="pycurl", _config=config.pycurl).onto(instance)
