@@ -557,7 +557,9 @@ def test_tracer_url():
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
-        assert str(e) == "Unknown scheme `https` for agent URL"
+    assert (
+        str(e.value) == "Unsupported protocol 'foo' in Agent URL 'foo://foobar:12'. Must be one of: http, https, unix"
+    )
 
 
 def test_tracer_shutdown_no_timeout():
