@@ -39,6 +39,7 @@ PATCH_MODULES = {
     "mysqldb": True,
     "pymysql": True,
     "psycopg": True,
+    "pycurl": True,
     "pylibmc": True,
     "pymemcache": True,
     "pymongo": True,
