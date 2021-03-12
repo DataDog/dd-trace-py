@@ -476,7 +476,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.port == 1234
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="foo:1234")
         assert tracer.writer.dogstatsd.host == "foo"
         assert tracer.writer.dogstatsd.port == 1234
@@ -489,7 +489,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
         assert tracer.writer.dogstatsd.host is None
         assert tracer.writer.dogstatsd.port is None
