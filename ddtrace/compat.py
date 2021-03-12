@@ -29,17 +29,17 @@ PYTHON_VERSION = platform.python_version()
 PYTHON_INTERPRETER = platform.python_implementation()
 
 try:
-    StringIO = six.moves.cStringIO
+    StringIO = six.moves.cStringIO  # type: ignore[attr-defined]
 except ImportError:
     StringIO = six.StringIO
 
-httplib = six.moves.http_client
-urlencode = six.moves.urllib.parse.urlencode
-parse = six.moves.urllib.parse
-Queue = six.moves.queue.Queue
+httplib = six.moves.http_client  # type: ignore[attr-defined]
+urlencode = six.moves.urllib.parse.urlencode  # type: ignore[attr-defined]
+parse = six.moves.urllib.parse  # type: ignore[attr-defined]
+Queue = six.moves.queue.Queue  # type: ignore[attr-defined]
 iteritems = six.iteritems
 reraise = six.reraise
-reload_module = six.moves.reload_module
+reload_module = six.moves.reload_module  # type: ignore[attr-defined]
 
 stringify = six.text_type
 string_type = six.string_types[0]
@@ -52,7 +52,7 @@ numeric_types = six.integer_types + (float,)
 if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
-    pattern_type = re._pattern_type
+    pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
 
 def is_integer(obj):
@@ -71,6 +71,7 @@ except ImportError:
     from time import time as _time
 
     def time_ns():
+        # type: () -> int
         return int(_time() * 10e5) * 1000
 
 
@@ -85,15 +86,17 @@ try:
 except ImportError:
 
     def monotonic_ns():
+        # type: () -> int
         return int(monotonic() * 1e9)
 
 
 try:
     from time import process_time_ns
 except ImportError:
-    from time import clock as _process_time
+    from time import clock as _process_time  # type: ignore[attr-defined]
 
     def process_time_ns():
+        # type: () -> int
         return int(_process_time() * 1e9)
 
 
@@ -104,10 +107,10 @@ else:
 
 
 if sys.version_info.major < 3:
-    if isinstance(threading.current_thread(), threading._MainThread):
+    if isinstance(threading.current_thread(), threading._MainThread):  # type: ignore[attr-defined]
         main_thread = threading.current_thread()
     else:
-        main_thread = threading._shutdown.im_self
+        main_thread = threading._shutdown.im_self  # type: ignore[attr-defined]
 else:
     main_thread = threading.main_thread()
 
@@ -152,10 +155,10 @@ else:
     # asyncio is missing so we can't have coroutines; these
     # functions are used only to ensure code executions in case
     # of an unexpected behavior
-    def iscoroutinefunction(fn):
+    def iscoroutinefunction(fn):  # type: ignore
         return False
 
-    def make_async_decorator(tracer, fn, *params, **kw_params):
+    def make_async_decorator(tracer, fn, *params, **kw_params):  # type: ignore
         return fn
 
 
@@ -200,7 +203,7 @@ def get_connection_response(conn):
 try:
     import contextvars  # noqa
 except ImportError:
-    from ddtrace.vendor import contextvars  # noqa
+    from ddtrace.vendor import contextvars  # type: ignore
 
     CONTEXTVARS_IS_AVAILABLE = False
 else:

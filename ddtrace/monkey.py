@@ -14,7 +14,7 @@ import threading
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
-from .settings import config
+from .settings import config  # type: ignore
 from .utils import formats
 
 
@@ -64,7 +64,7 @@ PATCH_MODULES = {
     "pylons": False,
     "pyramid": False,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logging": config.logs_injection,
+    "logging": config.logs_injection,  # type: ignore[attr-defined]
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
