@@ -1,6 +1,7 @@
 # 3p
 import kombu
 
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 # project
@@ -10,7 +11,6 @@ from ...ext import SpanTypes
 from ...ext import kombu as kombux
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...settings import config
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
 from .constants import DEFAULT_SERVICE

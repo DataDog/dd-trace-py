@@ -4,6 +4,7 @@ from pyramid.settings import asbool
 
 # project
 import ddtrace
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -12,7 +13,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...settings import config
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
