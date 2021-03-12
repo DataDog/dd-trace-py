@@ -41,6 +41,14 @@ venv = Venv(
             },
         ),
         Venv(
+            pys=3,
+            name="mypy",
+            command="mypy {cmdargs}",
+            pkgs={
+                "mypy": latest,
+            },
+        ),
+        Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},

@@ -34,9 +34,7 @@ def create_server_interceptor(pin):
 
 
 def _handle_server_exception(server_context, span):
-    if server_context is not None and \
-       hasattr(server_context, '_state') and \
-       server_context._state is not None:
+    if server_context is not None and hasattr(server_context, "_state") and server_context._state is not None:
         code = to_unicode(server_context._state.code)
         details = to_unicode(server_context._state.details)
         span.error = 1
@@ -65,8 +63,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def _fn(self, method_kind, behavior, args, kwargs):
         if config.grpc_server.distributed_tracing_enabled:
             headers = dict(self._handler_call_details.invocation_metadata)
-            propagator = HTTPPropagator()
-            context = propagator.extract(headers)
+            context = HTTPPropagator.extract(headers)
 
             if context.trace_id:
                 self._pin.tracer.context_provider.activate(context)
@@ -74,7 +71,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            'grpc',
+            "grpc",
             span_type=SpanTypes.GRPC,
             service=trace_utils.int_service(self._pin, config.grpc_server),
             resource=self._handler_call_details.method,
@@ -117,36 +114,16 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         return response_or_iterator
 
     def unary_unary(self, *args, **kwargs):
-        return self._fn(
-            constants.GRPC_METHOD_KIND_UNARY,
-            self.__wrapped__.unary_unary,
-            args,
-            kwargs
-        )
+        return self._fn(constants.GRPC_METHOD_KIND_UNARY, self.__wrapped__.unary_unary, args, kwargs)
 
     def unary_stream(self, *args, **kwargs):
-        return self._fn(
-            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
-            self.__wrapped__.unary_stream,
-            args,
-            kwargs
-        )
+        return self._fn(constants.GRPC_METHOD_KIND_SERVER_STREAMING, self.__wrapped__.unary_stream, args, kwargs)
 
     def stream_unary(self, *args, **kwargs):
-        return self._fn(
-            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
-            self.__wrapped__.stream_unary,
-            args,
-            kwargs
-        )
+        return self._fn(constants.GRPC_METHOD_KIND_CLIENT_STREAMING, self.__wrapped__.stream_unary, args, kwargs)
 
     def stream_stream(self, *args, **kwargs):
-        return self._fn(
-            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
-            self.__wrapped__.stream_stream,
-            args,
-            kwargs
-        )
+        return self._fn(constants.GRPC_METHOD_KIND_BIDI_STREAMING, self.__wrapped__.stream_stream, args, kwargs)
 
 
 class _ServerInterceptor(grpc.ServerInterceptor):

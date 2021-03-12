@@ -1,11 +1,17 @@
+import abc
 from collections import defaultdict
 from json import loads
 import logging
 import sys
 import threading
+from typing import List
+from typing import Optional
 
 import ddtrace
+from ddtrace import Span
+from ddtrace.vendor import six
 
+from . import agent
 from .. import _worker
 from .. import compat
 from ..compat import httplib
@@ -26,7 +32,7 @@ from .sma import SimpleMovingAverage
 
 log = get_logger(__name__)
 
-DEFAULT_TIMEOUT = 5
+DEFAULT_SHUTDOWN_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 # The window size should be chosen so that the look-back period is
@@ -115,7 +121,24 @@ class Response(object):
         )
 
 
-class LogWriter:
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+    @abc.abstractmethod
+    def recreate(self):
+        # type: () -> TraceWriter
+        pass
+
+    @abc.abstractmethod
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        pass
+
+    @abc.abstractmethod
+    def write(self, trace):
+        # type: (List[Span]) -> None
+        pass
+
+
+class LogWriter(TraceWriter):
     def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
         self._sampler = sampler
         self._priority_sampler = priority_sampler
@@ -123,6 +146,7 @@ class LogWriter:
         self.out = out
 
     def recreate(self):
+        # type: () -> LogWriter
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -131,7 +155,12 @@ class LogWriter:
         writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
-    def write(self, spans=None):
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        return
+
+    def write(self, spans):
+        # type: (List[Span]) -> None
         if not spans:
             return
 
@@ -140,7 +169,7 @@ class LogWriter:
         self.out.flush()
 
 
-class AgentWriter(_worker.PeriodicWorkerThread):
+class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
     """Writer to the Datadog Agent.
 
     The Datadog Agent supports (at the time of writing this) receiving trace
@@ -152,7 +181,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
     def __init__(
         self,
         agent_url=None,
-        shutdown_timeout=DEFAULT_TIMEOUT,
+        shutdown_timeout=DEFAULT_SHUTDOWN_TIMEOUT,
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
@@ -160,7 +189,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # to flush dynamically.
         buffer_size=8 * 1000000,
         max_payload_size=8 * 1000000,
-        timeout=2,
+        timeout=agent.DEFAULT_TIMEOUT,
         dogstatsd=None,
         report_metrics=False,
     ):
@@ -231,6 +260,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def recreate(self):
+        # type: () -> AgentWriter
         writer = self.__class__(
             agent_url=self.agent_url,
             shutdown_timeout=self.exit_timeout,
@@ -314,6 +344,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                     log.error("sample_rate is negative, cannot update the rate samplers")
 
     def write(self, spans):
+        # type: (List[Span]) -> None
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
@@ -388,5 +419,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def run_periodic(self):
         self.flush_queue(raise_exc=False)
+
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        if self.is_alive():
+            super(AgentWriter, self).stop()
+            self.join(timeout=timeout)
 
     on_shutdown = run_periodic

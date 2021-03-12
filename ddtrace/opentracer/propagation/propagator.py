@@ -7,10 +7,12 @@ ABC = ABCMeta("ABC", (object,), {"__slots__": ()})
 
 
 class Propagator(ABC):
+    @staticmethod
     @abstractmethod
-    def inject(self, span_context, carrier):
+    def inject(span_context, carrier):
         pass
 
+    @staticmethod
     @abstractmethod
-    def extract(self, carrier):
+    def extract(carrier):
         pass

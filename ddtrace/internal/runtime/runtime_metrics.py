@@ -63,6 +63,8 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url)
         # Initialize collector
         self._runtime_metrics = RuntimeMetrics()
+        # force an immediate update constant tags
+        self.update_runtime_tags()
         # Start worker thread
         self.start()
 

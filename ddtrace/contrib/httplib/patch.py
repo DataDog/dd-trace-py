@@ -81,8 +81,7 @@ def _wrap_request(func, instance, args, kwargs):
                 headers = args[3]
             else:
                 headers = kwargs.setdefault("headers", {})
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers)
     except Exception:
         log.debug("error configuring request", exc_info=True)
         span = getattr(instance, "_datadog_span", None)

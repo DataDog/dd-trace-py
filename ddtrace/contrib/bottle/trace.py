@@ -31,8 +31,7 @@ class TracePlugin(object):
 
             # Propagate headers such as x-datadog-trace-id.
             if self.distributed_tracing:
-                propagator = HTTPPropagator()
-                context = propagator.extract(request.headers)
+                context = HTTPPropagator.extract(request.headers)
                 if context.trace_id:
                     self.tracer.context_provider.activate(context)
 

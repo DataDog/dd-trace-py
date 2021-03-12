@@ -50,7 +50,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_resource_path(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
@@ -60,7 +60,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         self.tracer.enabled = False
         out = self.session.get(URL_200)
         assert out.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_args_kwargs(self):
@@ -78,7 +78,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.request(*args, **kwargs)
             assert out.status_code == 200
             # validation
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == "GET"
@@ -92,7 +92,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = untraced.get(URL_200)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_double_patch(self):
@@ -103,14 +103,14 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         out = session.get(URL_200)
         assert out.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     def test_200(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -129,7 +129,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.send(req)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -146,7 +146,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200 + "?" + query_string)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -165,7 +165,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = requests.get(URL_200)
             assert out.status_code == 200
             # validation
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
 
@@ -179,7 +179,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.post(URL_500)
         # validation
         assert out.status_code == 500
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -196,7 +196,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         else:
             assert 0, "expected error"
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -212,7 +212,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_500)
         assert out.status_code == 500
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -226,7 +226,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -239,7 +239,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -252,7 +252,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200)
             assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
@@ -266,7 +266,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200)
             assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
@@ -282,7 +282,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200)
             assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
@@ -297,7 +297,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -311,7 +311,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -326,7 +326,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             self.session.get("http:/some>thing")
 
         # We are wrapping `requests.Session.send` and this error gets thrown before that function
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_split_by_domain_remove_auth_in_url(self):
@@ -336,7 +336,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get("http://user:pass@httpbin.org")
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -349,7 +349,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get("http://httpbin.org:80")
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -362,7 +362,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get("http://httpbin.org:80/anything/v1/foo")
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -378,7 +378,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert out.status_code == 200
 
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         ot_span, dd_span = spans
@@ -399,7 +399,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_request_and_response_headers(self):
         # Disabled when not configured
         self.session.get(URL_200, headers={"my-header": "my_value"})
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") is None
@@ -409,7 +409,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         with self.override_config("requests", {}):
             config.requests.http.trace_headers(["my-header", "access-control-allow-origin"])
             self.session.get(URL_200, headers={"my-header": "my_value"})
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") == "my_value"
@@ -423,7 +423,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         """
         self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertIsNone(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -437,7 +437,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         with self.override_config("requests", dict(analytics_enabled=False, analytics_sample_rate=0.5)):
             self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertIsNone(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -451,7 +451,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         with self.override_config("requests", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
@@ -476,7 +476,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         pin.onto(self.session)
         self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
@@ -500,7 +500,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         pin.onto(self.session)
         self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
