@@ -18,4 +18,6 @@ def strip_query_string(url):
     # type: (str) -> str
     hqs, fs, f = url.partition("#")
     h, _, _ = hqs.partition("?")
+    if not f:
+        return h
     return h + fs + f

@@ -197,11 +197,25 @@ def test_activate_distributed_headers_no_headers(int_config):
 
 
 def test_sanitized_url_in_http_meta(span, int_config):
+    FULL_URL = "http://example.com/search?q=test+query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.trace_query_string = False
     trace_utils.set_http_meta(
         span,
         int_config,
         method="GET",
-        url="http://example.com/search?q=test+query#frag?ment",
+        url=FULL_URL,
         status_code=200,
     )
-    assert span.meta[http.URL] == "http://example.com/search#frag?ment"
+    assert span.meta[http.URL] == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=FULL_URL,
+        status_code=200,
+    )
+    assert span.meta[http.URL] == FULL_URL
