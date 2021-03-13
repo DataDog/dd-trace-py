@@ -159,7 +159,7 @@ class LogWriter(TraceWriter):
         return
 
     def write(self, spans):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         if not spans:
             return
 

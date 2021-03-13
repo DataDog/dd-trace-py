@@ -4,10 +4,12 @@ import logging
 from os import environ
 from os import getpid
 import sys
-from typing import Dict
+from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Union
 
 from ddtrace import config
@@ -20,8 +22,8 @@ from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from .ext import system
 from .ext import SpanTypes
+from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .filters import TraceFilter
@@ -37,6 +39,7 @@ from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .provider import DefaultContextProvider
+from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
@@ -79,9 +82,9 @@ class Tracer(object):
     """
 
     def __init__(
-            self,
-            url=None,  # type: Optional[str]
-            dogstatsd_url=None  # type: Optional[str]
+        self,
+        url=None,  # type: Optional[str]
+        dogstatsd_url=None,  # type: Optional[str]
     ):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
@@ -91,7 +94,7 @@ class Tracer(object):
         :param url: The DogStatsD URL.
         """
         self.log = log
-        self.sampler = None
+        self.sampler = None  # type: Optional[BaseSampler]
         self.priority_sampler = None
         self._runtime_worker = None
         self._filters = []  # type: List[TraceFilter]
@@ -100,7 +103,7 @@ class Tracer(object):
         self.tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
-        self._services = set()
+        self._services = set()  # type: Set[str]
 
         # Runtime id used for associating data collected during runtime to
         # traces
@@ -185,24 +188,24 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self.context_provider.active(*args, **kwargs)
+        return self.context_provider.active(*args, **kwargs)  # type: ignore
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(
         self,
-        enabled=None,
-        hostname=None,
-        port=None,
-        uds_path=None,
-        https=None,
-        sampler=None,
-        context_provider=None,
-        wrap_executor=None,
-        priority_sampling=None,
-        settings=None,
-        collect_metrics=None,
-        dogstatsd_url=None,
-        writer=None,
+        enabled=None,  # type: Optional[bool]
+        hostname=None,  # type: Optional[str]
+        port=None,  # type: Optional[int]
+        uds_path=None,  # type: Optional[str]
+        https=None,  # type: Optional[bool]
+        sampler=None,  # type: Optional[BaseSampler]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
+        wrap_executor=None,  # type: Optional[Callable]
+        priority_sampling=None,  # type: Optional[bool]
+        settings=None,  # type: Optional[Dict[str, Any]]
+        collect_metrics=None,  # type: Optional[bool]
+        dogstatsd_url=None,  # type: Optional[str]
+        writer=None,  # type: Optional[Union[AgentWriter, LogWriter]]
     ):
         """
         Configure an existing Tracer the easy way.
@@ -273,7 +276,7 @@ class Tracer(object):
         else:
             # No URL parts have updated and there's no previous writer to
             # get the URL from.
-            url = None
+            url = None  # type: ignore
 
         self.writer.stop()
         if url:
@@ -323,12 +326,12 @@ class Tracer(object):
                     self._log_compat(logging.WARNING, msg)
 
     def start_span(
-            self,
-            name,  # type: str
-            child_of=None,  # type: Optional[Union[Span, Context]]
-            service=None,  # type: Optional[str]
-            resource=None,  # type: Optional[str]
-            span_type=None  # type: Optional[Union[str, SpanTypes]]
+        self,
+        name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, Context]]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[Union[str, SpanTypes]]
     ):
         """
         Return a span that will trace an operation called `name`. This method allows
@@ -385,9 +388,9 @@ class Tracer(object):
             if parent:
                 service = parent.service
             else:
-                service = config.service  # type: ignore[attr-defined]
+                service = config.service
 
-        mapped_service = config.service_mapping.get(service, service)  # type: ignore[attr-defined]
+        mapped_service = config.service_mapping.get(service, service)
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -419,14 +422,14 @@ class Tracer(object):
             )
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
-            if config.report_hostname:  # type: ignore[attr-defined]
+            if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
             if self._runtime_worker and self._is_span_internal(span):
                 span.meta["language"] = "python"
-
-            span.sampled = self.sampler.sample(span)
+            # TODO: Can remove below type ignore once sampler is mypy type hinted
+            span.sampled = self.sampler.sample(span)  # type: ignore[union-attr]
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self.sampler, DatadogSampler):
@@ -457,8 +460,8 @@ class Tracer(object):
         if self.tags:
             span.set_tags(self.tags)
 
-        if config.env:  # type: ignore[attr-defined]
-            span._set_str_tag(ENV_KEY, config.env)  # type: ignore[attr-defined]
+        if config.env:
+            span._set_str_tag(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -467,10 +470,10 @@ class Tracer(object):
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and service == config.service) or (  # type: ignore[attr-defined]
+            if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and VERSION_KEY in root_span.meta
             ):
-                span._set_str_tag(VERSION_KEY, config.version)  # type: ignore[attr-defined]
+                span._set_str_tag(VERSION_KEY, config.version)
 
         # add it to the current context
         context.add_span(span)
@@ -551,11 +554,11 @@ class Tracer(object):
             self.log.log(level, msg)
 
     def trace(
-            self,
-            name,  # type: str
-            service=None,  # type: Optional[str]
-            resource=None,  # type: Optional[str]
-            span_type=None  # type: Optional[Union[str, SpanTypes]]
+        self,
+        name,  # type: str
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[Union[str, SpanTypes]]
     ):
         """
         Return a span that will trace an operation called `name`. The context that created
@@ -635,7 +638,7 @@ class Tracer(object):
         return None
 
     def write(self, spans):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         """
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
@@ -651,7 +654,7 @@ class Tracer(object):
         if self.enabled and self.writer:
             for filtr in self._filters:
                 try:
-                    spans = filtr.process_trace(spans)
+                    spans = filtr.process_trace(spans)  # type: ignore[arg-type]
                 except Exception:
                     log.error("error while applying filter %s to traces", filtr, exc_info=True)
                 else:
@@ -666,11 +669,11 @@ class Tracer(object):
         return
 
     def wrap(
-            self,
-            name=None,  # type: Optional[str]
-            service=None,  # type: Optional[str]
-            resource=None,  # type: Optional[str]
-            span_type=None  # type: Optional[str]
+        self,
+        name=None,  # type: Optional[str]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
     ):
         """
         A decorator used to trace an entire function. If the traced function
