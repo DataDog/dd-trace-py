@@ -705,8 +705,9 @@ jobs:
       - image: *redis_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
+      - run_test:
+          # Run both flask and flask_cache test suites
+          pattern: 'flask(_cache)?'
 
   gevent:
     <<: *contrib_job
