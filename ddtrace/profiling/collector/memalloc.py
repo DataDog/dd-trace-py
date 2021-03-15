@@ -4,7 +4,7 @@ import os.path
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
-    _memalloc = None
+    _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.profiling import _attr
 from ddtrace.profiling import collector

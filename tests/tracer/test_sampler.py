@@ -466,6 +466,16 @@ def test_datadog_sampler_init():
         assert isinstance(sampler.default_sampler, SamplingRule)
         assert sampler.default_sampler.sample_rate == 0.5
 
+    # Invalid env vars
+    with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
+        with pytest.raises(ValueError):
+            DatadogSampler()
+
+    # Invalid env vars
+    with override_env(dict(DD_TRACE_RATE_LIMIT="asdf")):
+        with pytest.raises(ValueError):
+            DatadogSampler()
+
     # Invalid rules
     for val in (None, True, False, object(), 1, Exception()):
         with pytest.raises(TypeError):

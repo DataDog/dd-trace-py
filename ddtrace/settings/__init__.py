@@ -6,10 +6,9 @@ from .integration import IntegrationConfig
 
 
 # Default global config
-config = Config()
+_config = Config()
 
 __all__ = [
-    "config",
     "Config",
     "ConfigException",
     "HttpConfig",
