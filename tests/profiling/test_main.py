@@ -1,20 +1,10 @@
 import gzip
 import os
-import subprocess
 
 import pytest
 
 from ddtrace.profiling.exporter import pprof_pb2
-
-
-def call_program(*args):
-    subp = subprocess.Popen(
-        args,
-        stdout=subprocess.PIPE,
-        close_fds=True,
-    )
-    stdout, stderr = subp.communicate()
-    return stdout, stderr, subp.wait(), subp.pid
+from tests import call_program
 
 
 def test_call_script(monkeypatch):

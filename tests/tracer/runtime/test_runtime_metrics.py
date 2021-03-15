@@ -1,4 +1,6 @@
 import contextlib
+import os
+import sys
 import time
 import warnings
 
@@ -14,6 +16,7 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from tests import BaseTestCase
 from tests import TracerTestCase
+from tests import call_program
 
 
 @contextlib.contextmanager
@@ -171,3 +174,9 @@ class TestRuntimeWorker(TracerTestCase):
                         pass
                 assert root.get_tag("language") is None
                 assert child.get_tag("language") is None
+
+
+def test_fork():
+    if sys.version_info >= (3, 7, 0):
+        _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork.py"))
+        assert exitcode == 0
