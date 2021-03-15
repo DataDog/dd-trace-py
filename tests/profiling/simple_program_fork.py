@@ -2,7 +2,7 @@ import os
 import sys
 import threading
 
-from ddtrace.profiling import _service
+from ddtrace.internal import service
 import ddtrace.profiling.auto
 import ddtrace.profiling.bootstrap
 from ddtrace.profiling.collector import stack
@@ -15,7 +15,7 @@ lock.acquire()
 test_lock_name = "simple_program_fork.py:13"
 
 
-assert ddtrace.profiling.bootstrap.profiler.status == _service.ServiceStatus.RUNNING
+assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
 
 parent_recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 
@@ -61,7 +61,7 @@ else:
     assert test_lock_name not in set(e.lock_name for e in recorder.reset()[cthreading.LockReleaseEvent])
     lock.release()
     assert test_lock_name in set(e.lock_name for e in recorder.reset()[cthreading.LockReleaseEvent])
-    assert ddtrace.profiling.bootstrap.profiler.status == _service.ServiceStatus.RUNNING
+    assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
     sys.exit(os.WEXITSTATUS(status))
