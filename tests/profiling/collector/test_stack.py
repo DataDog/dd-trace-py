@@ -6,8 +6,8 @@ import timeit
 
 import pytest
 
+from ddtrace.internal import service
 from ddtrace.profiling import _nogevent
-from ddtrace.profiling import _service
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
@@ -164,7 +164,7 @@ def test_ignore_profiler_gevent_task(profiler):
     collector_thread_ids = {
         col._worker.ident
         for col in profiler._profiler._collectors
-        if (isinstance(col, collector.PeriodicCollector) and col.status == _service.ServiceStatus.RUNNING)
+        if (isinstance(col, collector.PeriodicCollector) and col.status == service.ServiceStatus.RUNNING)
     }
     collector_thread_ids.add(c._worker.ident)
     while True:
