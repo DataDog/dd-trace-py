@@ -3,8 +3,8 @@ import threading
 
 import pytest
 
+from ddtrace.internal import service
 from ddtrace.profiling import _periodic
-from ddtrace.profiling import _service
 
 
 if os.getenv("DD_PROFILE_TEST_GEVENT", False):
@@ -107,7 +107,7 @@ def test_gevent_class():
 def test_periodic_service_start_stop():
     t = _periodic.PeriodicService(1)
     t.start()
-    with pytest.raises(_service.ServiceAlreadyRunning):
+    with pytest.raises(service.ServiceAlreadyRunning):
         t.start()
     t.stop()
     t.join()
