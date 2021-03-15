@@ -664,7 +664,7 @@ class Tracer(object):
         return
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
-        # type: (Optional[str], Optional[str], Optional[str], Optional[str]) -> Callable
+        # type: (Optional[str], Optional[str], Optional[str], Optional[str]) -> Callable[[Callable[..., Any]], Callable[..., Any]]  # noqa
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
