@@ -8,9 +8,8 @@ from typing import Any
 from typing import AnyStr
 from typing import Text
 
+# from ddtrace.internal.writer import Response
 from ddtrace.vendor import six
-
-from .internal.writer import Response
 
 
 __all__ = [
@@ -190,7 +189,6 @@ def to_unicode(s):
 
 
 def get_connection_response(conn):
-    # type: (...) -> Response
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.
