@@ -1,6 +1,8 @@
+import atexit
 import functools
 import json
 import logging
+import os
 from os import environ
 from os import getpid
 import sys
@@ -81,6 +83,8 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
+    SHUTDOWN_TIMEOUT = 5
+
     def __init__(
         self,
         url=None,  # type: Optional[str]
@@ -131,6 +135,17 @@ class Tracer(object):
         self.writer = writer
         self.processor = TraceProcessor([])  # type: ignore[call-arg]
         self._hooks = _hooks.Hooks()
+        atexit.register(self._atexit)
+
+    def _atexit(self):
+        # type: () -> None
+        key = "ctrl-break" if os.name == "nt" else "ctrl-c"
+        log.debug(
+            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+            self.SHUTDOWN_TIMEOUT,
+            key,
+        )
+        self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def on_start_span(self, func):
         # type: (Callable) -> Callable
@@ -781,7 +796,7 @@ class Tracer(object):
         """
         self.writer.stop(timeout=timeout)
         if self._runtime_worker:
-            self._shutdown_runtime_worker()
+            self._shutdown_runtime_worker(timeout)
 
     def _shutdown_runtime_worker(self, timeout=None):
         if not self._runtime_worker.is_alive():

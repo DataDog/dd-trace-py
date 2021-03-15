@@ -31,7 +31,6 @@ from .sma import SimpleMovingAverage
 
 log = get_logger(__name__)
 
-DEFAULT_SHUTDOWN_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 # The window size should be chosen so that the look-back period is
@@ -180,7 +179,6 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
     def __init__(
         self,
         agent_url,
-        shutdown_timeout=DEFAULT_SHUTDOWN_TIMEOUT,
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
@@ -192,9 +190,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         dogstatsd=None,
         report_metrics=False,
     ):
-        super(AgentWriter, self).__init__(
-            interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
-        )
+        super(AgentWriter, self).__init__(interval=processing_interval, name=self.__class__.__name__)
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
@@ -262,7 +258,6 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         # type: () -> AgentWriter
         writer = self.__class__(
             agent_url=self.agent_url,
-            shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
         )
         writer._encoder = self._encoder
