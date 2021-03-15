@@ -553,13 +553,8 @@ class Tracer(object):
         else:
             self.log.log(level, msg)
 
-    def trace(
-        self,
-        name,  # type: str
-        service=None,  # type: Optional[str]
-        resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[Union[str, SpanTypes]]
-    ):
+    def trace(self, name, service=None, resource=None, span_type=None):
+        # type: (str, Optional[str], Optional[str], Optional[Union[str, SpanTypes]]) -> Span
         """
         Return a span that will trace an operation called `name`. The context that created
         the span as well as the span parenting, are automatically handled by the tracing

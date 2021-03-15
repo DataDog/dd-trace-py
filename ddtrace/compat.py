@@ -4,8 +4,13 @@ import re
 import sys
 import textwrap
 import threading
+from typing import Any
+from typing import AnyStr
+from typing import Text
 
 from ddtrace.vendor import six
+
+from .internal.writer import Response
 
 
 __all__ = [
@@ -56,6 +61,7 @@ else:
 
 
 def is_integer(obj):
+    # type: (Any) -> bool
     """Helper to determine if the provided ``obj`` is an integer type or not"""
     # DEV: We have to make sure it is an integer and not a boolean
     # >>> type(True)
@@ -164,6 +170,7 @@ else:
 
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
 def to_unicode(s):
+    # type: (AnyStr) -> Text
     """ Return a unicode string for the given bytes or string instance. """
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
@@ -183,6 +190,7 @@ def to_unicode(s):
 
 
 def get_connection_response(conn):
+    # type: (...) -> Response
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.
