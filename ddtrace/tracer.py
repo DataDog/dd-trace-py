@@ -611,13 +611,16 @@ class Tracer(object):
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
         """
-        if not spans or not self.enabled:
+        if not spans:
             return  # nothing to do
 
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
                 self.log.debug("\n%s", span.pprint())
+
+        if not self.enabled:
+            return
 
         spans = self.processor.process(spans)
         if spans is not None:
