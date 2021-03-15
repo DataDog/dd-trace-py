@@ -38,13 +38,12 @@ from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
+from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
-
-# from .settings import config  # TODO: type hint this bad boy OR just import directly from ddtrace
 from .span import Span
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
@@ -205,7 +204,7 @@ class Tracer(object):
         settings=None,  # type: Optional[Dict[str, Any]]
         collect_metrics=None,  # type: Optional[bool]
         dogstatsd_url=None,  # type: Optional[str]
-        writer=None,  # type: Optional[Union[AgentWriter, LogWriter]]
+        writer=None,  # type: Optional[TraceWriter]
     ):
         """
         Configure an existing Tracer the easy way.

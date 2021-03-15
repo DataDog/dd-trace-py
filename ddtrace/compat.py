@@ -203,7 +203,7 @@ def get_connection_response(conn):
 try:
     import contextvars  # noqa
 except ImportError:
-    from ddtrace.vendor import contextvars  # type: ignore
+    from ddtrace.vendor import contextvars  # type: ignore  # noqa
 
     CONTEXTVARS_IS_AVAILABLE = False
 else:
