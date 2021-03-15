@@ -288,6 +288,100 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="flask",
+            command="pytest {cmdargs} tests/contrib/flask",
+            pkgs={
+                "blinker": latest,
+            },
+            venvs=[
+                # Flask 0.10, 0.11
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "flask": ["~=0.10.0", "~=0.11.0"],
+                        "pytest": "~=3.0",
+                        "Werkzeug": "<1.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DATADOG_SERVICE_NAME": "test.flask.service",
+                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": ["~=0.10.0", "~=0.11.0"],
+                        "pytest": "~=3.0",
+                        "Werkzeug": "<1.0",
+                    },
+                ),
+                # Flask == 0.12.0
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DATADOG_SERVICE_NAME": "test.flask.service",
+                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                    },
+                ),
+                # Flask >= 1.0.0
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DATADOG_SERVICE_NAME": "test.flask.service",
+                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="flask_cache",
+            command="pytest {cmdargs} tests/contrib/flask_cache",
+            pkgs={
+                "python-memcached": latest,
+                "redis": "~=2.0",
+                "blinker": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version=2.7),
+                    pkgs={
+                        "flask": ["~=0.10.0", "~=0.11.0"],
+                        "Flask-Cache": ["~=0.12.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
+                        "Flask-Cache": ["~=0.13.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
