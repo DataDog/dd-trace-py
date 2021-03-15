@@ -1,4 +1,7 @@
+import itertools
 from unittest import TestCase
+
+import pytest
 
 from ddtrace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
@@ -8,6 +11,9 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
 from tests import DummyTracer
+
+
+NOT_SET = object()
 
 
 class TestHttpPropagation(TestCase):
@@ -68,6 +74,51 @@ class TestHttpPropagation(TestCase):
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
             assert span.context.dd_origin == "synthetics"
+
+
+@pytest.mark.parametrize(
+    "trace_id,parent_span_id,sampling_priority,dd_origin",
+    itertools.product(
+        # Trace id
+        ["one", None, "123.4", "", NOT_SET],
+        # Parent id
+        ["one", None, "123.4", "", NOT_SET],
+        # Sampling priority
+        ["one", None, "123.4", "", NOT_SET],
+        # Origin
+        [None, NOT_SET],
+    ),
+)
+def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_origin):
+    headers = dict()
+    wsgi_headers = dict()
+
+    if trace_id is not NOT_SET:
+        headers[HTTP_HEADER_TRACE_ID] = trace_id
+        wsgi_headers[get_wsgi_header(HTTP_HEADER_TRACE_ID)] = trace_id
+    if parent_span_id is not NOT_SET:
+        headers[HTTP_HEADER_PARENT_ID] = parent_span_id
+        wsgi_headers[get_wsgi_header(HTTP_HEADER_PARENT_ID)] = parent_span_id
+    if sampling_priority is not NOT_SET:
+        headers[HTTP_HEADER_SAMPLING_PRIORITY] = sampling_priority
+        wsgi_headers[get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY)] = sampling_priority
+    if dd_origin is not NOT_SET:
+        headers[HTTP_HEADER_ORIGIN] = dd_origin
+        wsgi_headers[get_wsgi_header(HTTP_HEADER_ORIGIN)] = dd_origin
+
+    # x-datadog-*headers
+    context = HTTPPropagator.extract(headers)
+    assert context.trace_id is None
+    assert context.span_id is None
+    assert context.sampling_priority is None
+    assert context.dd_origin is None
+
+    # HTTP_X_DATADOG_* headers
+    context = HTTPPropagator.extract(wsgi_headers)
+    assert context.trace_id is None
+    assert context.span_id is None
+    assert context.sampling_priority is None
+    assert context.dd_origin is None
 
 
 class TestPropagationUtils(object):
