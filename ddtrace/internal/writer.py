@@ -8,8 +8,8 @@ from typing import List
 from typing import Optional
 
 import ddtrace
-from ddtrace.vendor import six
 from ddtrace import Span
+from ddtrace.vendor import six
 
 from . import agent
 from .. import _worker
