@@ -160,6 +160,7 @@ class Tracer(object):
     @debug_logging.setter  # type: ignore[misc]
     @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
+        # type: (bool) -> None
         self.log.setLevel(logging.DEBUG if value else logging.WARN)
 
     @deprecated("Use .tracer, not .tracer()", "1.0.0")
@@ -637,7 +638,7 @@ class Tracer(object):
         return None
 
     def write(self, spans):
-        # type: (Optional[List[Span]]) -> None
+        # type: (List[Span]) -> None
         """
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
@@ -653,7 +654,7 @@ class Tracer(object):
         if self.enabled and self.writer:
             for filtr in self._filters:
                 try:
-                    spans = filtr.process_trace(spans)  # type: ignore[arg-type]
+                    spans = filtr.process_trace(spans)  # type: ignore[arg-type, assignment]
                 except Exception:
                     log.error("error while applying filter %s to traces", filtr, exc_info=True)
                 else:
@@ -667,13 +668,8 @@ class Tracer(object):
         """Set the information about the given service."""
         return
 
-    def wrap(
-        self,
-        name=None,  # type: Optional[str]
-        service=None,  # type: Optional[str]
-        resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[str]
-    ):
+    def wrap(self, name=None, service=None, resource=None, span_type=None):
+        # type: (Optional[str], Optional[str], Optional[str], Optional[str]) -> Callable
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
