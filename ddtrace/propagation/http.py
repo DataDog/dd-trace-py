@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ..context import Context
 from ..internal.logger import get_logger
 from .utils import get_wsgi_header
@@ -56,52 +58,19 @@ class HTTPPropagator(object):
             headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
 
     @staticmethod
-    def extract_header_value(possible_header_names, headers, default=None):
-        normalized_headers = {name.lower(): v for name, v in headers.items()}
+    def _extract_header_value(possible_header_names, headers, default=None):
+        # type: (frozenset[str], dict[str, str], Optional[str]) -> str
         for header in possible_header_names:
             try:
-                return normalized_headers[header]
+                return headers[header]
             except KeyError:
                 pass
 
         return default
 
     @staticmethod
-    def extract_trace_id(headers):
-        return int(
-            HTTPPropagator.extract_header_value(
-                POSSIBLE_HTTP_HEADER_TRACE_IDS,
-                headers,
-                default=0,
-            )
-        )
-
-    @staticmethod
-    def extract_parent_span_id(headers):
-        return int(
-            HTTPPropagator.extract_header_value(
-                POSSIBLE_HTTP_HEADER_PARENT_IDS,
-                headers,
-                default=0,
-            )
-        )
-
-    @staticmethod
-    def extract_sampling_priority(headers):
-        return HTTPPropagator.extract_header_value(
-            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
-            headers,
-        )
-
-    @staticmethod
-    def extract_origin(headers):
-        return HTTPPropagator.extract_header_value(
-            POSSIBLE_HTTP_HEADER_ORIGIN,
-            headers,
-        )
-
-    @staticmethod
     def extract(headers):
+        # type: (dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
 
         Here is an example from a web endpoint::
@@ -123,28 +92,49 @@ class HTTPPropagator(object):
             return Context()
 
         try:
-            trace_id = HTTPPropagator.extract_trace_id(headers)
-            parent_span_id = HTTPPropagator.extract_parent_span_id(headers)
-            sampling_priority = HTTPPropagator.extract_sampling_priority(headers)
-            origin = HTTPPropagator.extract_origin(headers)
+            normalized_headers = {name.lower(): v for name, v in headers.items()}
 
-            if sampling_priority is not None:
-                sampling_priority = int(sampling_priority)
-
-            return Context(
-                trace_id=trace_id,
-                span_id=parent_span_id,
-                sampling_priority=sampling_priority,
-                dd_origin=origin,
+            trace_id = HTTPPropagator._extract_header_value(
+                POSSIBLE_HTTP_HEADER_TRACE_IDS,
+                normalized_headers,
+                default=0,
             )
-        # If headers are invalid and cannot be parsed, return a new context and log the issue.
+            parent_span_id = HTTPPropagator._extract_header_value(
+                POSSIBLE_HTTP_HEADER_PARENT_IDS,
+                normalized_headers,
+                default=0,
+            )
+            sampling_priority = HTTPPropagator._extract_header_value(
+                POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
+                normalized_headers,
+            )
+            origin = HTTPPropagator._extract_header_value(
+                POSSIBLE_HTTP_HEADER_ORIGIN,
+                normalized_headers,
+            )
+
+            # Try to parse values into their expected types
+            try:
+                if sampling_priority is not None:
+                    sampling_priority = int(sampling_priority)
+
+                return Context(
+                    # DEV: Do not allow `0` for trace id or span id, use None instead
+                    trace_id=int(trace_id) or None,
+                    span_id=int(parent_span_id) or None,
+                    sampling_priority=sampling_priority,
+                    dd_origin=origin,
+                )
+            # If headers are invalid and cannot be parsed, return a new context and log the issue.
+            except (TypeError, ValueError):
+                log.debug(
+                    "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
+                    trace_id,
+                    parent_span_id,
+                    sampling_priority,
+                    origin,
+                )
+                return Context()
         except Exception:
-            log.debug(
-                "invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, origin: %s",
-                headers.get(HTTP_HEADER_TRACE_ID, 0),
-                headers.get(HTTP_HEADER_PARENT_ID, 0),
-                headers.get(HTTP_HEADER_SAMPLING_PRIORITY),
-                headers.get(HTTP_HEADER_ORIGIN, ""),
-                exc_info=True,
-            )
+            log.debug("error while extracting x-datadog-* headers", exc_info=True)
             return Context()

@@ -476,7 +476,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.port == 1234
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="foo:1234")
         assert tracer.writer.dogstatsd.host == "foo"
         assert tracer.writer.dogstatsd.port == 1234
@@ -489,7 +489,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
         assert tracer.writer.dogstatsd.host is None
         assert tracer.writer.dogstatsd.port is None
@@ -550,14 +550,16 @@ def test_tracer_url():
     assert t.writer.agent_url == "unix:///foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.agent_url == "http://localhost:80"
+    assert t.writer.agent_url == "http://localhost"
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.agent_url == "https://localhost:443"
+    assert t.writer.agent_url == "https://localhost"
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
-        assert str(e) == "Unknown scheme `https` for agent URL"
+    assert (
+        str(e.value) == "Unsupported protocol 'foo' in Agent URL 'foo://foobar:12'. Must be one of: http, https, unix"
+    )
 
 
 def test_tracer_shutdown_no_timeout():
@@ -1510,8 +1512,31 @@ def test_configure_url_partial():
     assert tracer.writer.agent_url == "http://abc:123"
 
     tracer = ddtrace.Tracer(url="http://abc")
-    assert tracer.writer.agent_url == "http://abc:80"
+    assert tracer.writer.agent_url == "http://abc"
     tracer.configure(port=123)
     assert tracer.writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
     assert tracer.writer.agent_url == "http://abc:431"
+
+
+def test_bad_agent_url(monkeypatch):
+    with pytest.raises(ValueError):
+        Tracer(url="bad://localhost:8126")
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "bad://localhost:1234")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert (
+        str(e.value)
+        == "Unsupported protocol 'bad' in Agent URL 'bad://localhost:1234'. Must be one of: http, https, unix"
+    )
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
