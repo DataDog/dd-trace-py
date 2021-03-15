@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
+from ddtrace.internal import service
 from ddtrace.profiling import _attr
 from ddtrace.profiling import _periodic
-from ddtrace.profiling import _service
 from ddtrace.vendor import attr
 
 
@@ -14,7 +14,7 @@ class CollectorUnavailable(CollectorError):
 
 
 @attr.s
-class Collector(_service.Service):
+class Collector(service.Service):
     """A profile collector."""
 
     recorder = attr.ib()
