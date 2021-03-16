@@ -6,9 +6,9 @@ import sys
 import threading
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 
 import ddtrace
-from ddtrace import Span
 from ddtrace.vendor import six
 
 from . import agent
@@ -27,6 +27,10 @@ from .buffer import TraceBuffer
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 
 log = get_logger(__name__)
