@@ -112,11 +112,11 @@ def _set_request_tags(django, span, request):
         try:
             if hasattr(user, "is_authenticated"):
                 span._set_str_tag("django.user.is_authenticated", user_is_authenticated(user))
-            
+
             uid = getattr(user, "pk", None)
             if uid:
                 span._set_str_tag("django.user.id", str(uid))
-            
+
             if config.django.include_user_name:
                 username = getattr(user, "username", None)
                 if username:
