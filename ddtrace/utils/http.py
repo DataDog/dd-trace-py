@@ -1,7 +1,8 @@
-from ..compat import parse
+from typing import Optional
 
 
 def normalize_header_name(header_name):
+    # type: (Optional[str]) -> Optional[str]
     """
     Normalizes an header name to lower case, stripping all its leading and trailing white spaces.
     :param header_name: the header name to normalize
@@ -12,23 +13,15 @@ def normalize_header_name(header_name):
     return header_name.strip().lower() if header_name is not None else None
 
 
-def sanitize_url_for_tag(url):
+def strip_query_string(url):
+    # type: (str) -> str
     """
-    Strips the qs from a URL for use as tag in spans.
-
-    :param url: The url to be stripped
-    :type url: str
-    :return: The sanitized URL
-    :rtype: str
+    Strips the query string from a URL for use as tag in spans.
+    :param url: The URL to be stripped
+    :return: The given URL without query strings
     """
-    parsed = parse.urlparse(url)
-    return parse.urlunparse(
-        (
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path,
-            parsed.params,
-            None,  # drop parsed.query
-            parsed.fragment,
-        )
-    )
+    hqs, fs, f = url.partition("#")
+    h, _, _ = hqs.partition("?")
+    if not f:
+        return h
+    return h + fs + f

@@ -1,5 +1,7 @@
 import asyncio
 
+from ddtrace import config
+
 from .. import trace_utils
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -7,7 +9,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
-from ...settings import config
 from ..asyncio import context_provider
 
 
@@ -108,12 +109,11 @@ def on_prepare(request, response):
     if trace_query_string:
         request_span.set_tag(http.QUERY_STRING, request.query_string)
 
-    url = request.url.with_query(None)
     trace_utils.set_http_meta(
         request_span,
         config.aiohttp,
         method=request.method,
-        url=url,
+        url=str(request.url),  # DEV: request.url is a yarl's URL object
         status_code=response.status,
         request_headers=request.headers,
         response_headers=response.headers,

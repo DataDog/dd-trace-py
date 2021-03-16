@@ -20,7 +20,6 @@ memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
-localstack_image: &localstack_image localstack/localstack:0.12.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
 mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
@@ -367,6 +366,13 @@ jobs:
       - setup_riot
       - run: riot run -s flake8
 
+  mypy:
+    executor: python38
+    steps:
+      - checkout
+      - setup_riot
+      - run: riot run mypy
+
   coverage_report:
     executor: python38
     steps:
@@ -534,8 +540,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-vendor'
+      - run_test:
+          pattern: 'vendor'
 
   futures:
     <<: *contrib_job
@@ -558,15 +564,15 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py..-ddtracerun$'
+          pattern: 'ddtracerun'
 
   test_logging:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_logging$'
+      - run_test:
+          pattern: 'test_logging'
 
   asyncio:
     <<: *contrib_job
@@ -699,8 +705,9 @@ jobs:
       - image: *redis_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
+      - run_test:
+          # Run both flask and flask_cache test suites
+          pattern: 'flask(_cache)?'
 
   gevent:
     <<: *contrib_job
@@ -1037,6 +1044,7 @@ requires_pre_test: &requires_pre_test
     - black
     - flake8
     - ccheck
+    - mypy
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -1135,6 +1143,7 @@ workflows:
       - build_docs
       - black
       - flake8
+      - mypy
       - ccheck
       - build_base_venvs
 

@@ -12,7 +12,6 @@ from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool
 from ...utils.formats import get_env
-from ...utils.http import sanitize_url_for_tag
 from ...utils.wrappers import unwrap as _u
 
 
@@ -108,7 +107,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
     parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
-    sanitized_url = sanitize_url_for_tag(request_url)
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -142,7 +140,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 span,
                 integration_config=config.urllib3,
                 method=request_method,
-                url=sanitized_url,
+                url=request_url,
                 status_code=None if response is None else response.status,
                 query=parsed_uri.query,
                 request_headers=request_headers,

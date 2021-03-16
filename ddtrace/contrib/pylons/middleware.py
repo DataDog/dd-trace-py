@@ -3,6 +3,8 @@ import sys
 from pylons import config
 from webob import Request
 
+from ddtrace import config as ddconfig
+
 from ...compat import reraise
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -10,7 +12,6 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...settings import config as ddconfig
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 

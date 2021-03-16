@@ -276,7 +276,7 @@ def test_heap():
 
 
 def test_heap_collector():
-    heap_sample_size = 4 * 1024
+    heap_sample_size = 1024
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r, heap_sample_size=heap_sample_size)
     with mc:

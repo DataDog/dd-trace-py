@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import flask
 from flask import abort
 from flask import make_response
 
@@ -94,6 +95,22 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Request tags
         assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=biz"
+
+    def test_request_query_string_trace_encoding(self):
+        """Make sure when making a request that we create the expected spans and capture the query string with a non-UTF-8
+        encoding.
+        """
+
+        @self.app.route("/")
+        def index():
+            return "Hello Flask", 200
+
+        with self.override_http_config("flask", dict(trace_query_string=True)):
+            self.client.get(u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+        spans = self.get_spans()
+
+        # Request tags
+        assert spans[0].get_tag(http.QUERY_STRING) == u"foo=bar&baz=����ó��"
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -542,23 +559,27 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(res.status_code, 500)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+
+        span_names = [
+            "flask.request",
+            "flask.try_trigger_before_first_request_functions",
+            "flask.preprocess_request",
+            "flask.dispatch_request",
+            "tests.contrib.flask.test_request.fivehundred",
+            "flask.handle_user_exception",
+            "flask.handle_exception",
+        ]
+
+        if not (flask.__version__.startswith("0.") or flask.__version__.startswith("1.0")):
+            span_names.append("flask.process_response")
+
+        span_names += [
+            "flask.do_teardown_request",
+            "flask.do_teardown_appcontext",
+        ]
 
         # Assert the order of the spans created
-        self.assertListEqual(
-            [
-                "flask.request",
-                "flask.try_trigger_before_first_request_functions",
-                "flask.preprocess_request",
-                "flask.dispatch_request",
-                "tests.contrib.flask.test_request.fivehundred",
-                "flask.handle_user_exception",
-                "flask.handle_exception",
-                "flask.do_teardown_request",
-                "flask.do_teardown_appcontext",
-            ],
-            [s.name for s in spans],
-        )
+        assert span_names == [s.name for s in spans]
 
         # Assert span services
         for span in spans:

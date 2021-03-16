@@ -4,6 +4,15 @@ import logging
 from os import environ
 from os import getpid
 import sys
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Union
+
+from ddtrace import config
 
 from . import _hooks
 from . import compat
@@ -13,9 +22,11 @@ from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
+from .ext import SpanTypes
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
+from .filters import TraceFilter
 from .internal import _rand
 from .internal import agent
 from .internal import debug
@@ -23,15 +34,17 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
+from .internal.processor import TraceProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
+from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
-from .settings import config
 from .span import Span
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
@@ -68,7 +81,12 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
-    def __init__(self, url=None, dogstatsd_url=None):
+    def __init__(
+        self,
+        url=None,  # type: Optional[str]
+        dogstatsd_url=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -77,63 +95,45 @@ class Tracer(object):
         :param url: The DogStatsD URL.
         """
         self.log = log
-        self.sampler = None
+        self.sampler = None  # type: Optional[BaseSampler]
         self.priority_sampler = None
         self._runtime_worker = None
-        self._filters = []
-
-        configure_kwargs = {}
-        writer = None
-        if self._is_agentless_environment() and url is None:
-            writer = LogWriter()
-        elif url is not None:
-            url_parsed = compat.parse.urlparse(url)
-
-            if url_parsed.scheme == "unix":
-                configure_kwargs["uds_path"] = url_parsed.path
-            elif url_parsed.scheme == "http":
-                configure_kwargs.update(
-                    {
-                        "hostname": url_parsed.hostname,
-                        "port": 80 if url_parsed.port is None else url_parsed.port,
-                        "https": False,
-                    }
-                )
-            elif url_parsed.scheme == "https":
-                configure_kwargs.update(
-                    {
-                        "hostname": url_parsed.hostname,
-                        "port": 443 if url_parsed.port is None else url_parsed.port,
-                        "https": True,
-                    }
-                )
-            else:
-                raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
+        self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
         self.tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
-        self._services = set()
+        self._services = set()  # type: Set[str]
 
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
+        self.context_provider = DefaultContextProvider()
+        self.sampler = DatadogSampler()
+        self.priority_sampler = RateByServiceSampler()
+        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
-        # Apply the default configuration
-        self.configure(
-            sampler=DatadogSampler(),
-            context_provider=DefaultContextProvider(),
-            dogstatsd_url=agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url,
-            writer=writer,
-            **configure_kwargs
-        )
-
+        if self._is_agentless_environment() and url is None:
+            writer = LogWriter()
+        else:
+            url = url or agent.get_trace_url()
+            agent.verify_url(url)
+            writer = AgentWriter(
+                agent_url=url,
+                sampler=self.sampler,
+                priority_sampler=self.priority_sampler,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+                report_metrics=config.health_metrics_enabled,
+            )
+        self.writer = writer
+        self.processor = TraceProcessor([])  # type: ignore[call-arg]
         self._hooks = _hooks.Hooks()
 
     def on_start_span(self, func):
+        # type: (Callable) -> Callable
         """Register a function to execute when a span start.
 
         Can be used as a decorator.
@@ -145,6 +145,7 @@ class Tracer(object):
         return func
 
     def deregister_on_start_span(self, func):
+        # type: (Callable) -> Callable
         """Unregister a function registered to execute when a span starts.
 
         Can be used as a decorator.
@@ -159,9 +160,10 @@ class Tracer(object):
     def debug_logging(self):
         return self.log.isEnabledFor(logging.DEBUG)
 
-    @debug_logging.setter
+    @debug_logging.setter  # type: ignore[misc]
     @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
+        # type: (bool) -> None
         self.log.setLevel(logging.DEBUG if value else logging.WARN)
 
     @deprecated("Use .tracer, not .tracer()", "1.0.0")
@@ -173,6 +175,7 @@ class Tracer(object):
         """The global tracer except hook."""
 
     def get_call_context(self, *args, **kwargs):
+        # type: (...) -> Context
         """
         Return the current active ``Context`` for this traced execution. This method is
         automatically called in the ``tracer.trace()``, but it can be used in the application
@@ -188,25 +191,26 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self.context_provider.active(*args, **kwargs)
+        return self.context_provider.active(*args, **kwargs)  # type: ignore
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(
         self,
-        enabled=None,
-        hostname=None,
-        port=None,
-        uds_path=None,
-        https=None,
-        sampler=None,
-        context_provider=None,
-        wrap_executor=None,
-        priority_sampling=None,
-        settings=None,
-        collect_metrics=None,
-        dogstatsd_url=None,
-        writer=None,
+        enabled=None,  # type: Optional[bool]
+        hostname=None,  # type: Optional[str]
+        port=None,  # type: Optional[int]
+        uds_path=None,  # type: Optional[str]
+        https=None,  # type: Optional[bool]
+        sampler=None,  # type: Optional[BaseSampler]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
+        wrap_executor=None,  # type: Optional[Callable]
+        priority_sampling=None,  # type: Optional[bool]
+        settings=None,  # type: Optional[Dict[str, Any]]
+        collect_metrics=None,  # type: Optional[bool]
+        dogstatsd_url=None,  # type: Optional[str]
+        writer=None,  # type: Optional[TraceWriter]
     ):
+        # type: (...) -> None
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -249,52 +253,47 @@ class Tracer(object):
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
-        if writer:
-            self.writer = writer
-            # Ensure dogstatsd client has been created for the writer being configured
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        elif any(x is not None for x in [hostname, port, uds_path, https, priority_sampling, sampler]):
-            if any(x is not None for x in [hostname, port, uds_path, https]):
-                # If any of the parts of the URL have updated, merge them with
-                # the previous writer values.
-                if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                    prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
-                else:
-                    prev_url_parsed = compat.parse.urlparse("")
-
-                if uds_path is not None:
-                    if hostname is None and prev_url_parsed.scheme == "unix":
-                        hostname = prev_url_parsed.hostname
-                    url = "unix://%s%s" % (hostname or "", uds_path)
-                else:
-                    if https is None:
-                        https = prev_url_parsed.scheme == "https"
-                    if hostname is None:
-                        hostname = prev_url_parsed.hostname or ""
-                    if port is None:
-                        port = prev_url_parsed.port
-                    scheme = "https" if https else "http"
-                    url = "%s://%s:%s" % (scheme, hostname, port)
-            elif hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                # Reuse the URL from the previous writer if there was one.
-                url = self.writer.agent_url
+        if any(x is not None for x in [hostname, port, uds_path, https]):
+            # If any of the parts of the URL have updated, merge them with
+            # the previous writer values.
+            if isinstance(self.writer, AgentWriter):
+                prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
             else:
-                # No URL parts have updated and there's no previous writer to
-                # get the URL from.
-                url = None
+                prev_url_parsed = compat.parse.urlparse("")
 
-            if hasattr(self, "writer"):
-                self.writer.stop()
+            if uds_path is not None:
+                if hostname is None and prev_url_parsed.scheme == "unix":
+                    hostname = prev_url_parsed.hostname
+                url = "unix://%s%s" % (hostname or "", uds_path)
+            else:
+                if https is None:
+                    https = prev_url_parsed.scheme == "https"
+                if hostname is None:
+                    hostname = prev_url_parsed.hostname or ""
+                if port is None:
+                    port = prev_url_parsed.port
+                scheme = "https" if https else "http"
+                url = "%s://%s:%s" % (scheme, hostname, port)
+        elif isinstance(self.writer, AgentWriter):
+            # Reuse the URL from the previous writer if there was one.
+            url = self.writer.agent_url
+        else:
+            # No URL parts have updated and there's no previous writer to
+            # get the URL from.
+            url = None  # type: ignore
 
-            self.writer = AgentWriter(
-                url,
-                sampler=self.sampler,
-                priority_sampler=self.priority_sampler,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
-            )
-        elif self.writer:
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        self.writer.stop()
+        if url:
+            agent.verify_url(url)
+        self.writer = writer or AgentWriter(
+            url,
+            sampler=self.sampler,
+            priority_sampler=self.priority_sampler,
+            dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+            report_metrics=config.health_metrics_enabled,
+        )
+        self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -331,7 +330,15 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
-    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
+    def start_span(
+        self,
+        name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, Context]]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[Union[str, SpanTypes]]
+    ):
+        # type: (...) -> Span
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -427,8 +434,8 @@ class Tracer(object):
             # only applied to spans with types that are internal to applications
             if self._runtime_worker and self._is_span_internal(span):
                 span.meta["language"] = "python"
-
-            span.sampled = self.sampler.sample(span)
+            # TODO: Can remove below type ignore once sampler is mypy type hinted
+            span.sampled = self.sampler.sample(span)  # type: ignore[union-attr]
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self.sampler, DatadogSampler):
@@ -553,6 +560,7 @@ class Tracer(object):
             self.log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None):
+        # type: (str, Optional[str], Optional[str], Optional[Union[str, SpanTypes]]) -> Span
         """
         Return a span that will trace an operation called `name`. The context that created
         the span as well as the span parenting, are automatically handled by the tracing
@@ -600,6 +608,7 @@ class Tracer(object):
         )
 
     def current_root_span(self):
+        # type: () -> Optional[Span]
         """Returns the root span of the current context.
 
         This is useful for attaching information related to the trace as a
@@ -619,6 +628,7 @@ class Tracer(object):
         return None
 
     def current_span(self):
+        # type: () -> Optional[Span]
         """
         Return the active span for the current call context or ``None``
         if no spans are available.
@@ -629,6 +639,7 @@ class Tracer(object):
         return None
 
     def write(self, spans):
+        # type: (Optional[List[Span]]) -> None
         """
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
@@ -641,16 +652,11 @@ class Tracer(object):
             for span in spans:
                 self.log.debug("\n%s", span.pprint())
 
-        if self.enabled and self.writer:
-            for filtr in self._filters:
-                try:
-                    spans = filtr.process_trace(spans)
-                except Exception:
-                    log.error("error while applying filter %s to traces", filtr, exc_info=True)
-                else:
-                    if not spans:
-                        return
+        if not self.enabled:
+            return
 
+        spans = self.processor.process(spans)
+        if spans is not None:
             self.writer.write(spans=spans)
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
@@ -658,7 +664,14 @@ class Tracer(object):
         """Set the information about the given service."""
         return
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None):
+    def wrap(
+        self,
+        name=None,  # type: Optional[str]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Callable[[Callable[..., Any]], Callable[..., Any]]
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
@@ -748,6 +761,7 @@ class Tracer(object):
         return wrap_decorator
 
     def set_tags(self, tags):
+        # type: (Dict[str, str]) -> None
         """Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
@@ -756,6 +770,7 @@ class Tracer(object):
         self.tags.update(tags)
 
     def shutdown(self, timeout=None):
+        # type: (Optional[float]) -> None
         """Shutdown the tracer.
 
         This will stop the background writer/worker and flush any finished traces in the buffer.

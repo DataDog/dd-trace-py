@@ -8,7 +8,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...utils.http import sanitize_url_for_tag
 from .constants import DEFAULT_SERVICE
 
 
@@ -56,13 +55,10 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    # sanitize url of query
     parsed_uri = parse.urlparse(request.url)
     hostname = parsed_uri.hostname
     if parsed_uri.port:
         hostname = "{}:{}".format(hostname, parsed_uri.port)
-
-    sanitized_url = sanitize_url_for_tag(request.url)
 
     with tracer.trace("requests.request", span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
@@ -107,7 +103,7 @@ def _wrap_send(func, instance, args, kwargs):
                     span,
                     config.requests,
                     method=request.method.upper(),
-                    url=sanitized_url,
+                    url=request.url,
                     status_code=status,
                     query=parsed_uri.query,
                 )

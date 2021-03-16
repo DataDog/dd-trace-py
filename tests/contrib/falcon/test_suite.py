@@ -61,7 +61,7 @@ class FalconTestCase(object):
         assert span.parent_id is None
         assert span.error == 1
 
-    def test_200(self, query_string=""):
+    def test_200(self, query_string="", trace_query_string=False):
         if self.version[0] == "1":
             out = self.simulate_get("/200", query_string=query_string)
             assert out.status_code == 200
@@ -81,7 +81,7 @@ class FalconTestCase(object):
         assert span.service == self._service
         assert span.resource == "GET tests.contrib.falcon.app.resources.Resource200"
         assert_span_http_status_code(span, 200)
-        fqs = ("?" + query_string) if query_string else ""
+        fqs = ("?" + query_string) if query_string and trace_query_string else ""
         assert span.get_tag(httpx.URL) == "http://falconframework.org/200" + fqs
         if config.falcon.trace_query_string:
             assert span.get_tag(httpx.QUERY_STRING) == query_string
@@ -99,11 +99,11 @@ class FalconTestCase(object):
 
     def test_200_qs_trace(self):
         with self.override_http_config("falcon", dict(trace_query_string=True)):
-            return self.test_200("foo=bar")
+            return self.test_200("foo=bar", trace_query_string=True)
 
     def test_200_multi_qs_trace(self):
         with self.override_http_config("falcon", dict(trace_query_string=True)):
-            return self.test_200("foo=bar&foo=baz&x=y")
+            return self.test_200("foo=bar&foo=baz&x=y", trace_query_string=True)
 
     def test_analytics_global_on_integration_default(self):
         """

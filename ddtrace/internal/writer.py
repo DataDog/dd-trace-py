@@ -11,6 +11,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace.vendor import six
 
+from . import agent
 from .. import _worker
 from .. import compat
 from ..compat import httplib
@@ -20,7 +21,6 @@ from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..utils.time import StopWatch
 from .agent import get_connection
-from .agent import get_trace_url
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
@@ -31,7 +31,7 @@ from .sma import SimpleMovingAverage
 
 log = get_logger(__name__)
 
-DEFAULT_TIMEOUT = 5
+DEFAULT_SHUTDOWN_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 # The window size should be chosen so that the look-back period is
@@ -133,7 +133,7 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
 
     @abc.abstractmethod
     def write(self, trace):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         pass
 
 
@@ -159,7 +159,7 @@ class LogWriter(TraceWriter):
         return
 
     def write(self, spans):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         if not spans:
             return
 
@@ -179,8 +179,8 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
 
     def __init__(
         self,
-        agent_url=None,
-        shutdown_timeout=DEFAULT_TIMEOUT,
+        agent_url,
+        shutdown_timeout=DEFAULT_SHUTDOWN_TIMEOUT,
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
@@ -188,14 +188,14 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         # to flush dynamically.
         buffer_size=8 * 1000000,
         max_payload_size=8 * 1000000,
-        timeout=2,
+        timeout=agent.DEFAULT_TIMEOUT,
         dogstatsd=None,
         report_metrics=False,
     ):
         super(AgentWriter, self).__init__(
             interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        self.agent_url = get_trace_url() if agent_url is None else agent_url
+        self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
