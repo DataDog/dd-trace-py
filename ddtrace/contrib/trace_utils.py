@@ -126,6 +126,7 @@ def get_error_ranges(error_range_str):
 
 
 def is_error_code(status_code):
+    # type: (int) -> bool
     """Returns a boolean representing whether or not a status code is an error code.
     Error status codes by default are 500-599.
     You may also enable custom error codes::
@@ -135,10 +136,9 @@ def is_error_code(status_code):
 
     Ranges and singular error codes are permitted and can be separated using commas.
     """
-
     error_ranges = get_error_ranges(config.http_server.error_statuses)
     for error_range in error_ranges:
-        if error_range[0] <= int(status_code) <= error_range[1]:
+        if error_range[0] <= status_code <= error_range[1]:
             return True
     return False
 
@@ -161,9 +161,14 @@ def set_http_meta(
         span._set_str_tag(http.URL, url)
 
     if status_code is not None:
-        span._set_str_tag(http.STATUS_CODE, status_code)
-        if is_error_code(status_code):
-            span.error = 1
+        try:
+            int_status_code = int(status_code)
+        except (TypeError, ValueError):
+            log.debug("failed to convert http status code %r to int", status_code)
+        else:
+            span._set_str_tag(http.STATUS_CODE, status_code)
+            if is_error_code(int_status_code):
+                span.error = 1
 
     if status_msg is not None:
         span._set_str_tag(http.STATUS_MSG, status_msg)

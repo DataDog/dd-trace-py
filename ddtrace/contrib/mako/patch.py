@@ -1,10 +1,11 @@
 import mako
 from mako.template import Template
 
+from ddtrace import config
+
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...pin import Pin
-from ...settings import config
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
 from ...vendor.wrapt import wrap_function_wrapper as _w

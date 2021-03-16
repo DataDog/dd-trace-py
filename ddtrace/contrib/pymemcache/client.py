@@ -9,6 +9,7 @@ from pymemcache.exceptions import MemcacheUnknownCommandError
 from pymemcache.exceptions import MemcacheUnknownError
 
 # 3p
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...compat import reraise
@@ -20,7 +21,6 @@ from ...ext import memcached as memcachedx
 from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ...settings import config
 
 
 log = get_logger(__name__)

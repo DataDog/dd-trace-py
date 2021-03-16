@@ -1,11 +1,11 @@
 import sys
 
 import ddtrace
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings import config
 
 from .. import trace_utils
 from ...compat import reraise
