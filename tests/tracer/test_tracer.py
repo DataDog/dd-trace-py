@@ -924,8 +924,8 @@ class EnvTracerTestCase(TracerTestCase):
             return path == DATADOG_LAMBDA_EXTENSION_PATH
 
         with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
-            tracer = DummyTracer()
-            assert isinstance(tracer.original_writer, AgentWriter)
+            tracer = Tracer()
+            assert isinstance(tracer.writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
