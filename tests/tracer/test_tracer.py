@@ -913,11 +913,13 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env(self):
-        assert isinstance(self.tracer.original_writer, LogWriter)
+        tracer = Tracer()
+        assert isinstance(tracer.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(self.tracer.original_writer, AgentWriter)
+        tracer = Tracer()
+        assert isinstance(tracer.writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):

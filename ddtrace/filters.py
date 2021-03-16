@@ -9,7 +9,7 @@ from ddtrace.vendor import six
 from .ext import http
 
 
-class TraceFilter(six.with_metaclass(abc.ABCMeta)):
+class TraceFilter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     @abc.abstractmethod
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
@@ -52,6 +52,7 @@ class FilterRequestsOnUrl(TraceFilter):
         self._regexps = [re.compile(regexp) for regexp in regexps]
 
     def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
         """
         When the filter is registered in the tracer, process_trace is called by
         on each trace before it is sent to the agent, the returned value will
