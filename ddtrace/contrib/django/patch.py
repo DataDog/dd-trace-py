@@ -102,21 +102,21 @@ def instrument_dbs(django):
 
 
 def _set_request_tags(django, span, request):
-    span.set_tag("django.request.class", func_name(request))
+    span._set_str_tag("django.request.class", func_name(request))
 
     user = getattr(request, "user", None)
     if user is not None:
         if hasattr(user, "is_authenticated"):
-            span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
+            span._set_str_tag("django.user.is_authenticated", user_is_authenticated(user))
 
         uid = getattr(user, "pk", None)
         if uid:
-            span.set_tag("django.user.id", uid)
+            span._set_str_tag("django.user.id", str(uid))
 
         if config.django.include_user_name:
             username = getattr(user, "username", None)
             if username:
-                span.set_tag("django.user.name", username)
+                span._set_str_tag("django.user.name", username)
 
 
 @trace_utils.with_traced_module
@@ -129,11 +129,11 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-        span.set_tag("django.cache.backend", cache_backend)
+        span._set_str_tag("django.cache.backend", cache_backend)
 
         if args:
             keys = utils.quantize_key_values(args[0])
-            span.set_tag("django.cache.key", keys)
+            span._set_str_tag("django.cache.key", keys)
 
         return func(*args, **kwargs)
 
@@ -385,7 +385,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             # Not a 404 request
             if resolver_match:
-                span.set_tag("django.view", resolver_match.view_name)
+                span._set_str_tag("django.view", resolver_match.view_name)
                 utils.set_tag_array(span, "django.namespace", resolver_match.namespaces)
 
                 # Django >= 2.0.0
@@ -393,7 +393,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     utils.set_tag_array(span, "django.app", resolver_match.app_names)
 
             if route:
-                span.set_tag("http.route", route)
+                span._set_str_tag("http.route", route)
 
             # Set HTTP Request tags
             response = func(*args, **kwargs)
@@ -405,7 +405,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             if response:
                 status = response.status_code
-                span.set_tag("django.response.class", func_name(response))
+                span._set_str_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
                     # template_name is a bit of a misnomer, as it could be any of:
                     # a list of strings, a tuple of strings, a single string, or an instance of Template
@@ -470,10 +470,10 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
         if template_name:
-            span.set_tag("django.template.name", template_name)
+            span._set_str_tag("django.template.name", template_name)
         engine = getattr(instance, "engine", None)
         if engine:
-            span.set_tag("django.template.engine.class", func_name(engine))
+            span._set_str_tag("django.template.engine.class", func_name(engine))
 
         return wrapped(*args, **kwargs)
 
