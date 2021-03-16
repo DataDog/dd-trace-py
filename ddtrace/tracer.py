@@ -129,7 +129,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
             )
         self.writer = writer
-        self.processor = TraceProcessor([])
+        self.processor = TraceProcessor([])  # type: ignore[call-arg]
         self._hooks = _hooks.Hooks()
 
     def on_start_span(self, func):
@@ -292,7 +292,7 @@ class Tracer(object):
             report_metrics=config.health_metrics_enabled,
         )
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self.processor = TraceProcessor(filters=self._filters)
+        self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -637,7 +637,7 @@ class Tracer(object):
         return None
 
     def write(self, spans):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         """
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
