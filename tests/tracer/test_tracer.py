@@ -29,7 +29,6 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.vendor import six
-from tests import DummyTracer
 from tests import DummyWriter
 from tests import TracerTestCase
 from tests import override_global_config
