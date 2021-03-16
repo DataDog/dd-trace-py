@@ -166,7 +166,7 @@ class Span(object):
 
     @duration.setter
     def duration(self, value):
-        self.duration_ns = value * 1e9
+        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time=None):
         """Mark the end time of the span and submit it to the tracer.
