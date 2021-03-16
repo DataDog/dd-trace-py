@@ -10,7 +10,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
 from typing import Union
 
 from ddtrace import config
@@ -22,6 +21,7 @@ from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
+from .context import Context
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
@@ -44,14 +44,10 @@ from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
+from .span import Span
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
 from .utils.formats import get_env
-
-
-if TYPE_CHECKING:
-    from .context import Context
-    from .span import Span
 
 
 log = get_logger(__name__)
