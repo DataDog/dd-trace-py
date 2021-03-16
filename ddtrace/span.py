@@ -182,7 +182,7 @@ class Span(object):
     @duration.setter
     def duration(self, value):
         # type: (int) -> None
-        self.duration_ns = value * 1e9  # type: ignore
+        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time=None):
         # type: (Optional[int]) -> None
