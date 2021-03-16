@@ -133,7 +133,7 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
 
     @abc.abstractmethod
     def write(self, trace):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         pass
 
 
@@ -159,7 +159,7 @@ class LogWriter(TraceWriter):
         return
 
     def write(self, spans):
-        # type: (List[Span]) -> None
+        # type: (Optional[List[Span]]) -> None
         if not spans:
             return
 

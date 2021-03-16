@@ -7,6 +7,7 @@ from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
 
@@ -158,7 +159,7 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        span._set_str_tag(http.URL, url)
+        span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
 
     if status_code is not None:
         try:

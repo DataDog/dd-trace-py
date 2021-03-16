@@ -9,7 +9,14 @@ def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPO
 
 
 venv = Venv(
-    pkgs={"mock": latest, "pytest": latest, "coverage": latest, "pytest-cov": latest, "opentracing": latest},
+    pkgs={
+        "mock": latest,
+        "pytest": latest,
+        "coverage": latest,
+        "pytest-cov": latest,
+        "opentracing": latest,
+        "hypothesis": latest,
+    },
     venvs=[
         Venv(
             pys="3",
