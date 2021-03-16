@@ -3,10 +3,11 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace import Span
+
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
-from .span import Span
 from .utils.formats import asbool
 from .utils.formats import get_env
 
@@ -130,16 +131,14 @@ class Context(object):
             self._parent_span_id = None
 
     def add_span(self, span):
-        # type: (Optional[Span]) -> None
+        # type: (Span) -> None
         """
         Add a span to the context trace list, keeping it as the last active span.
         """
         with self._lock:
             self._set_current_span(span)
-
-            # TODO: Check if span is None
-            self._trace.append(span)  # type: ignore
-            span._context = self  # type: ignore
+            self._trace.append(span)
+            span._context = self
 
     def close_span(self, span):
         # type: (Span) -> Tuple[Optional[List[Span]], Optional[bool]]

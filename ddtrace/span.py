@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from .compat import StringIO
 from .compat import is_integer
@@ -62,7 +63,7 @@ class Span(object):
 
     def __init__(
         self,
-        tracer,  # type: Tracer
+        tracer,  # type: Optional[Tracer]
         name,  # type: str
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
@@ -131,11 +132,13 @@ class Span(object):
 
     @property
     def start(self):
+        # type: () -> float
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
 
     @start.setter
     def start(self, value):
+        # type: (Union[int, float]) -> None
         self.start_ns = int(value * 1e9)
 
     @property
@@ -148,6 +151,7 @@ class Span(object):
 
     @property
     def finished(self):
+        # type: () -> bool
         return self.duration_ns is not None
 
     @finished.setter
@@ -169,6 +173,7 @@ class Span(object):
         """The span duration in seconds."""
         if self.duration_ns is not None:
             return self.duration_ns / 1e9
+        # TODO: add return None if self.duration_ns is None
 
     @duration.setter
     def duration(self, value):
