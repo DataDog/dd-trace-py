@@ -210,6 +210,7 @@ class Tracer(object):
         dogstatsd_url=None,  # type: Optional[str]
         writer=None,  # type: Optional[TraceWriter]
     ):
+        # type: (...) -> None
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -337,6 +338,7 @@ class Tracer(object):
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[Union[str, SpanTypes]]
     ):
+        # type: (...) -> Span
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -662,8 +664,14 @@ class Tracer(object):
         """Set the information about the given service."""
         return
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None):
-        # type: (Optional[str], Optional[str], Optional[str], Optional[str]) -> Callable[[Callable[..., Any]], Callable[..., Any]]  # noqa
+    def wrap(
+            self,
+            name=None,  # type: Optional[str]
+            service=None,  # type: Optional[str]
+            resource=None,  # type: Optional[str]
+            span_type=None  # type: Optional[str]
+    ):
+        # type: (...) -> Callable[[Callable[..., Any]], Callable[..., Any]]
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
