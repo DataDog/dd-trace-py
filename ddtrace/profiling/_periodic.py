@@ -2,6 +2,7 @@
 import sys
 import threading
 import time
+import typing
 
 from ddtrace.internal import service
 from ddtrace.profiling import _nogevent
@@ -18,7 +19,14 @@ class PeriodicThread(threading.Thread):
 
     _ddtrace_profiling_ignore = True
 
-    def __init__(self, interval, target, name=None, on_shutdown=None):
+    def __init__(
+        self,
+        interval,  # type: float
+        target,  # type: typing.Callable[[], typing.Any]
+        name=None,  # type: typing.Optional[str]
+        on_shutdown=None,  # type: typing.Callable[[], typing.Any]
+    ):
+        # type: (...) -> None
         """Create a periodic thread.
 
         :param interval: The interval in seconds to wait between execution of the periodic function.
