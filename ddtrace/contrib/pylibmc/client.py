@@ -5,6 +5,7 @@ import pylibmc
 
 # project
 import ddtrace
+from ddtrace import config
 # 3p
 from ddtrace.vendor.wrapt import ObjectProxy
 
@@ -14,7 +15,6 @@ from ...ext import SpanTypes
 from ...ext import memcached
 from ...ext import net
 from ...internal.logger import get_logger
-from ...settings import config
 from .addrs import parse_addresses
 
 

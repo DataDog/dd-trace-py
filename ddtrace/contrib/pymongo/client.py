@@ -7,6 +7,7 @@ import pymongo
 
 # project
 import ddtrace
+from ddtrace import config
 from ddtrace.vendor.wrapt import ObjectProxy
 
 from ...compat import iteritems
@@ -16,7 +17,6 @@ from ...ext import SpanTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.logger import get_logger
-from ...settings import config
 from .parse import parse_msg
 from .parse import parse_query
 from .parse import parse_spec
