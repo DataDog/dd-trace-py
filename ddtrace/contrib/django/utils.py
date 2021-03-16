@@ -59,10 +59,10 @@ def set_tag_array(span, prefix, value):
         return
 
     if len(value) == 1:
-        span.set_tag(prefix, value[0])
+        span._set_str_tag(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
-            span.set_tag("{0}.{1}".format(prefix, i), v)
+            span._set_str_tag("{0}.{1}".format(prefix, i), v)
 
 
 def get_request_uri(request):
