@@ -1,8 +1,12 @@
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import Tuple
 
 import ddtrace
-from ddtrace.tracer import Tracer
+
+
+if TYPE_CHECKING:
+    from ddtrace.tracer import Tracer
 
 
 def get_correlation_ids(tracer=None):

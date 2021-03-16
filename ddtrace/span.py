@@ -28,12 +28,12 @@ from .ext import net
 from .ext import priority
 from .internal import _rand
 from .internal.logger import get_logger
-from .tracer import Tracer
 from .vendor import six
 
 
 if TYPE_CHECKING:
     from .context import Context
+    from .tracer import Tracer
 
 
 log = get_logger(__name__)
