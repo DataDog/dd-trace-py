@@ -9,7 +9,7 @@ from .context import Context
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 
-class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
+class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     """
     A ``ContextProvider`` is an interface that provides the blueprint
     for a callable class, capable to retrieve the current active

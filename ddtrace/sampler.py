@@ -26,13 +26,13 @@ MAX_TRACE_ID = 2 ** 64
 KNUTH_FACTOR = 1111111111111111111
 
 
-class BaseSampler(six.with_metaclass(abc.ABCMeta)):
+class BaseSampler(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     @abc.abstractmethod
     def sample(self, span):
         pass
 
 
-class BasePrioritySampler(six.with_metaclass(abc.ABCMeta)):
+class BasePrioritySampler(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     @abc.abstractmethod
     def update_rate_by_service_sample_rates(self, sample_rates):
         pass
