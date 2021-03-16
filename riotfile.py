@@ -37,6 +37,7 @@ venv = Venv(
                 "flake8-logging-format": latest,
                 "flake8-rst-docstrings": latest,
                 "flake8-isort": latest,
+                "flake8-pyi": latest,
                 "pygments": latest,
             },
         ),
