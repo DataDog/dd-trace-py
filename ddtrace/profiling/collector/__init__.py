@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
+from ddtrace.internal import service
 from ddtrace.profiling import _attr
 from ddtrace.profiling import _periodic
-from ddtrace.profiling import _service
 from ddtrace.vendor import attr
 
 
@@ -14,7 +14,7 @@ class CollectorUnavailable(CollectorError):
 
 
 @attr.s
-class Collector(_service.Service):
+class Collector(service.Service):
     """A profile collector."""
 
     recorder = attr.ib()
@@ -52,7 +52,7 @@ class CaptureSampler(object):
     capture_pct = attr.ib(default=100)
     _counter = attr.ib(default=0, init=False)
 
-    @capture_pct.validator
+    @capture_pct.validator  # type: ignore
     def capture_pct_validator(self, attribute, value):
         if value < 0 or value > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")

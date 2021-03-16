@@ -1,5 +1,6 @@
 import sys
 
+from ddtrace import config
 from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
@@ -12,7 +13,6 @@ from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...settings import config
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
@@ -81,8 +81,7 @@ def _wrap_request(func, instance, args, kwargs):
                 headers = args[3]
             else:
                 headers = kwargs.setdefault("headers", {})
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers)
     except Exception:
         log.debug("error configuring request", exc_info=True)
         span = getattr(instance, "_datadog_span", None)

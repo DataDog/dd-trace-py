@@ -44,7 +44,7 @@ class TestAsyncioSafety(AsyncioTestCase):
         with self.tracer.trace("coroutine") as span:
             span.resource = "base"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         assert "coroutine" == traces[0][0].name
@@ -63,6 +63,6 @@ class TestAsyncioSafety(AsyncioTestCase):
             yield from future
 
         # the trace is wrong but the Context is finished
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1000 == len(traces[0])

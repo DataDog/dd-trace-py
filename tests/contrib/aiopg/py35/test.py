@@ -52,7 +52,7 @@ class TestPsycopgPatch(AsyncioTestCase):
             assert len(rows) == 1
             assert rows[0][0] == 'blah'
 
-        spans = tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == 'postgres.query'

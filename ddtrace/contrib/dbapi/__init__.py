@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -8,7 +9,6 @@ from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ...settings import config
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...vendor import six
@@ -104,10 +104,10 @@ class TracedCursor(wrapt.ObjectProxy):
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
-    def callproc(self, proc, args):
+    def callproc(self, proc, *args):
         """ Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's

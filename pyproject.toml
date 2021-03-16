@@ -44,25 +44,12 @@ exclude = '''
       aiobotocore
       | aiopg
       | boto
-      | botocore
       | cassandra
-      | celery
       | dbapi
-      | flask_cache
-      | grpc/
-      (
-        __init__.py
-        | constants.py
-        | patch.py
-        | server_interceptor.py
-        | utils.py
-      )
       | jinja2
-      | kombu
       | mako
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
@@ -79,32 +66,18 @@ exclude = '''
       aiobotocore
       | aiopg
       | boto
-      | botocore
       | cassandra
       | config.py
       | dbapi
-      | flask_autopatch
-      | flask_cache
-      | grpc
       | jinja2
-      | kombu
       | mako
-      | patch.py
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
       | sqlalchemy
-      | test_utils.py
     )
-    | ddtrace_run.py
-    | profiling/_ast_test_file.py
-    | subprocesstest.py
-    | tracer/fixtures
-    | vendor
-    | wait-for-services.py
   )
 )
 '''

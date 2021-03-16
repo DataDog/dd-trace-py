@@ -11,6 +11,7 @@ from ddtrace import Tracer
 from ddtrace import tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
@@ -141,7 +142,7 @@ def test_uds_wrong_socket_path():
 def test_payload_too_large():
     t = Tracer()
     # Make sure a flush doesn't happen partway through.
-    t.configure(writer=AgentWriter(processing_interval=1000))
+    t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(100000):
             with t.trace("operation") as s:
@@ -441,7 +442,8 @@ class TestTraces(TracerTestCase):
         tracer.configure(
             settings={
                 "FILTERS": [FilterMutate("boop", "beep")],
-            }
+            },
+            writer=tracer.writer,
         )
 
         with tracer.trace("root"):
@@ -505,7 +507,7 @@ class TestTraces(TracerTestCase):
 def test_flush_log(caplog):
     caplog.set_level(logging.INFO)
 
-    writer = AgentWriter()
+    writer = AgentWriter(agent.get_trace_url())
 
     with mock.patch("ddtrace.internal.writer.log") as log:
         writer.write([])

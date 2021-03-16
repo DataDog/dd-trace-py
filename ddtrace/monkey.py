@@ -14,7 +14,7 @@ import threading
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
-from .settings import config
+from .settings import _config as config
 from .utils import formats
 
 
@@ -83,7 +83,7 @@ _PATCH_ON_IMPORT = {
     "aiohttp": ("aiohttp",),
     "aiobotocore": ("aiobotocore",),
     "celery": ("celery",),
-    "flask": ("flask, "),
+    "flask": ("flask",),
     "gevent": ("gevent",),
     "requests": ("requests",),
     "botocore": ("botocore",),

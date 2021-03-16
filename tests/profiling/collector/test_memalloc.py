@@ -196,7 +196,7 @@ def test_memory_collector_ignore_profiler(ignore_profiler):
 
 def test_heap():
     max_nframe = 32
-    _memalloc.start(max_nframe, 10, 8 * 1024)
+    _memalloc.start(max_nframe, 10, 1024)
     x = _allocate_1k()
     # Check that at least one sample comes from the main thread
     thread_found = False
@@ -276,7 +276,7 @@ def test_heap():
 
 
 def test_heap_collector():
-    heap_sample_size = 4 * 1024
+    heap_sample_size = 1024
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r, heap_sample_size=heap_sample_size)
     with mc:

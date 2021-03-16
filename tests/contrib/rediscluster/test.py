@@ -76,7 +76,6 @@ class TestRedisPatch(TracerTestCase):
 
     def test_patch_unpatch(self):
         tracer = DummyTracer()
-        writer = tracer.writer
 
         # Test patch idempotence
         patch()
@@ -86,7 +85,7 @@ class TestRedisPatch(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get('key')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -96,7 +95,7 @@ class TestRedisPatch(TracerTestCase):
         r = self._get_test_client()
         r.get('key')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -106,7 +105,7 @@ class TestRedisPatch(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get('key')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 

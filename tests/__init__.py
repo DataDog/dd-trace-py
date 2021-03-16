@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import inspect
 import os
 import sys
+from typing import List
 
 import pytest
 
@@ -16,7 +17,6 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -353,6 +353,14 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Required subclass method for TestSpanContainer"""
         return self.tracer.writer.spans
 
+    def pop_spans(self):
+        # type: () -> List[Span]
+        return self.tracer.pop()
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        return self.tracer.pop_traces()
+
     def reset(self):
         """Helper to reset the existing list of spans created"""
         self.tracer.writer.pop()
@@ -386,16 +394,16 @@ class DummyWriter(AgentWriter):
 
     def __init__(self, *args, **kwargs):
         # original call
-        super(DummyWriter, self).__init__(*args, **kwargs)
+        if len(args) == 0 and "agent_url" not in kwargs:
+            kwargs["agent_url"] = "http://localhost:8126"
 
-        # dummy components
+        super(DummyWriter, self).__init__(*args, **kwargs)
         self.spans = []
         self.traces = []
-        self.services = {}
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = MsgpackEncoder()
 
-    def write(self, spans=None, services=None):
+    def write(self, spans=None):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
@@ -406,31 +414,17 @@ class DummyWriter(AgentWriter):
             self.spans += spans
             self.traces += trace
 
-        if services:
-            self.json_encoder.encode_services(services)
-            self.msgpack_encoder.encode_services(services)
-            self.services.update(services)
-
     def pop(self):
-        # dummy method
+        # type: () -> List[Span]
         s = self.spans
         self.spans = []
         return s
 
     def pop_traces(self):
-        # dummy method
+        # type: () -> List[List[Span]]
         traces = self.traces
         self.traces = []
         return traces
-
-    def pop_services(self):
-        # dummy method
-
-        # Setting service info has been deprecated, we want to make sure nothing ever gets written here
-        assert self.services == {}
-        s = self.services
-        self.services = {}
-        return s
 
 
 class DummyTracer(Tracer):
@@ -443,20 +437,15 @@ class DummyTracer(Tracer):
         self._update_writer()
 
     def _update_writer(self):
-        # Track which writer the DummyWriter was created with, used
-        # some tests
-        if not isinstance(self.writer, DummyWriter):
-            self.original_writer = self.writer
-        if isinstance(self.writer, AgentWriter):
-            self.writer = DummyWriter(
-                agent_url=self.writer.agent_url,
-                priority_sampler=self.writer._priority_sampler,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-            )
-        else:
-            self.writer = DummyWriter(
-                priority_sampler=self.writer._priority_sampler,
-            )
+        self.writer = DummyWriter()
+
+    def pop(self):
+        # type: () -> List[Span]
+        return self.writer.pop()
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        return self.writer.pop_traces()
 
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
@@ -669,9 +658,15 @@ class TracerSpanContainer(TestSpanContainer):
         """
         return self.tracer.writer.spans
 
+    def pop(self):
+        return self.tracer.pop()
+
+    def pop_traces(self):
+        return self.tracer.pop_traces()
+
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.writer.pop()
+        self.tracer.pop()
 
 
 class TestSpanNode(TestSpan, TestSpanContainer):
