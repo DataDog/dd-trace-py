@@ -116,11 +116,12 @@ def _on_import_factory(module, raise_errors=True):
         path = "ddtrace.contrib.%s" % module
         try:
             imported_module = importlib.import_module(path)
-            imported_module.patch()
         except ImportError:
             if raise_errors:
                 raise
-            log.error("Failed to import ddtrace module when patching on import", exc_info=True)
+            log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
+        else:
+            imported_module.patch()
 
     return on_import
 
