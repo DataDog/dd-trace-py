@@ -119,7 +119,7 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context
+        self._context = context  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
 

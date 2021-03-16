@@ -3,7 +3,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import Span
+import ddtrace
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -48,9 +48,9 @@ class Context(object):
         :param int trace_id: trace_id of parent span
         :param int span_id: span_id of parent span
         """
-        self._trace = []  # type: List[Span]
+        self._trace = []  # type: List[ddtrace.Span]
         self._finished_spans = 0
-        self._current_span = None  # type: Optional[Span]
+        self._current_span = None  # type: Optional[ddtrace.Span]
         self._lock = threading.Lock()
 
         self._parent_trace_id = trace_id
@@ -99,14 +99,14 @@ class Context(object):
             return new_ctx
 
     def get_current_root_span(self):
-        # type: () -> Optional[Span]
+        # type: () -> Optional[ddtrace.Span]
         """
         Return the root span of the context or None if it does not exist.
         """
         return self._trace[0] if len(self._trace) > 0 else None
 
     def get_current_span(self):
-        # type: () -> Optional[Span]
+        # type: () -> Optional[ddtrace.Span]
         """
         Return the last active span that corresponds to the last inserted
         item in the trace list. This cannot be considered as the current active
@@ -117,7 +117,7 @@ class Context(object):
             return self._current_span
 
     def _set_current_span(self, span):
-        # type: (Optional[Span]) -> None
+        # type: (Optional[ddtrace.Span]) -> None
         """
         Set current span internally.
 
@@ -131,7 +131,7 @@ class Context(object):
             self._parent_span_id = None
 
     def add_span(self, span):
-        # type: (Span) -> None
+        # type: (ddtrace.Span) -> None
         """
         Add a span to the context trace list, keeping it as the last active span.
         """
@@ -141,7 +141,7 @@ class Context(object):
             span._context = self
 
     def close_span(self, span):
-        # type: (Span) -> Tuple[Optional[List[Span]], Optional[bool]]
+        # type: (ddtrace.Span) -> Tuple[Optional[List[ddtrace.Span]], Optional[bool]]
         """
         Mark a span as a finished, increasing the internal counter to prevent
         cycles inside _trace list.
