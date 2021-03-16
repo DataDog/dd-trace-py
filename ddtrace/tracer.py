@@ -86,6 +86,7 @@ class Tracer(object):
         url=None,  # type: Optional[str]
         dogstatsd_url=None,  # type: Optional[str]
     ):
+        # type: (...) -> None
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.

@@ -8,7 +8,6 @@ from typing import Any
 from typing import AnyStr
 from typing import Text
 
-# from ddtrace.internal.writer import Response
 from ddtrace.vendor import six
 
 
