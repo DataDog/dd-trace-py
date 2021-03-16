@@ -447,7 +447,8 @@ venv = Venv(
                         "pytest-asyncio": latest,
                         "requests": latest,
                         "aiofiles": latest,
-                        "sqlalchemy": latest,
+                        # Pinned until https://github.com/encode/databases/issues/298 is resolved.
+                        "sqlalchemy": "~=1.3.0",
                         "aiosqlite": latest,
                         "databases": latest,
                     },
