@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import Union
 
 from .compat import StringIO
@@ -20,7 +21,6 @@ from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
 from .constants import VERSION_KEY
-from .context import Context
 from .ext import SpanTypes
 from .ext import errors
 from .ext import http
@@ -30,6 +30,10 @@ from .internal import _rand
 from .internal.logger import get_logger
 from .tracer import Tracer
 from .vendor import six
+
+
+if TYPE_CHECKING:
+    from .context import Context
 
 
 log = get_logger(__name__)
