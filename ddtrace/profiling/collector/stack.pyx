@@ -9,7 +9,6 @@ import weakref
 from ddtrace import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
