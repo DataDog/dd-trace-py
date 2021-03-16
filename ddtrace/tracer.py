@@ -665,11 +665,11 @@ class Tracer(object):
         return
 
     def wrap(
-            self,
-            name=None,  # type: Optional[str]
-            service=None,  # type: Optional[str]
-            resource=None,  # type: Optional[str]
-            span_type=None  # type: Optional[str]
+        self,
+        name=None,  # type: Optional[str]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
     ):
         # type: (...) -> Callable[[Callable[..., Any]], Callable[..., Any]]
         """

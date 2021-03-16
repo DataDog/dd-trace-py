@@ -162,7 +162,7 @@ else:
     def iscoroutinefunction(fn):  # type: ignore
         return False
 
-    def make_async_decorator(tracer, fn, *params, **kw_params):  # type: ignore
+    def make_async_decorator(tracer, fn, *params, **kw_params):
         return fn
 
 
