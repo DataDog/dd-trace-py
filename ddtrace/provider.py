@@ -1,13 +1,9 @@
 import abc
-from typing import TYPE_CHECKING
 
 from ddtrace.vendor import six
 
 from .compat import contextvars
-
-
-if TYPE_CHECKING:
-    from .context import Context
+from .context import Context
 
 
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
