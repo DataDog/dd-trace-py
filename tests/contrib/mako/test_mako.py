@@ -15,7 +15,6 @@ from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
 
 from ... import TracerTestCase
 from ... import assert_is_measured
-from ... import snapshot
 
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -43,9 +42,9 @@ class MakoTest(TracerTestCase):
         assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].span_type, "template")
-        self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAULT_TEMPLATE_NAME)
         self.assertEqual(spans[0].name, "mako.template.render")
-        self.assertEqual(spans[0].resource, DEFAAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].resource, DEFAULT_TEMPLATE_NAME)
 
         # render_unicode
         t = Template("Hello ${name}!")
@@ -55,9 +54,9 @@ class MakoTest(TracerTestCase):
         assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].span_type, "template")
-        self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAULT_TEMPLATE_NAME)
         self.assertEqual(spans[0].name, "mako.template.render_unicode")
-        self.assertEqual(spans[0].resource, DEFAAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].resource, DEFAULT_TEMPLATE_NAME)
 
         # render_context
         t = Template("Hello ${name}!")
@@ -70,9 +69,9 @@ class MakoTest(TracerTestCase):
         assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, "mako")
         self.assertEqual(spans[0].span_type, "template")
-        self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].get_tag("mako.template_name"), DEFAULT_TEMPLATE_NAME)
         self.assertEqual(spans[0].name, "mako.template.render_context")
-        self.assertEqual(spans[0].resource, DEFAAULT_TEMPLATE_NAME)
+        self.assertEqual(spans[0].resource, DEFAULT_TEMPLATE_NAME)
 
     def test_file_template(self):
         tmpl_lookup = TemplateLookup(directories=[TMPL_DIR])
