@@ -9,7 +9,14 @@ def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPO
 
 
 venv = Venv(
-    pkgs={"mock": latest, "pytest": latest, "coverage": latest, "pytest-cov": latest, "opentracing": latest},
+    pkgs={
+        "mock": latest,
+        "pytest": latest,
+        "coverage": latest,
+        "pytest-cov": latest,
+        "opentracing": latest,
+        "hypothesis": latest,
+    },
     venvs=[
         Venv(
             pys="3",
@@ -401,6 +408,12 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="mako",
+            command="pytest {cmdargs} tests/contrib/mako",
+            pys=select_pys(),
+            pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
@@ -447,7 +460,8 @@ venv = Venv(
                         "pytest-asyncio": latest,
                         "requests": latest,
                         "aiofiles": latest,
-                        "sqlalchemy": latest,
+                        # Pinned until https://github.com/encode/databases/issues/298 is resolved.
+                        "sqlalchemy": "~=1.3.0",
                         "aiosqlite": latest,
                         "databases": latest,
                     },

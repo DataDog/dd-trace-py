@@ -2,9 +2,10 @@
 import sys
 import threading
 import time
+import typing
 
-from ddtrace.profiling import _nogevent
-from ddtrace.profiling import _service
+from ddtrace.internal import nogevent
+from ddtrace.internal import service
 from ddtrace.vendor import attr
 
 
@@ -18,7 +19,14 @@ class PeriodicThread(threading.Thread):
 
     _ddtrace_profiling_ignore = True
 
-    def __init__(self, interval, target, name=None, on_shutdown=None):
+    def __init__(
+        self,
+        interval,  # type: float
+        target,  # type: typing.Callable[[], typing.Any]
+        name=None,  # type: typing.Optional[str]
+        on_shutdown=None,  # type: typing.Callable[[], typing.Any]
+    ):
+        # type: (...) -> None
         """Create a periodic thread.
 
         :param interval: The interval in seconds to wait between execution of the periodic function.
@@ -87,9 +95,9 @@ class _GeventPeriodicThread(PeriodicThread):
         self.quit = False
         if self._tident is not None:
             raise RuntimeError("threads can only be started once")
-        self._tident = _nogevent.start_new_thread(self.run, tuple())
-        if _nogevent.threading_get_native_id:
-            self._native_id = _nogevent.threading_get_native_id()
+        self._tident = nogevent.start_new_thread(self.run, tuple())
+        if nogevent.threading_get_native_id:
+            self._native_id = nogevent.threading_get_native_id()
 
         # Wait for the thread to be started to avoid race conditions
         while not self._periodic_started:
@@ -119,7 +127,7 @@ class _GeventPeriodicThread(PeriodicThread):
                 self._target()
                 slept = 0
                 while self.quit is False and slept < self.interval:
-                    _nogevent.sleep(self.SLEEP_INTERVAL)
+                    nogevent.sleep(self.SLEEP_INTERVAL)
                     slept += self.SLEEP_INTERVAL
             if self._on_shutdown is not None:
                 self._on_shutdown()
@@ -148,13 +156,13 @@ def PeriodicRealThread(*args, **kwargs):
     in e.g. the gevent case, where Lock object must not be shared with the MainThread (otherwise it'd dead lock).
 
     """
-    if _nogevent.is_module_patched("threading"):
+    if nogevent.is_module_patched("threading"):
         return _GeventPeriodicThread(*args, **kwargs)
     return PeriodicThread(*args, **kwargs)
 
 
 @attr.s
-class PeriodicService(_service.Service):
+class PeriodicService(service.Service):
     """A service that runs periodically."""
 
     _interval = attr.ib()

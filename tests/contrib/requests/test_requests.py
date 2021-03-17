@@ -153,7 +153,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == URL_200
+        assert s.get_tag(http.URL) == URL_200 + "?" + query_string
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
