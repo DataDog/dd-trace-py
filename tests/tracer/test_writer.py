@@ -12,6 +12,7 @@ from ddtrace.compat import PY3
 from ddtrace.compat import get_connection_response
 from ddtrace.compat import httplib
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
+from ddtrace.internal import service
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -493,10 +494,8 @@ def test_double_stop():
     # Ensure double stopping doesn't result in an exception.
     writer = AgentWriter(agent_url="http://dne:1234")
     writer.write([])
-    assert writer.started
+    assert writer.status == service.ServiceStatus.RUNNING
     writer.stop()
-    assert writer.started
-    assert not writer.is_alive()
+    assert writer.status == service.ServiceStatus.STOPPED
     writer.stop()
-    assert writer.started
-    assert not writer.is_alive()
+    assert writer.status == service.ServiceStatus.STOPPED
