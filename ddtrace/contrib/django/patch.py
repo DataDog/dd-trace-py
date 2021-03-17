@@ -106,17 +106,23 @@ def _set_request_tags(django, span, request):
 
     user = getattr(request, "user", None)
     if user is not None:
-        if hasattr(user, "is_authenticated"):
-            span._set_str_tag("django.user.is_authenticated", user_is_authenticated(user))
+        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
+        # Django's get_user_model():
+        # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+        try:
+            if hasattr(user, "is_authenticated"):
+                span._set_str_tag("django.user.is_authenticated", user_is_authenticated(user))
 
-        uid = getattr(user, "pk", None)
-        if uid:
-            span._set_str_tag("django.user.id", str(uid))
+            uid = getattr(user, "pk", None)
+            if uid:
+                span._set_str_tag("django.user.id", str(uid))
 
-        if config.django.include_user_name:
-            username = getattr(user, "username", None)
-            if username:
-                span._set_str_tag("django.user.name", username)
+            if config.django.include_user_name:
+                username = getattr(user, "username", None)
+                if username:
+                    span._set_str_tag("django.user.name", username)
+        except Exception:
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
 
 
 @trace_utils.with_traced_module
