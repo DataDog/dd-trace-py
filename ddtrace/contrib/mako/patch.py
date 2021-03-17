@@ -42,7 +42,6 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     # Determine the resource and `mako.template_name` tag value
-    template_name = None
     # DefTemplate is a wrapper around a callable from another template, it does not have a filename
     # https://github.com/sqlalchemy/mako/blob/c2c690ac9add584f2216dc655cdf8215b24ef03c/mako/template.py#L603-L622
     if isinstance(instance, DefTemplate) and hasattr(instance, "callable_"):
