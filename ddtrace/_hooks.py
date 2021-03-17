@@ -1,6 +1,9 @@
 import collections
 from copy import deepcopy
+from typing import Any
+from typing import Callable
 from typing import DefaultDict
+from typing import Optional
 from typing import Set
 
 from .internal.logger import get_logger
@@ -29,7 +32,11 @@ class Hooks(object):
         hooks._hooks = deepcopy(self._hooks, memodict)
         return hooks
 
-    def register(self, hook, func=None):
+    def register(
+        self,
+        hook,  # type: Any
+        func=None,  # type: Optional[Callable]
+    ):
         """
         Function used to register a hook for the provided name.
 
@@ -70,7 +77,12 @@ class Hooks(object):
     #        pass
     on = register
 
-    def deregister(self, hook, func):
+    def deregister(
+        self,
+        hook,  # type: Any
+        func,  # type: Callable
+    ):
+        # type: (...) -> None
         """
         Function to deregister a function from a hook it was registered under
 
@@ -93,7 +105,13 @@ class Hooks(object):
             except KeyError:
                 pass
 
-    def emit(self, hook, *args, **kwargs):
+    def emit(
+        self,
+        hook,  # type: Any
+        *args,  # type: Any
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> None
         """
         Function used to call registered hook functions.
 
