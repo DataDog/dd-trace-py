@@ -28,6 +28,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
+from ddtrace.vendor import wrapt
 from tests import assert_dict_issuperset
 from tests import override_config
 from tests import override_env
@@ -1682,3 +1683,12 @@ class TestWSGI:
             assert root.resource == "GET ^error-500/$"
         else:
             assert root.resource == "GET tests.contrib.django.views.error_500"
+
+
+@pytest.mark.django_db
+def test_connections_patched():
+    from django.db import connections
+
+    assert len(connections.all())
+    for conn in connections.all():
+        assert isinstance(conn.cursor, wrapt.ObjectProxy)
