@@ -1,5 +1,3 @@
-import atexit
-import os
 import threading
 
 from .internal.logger import get_logger
@@ -21,11 +19,10 @@ class PeriodicWorkerThread(object):
 
     _DEFAULT_INTERVAL = 1.0
 
-    def __init__(self, interval=_DEFAULT_INTERVAL, exit_timeout=None, name=None, daemon=True):
+    def __init__(self, interval=_DEFAULT_INTERVAL, name=None, daemon=True):
         """Create a new worker thread that runs a function periodically.
 
         :param interval: The interval in seconds to wait between calls to `run_periodic`.
-        :param exit_timeout: The timeout to use when exiting the program and waiting for the thread to finish.
         :param name: Name of the worker.
         :param daemon: Whether the worker should be a daemon.
         """
@@ -35,20 +32,6 @@ class PeriodicWorkerThread(object):
         self._stop = threading.Event()
         self.started = False
         self.interval = interval
-        self.exit_timeout = exit_timeout
-        atexit.register(self._atexit)
-
-    def _atexit(self):
-        self.stop()
-        if self.exit_timeout is not None and self.started:
-            key = "ctrl-break" if os.name == "nt" else "ctrl-c"
-            _LOG.debug(
-                "Waiting %d seconds for %s to finish. Hit %s to quit.",
-                self.exit_timeout,
-                self._thread.name,
-                key,
-            )
-            self.join(self.exit_timeout)
 
     def start(self):
         """Start the periodic worker."""
