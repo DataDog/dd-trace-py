@@ -2,8 +2,6 @@ import os.path
 
 from mako.lookup import TemplateLookup
 from mako.runtime import Context
-
-# 3rd party
 from mako.template import Template
 
 from ddtrace import Pin
