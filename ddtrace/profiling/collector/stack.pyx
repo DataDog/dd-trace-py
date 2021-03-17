@@ -7,8 +7,8 @@ import threading
 import weakref
 
 from ddtrace import compat
+from ddtrace.internal import nogevent
 from ddtrace.profiling import _attr
-from ddtrace.profiling import _nogevent
 from ddtrace.profiling import _periodic
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -236,7 +236,7 @@ cdef get_task(thread_id):
     """Return the task id and name for a thread."""
     # gevent greenlet support:
     # we only support tracing tasks in the greenlets are run in the MainThread.
-    if thread_id == _nogevent.main_thread_id and _gevent_tracer is not None:
+    if thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
         if _gevent_tracer.active_greenlet is None:
             # That means gevent never switch to another greenlet, we're still in the main one
             task_id = compat.main_thread.ident
@@ -385,7 +385,7 @@ class _ThreadSpanLinks(object):
     # Keys is a thread_id
     # Value is a set of weakrefs to spans
     _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
-    _lock = attr.ib(factory=_nogevent.Lock, repr=False, init=False)
+    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
@@ -394,7 +394,7 @@ class _ThreadSpanLinks(object):
         """
         # Since we're going to iterate over the set, make sure it's locked
         with self._lock:
-            self._thread_id_to_spans[_nogevent.thread_get_ident()].add(weakref.ref(span))
+            self._thread_id_to_spans[nogevent.thread_get_ident()].add(weakref.ref(span))
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.

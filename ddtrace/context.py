@@ -1,4 +1,8 @@
 import threading
+from typing import List
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Tuple
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -6,6 +10,9 @@ from .internal.logger import get_logger
 from .utils.formats import asbool
 from .utils.formats import get_env
 
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 log = get_logger(__name__)
 
@@ -29,16 +36,23 @@ class Context(object):
     _partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
     _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
-    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, dd_origin=None):
+    def __init__(
+        self,
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        sampling_priority=None,  # type: Optional[int]
+        dd_origin=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """
         Initialize a new thread-safe ``Context``.
 
         :param int trace_id: trace_id of parent span
         :param int span_id: span_id of parent span
         """
-        self._trace = []
+        self._trace = []  # type: List[Span]
         self._finished_spans = 0
-        self._current_span = None
+        self._current_span = None  # type: Optional[Span]
         self._lock = threading.Lock()
 
         self._parent_trace_id = trace_id
@@ -66,11 +80,13 @@ class Context(object):
 
     @sampling_priority.setter
     def sampling_priority(self, value):
+        # type: (int) -> None
         """Set sampling priority."""
         with self._lock:
             self._sampling_priority = value
 
     def clone(self):
+        # type: () -> Context
         """
         Partially clones the current context.
         It copies everything EXCEPT the registered and finished spans.
@@ -85,12 +101,14 @@ class Context(object):
             return new_ctx
 
     def get_current_root_span(self):
+        # type: () -> Optional[Span]
         """
         Return the root span of the context or None if it does not exist.
         """
         return self._trace[0] if len(self._trace) > 0 else None
 
     def get_current_span(self):
+        # type: () -> Optional[Span]
         """
         Return the last active span that corresponds to the last inserted
         item in the trace list. This cannot be considered as the current active
@@ -101,6 +119,7 @@ class Context(object):
             return self._current_span
 
     def _set_current_span(self, span):
+        # type: (Optional[Span]) -> None
         """
         Set current span internally.
 
@@ -114,16 +133,17 @@ class Context(object):
             self._parent_span_id = None
 
     def add_span(self, span):
+        # type: (Span) -> None
         """
         Add a span to the context trace list, keeping it as the last active span.
         """
         with self._lock:
             self._set_current_span(span)
-
             self._trace.append(span)
             span._context = self
 
     def close_span(self, span):
+        # type: (Span) -> Tuple[Optional[List[Span]], Optional[bool]]
         """
         Mark a span as a finished, increasing the internal counter to prevent
         cycles inside _trace list.

@@ -11,6 +11,7 @@ from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
+import mock
 import pytest
 
 from ddtrace import config
@@ -1331,6 +1332,32 @@ def test_middleware_trace_request_ot(client, test_spans, tracer):
     assert sp_request.get_tag(http.URL) == "http://testserver/users/"
     assert sp_request.get_tag("django.user.is_authenticated") == "False"
     assert sp_request.get_tag("http.method") == "GET"
+
+
+def test_collecting_requests_handles_improperly_configured_error(client, test_spans):
+    """
+    Since it's difficult to reproduce the ImproperlyConfigured error via django (server setup), will instead
+    mimic the failure by mocking the user_is_authenticated to raise an error.
+    """
+    # patch django._patch - django.__init__.py imports patch.py module as _patch
+    with mock.patch(
+        "ddtrace.contrib.django._patch.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+    ):
+        # If ImproperlyConfigured error bubbles up, should automatically fail the test.
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the correct number of traces and spans
+        if django.VERSION >= (2, 0, 0):
+            test_spans.assert_span_count(26)
+        elif django.VERSION < (1, 11, 0):
+            test_spans.assert_span_count(15)
+        else:
+            test_spans.assert_span_count(16)
+
+        root = test_spans.get_root_span()
+        root.assert_matches(name="django.request")
 
 
 """
