@@ -13,26 +13,26 @@ from .constants import DEFAULT_TEMPLATE_NAME
 
 
 def patch():
-    if getattr(mako, '__datadog_patch', False):
+    if getattr(mako, "__datadog_patch", False):
         # already patched
         return
-    setattr(mako, '__datadog_patch', True)
+    setattr(mako, "__datadog_patch", True)
 
     Pin(service=config.service or "mako", app="mako").onto(Template)
 
-    _w(mako, 'template.Template.render', _wrap_render)
-    _w(mako, 'template.Template.render_unicode', _wrap_render)
-    _w(mako, 'template.Template.render_context', _wrap_render)
+    _w(mako, "template.Template.render", _wrap_render)
+    _w(mako, "template.Template.render_unicode", _wrap_render)
+    _w(mako, "template.Template.render_context", _wrap_render)
 
 
 def unpatch():
-    if not getattr(mako, '__datadog_patch', False):
+    if not getattr(mako, "__datadog_patch", False):
         return
-    setattr(mako, '__datadog_patch', False)
+    setattr(mako, "__datadog_patch", False)
 
-    _u(mako.template.Template, 'render')
-    _u(mako.template.Template, 'render_unicode')
-    _u(mako.template.Template, 'render_context')
+    _u(mako.template.Template, "render")
+    _u(mako.template.Template, "render_unicode")
+    _u(mako.template.Template, "render_context")
 
 
 def _wrap_render(wrapped, instance, args, kwargs):
@@ -44,8 +44,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
     with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         try:
-            template = wrapped(*args, **kwargs)
-            return template
+            return wrapped(*args, **kwargs)
         finally:
             span.resource = template_name
-            span.set_tag('mako.template_name', template_name)
+            span.set_tag("mako.template_name", template_name)
