@@ -22,7 +22,6 @@ from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from .ext import SpanTypes
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
@@ -336,7 +335,7 @@ class Tracer(object):
         child_of=None,  # type: Optional[Union[Span, Context]]
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[Union[str, SpanTypes]]
+        span_type=None,  # type: Optional[str]
     ):
         # type: (...) -> Span
         """
@@ -560,7 +559,7 @@ class Tracer(object):
             self.log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None):
-        # type: (str, Optional[str], Optional[str], Optional[Union[str, SpanTypes]]) -> Span
+        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
         """
         Return a span that will trace an operation called `name`. The context that created
         the span as well as the span parenting, are automatically handled by the tracing

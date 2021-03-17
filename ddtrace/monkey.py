@@ -10,6 +10,10 @@ import importlib
 import os
 import sys
 import threading
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
@@ -103,6 +107,7 @@ class ModuleNotFoundException(PatchException):
 
 
 def _on_import_factory(module, raise_errors=True):
+    # type: (str, bool) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -115,6 +120,7 @@ def _on_import_factory(module, raise_errors=True):
 
 
 def patch_all(**patch_modules):
+    # type: (Dict[str, bool]) -> None
     """Automatically patches all available modules.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -144,6 +150,7 @@ def patch_all(**patch_modules):
 
 
 def patch(raise_errors=True, **patch_modules):
+    # type: (bool, Dict[str, bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -179,6 +186,7 @@ def patch(raise_errors=True, **patch_modules):
 
 
 def patch_module(module, raise_errors=True):
+    # type: (str, bool) -> bool
     """Patch a single module
 
     Returns if the module got properly patched.
@@ -197,12 +205,14 @@ def patch_module(module, raise_errors=True):
 
 
 def get_patched_modules():
+    # type: () -> List[str]
     """Get the list of patched modules"""
     with _LOCK:
         return sorted(_PATCHED_MODULES)
 
 
 def _patch_module(module):
+    # type: (str) -> bool
     """_patch_module will attempt to monkey patch the module.
 
     Returns if the module got patched.
@@ -225,6 +235,6 @@ def _patch_module(module):
             if not hasattr(imported_module, "patch"):
                 raise ModuleNotFoundException("module '%s' not installed" % module)
 
-            imported_module.patch()
+            imported_module.patch()  # type: ignore
             _PATCHED_MODULES.add(module)
             return True

@@ -2,11 +2,15 @@ import abc
 import re
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 
-from ddtrace import Span
 from ddtrace.vendor import six
 
 from .ext import http
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 
 class TraceFilter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
