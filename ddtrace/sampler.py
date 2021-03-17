@@ -62,7 +62,7 @@ class RateSampler(BaseSampler):
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
-    def __init__(self, sample_rate=1.0):
+    def __init__(self, sample_rate=1):
         # type: (float) -> None
         if sample_rate < 0:
             raise ValueError("sample_rate of {} is negative".format(sample_rate))
