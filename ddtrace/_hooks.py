@@ -37,6 +37,7 @@ class Hooks(object):
         hook,  # type: Any
         func=None,  # type: Optional[Callable]
     ):
+        # type: (...) -> Optional[Callable[..., Any]]
         """
         Function used to register a hook for the provided name.
 
@@ -70,6 +71,7 @@ class Hooks(object):
 
             return wrapper
         self._hooks[hook].add(func)
+        return None
 
     # Provide shorthand `on` method for `register`
     # >>> @config.falcon.hooks.on('request')

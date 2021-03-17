@@ -78,6 +78,7 @@ class Pin(object):
 
     @staticmethod
     def _find(*objs):
+        # type: (Any) -> Optional[Pin]
         """
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
