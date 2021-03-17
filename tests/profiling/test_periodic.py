@@ -50,7 +50,7 @@ def test_periodic():
     def _on_shutdown():
         x["DOWN"] = True
 
-    t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
+    t = _periodic.PeriodicRealThreadClass()(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
     thread_started.wait()
     thread_continue.set()
@@ -68,7 +68,7 @@ def test_periodic_double_start():
     def _run_periodic():
         pass
 
-    t = _periodic.PeriodicRealThread(0.1, _run_periodic)
+    t = _periodic.PeriodicRealThreadClass()(0.1, _run_periodic)
     t.start()
     with pytest.raises(RuntimeError):
         t.start()
@@ -88,7 +88,7 @@ def test_periodic_error():
     def _on_shutdown():
         x["DOWN"] = True
 
-    t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
+    t = _periodic.PeriodicRealThreadClass()(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
     thread_started.wait()
     thread_continue.set()
@@ -99,9 +99,9 @@ def test_periodic_error():
 
 def test_gevent_class():
     if os.getenv("DD_PROFILE_TEST_GEVENT", False):
-        assert isinstance(_periodic.PeriodicRealThread(1, sum), _periodic._GeventPeriodicThread)
+        assert isinstance(_periodic.PeriodicRealThreadClass()(1, sum), _periodic._GeventPeriodicThread)
     else:
-        assert isinstance(_periodic.PeriodicRealThread(1, sum), _periodic.PeriodicThread)
+        assert isinstance(_periodic.PeriodicRealThreadClass()(1, sum), _periodic.PeriodicThread)
 
 
 def test_periodic_service_start_stop():
@@ -132,5 +132,5 @@ def test_is_alive_before_start():
     def x():
         pass
 
-    t = _periodic.PeriodicRealThread(1, x)
+    t = _periodic.PeriodicRealThreadClass()(1, x)
     assert not t.is_alive()

@@ -149,16 +149,18 @@ class _GeventPeriodicThread(PeriodicThread):
                     raise
 
 
-def PeriodicRealThread(*args, **kwargs):
-    """Create a PeriodicRealThread based on the underlying thread implementation (native, gevent, etc).
+def PeriodicRealThreadClass():
+    # type: () -> typing.Type[PeriodicThread]
+    """Return a PeriodicThread class based on the underlying thread implementation (native, gevent, etc).
 
-    This is exactly like PeriodicThread, except that it runs on a *real* OS thread. Be aware that this might be tricky
-    in e.g. the gevent case, where Lock object must not be shared with the MainThread (otherwise it'd dead lock).
+    The returned class works exactly like ``PeriodicThread``, except that it runs on a *real* OS thread. Be aware that
+    this might be tricky in e.g. the gevent case, where ``Lock`` object must not be shared with the ``MainThread``
+    (otherwise it'd dead lock).
 
     """
     if nogevent.is_module_patched("threading"):
-        return _GeventPeriodicThread(*args, **kwargs)
-    return PeriodicThread(*args, **kwargs)
+        return _GeventPeriodicThread
+    return PeriodicThread
 
 
 @attr.s
@@ -182,10 +184,10 @@ class PeriodicService(service.Service):
         if self._worker:
             self._worker.interval = value
 
-    def start(self):
+    def _start(self):
+        # type: () -> None
         """Start the periodic service."""
-        super(PeriodicService, self).start()
-        periodic_thread_class = PeriodicRealThread if self._real_thread else PeriodicThread
+        periodic_thread_class = PeriodicRealThreadClass() if self._real_thread else PeriodicThread
         self._worker = periodic_thread_class(
             self.interval,
             target=self.periodic,
