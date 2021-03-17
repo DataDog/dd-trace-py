@@ -1,5 +1,6 @@
 import mako
-from mako.template import Template, DefTemplate
+from mako.template import DefTemplate
+from mako.template import Template
 
 from ddtrace import config
 
