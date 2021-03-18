@@ -174,10 +174,11 @@ class Span(object):
 
     @property
     def duration(self):
+        # type: () -> Optional[float]
         """The span duration in seconds."""
         if self.duration_ns is not None:
             return self.duration_ns / 1e9
-        # TODO: add return None if self.duration_ns is None
+        return None
 
     @duration.setter
     def duration(self, value):
