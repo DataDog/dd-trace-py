@@ -10,6 +10,8 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
@@ -49,32 +51,6 @@ def unpatch():
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
 
 
-def _infer_argument_value(args, kwargs, pos, kw, default=None):
-    """
-    This function parses the value of a target function argument that may have been
-    passed in as a positional argument or a keyword argument. Because monkey-patched
-    functions do not define the same signature as their target function, the value of
-    arguments must be inferred from the packed args and kwargs.
-
-    Keyword arguments are prioritized, followed by the positional argument, followed
-    by the default value, if any is set.
-
-    :param args: Positional arguments
-    :param kwargs: Keyword arguments
-    :param pos: The positional index of the argument if passed in as a positional arg
-    :param kw: The name of the keyword if passed in as a keyword argument
-    :param default: The default value to return if the argument was not found in args or kwaergs
-    :return: The value of the target argument
-    """
-    if kw in kwargs:
-        return kwargs[kw]
-
-    if pos < len(args):
-        return args[pos]
-
-    return default
-
-
 def _wrap_urlopen(func, instance, args, kwargs):
     """
     Wrapper function for the lower-level urlopen in urllib3
@@ -85,10 +61,16 @@ def _wrap_urlopen(func, instance, args, kwargs):
     :param kwargs: Keyword arguments from the target function
     :return: The ``HTTPResponse`` from the target function
     """
-    request_method = _infer_argument_value(args, kwargs, 0, "method")
-    request_url = _infer_argument_value(args, kwargs, 1, "url")
-    request_headers = _infer_argument_value(args, kwargs, 3, "headers")
-    request_retries = _infer_argument_value(args, kwargs, 4, "retries")
+    request_method = get_argument_value(args, kwargs, 0, "method")
+    request_url = get_argument_value(args, kwargs, 1, "url")
+    try:
+        request_headers = get_argument_value(args, kwargs, 3, "headers")
+    except ArgumentError:
+        request_headers = None
+    try:
+        request_retries = get_argument_value(args, kwargs, 4, "retries")
+    except ArgumentError:
+        request_retries = None
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):
