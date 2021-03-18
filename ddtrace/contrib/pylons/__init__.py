@@ -1,7 +1,13 @@
 """
-The pylons trace middleware will track request timings. To
-install the middleware, prepare your WSGI application and do
-the following::
+The Pylons__ integration traces requests and template rendering in a Pylons
+application.
+
+
+Enabling
+~~~~~~~~
+
+To enable the Pylons integration, wrap a Pylons application with the provided
+``PylonsTraceMiddleware``::
 
     from pylons.wsgiapp import PylonsApp
 
@@ -10,9 +16,25 @@ the following::
 
     app = PylonsApp(...)
 
-    traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app')
+    traced_app = PylonsTraceMiddleware(app, tracer, service="my-pylons-app")
 
-Then you can define your routes and views as usual.
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.pylons["service"]
+
+   The service name reported by default for Pylons requests.
+
+   This option can also be set with the ``DD_SERVICE`` environment
+   variable.
+
+   Default: ``"pylons"``
+
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
+.. __: https://pylonsproject.org/about-pylons-framework.html
 """
 
 from ...utils.importlib import require_modules

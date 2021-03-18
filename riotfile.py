@@ -408,6 +408,12 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="mako",
+            command="pytest {cmdargs} tests/contrib/mako",
+            pys=select_pys(),
+            pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
