@@ -193,7 +193,7 @@ def to_unicode(s):
 
 
 def get_connection_response(
-        conn  # type: httplib.HTTPConnection  # type: ignore
+    conn,  # type: httplib.HTTPConnection  # type: ignore
 ):
     # type: (...) -> Response
     """Returns the response for a connection.
