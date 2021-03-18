@@ -62,12 +62,12 @@ class RateSampler(BaseSampler):
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
-    def __init__(self, sample_rate=1):
+    def __init__(self, sample_rate=1.0):
         # type: (float) -> None
-        if sample_rate < 0:
+        if sample_rate < 0.0:
             raise ValueError("sample_rate of {} is negative".format(sample_rate))
-        elif sample_rate > 1:
-            sample_rate = 1
+        elif sample_rate > 1.0:
+            sample_rate = 1.0
 
         self.set_sample_rate(sample_rate)
 
@@ -101,7 +101,7 @@ class RateByServiceSampler(BaseSampler, BasePrioritySampler):
         env = env or ""
         return "service:" + service + ",env:" + env
 
-    def __init__(self, sample_rate=1):
+    def __init__(self, sample_rate=1.0):
         # type: (float) -> None
         self.sample_rate = sample_rate
         self._by_service_samplers = self._get_new_by_service_sampler()
