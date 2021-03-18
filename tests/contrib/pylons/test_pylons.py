@@ -2,6 +2,7 @@ import os
 
 from paste import fixture
 from paste.deploy import loadapp
+import pylons
 import pytest
 from routes import url_for
 
@@ -11,11 +12,10 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
+from tests import TracerTestCase
+from tests import assert_is_measured
+from tests import assert_span_http_status_code
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
 
 
 class PylonsTestCase(TracerTestCase):
@@ -437,3 +437,23 @@ class PylonsTestCase(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.meta.get(http.URL) == "http://localhost:80/"
         assert dd_span.error == 0
+
+    def test_request_headers(self):
+        headers = {
+            "my-header": "value",
+        }
+        config.pylons.http.trace_headers(["my-header"])
+        res = self.app.get(url_for(controller="root", action="index"), headers=headers)
+        assert res.status == 200
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.request.headers.my-header") == "value"
+
+    def test_response_headers(self):
+        config.pylons.http.trace_headers(["content-length", "custom-header"])
+        res = self.app.get(url_for(controller="root", action="response_headers"))
+        assert res.status == 200
+        spans = self.pop_spans()
+        # Pylons 0.96 and below don't report the content length
+        if pylons.__version__ > (0, 9, 6):
+            assert spans[0].get_tag("http.response.headers.content-length") == "2"
+        assert spans[0].get_tag("http.response.headers.custom-header") == "value"
