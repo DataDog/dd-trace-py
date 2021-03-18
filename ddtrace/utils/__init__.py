@@ -63,6 +63,7 @@ def get_argument_value(
     try:
         return kwargs[kw]
     except KeyError:
-        if pos < len(args):
+        try:
             return args[pos]
-    raise ArgumentError("%s (at position %d)" % (kw, pos))
+        except IndexError:
+            raise ArgumentError("%s (at position %d)" % (kw, pos))
