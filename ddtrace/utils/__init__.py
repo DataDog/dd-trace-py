@@ -38,8 +38,6 @@ class ArgumentError(Exception):
     not found.
     """
 
-    pass
-
 
 def get_argument_value(
     args,  # type: List[Any]
