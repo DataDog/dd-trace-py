@@ -6,6 +6,8 @@ import warnings
 import mock
 import pytest
 
+from ddtrace.utils import ArgumentError
+from ddtrace.utils import get_argument_value
 from ddtrace.utils import time
 from ddtrace.utils.deprecation import deprecated
 from ddtrace.utils.deprecation import deprecation
@@ -264,3 +266,29 @@ class TestContrib(object):
         assert "partial" == func_name(minus_two)
         assert 10 == plus_three(7)
         assert "tests.tracer.test_utils.<lambda>" == func_name(plus_three)
+
+
+@pytest.mark.parametrize(
+    "args,kwargs,pos,kw,expected",
+    [
+        ([], {"foo": 42, "bar": "snafu"}, 0, "foo", 42),
+        ([], {"foo": 42, "bar": "snafu"}, 1, "bar", "snafu"),
+        ([42], {"bar": "snafu"}, 0, "foo", 42),
+        ([42, "snafu"], {}, 1, "bar", "snafu"),
+    ],
+)
+def test_infer_arg_value_hit(args, kwargs, pos, kw, expected):
+    assert get_argument_value(args, kwargs, pos, kw) == expected
+
+
+@pytest.mark.parametrize(
+    "args,kwargs,pos,kw",
+    [
+        ([], {}, 0, "foo"),
+        ([], {}, 1, "bar"),
+    ],
+)
+def test_infer_arg_value_miss(args, kwargs, pos, kw):
+    with pytest.raises(ArgumentError) as e:
+        get_argument_value(args, kwargs, pos, kw)
+        assert e.value == "%s (at position %d)" % (kw, pos)
