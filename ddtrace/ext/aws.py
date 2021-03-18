@@ -1,20 +1,39 @@
-BLACKLIST_ENDPOINT = ["kms", "sts"]
-BLACKLIST_ENDPOINT_TAGS = {
-    "s3": ["params.Body"],
+from collections import deque
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Set
+
+
+EXCLUDED_ENDPOINT = {"kms", "sts"}
+EXCLUDED_ENDPOINT_TAGS = {
+    "s3": {"params.Body"},
 }
 
 
-def _flatten_dict(d, sep=".", prefix=""):
+def _flatten_dict(
+    d,  # type: Dict[str, Any]
+    sep=".",  # type: str
+    prefix="",  # type: str
+    exclude=None,  # type: Optional[Set[str]]
+):
+    # type: (...) -> Dict[str, Any]
     """
-    Returns a normalized dict of depth 1 with keys in order of embedding
-
+    Returns a normalized dict of depth 1
     """
-    # adapted from https://stackoverflow.com/a/19647596
-    return (
-        {prefix + sep + k if prefix else k: v for kk, vv in d.items() for k, v in _flatten_dict(vv, sep, kk).items()}
-        if isinstance(d, dict)
-        else {prefix: d}
-    )
+    flat = {}
+    s = deque()
+    s.append((prefix, d))
+    exclude = exclude or set()
+    while s:
+        p, v = s.pop()
+        if p in exclude:
+            continue
+        if isinstance(v, dict):
+            s.extend((p + sep + k if p else k, v) for k, v in v.items())
+        else:
+            flat[p] = v
+    return flat
 
 
 def truncate_arg_value(value, max_len=1024):
@@ -28,12 +47,10 @@ def truncate_arg_value(value, max_len=1024):
 
 
 def add_span_arg_tags(span, endpoint_name, args, args_names, args_traced):
-    if endpoint_name not in BLACKLIST_ENDPOINT:
-        blacklisted = BLACKLIST_ENDPOINT_TAGS.get(endpoint_name, [])
+    if endpoint_name not in EXCLUDED_ENDPOINT:
         tags = dict((name, value) for (name, value) in zip(args_names, args) if name in args_traced)
-        tags = _flatten_dict(tags)
-        tags = {k: truncate_arg_value(v) for k, v in tags.items() if k not in blacklisted}
-        span.set_tags(tags)
+        flat_tags = _flatten_dict(tags, exclude=EXCLUDED_ENDPOINT_TAGS.get(endpoint_name))
+        span.set_tags({k: truncate_arg_value(v) for k, v in flat_tags.items()})
 
 
 REGION = "aws.region"
