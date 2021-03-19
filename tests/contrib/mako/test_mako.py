@@ -102,3 +102,18 @@ class MakoTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
 
         assert spans[0].service == "mysvc"
+
+    def test_deftemplate(self):
+        tmpl_lookup = TemplateLookup(directories=[TMPL_DIR])
+        t = tmpl_lookup.get_template("template.html")
+
+        # Get a DefTemplate from `t.render_body()`
+        dt = t.get_def("body")
+
+        assert dt.render(name="DefTemplate") == "Hello DefTemplate!\n"
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
+        assert spans[0].resource == "template_html.render_body"
+        assert spans[0].get_tag("mako.template_name") == "template_html.render_body"

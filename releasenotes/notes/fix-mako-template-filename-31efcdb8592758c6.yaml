@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug when tracing a mako ``DefTemplate`` or any ``Template`` that does
+    not have a ``filename`` property.
