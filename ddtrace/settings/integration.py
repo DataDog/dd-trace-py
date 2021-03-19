@@ -1,6 +1,8 @@
 from copy import deepcopy
 import os
 
+from ddtrace.vendor import debtcollector
+
 from .._hooks import Hooks
 from ..utils.attrdict import AttrDict
 from ..utils.formats import asbool
@@ -40,20 +42,9 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
 
-        # Set default analytics configuration, default is disabled
-        # DEV: Default to `None` which means do not set this key
-        # Inject environment variables for integration
-        old_analytics_enabled_env = get_env(name, "analytics_enabled")
-        analytics_enabled_env = os.environ.get(
-            "DD_TRACE_%s_ANALYTICS_ENABLED" % name.upper(), old_analytics_enabled_env
-        )
-        if analytics_enabled_env is not None:
-            analytics_enabled_env = asbool(analytics_enabled_env)
-        self.setdefault("analytics_enabled", analytics_enabled_env)
-        old_analytics_rate = get_env(name, "analytics_sample_rate", default=1.0)
-
-        analytics_rate = os.environ.get("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % name.upper(), old_analytics_rate)
-        self.setdefault("analytics_sample_rate", float(analytics_rate))
+        analytics_enabled, analytics_sample_rate = self._get_analytics_settings()
+        self.setdefault("analytics_enabled", analytics_enabled)
+        self.setdefault("analytics_sample_rate", float(analytics_sample_rate))
 
         service = get_env(name, "service", default=get_env(name, "service_name", default=None))
         self.setdefault("service", service)
@@ -92,6 +83,47 @@ class IntegrationConfig(AttrDict):
             if self.http.is_header_tracing_configured
             else self.global_config.header_is_traced(header_name)
         )
+
+    def _get_analytics_settings(self):
+        # We can have deprecated names for integrations used for analytics settings
+        deprecated_name = self._deprecated_name if hasattr(self, "_deprecated_name") else None
+        deprecated_analytics_enabled = (get_env(deprecated_name, "analytics_enabled") if deprecated_name else None) or (
+            os.environ.get("DD_TRACE_%s_ANALYTICS_ENABLED" % deprecated_name.upper()) if deprecated_name else None
+        )
+        deprecated_analytics_sample_rate = (
+            get_env(deprecated_name, "analytics_sample_rate") if deprecated_name else None
+        ) or (
+            os.environ.get("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % deprecated_name.upper()) if deprecated_name else None
+        )
+        if deprecated_analytics_enabled or deprecated_analytics_sample_rate:
+            debtcollector.deprecate(
+                (
+                    "*DBAPI2_ANALYTICS* environment variables are now deprecated, use integration-specific configuration."
+                ),
+                removal_version="0.49.0",
+            )
+
+        # Set default analytics configuration, default is disabled
+        # DEV: Default to `None` which means do not set this key
+        # Inject environment variables for integration
+        analytics_enabled = (
+            os.environ.get("DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper())
+            or get_env(self.integration_name, "analytics_enabled")
+            or deprecated_analytics_enabled
+        )
+        if analytics_enabled is not None:
+            analytics_enabled = asbool(analytics_enabled)
+
+        analytics_sample_rate = (
+            os.environ.get("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper())
+            or get_env(self.integration_name, "analytics_sample_rate")
+            or deprecated_analytics_sample_rate
+            or 1.0
+        )
+        if analytics_sample_rate is not None:
+            analytics_sample_rate = float(analytics_sample_rate)
+
+        return analytics_enabled, analytics_sample_rate
 
     def _is_analytics_enabled(self, use_global_config):
         # DEV: analytics flag can be None which should not be taken as

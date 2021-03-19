@@ -17,6 +17,7 @@ from ...utils.formats import get_env
 config._add("psycopg", dict(
     _default_service="postgres",
     trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
+    _deprecated_name="dbapi2",
 ))
 
 # Original connect method

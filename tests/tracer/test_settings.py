@@ -266,6 +266,38 @@ class TestIntegrationConfig(BaseTestCase):
             ic = IntegrationConfig(config, "foo")
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
 
+    def test_get_analytics_sample_rate_deprecated_name(self):
+        """" Check method for accessing sample rate based on configuration """
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="False")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertIsNone(ic.get_analytics_sample_rate())
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="False")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertIsNone(ic.get_analytics_sample_rate())
+
     def test_deepcopy(self):
         ic = IntegrationConfig(
             self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5, deep={"field": "sodeep"}

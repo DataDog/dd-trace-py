@@ -43,6 +43,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 ),
                 removal_version="0.49.0",
             )
+            cfg = config.dbapi2
         self._self_config = cfg
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
@@ -76,7 +77,7 @@ class TracedCursor(wrapt.ObjectProxy):
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
-                    config.dbapi2.get_analytics_sample_rate()
+                    cfg.get_analytics_sample_rate()
                 )
 
             try:
@@ -189,7 +190,8 @@ class TracedConnection(wrapt.ObjectProxy):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedCursor
-            # Deprecation of config.dbapi2 requires we add a check
+            # Deprecation of config.dbapi2 requires we still back off to
+            # config.dbapi2 in case it is still used
             if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
                 cursor_cls = FetchTracedCursor
 
@@ -201,7 +203,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
-        self._self_config = cfg
+        self._self_config = cfg or config.dbapi2
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
