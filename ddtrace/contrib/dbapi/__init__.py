@@ -1,8 +1,8 @@
 """
 Generic dbapi tracing code.
 """
-from ddtrace.vendor import debtcollector
 from ddtrace import config
+from ddtrace.vendor import debtcollector
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY

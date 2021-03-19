@@ -98,7 +98,8 @@ class IntegrationConfig(AttrDict):
         if deprecated_analytics_enabled or deprecated_analytics_sample_rate:
             debtcollector.deprecate(
                 (
-                    "*DBAPI2_ANALYTICS* environment variables are now deprecated, use integration-specific configuration."
+                    "*DBAPI2_ANALYTICS* environment variables are now deprecated,"
+                    "use integration-specific configuration."
                 ),
                 removal_version="0.49.0",
             )
