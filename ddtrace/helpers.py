@@ -1,7 +1,16 @@
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Tuple
+
 import ddtrace
 
 
+if TYPE_CHECKING:
+    from ddtrace.tracer import Tracer
+
+
 def get_correlation_ids(tracer=None):
+    # type: (Optional[Tracer]) -> Tuple[Optional[int], Optional[int]]
     """Retrieves the Correlation Identifiers for the current active ``Trace``.
     This helper method can be achieved manually and should be considered
     only a shortcut. The main reason is to abstract the current ``Tracer``

@@ -6,15 +6,15 @@ import pkg_resources
 import aiopg
 from aiopg.utils import _ContextManager
 
+from ddtrace import config
 from ddtrace.vendor import wrapt
+
 from .. import dbapi
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import sql
 from ...pin import Pin
-from ...settings import config
-from ddtrace.ext import sql
-
-
-AIOPG_1X = pkg_resources.parse_version(aiopg.__version__) >= pkg_resources.parse_version('1.0.0')
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):

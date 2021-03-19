@@ -8,6 +8,7 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 
+
 LOG = logging.getLogger(__name__)
 
 
@@ -17,8 +18,14 @@ class Scheduler(_periodic.PeriodicService):
 
     recorder = attr.ib()
     exporters = attr.ib()
+    before_flush = attr.ib(default=None, eq=False)
     _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
-    _last_export = attr.ib(init=False, default=None)
+    _configured_interval = attr.ib(init=False)
+    _last_export = attr.ib(init=False, default=None, eq=False)
+
+    def __attrs_post_init__(self):
+        # Copy the value to use it later since we're going to adjust the real interval
+        self._configured_interval = self.interval
 
     def start(self):
         """Start the scheduler."""
@@ -30,18 +37,29 @@ class Scheduler(_periodic.PeriodicService):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
+        if self.before_flush is not None:
+            try:
+                self.before_flush()
+            except Exception:
+                LOG.error("Scheduler before_flush hook failed", exc_info=True)
         if self.exporters:
             events = self.recorder.reset()
             start = self._last_export
             self._last_export = compat.time_ns()
-            total_events = sum(len(v) for v in events.values())
             for exp in self.exporters:
                 try:
                     exp.export(events, start, self._last_export)
                 except exporter.ExportError as e:
-                    LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
+                    LOG.error("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
                 except Exception:
-                    LOG.exception("Error while exporting %d events", total_events)
+                    LOG.exception(
+                        "Unexpected error while exporting events. "
+                        "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
+                    )
 
-    periodic = flush
-    on_shutdown = flush
+    def periodic(self):
+        start_time = compat.monotonic()
+        try:
+            self.flush()
+        finally:
+            self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))

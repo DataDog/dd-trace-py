@@ -1,0 +1,6 @@
+cython
+sphinx
+opentracing
+reno
+sphinxcontrib-spelling
+PyEnchant

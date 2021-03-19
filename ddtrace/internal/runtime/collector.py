@@ -2,6 +2,7 @@ import importlib
 
 from ..logger import get_logger
 
+
 log = get_logger(__name__)
 
 
@@ -34,8 +35,7 @@ class ValueCollector(object):
             self._on_modules_load()
 
     def _on_modules_load(self):
-        """Hook triggered after all required_modules have been successfully loaded.
-        """
+        """Hook triggered after all required_modules have been successfully loaded."""
 
     def _load_modules(self):
         modules = {}
@@ -75,5 +75,8 @@ class ValueCollector(object):
 
     def __repr__(self):
         return "<{}(enabled={},periodic={},required_modules={})>".format(
-            self.__class__.__name__, self.enabled, self.periodic, self.required_modules,
+            self.__class__.__name__,
+            self.enabled,
+            self.periodic,
+            self.required_modules,
         )

@@ -1,12 +1,14 @@
-from ddtrace import Pin
-from ddtrace.contrib.flask import patch, unpatch
 import flask
+
+from ddtrace import Pin
+from ddtrace.contrib.flask import patch
+from ddtrace.contrib.flask import unpatch
 from ddtrace.vendor import wrapt
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 
 
-class BaseFlaskTestCase(BaseTracerTestCase):
+class BaseFlaskTestCase(TracerTestCase):
     def setUp(self):
         super(BaseFlaskTestCase, self).setUp()
 
@@ -18,13 +20,13 @@ class BaseFlaskTestCase(BaseTracerTestCase):
 
     def tearDown(self):
         # Remove any remaining spans
-        self.tracer.writer.pop()
+        self.tracer.pop()
 
         # Unpatch Flask
         unpatch()
 
     def get_spans(self):
-        return self.tracer.writer.pop()
+        return self.tracer.pop()
 
     def assert_is_wrapped(self, obj):
         self.assertTrue(isinstance(obj, wrapt.ObjectProxy), "{} is not wrapped".format(obj))

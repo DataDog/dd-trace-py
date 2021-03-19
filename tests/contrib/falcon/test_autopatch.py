@@ -1,13 +1,14 @@
+import falcon as falcon
 from falcon import testing
 
 import ddtrace
 
-from ...base import BaseTracerTestCase
+from ... import TracerTestCase
 from .app import get_app
 from .test_suite import FalconTestCase
 
 
-class AutoPatchTestCase(BaseTracerTestCase, testing.TestCase, FalconTestCase):
+class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
 
     # Added because falcon 1.3 and 1.4 test clients (falcon.testing.client.TestClient) expect this property to be
     # defined. It would be initialized in the constructor, but we call it here like in 'TestClient.__init__(self, None)'
@@ -18,7 +19,7 @@ class AutoPatchTestCase(BaseTracerTestCase, testing.TestCase, FalconTestCase):
     def setUp(self):
         super(AutoPatchTestCase, self).setUp()
 
-        self._service = 'my-falcon'
+        self._service = "my-falcon"
 
         # Since most integrations do `from ddtrace import tracer` we cannot update do `ddtrace.tracer = self.tracer`
         self.original_writer = ddtrace.tracer.writer
@@ -29,6 +30,10 @@ class AutoPatchTestCase(BaseTracerTestCase, testing.TestCase, FalconTestCase):
         # reconfigure the global tracer since the autopatch mode
         # uses it
         self.api = get_app(tracer=None)
+
+        self.version = falcon.__version__
+        if self.version[0] != "1":
+            self.client = testing.TestClient(self.api)
 
     def tearDown(self):
         super(AutoPatchTestCase, self).tearDown()

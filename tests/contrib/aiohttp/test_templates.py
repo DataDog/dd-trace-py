@@ -1,13 +1,15 @@
 import asyncio
-import aiohttp_jinja2
 
 from aiohttp.test_utils import unittest_run_loop
+import aiohttp_jinja2
 
+from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.aiohttp.patch import unpatch
 from ddtrace.pin import Pin
-from ddtrace.contrib.aiohttp.patch import patch, unpatch
 
+from .app.web import set_filesystem_loader
+from .app.web import set_package_loader
 from .utils import TraceTestCase
-from .app.web import set_filesystem_loader, set_package_loader
 
 
 class TestTraceTemplate(TraceTestCase):
@@ -31,7 +33,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -51,7 +53,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -71,7 +73,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -90,7 +92,7 @@ class TestTraceTemplate(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -108,7 +110,7 @@ class TestTraceTemplate(TraceTestCase):
         assert 500 == request.status
         yield from request.text()
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]

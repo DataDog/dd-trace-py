@@ -5,18 +5,20 @@ import time
 import aiopg
 from psycopg2 import extras
 
+from ddtrace import Pin
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.aiopg.patch import patch, unpatch, AIOPG_1X
-from ddtrace import Pin
-
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from ddtrace.contrib.aiopg.patch import AIOPG_1X
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
+from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import get_dummy_tracer
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+
+from ... import assert_is_measured
 from ...subprocesstest import run_in_subprocess
-from ...utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG['port']
@@ -95,7 +97,6 @@ class AiopgTestCase(AsyncioTestCase):
         except AttributeError:
             pass
 
-        writer = tracer.writer
         # Ensure we can run a query and it's correctly traced
         q = 'select \'foobarblah\''
         start = time.time()
@@ -106,7 +107,7 @@ class AiopgTestCase(AsyncioTestCase):
         end = time.time()
         assert rows == [('foobarblah',)]
         assert rows
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         assert len(spans) == 2
 
@@ -136,7 +137,7 @@ class AiopgTestCase(AsyncioTestCase):
                 await cursor.execute(q)
                 rows = await cursor.fetchall()
             assert rows == [('foobarblah',)]
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
         ot_span, dd_execute_span, dd_fetchall_span = spans
         # confirm the parenting
@@ -168,8 +169,7 @@ class AiopgTestCase(AsyncioTestCase):
                 pass
             else:
                 assert 0, 'should have an error'
-
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -191,7 +191,7 @@ class AiopgTestCase(AsyncioTestCase):
             async with CursorCtx(conn) as cursor:
                 await cursor.execute('select \'blah\'')
 
-        assert not self.tracer.writer.pop()
+        assert not self.pop_spans()
 
     @mark_asyncio
     async def test_manual_wrap_extension_types(self):
@@ -203,24 +203,14 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     async def test_connect_factory(self):
-        tracer = get_dummy_tracer()
-
         services = ['db', 'another']
         for service in services:
             async with self._get_conn() as conn:
-                Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-                await self.assert_conn_is_traced(tracer, conn, service)
-
-        # ensure we have the service types
-        service_meta = tracer.writer.pop_services()
-        expected = {}
-        assert service_meta == expected
+                Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
+                await self.assert_conn_is_traced(self.tracer, conn, service)
 
     @mark_asyncio
     async def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # Test patch idempotence
         patch()
         patch()
@@ -228,11 +218,11 @@ class AiopgTestCase(AsyncioTestCase):
         service = 'fo'
 
         async with self._get_conn() as conn:
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+            Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
             async with CursorCtx(conn) as cursor:
                 await cursor.execute('select \'blah\'')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -242,18 +232,18 @@ class AiopgTestCase(AsyncioTestCase):
         async with self._get_conn() as conn, CursorCtx(conn) as cursor:
             await cursor.execute('select \'blah\'')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         async with self._get_conn() as conn:
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+            Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
             async with CursorCtx(conn) as cursor:
                 await cursor.execute('select \'blah\'')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 

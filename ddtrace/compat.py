@@ -1,9 +1,20 @@
 import platform
+import random
 import re
 import sys
 import textwrap
+import threading
+from typing import Any
+from typing import AnyStr
+from typing import TYPE_CHECKING
+from typing import Text
 
 from ddtrace.vendor import six
+
+
+if TYPE_CHECKING:
+    from .internal.writer import Response
+
 
 __all__ = [
     "httplib",
@@ -26,20 +37,21 @@ PYTHON_VERSION = platform.python_version()
 PYTHON_INTERPRETER = platform.python_implementation()
 
 try:
-    StringIO = six.moves.cStringIO
+    StringIO = six.moves.cStringIO  # type: ignore[attr-defined]
 except ImportError:
     StringIO = six.StringIO
 
-httplib = six.moves.http_client
-urlencode = six.moves.urllib.parse.urlencode
-parse = six.moves.urllib.parse
-Queue = six.moves.queue.Queue
+httplib = six.moves.http_client  # type: ignore[attr-defined]
+urlencode = six.moves.urllib.parse.urlencode  # type: ignore[attr-defined]
+parse = six.moves.urllib.parse  # type: ignore[attr-defined]
+Queue = six.moves.queue.Queue  # type: ignore[attr-defined]
 iteritems = six.iteritems
 reraise = six.reraise
-reload_module = six.moves.reload_module
+reload_module = six.moves.reload_module  # type: ignore[attr-defined]
 
 stringify = six.text_type
 string_type = six.string_types[0]
+binary_type = six.binary_type
 msgpack_type = six.binary_type
 # DEV: `six` doesn't have `float` in `integer_types`
 numeric_types = six.integer_types + (float,)
@@ -48,10 +60,11 @@ numeric_types = six.integer_types + (float,)
 if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
-    pattern_type = re._pattern_type
+    pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
 
 def is_integer(obj):
+    # type: (Any) -> bool
     """Helper to determine if the provided ``obj`` is an integer type or not"""
     # DEV: We have to make sure it is an integer and not a boolean
     # >>> type(True)
@@ -67,6 +80,7 @@ except ImportError:
     from time import time as _time
 
     def time_ns():
+        # type: () -> int
         return int(_time() * 10e5) * 1000
 
 
@@ -81,16 +95,33 @@ try:
 except ImportError:
 
     def monotonic_ns():
+        # type: () -> int
         return int(monotonic() * 1e9)
 
 
 try:
     from time import process_time_ns
 except ImportError:
-    from time import clock as _process_time
+    from time import clock as _process_time  # type: ignore[attr-defined]
 
     def process_time_ns():
+        # type: () -> int
         return int(_process_time() * 1e9)
+
+
+if sys.version_info.major < 3:
+    getrandbits = random.SystemRandom().getrandbits
+else:
+    getrandbits = random.getrandbits
+
+
+if sys.version_info.major < 3:
+    if isinstance(threading.current_thread(), threading._MainThread):  # type: ignore[attr-defined]
+        main_thread = threading.current_thread()
+    else:
+        main_thread = threading._shutdown.im_self  # type: ignore[attr-defined]
+else:
+    main_thread = threading.main_thread()
 
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 4):
@@ -133,113 +164,16 @@ else:
     # asyncio is missing so we can't have coroutines; these
     # functions are used only to ensure code executions in case
     # of an unexpected behavior
-    def iscoroutinefunction(fn):
+    def iscoroutinefunction(fn):  # type: ignore
         return False
 
     def make_async_decorator(tracer, fn, *params, **kw_params):
         return fn
 
 
-# static version of getattr backported from Python 3.7
-try:
-    from inspect import getattr_static
-except ImportError:
-    import types
-
-    _sentinel = object()
-
-    def _static_getmro(klass):
-        return type.__dict__["__mro__"].__get__(klass)
-
-    def _check_instance(obj, attr):
-        instance_dict = {}
-        try:
-            instance_dict = object.__getattribute__(obj, "__dict__")
-        except AttributeError:
-            pass
-        return dict.get(instance_dict, attr, _sentinel)
-
-    def _check_class(klass, attr):
-        for entry in _static_getmro(klass):
-            if _shadowed_dict(type(entry)) is _sentinel:
-                try:
-                    return entry.__dict__[attr]
-                except KeyError:
-                    pass
-        return _sentinel
-
-    def _is_type(obj):
-        try:
-            _static_getmro(obj)
-        except TypeError:
-            return False
-        return True
-
-    def _shadowed_dict(klass):
-        dict_attr = type.__dict__["__dict__"]
-        for entry in _static_getmro(klass):
-            try:
-                class_dict = dict_attr.__get__(entry)["__dict__"]
-            except KeyError:
-                pass
-            else:
-                if not (
-                    type(class_dict) is types.GetSetDescriptorType
-                    and class_dict.__name__ == "__dict__"  # noqa: E721,E261,W504
-                    and class_dict.__objclass__ is entry  # noqa: E261,W504
-                ):
-                    return class_dict
-        return _sentinel
-
-    def getattr_static(obj, attr, default=_sentinel):
-        """Retrieve attributes without triggering dynamic lookup via the
-        descriptor protocol,  __getattr__ or __getattribute__.
-
-        Note: this function may not be able to retrieve all attributes
-        that getattr can fetch (like dynamically created attributes)
-        and may find attributes that getattr can't (like descriptors
-        that raise AttributeError). It can also return descriptor objects
-        instead of instance members in some cases. See the
-        documentation for details.
-        """
-        instance_result = _sentinel
-        if not _is_type(obj):
-            klass = type(obj)
-            dict_attr = _shadowed_dict(klass)
-            if dict_attr is _sentinel or type(dict_attr) is types.MemberDescriptorType:  # noqa: E261,E721,W504
-                instance_result = _check_instance(obj, attr)
-        else:
-            klass = obj
-
-        klass_result = _check_class(klass, attr)
-
-        if instance_result is not _sentinel and klass_result is not _sentinel:
-            if (
-                _check_class(type(klass_result), "__get__") is not _sentinel
-                and _check_class(type(klass_result), "__set__") is not _sentinel  # noqa: W504,E261,E721
-            ):
-                return klass_result
-
-        if instance_result is not _sentinel:
-            return instance_result
-        if klass_result is not _sentinel:
-            return klass_result
-
-        if obj is klass:
-            # for types we check the metaclass too
-            for entry in _static_getmro(type(klass)):
-                if _shadowed_dict(type(entry)) is _sentinel:
-                    try:
-                        return entry.__dict__[attr]
-                    except KeyError:
-                        pass
-        if default is not _sentinel:
-            return default
-        raise AttributeError(attr)
-
-
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
 def to_unicode(s):
+    # type: (AnyStr) -> Text
     """ Return a unicode string for the given bytes or string instance. """
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
@@ -258,7 +192,10 @@ def to_unicode(s):
     return six.text_type(s)
 
 
-def get_connection_response(conn):
+def get_connection_response(
+    conn,  # type: httplib.HTTPConnection  # type: ignore
+):
+    # type: (...) -> Response
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.
@@ -274,3 +211,13 @@ def get_connection_response(conn):
         return conn.getresponse(buffering=True)
     else:
         return conn.getresponse()
+
+
+try:
+    import contextvars  # noqa
+except ImportError:
+    from ddtrace.vendor import contextvars  # type: ignore  # noqa
+
+    CONTEXTVARS_IS_AVAILABLE = False
+else:
+    CONTEXTVARS_IS_AVAILABLE = True

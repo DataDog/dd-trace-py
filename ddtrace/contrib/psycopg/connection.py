@@ -5,12 +5,16 @@ Tracing utilities for the psycopg potgres client library.
 # stdlib
 import functools
 
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes, db, net, sql
-from ...utils.deprecation import deprecated
-
 # 3p
-from psycopg2.extensions import connection, cursor
+from psycopg2.extensions import connection
+from psycopg2.extensions import cursor
+
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import db
+from ...ext import net
+from ...ext import sql
+from ...utils.deprecation import deprecated
 
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
@@ -43,7 +47,9 @@ class TracedCursor(cursor):
         if not self._datadog_tracer:
             return cursor.execute(self, query, vars)
 
-        with self._datadog_tracer.trace('postgres.query', service=self._datadog_service, span_type=SpanTypes.SQL) as s:
+        with self._datadog_tracer.trace(
+            'postgres.query', service=self._datadog_service, span_type=SpanTypes.SQL
+        ) as s:
             s.set_tag(SPAN_MEASURED_KEY)
             if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)

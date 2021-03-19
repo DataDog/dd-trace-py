@@ -1,17 +1,18 @@
-import threading
 import asyncio
+import threading
+from urllib import request
+
+from aiohttp.test_utils import unittest_run_loop
 import aiohttp_jinja2
 
-from urllib import request
-from aiohttp.test_utils import unittest_run_loop
-
+from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.aiohttp.patch import unpatch
 from ddtrace.pin import Pin
 from ddtrace.provider import DefaultContextProvider
-from ddtrace.contrib.aiohttp.patch import patch, unpatch
-from ddtrace.contrib.aiohttp.middlewares import trace_app
 
+from ... import assert_is_measured
 from .utils import TraceTestCase
-from ...utils import assert_is_measured
 
 
 class TestAiohttpSafety(TraceTestCase):
@@ -40,7 +41,7 @@ class TestAiohttpSafety(TraceTestCase):
         assert 200 == request.status
         yield from request.text()
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         request_span = traces[0][0]
@@ -69,7 +70,6 @@ class TestAiohttpSafety(TraceTestCase):
             responses.append(response)
 
         # blocking call executed in different threads
-        ctx = self.tracer.get_call_context()
         threads = [threading.Thread(target=make_requests) for _ in range(NUMBER_REQUESTS)]
         for t in threads:
             t.start()
@@ -84,7 +84,6 @@ class TestAiohttpSafety(TraceTestCase):
         for t in threads:
             t.join()
 
-        # the trace is wrong but the Context is finished
-        spans = self.tracer.writer.pop()
+        # the trace is wrong but the spans are finished and written
+        spans = self.pop_spans()
         assert NUMBER_REQUESTS == len(spans)
-        assert 0 == len(ctx._trace)

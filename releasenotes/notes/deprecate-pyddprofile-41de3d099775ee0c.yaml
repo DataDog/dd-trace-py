@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The `pyddprofile` wrapper is deprecated. Use `DD_PROFILING_ENABLED=true ddtrace-run` instead.

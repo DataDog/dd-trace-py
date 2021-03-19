@@ -1,16 +1,14 @@
 import psycopg2
-
+import pytest
 from sqlalchemy.exc import ProgrammingError
 
-import pytest
-
-from .mixins import SQLAlchemyTestMixin
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from .mixins import SQLAlchemyTestMixin
 
 
-class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for Postgres Engine"""
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
@@ -34,7 +32,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)

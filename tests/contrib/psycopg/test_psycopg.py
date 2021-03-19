@@ -1,25 +1,27 @@
 # stdlib
 import time
+from unittest import skipIf
 
 # 3p
 import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
-from unittest import skipIf
-
+from ddtrace import Pin
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg import connection_factory
-from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
-from ddtrace import Pin
-
+from ddtrace.contrib.psycopg.patch import PSYCOPG2_VERSION
+from ddtrace.contrib.psycopg.patch import patch
+from ddtrace.contrib.psycopg.patch import unpatch
+from tests import snapshot
+from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
-from ...utils.tracer import DummyTracer
+
+from ... import DummyTracer
+from ... import TracerTestCase
+from ... import assert_is_measured
 
 
 if PSYCOPG2_VERSION >= (2, 7):
@@ -28,7 +30,7 @@ if PSYCOPG2_VERSION >= (2, 7):
 TEST_PORT = POSTGRES_CONFIG['port']
 
 
-class PsycopgCore(BaseTracerTestCase):
+class PsycopgCore(TracerTestCase):
 
     # default service
     TEST_SERVICE = 'postgres'
@@ -253,11 +255,6 @@ class PsycopgCore(BaseTracerTestCase):
             conn = self._get_conn(service=service)
             self.assert_conn_is_traced(conn, service)
 
-        # ensure we have the service types
-        service_meta = self.tracer.writer.pop_services()
-        expected = {}
-        self.assertEquals(service_meta, expected)
-
     def test_commit(self):
         conn = self._get_conn()
         conn.commit()
@@ -294,6 +291,25 @@ class PsycopgCore(BaseTracerTestCase):
             dict(name='postgres.query', resource=query.as_string(db)),
         )
 
+    @snapshot()
+    @skipIf(PSYCOPG2_VERSION < (2, 7), 'SQL string composition not available in psycopg2<2.7')
+    def test_composed_query_encoding(self):
+        """ Checks whether execution of composed SQL string is traced """
+        import logging
+        logger = logging.getLogger()
+        logger.level = logging.DEBUG
+        query = SQL(' union all ').join(
+            [SQL("""select 'one' as x"""),
+             SQL("""select 'two' as x""")])
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+
+        with conn.cursor() as cur:
+            cur.execute(query=query)
+            rows = cur.fetchall()
+            assert len(rows) == 2, rows
+            assert rows[0][0] == 'one'
+            assert rows[1][0] == 'two'
+
     def test_analytics_default(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -329,8 +345,8 @@ class PsycopgCore(BaseTracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_app_service(self):
         """
         When a user specifies a service for the app
             The psycopg integration should not use it.
@@ -345,6 +361,22 @@ class PsycopgCore(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        assert spans[0].service == "mysvc"
+
+    @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
+    def test_contextmanager_connection(self):
+        service = "fo"
+        with self._get_conn(service=service) as conn:
+            conn.cursor().execute("""select 'blah'""")
+            self.assert_structure(dict(name='postgres.query', service=service))
 
 
 def test_backwards_compatibilty_v3():

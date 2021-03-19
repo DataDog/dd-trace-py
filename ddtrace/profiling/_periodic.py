@@ -1,12 +1,12 @@
 # -*- encoding: utf-8 -*-
 import sys
 import threading
+import time
+import typing
 
-from ddtrace.profiling import _service
+from ddtrace.internal import nogevent
+from ddtrace.internal import service
 from ddtrace.vendor import attr
-
-
-PERIODIC_THREAD_IDS = set()
 
 
 class PeriodicThread(threading.Thread):
@@ -17,7 +17,16 @@ class PeriodicThread(threading.Thread):
 
     """
 
-    def __init__(self, interval, target, name=None, on_shutdown=None):
+    _ddtrace_profiling_ignore = True
+
+    def __init__(
+        self,
+        interval,  # type: float
+        target,  # type: typing.Callable[[], typing.Any]
+        name=None,  # type: typing.Optional[str]
+        on_shutdown=None,  # type: typing.Callable[[], typing.Any]
+    ):
+        # type: (...) -> None
         """Create a periodic thread.
 
         :param interval: The interval in seconds to wait between execution of the periodic function.
@@ -32,24 +41,21 @@ class PeriodicThread(threading.Thread):
         self.quit = threading.Event()
         self.daemon = True
 
-    def start(self):
-        """Start the thread."""
-        super(PeriodicThread, self).start()
-        PERIODIC_THREAD_IDS.add(self.ident)
-
     def stop(self):
         """Stop the thread."""
-        self.quit.set()
+        # NOTE: make sure the thread is alive before using self.quit:
+        # 1. self.quit is Lock-based
+        # 2. if we're a child trying to stop a Thread,
+        #    the Lock might have been locked in a parent process while forking so that'd block forever
+        if self.is_alive():
+            self.quit.set()
 
     def run(self):
         """Run the target function periodically."""
-        try:
-            while not self.quit.wait(self.interval):
-                self._target()
-            if self._on_shutdown is not None:
-                self._on_shutdown()
-        finally:
-            PERIODIC_THREAD_IDS.remove(self.ident)
+        while not self.quit.wait(self.interval):
+            self._target()
+        if self._on_shutdown is not None:
+            self._on_shutdown()
 
 
 class _GeventPeriodicThread(PeriodicThread):
@@ -72,10 +78,13 @@ class _GeventPeriodicThread(PeriodicThread):
         :param on_shutdown: The function to call when the thread shuts down.
         """
         super(_GeventPeriodicThread, self).__init__(interval, target, name, on_shutdown)
-        import gevent.monkey
-
-        self._sleep = gevent.monkey.get_original("time", "sleep")
         self._tident = None
+        self._periodic_started = False
+        self._periodic_stopped = False
+
+    def _reset_internal_locks(self, is_alive=False):
+        # Called by Python via `threading._after_fork`
+        self._periodic_stopped = True
 
     @property
     def ident(self):
@@ -83,21 +92,24 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def start(self):
         """Start the thread."""
-        from gevent._threading import start_new_thread
-
         self.quit = False
-        self.has_quit = False
-        threading._limbo[self] = self
-        try:
-            self._tident = start_new_thread(self.run, tuple())
-        except Exception:
-            del threading._limbo[self]
-        PERIODIC_THREAD_IDS.add(self._tident)
+        if self._tident is not None:
+            raise RuntimeError("threads can only be started once")
+        self._tident = nogevent.start_new_thread(self.run, tuple())
+        if nogevent.threading_get_native_id:
+            self._native_id = nogevent.threading_get_native_id()
+
+        # Wait for the thread to be started to avoid race conditions
+        while not self._periodic_started:
+            time.sleep(self.SLEEP_INTERVAL)
+
+    def is_alive(self):
+        return not self._periodic_stopped and self._periodic_started
 
     def join(self, timeout=None):
         # FIXME: handle the timeout argument
-        while not self.has_quit:
-            self._sleep(self.SLEEP_INTERVAL)
+        while self.is_alive():
+            time.sleep(self.SLEEP_INTERVAL)
 
     def stop(self):
         """Stop the thread."""
@@ -105,15 +117,17 @@ class _GeventPeriodicThread(PeriodicThread):
 
     def run(self):
         """Run the target function periodically."""
-        with threading._active_limbo_lock:
-            threading._active[self._tident] = self
-            del threading._limbo[self]
+        # Do not use the threading._active_limbo_lock here because it's a gevent lock
+        threading._active[self._tident] = self
+
+        self._periodic_started = True
+
         try:
             while self.quit is False:
                 self._target()
                 slept = 0
                 while self.quit is False and slept < self.interval:
-                    self._sleep(self.SLEEP_INTERVAL)
+                    nogevent.sleep(self.SLEEP_INTERVAL)
                     slept += self.SLEEP_INTERVAL
             if self._on_shutdown is not None:
                 self._on_shutdown()
@@ -125,9 +139,8 @@ class _GeventPeriodicThread(PeriodicThread):
                 raise
         finally:
             try:
-                self.has_quit = True
+                self._periodic_stopped = True
                 del threading._active[self._tident]
-                PERIODIC_THREAD_IDS.remove(self.ident)
             except Exception:
                 # Exceptions might happen during interpreter shutdown.
                 # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
@@ -136,23 +149,22 @@ class _GeventPeriodicThread(PeriodicThread):
                     raise
 
 
-def PeriodicRealThread(*args, **kwargs):
-    """Create a PeriodicRealThread based on the underlying thread implementation (native, gevent, etc).
+def PeriodicRealThreadClass():
+    # type: () -> typing.Type[PeriodicThread]
+    """Return a PeriodicThread class based on the underlying thread implementation (native, gevent, etc).
 
-    This is exactly like PeriodicThread, except that it runs on a *real* OS thread. Be aware that this might be tricky
-    in e.g. the gevent case, where Lock object must not be shared with the MainThread (otherwise it'd dead lock).
+    The returned class works exactly like ``PeriodicThread``, except that it runs on a *real* OS thread. Be aware that
+    this might be tricky in e.g. the gevent case, where ``Lock`` object must not be shared with the ``MainThread``
+    (otherwise it'd dead lock).
 
     """
-    if "gevent" in sys.modules:
-        import gevent.monkey
-
-        if gevent.monkey.is_module_patched("threading"):
-            return _GeventPeriodicThread(*args, **kwargs)
-    return PeriodicThread(*args, **kwargs)
+    if nogevent.is_module_patched("threading"):
+        return _GeventPeriodicThread
+    return PeriodicThread
 
 
 @attr.s
-class PeriodicService(_service.Service):
+class PeriodicService(service.Service):
     """A service that runs periodically."""
 
     _interval = attr.ib()
@@ -172,10 +184,10 @@ class PeriodicService(_service.Service):
         if self._worker:
             self._worker.interval = value
 
-    def start(self):
-        """Start collecting profiles."""
-        super(PeriodicService, self).start()
-        periodic_thread_class = PeriodicRealThread if self._real_thread else PeriodicThread
+    def _start(self):
+        # type: () -> None
+        """Start the periodic service."""
+        periodic_thread_class = PeriodicRealThreadClass() if self._real_thread else PeriodicThread
         self._worker = periodic_thread_class(
             self.interval,
             target=self.periodic,

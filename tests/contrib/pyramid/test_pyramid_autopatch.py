@@ -1,6 +1,7 @@
 from pyramid.config import Configurator
 
-from .test_pyramid import PyramidTestCase, PyramidBase
+from .test_pyramid import PyramidBase
+from .test_pyramid import PyramidTestCase
 
 
 class TestPyramidAutopatch(PyramidTestCase):
@@ -12,7 +13,7 @@ class TestPyramidExplicitTweens(PyramidTestCase):
 
     def get_settings(self):
         return {
-            'pyramid.tweens': 'pyramid.tweens.excview_tween_factory\n',
+            "pyramid.tweens": "pyramid.tweens.excview_tween_factory\n",
         }
 
 
@@ -23,20 +24,19 @@ class TestPyramidDistributedTracing(PyramidBase):
         # ensure the Context is properly created
         # if distributed tracing is enabled
         headers = {
-            'x-datadog-trace-id': '100',
-            'x-datadog-parent-id': '42',
-            'x-datadog-sampling-priority': '2',
-            'x-datadog-origin': 'synthetics',
+            "x-datadog-trace-id": "100",
+            "x-datadog-parent-id": "42",
+            "x-datadog-sampling-priority": "2",
+            "x-datadog-origin": "synthetics",
         }
-        self.app.get('/', headers=headers, status=200)
-        writer = self.tracer.writer
-        spans = writer.pop()
+        self.app.get("/", headers=headers, status=200)
+        spans = self.pop_spans()
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric('_sampling_priority_v1') == 2
+        assert span.get_metric("_sampling_priority_v1") == 2
 
 
 def _include_me(config):
@@ -46,4 +46,4 @@ def _include_me(config):
 def test_config_include():
     """Makes sure that relative imports still work when the application is run with ddtrace-run."""
     config = Configurator()
-    config.include('tests.contrib.pyramid._include_me')
+    config.include("tests.contrib.pyramid._include_me")

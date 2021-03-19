@@ -1,6 +1,8 @@
 Advanced Usage
 ==============
 
+.. _agentconfiguration:
+
 Agent Configuration
 -------------------
 
@@ -24,7 +26,7 @@ You can also use a Unix Domain Socket to connect to the agent::
 Distributed Tracing
 -------------------
 
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
+To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`.
 
 - On the server side, it means to read propagated attributes and set them to the active tracing context.
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
@@ -89,14 +91,12 @@ propagate a `rpc_metadata` dictionary over the wire::
             rpc_metadata.update({
                 'trace_id': span_context.trace_id,
                 'span_id': span_context.span_id,
-                'sampling_priority': span_context.sampling_priority,
             })
 
         def extract(self, rpc_metadata):
             return Context(
                 trace_id=rpc_metadata['trace_id'],
                 span_id=rpc_metadata['span_id'],
-                sampling_priority=rpc_metadata['sampling_priority'],
             )
 
     # On the parent side
@@ -121,52 +121,6 @@ propagate a `rpc_metadata` dictionary over the wire::
 Sampling
 --------
 
-.. _`Priority Sampling`:
-
-Priority Sampling
-^^^^^^^^^^^^^^^^^
-
-To learn about what sampling is check out our documentation `here
-<https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing>`_.
-
-By default priorities are set on a trace by a sampler. The sampler can set the
-priority to the following values:
-
-- ``AUTO_REJECT``: the sampler automatically rejects the trace
-- ``AUTO_KEEP``: the sampler automatically keeps the trace
-
-Priority sampling is enabled by default.
-When enabled, the sampler will automatically assign a priority to your traces,
-depending on their service and volume.
-This ensures that your sampled distributed traces will be complete.
-
-You can also set this priority manually to either drop an uninteresting trace or
-to keep an important one.
-To do this, set the ``context.sampling_priority`` to one of the following:
-
-- ``USER_REJECT``: the user asked to reject the trace
-- ``USER_KEEP``: the user asked to keep the trace
-
-When not using distributed tracing, you may change the priority at any time, as
-long as the trace is not finished yet.
-But it has to be done before any context propagation (fork, RPC calls) to be
-effective in a distributed context.
-Changing the priority after context has been propagated causes different parts
-of a distributed trace to use different priorities. Some parts might be kept,
-some parts might be rejected, and this can cause the trace to be partially
-stored and remain incomplete.
-
-If you change the priority, we recommend you do it as soon as possible, when the
-root span has just been created::
-
-    from ddtrace.ext.priority import USER_REJECT, USER_KEEP
-
-    context = tracer.context_provider.active()
-
-    # indicate to not keep the trace
-    context.sampling_priority = USER_REJECT
-
-
 Client Sampling
 ^^^^^^^^^^^^^^^
 
@@ -183,101 +137,6 @@ The ``RateSampler`` randomly samples a percentage of traces::
     sample_rate = 0.2
     tracer.sampler = RateSampler(sample_rate)
 
-
-Trace Search & Analytics
-------------------------
-
-Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
-
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
-
-* :ref:`aiohttp`
-* :ref:`bottle`
-* :ref:`django`
-* :ref:`falcon`
-* :ref:`flask`
-* :ref:`molten`
-* :ref:`pylons`
-* :ref:`pyramid`
-* :ref:`requests`
-* :ref:`tornado`
-
-
-For most libraries, APM events can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
-
-+----------------------+----------------------------------------+
-|       Library        |          Environment Variable          |
-+======================+========================================+
-| :ref:`aiobotocore`   | ``DD_AIOBOTOCORE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |
-+----------------------+----------------------------------------+
-| :ref:`bottle`        | ``DD_BOTTLE_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
-+----------------------+----------------------------------------+
-| :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
-+----------------------+----------------------------------------+
-| :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`flask`         | ``DD_FLASK_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`flask_cache`   | ``DD_FLASK_CACHE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`grpc`          | ``DD_GRPC_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`httplib`       | ``DD_HTTPLIB_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`kombu`         | ``DD_KOMBU_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`molten`        | ``DD_MOLTEN_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pylibmc`       | ``DD_PYLIBMC_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`pylons`        | ``DD_PYLONS_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pymemcache`    | ``DD_PYMEMCACHE_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`pymongo`       | ``DD_PYMONGO_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`redis`         | ``DD_REDIS_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`rediscluster`  | ``DD_REDISCLUSTER_ANALYTICS_ENABLED``  |
-+----------------------+----------------------------------------+
-| :ref:`sqlalchemy`    | ``DD_SQLALCHEMY_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`vertica`       | ``DD_VERTICA_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-
-For datastore libraries that extend another, use the setting for the underlying library:
-
-+------------------------+----------------------------------+
-|        Library         |       Environment Variable       |
-+========================+==================================+
-| :ref:`mongoengine`     | ``DD_PYMONGO_ANALYTICS_ENABLED`` |
-+------------------------+----------------------------------+
-| :ref:`mysql-connector` | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`mysqldb`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`psycopg2`        | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`pymysql`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-
-Where environment variables are not used for configuring the tracer, the instructions for configuring trace analytics is provided in the library documentation:
-
-* :ref:`aiohttp`
-* :ref:`django`
-* :ref:`pyramid`
-* :ref:`requests`
-* :ref:`tornado`
 
 Resolving deprecation warnings
 ------------------------------
@@ -303,17 +162,18 @@ It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
-    Tracer.configure(settings={
+    from ddtrace import tracer
+
+    tracer.configure(settings={
         'FILTERS': [
             FilterRequestsOnUrl(r'http://test\.example\.com'),
         ],
     })
 
-All the filters in the filters list will be evaluated sequentially
-for each trace and the resulting trace will either be sent to the Agent or
-discarded depending on the output.
+The filters in the filters list will be applied sequentially to each trace
+and the resulting trace will either be sent to the Agent or discarded.
 
-**Use the standard filters**
+**Built-in filters**
 
 The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
 filter out incoming requests to specific urls:
@@ -321,22 +181,23 @@ filter out incoming requests to specific urls:
 .. autoclass:: ddtrace.filters.FilterRequestsOnUrl
     :members:
 
-**Write a custom filter**
+**Writing a custom filter**
 
-Creating your own filters is as simple as implementing a class with a
-``process_trace`` method and adding it to the filters parameter of
-Tracer.configure. process_trace should either return a trace to be fed to the
-next step of the pipeline or ``None`` if the trace should be discarded::
+Create a filter by implementing a class with a ``process_trace`` method and
+providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+``process_trace`` should either return a trace to be fed to the next step of
+the pipeline or ``None`` if the trace should be discarded::
 
-    class FilterExample(object):
+    from ddtrace import Span, tracer
+    from ddtrace.filters import TraceFilter
+
+    class FilterExample(TraceFilter):
         def process_trace(self, trace):
-            # write here your logic to return the `trace` or None;
-            # `trace` instance is owned by the thread and you can alter
-            # each single span or the whole trace if needed
+            # type: (List[Span]) -> Optional[List[Span]]
+            ...
 
-    # And then instantiate it with
-    filters = [FilterExample()]
-    Tracer.configure(settings={'FILTERS': filters})
+    # And then configure it with
+    tracer.configure(settings={'FILTERS': [FilterExample()]})
 
 (see filters.py for other example implementations)
 
@@ -347,8 +208,10 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-HTTP layer
-----------
+..  _http-tagging:
+
+HTTP tagging
+------------
 
 Query String Tracing
 ^^^^^^^^^^^^^^^^^^^^
@@ -421,6 +284,24 @@ structure like in the following example::
       url  https://api.github.com/events
     }
 
+..  _http-custom-error:
+
+Custom Error Codes
+^^^^^^^^^^^^^^^^^^
+It is possible to have a custom mapping of which HTTP status codes are considered errors.
+By default, 500-599 status codes are considered errors.
+Configuration is provided both at the global level.
+
+Examples::
+
+    from ddtrace import config
+
+    config.http_server.error_statuses = '500-599'
+
+Certain status codes can be excluded by providing a list of ranges. Valid options:
+    - ``400-400``
+    - ``400-403,405-499``
+    - ``400,401,403``
 
 .. _adv_opentracing:
 
@@ -448,8 +329,6 @@ for usage.
 | `global_tags`       | tags that will be applied to each span | `{}`          |
 +---------------------+----------------------------------------+---------------+
 | `sampler`           | see `Sampling`_                        | `AllSampler`  |
-+---------------------+----------------------------------------+---------------+
-| `priority_sampling` | see `Priority Sampling`_               | `True`        |
 +---------------------+----------------------------------------+---------------+
 | `uds_path`          | unix socket of agent to connect to     | `None`        |
 +---------------------+----------------------------------------+---------------+
@@ -537,11 +416,11 @@ Examples
 
 Distributed Tracing across celery tasks with OpenTracing.
 
-1. Install Celery OpenTracing:
+1. Install Celery OpenTracing::
 
     pip install Celery-OpenTracing
 
-2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+2. Replace your Celery app with the version that comes with Celery-OpenTracing::
 
     from celery_opentracing import CeleryTracing
     from ddtrace.opentracer import set_global_tracer, Tracer
@@ -586,7 +465,6 @@ detailed in :ref:`Configuration`.
 - ``ddtrace-run python my_app.py``
 - ``ddtrace-run python manage.py runserver``
 - ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
 
 
 Pass along command-line arguments as your program would normally expect them::
@@ -605,18 +483,35 @@ traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
 
+.. _uwsgi:
+
 uWSGI
 -----
 
-The default configuration of uWSGI applications does not include the
-``--enable-threads`` setting which must be set to ``true`` for the
-tracing library to run.  This is noted in their best practices doc_.
+The tracer and profiler support uWSGI when configured with the following:
 
-  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+- Threads must be enabled with `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`_ or with `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`_ if running uWSGI in multithreaded mode.
+- If manual instrumentation and configuration is used, `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`_ must be used.
 
-Example run command:
+To enable tracing with automatic instrumentation and configuration with environment variables, use `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`_ option with the setting ``ddtrace.bootstrap.customize``. For example, add the following to the uWSGI configuration file::
 
-``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+  import=ddtrace.bootstrap.sitecustomize
+
+**Note:** Automatic instrumentation and configuration using ``ddtrace-run`` is not supported with uWSGI.
+
+To enable tracing with manual instrumentation and configuration, configure uWSGI with the ``lazy-apps`` option and use :ref:`patch_all()<patch_all>` and :ref:`agent configuration<agentconfiguration>` to a WSGI app::
+
+  from ddtrace import patch_all
+  from ddtrace import tracer
+
+
+  patch_all()
+  tracer.configure(collect_metrics=True)
+
+  def application(env, start_response):
+      with tracer.trace("uwsgi-app"):
+          start_response('200 OK', [('Content-Type','text/html')])
+          return [b"Hello World"]
 
 
 API
@@ -637,6 +532,9 @@ API
 
 ``Pin``
 ^^^^^^^
+
+.. _Pin:
+
 .. autoclass:: ddtrace.Pin
     :members:
     :special-members: __init__
@@ -647,6 +545,8 @@ API
 ^^^^^^^^^^^^^
 
 .. autofunction:: ddtrace.monkey.patch_all
+
+.. _patch:
 
 ``patch``
 ^^^^^^^^^

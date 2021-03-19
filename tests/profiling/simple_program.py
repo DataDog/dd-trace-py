@@ -1,11 +1,13 @@
+#!/usr/bin/env python
 import sys
 import time
 
-from ddtrace.profiling import _service
+from ddtrace.internal import service
 from ddtrace.profiling import bootstrap
 from ddtrace.profiling.collector import stack
 
-for running_collector in bootstrap.profiler.collectors:
+
+for running_collector in bootstrap.profiler._profiler._collectors:
     if isinstance(running_collector, stack.StackCollector):
         break
 else:
@@ -13,7 +15,7 @@ else:
 
 
 print("hello world")
-assert running_collector.status == _service.ServiceStatus.RUNNING
+assert running_collector.status == service.ServiceStatus.RUNNING
 print(running_collector.interval)
 
 t0 = time.time()

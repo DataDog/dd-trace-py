@@ -31,18 +31,24 @@ License: BSD 2-Clause "Simplified" License
 Notes:
   `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
 
+
 dogstatsd
 ---------
 
 Website: https://datadogpy.readthedocs.io/en/latest/
 Source: https://github.com/DataDog/datadogpy
-Version: 0.28.0
-License: Copyright (c) 2015, Datadog <info@datadoghq.com>
+Version: 8e11af2 (0.39.1)
+License: Copyright (c) 2020, Datadog <info@datadoghq.com>
 
 Notes:
   `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
   Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
+  `datadog/util/format.py` was copied to `dogstatsd/format.py`
+  version fixed to 8e11af2
+  removed type imports
+  removed unnecessary compat utils
+
 
 monotonic
 ---------
@@ -82,9 +88,22 @@ attrs
 
 Website: http://www.attrs.org/
 Source: https://github.com/python-attrs/attrs
-Version: 19.3.0
+Version: 20.3.0
 License: MIT
 
+
+contextvars
+-------------
+
+Source: https://github.com/MagicStack/contextvars
+Version: 2.4
+License: Apache License 2.0
+
+Notes:
+  - removal of metaclass usage
+  - formatting
+  - use a plain old dict instead of immutables.Map
+  - removal of `*` syntax
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

@@ -1,0 +1,63 @@
+[[{"name" "starlette.request"
+   "service" "starlette"
+   "resource" "POST /notes"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1604947180991043800
+   "duration" 4520000
+   "meta" {"runtime-id" "f0c6606d62be4906953a97ba1bb561fd"
+           "http.method" "POST"
+           "http.url" "http://testserver/notes"
+           "http.version" "1.1"
+           "http.status_code" "200"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
+              "system.pid" 2574}}
+      {"name" "sqlite.query"
+       "service" "sqlite"
+       "resource" "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)"
+       "type" "sql"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1604947180991993800
+       "duration" 459300
+       "meta" {"sql.db" "test.db"}
+       "metrics" {"_dd.measured" 1
+                  "sql.rows" 1}}]
+ [{"name" "starlette.request"
+   "service" "starlette"
+   "resource" "GET /notes"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1604947180996770900
+   "duration" 798000
+   "meta" {"runtime-id" "f0c6606d62be4906953a97ba1bb561fd"
+           "http.method" "GET"
+           "http.url" "http://testserver/notes"
+           "http.version" "1.1"
+           "http.status_code" "200"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.tracer_kr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 2574}}
+      {"name" "sqlite.query"
+       "service" "sqlite"
+       "resource" "SELECT * FROM NOTES"
+       "type" "sql"
+       "error" 0
+       "span_id" 1
+       "trace_id" 1
+       "parent_id" 0
+       "start" 1604947180997072400
+       "duration" 319500
+       "meta" {"sql.db" "test.db"}
+       "metrics" {"_dd.measured" 1}}]]

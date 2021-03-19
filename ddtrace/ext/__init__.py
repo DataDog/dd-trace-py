@@ -1,7 +1,7 @@
 from enum import Enum, unique
 
-from ..vendor.debtcollector import removals
 from ..utils import removed_classproperty
+from ..vendor.debtcollector import removals
 
 
 class StrEnum(str, Enum):
@@ -19,6 +19,7 @@ class SpanTypes(StrEnum):
     REDIS = "redis"
     SQL = "sql"
     TEMPLATE = "template"
+    TEST = "test"
     WEB = "web"
     WORKER = "worker"
 

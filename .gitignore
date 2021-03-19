@@ -4,9 +4,13 @@ __pycache__/
 *$py.class
 
 # C extensions
+ddtrace/profiling/collector/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
+ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
+ddtrace/internal/_encoding.c
+ddtrace/internal/_rand.c
 *.so
 
 # Distribution / packaging
@@ -44,7 +48,9 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+test-results/
 coverage.xml
+coverage.json
 *,cover
 .hypothesis/
 .pytest_cache/

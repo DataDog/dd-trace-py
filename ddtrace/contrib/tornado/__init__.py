@@ -76,7 +76,6 @@ Tornado settings can be used to change some tracing configuration, like::
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
             'distributed_tracing': False,
-            'analytics_enabled': False,
             'settings': {
                 'FILTERS':  [
                     FilterRequestsOnUrl(r'http://test\\.example\\.com'),
@@ -100,7 +99,6 @@ The available settings are:
 * ``distributed_tracing`` (default: `True`): enable distributed tracing if this is called
   remotely from an instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
-* ``analytics_enabled`` (default: `None`): enable generating APM events for Trace Search & Analytics.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 * ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.
@@ -108,20 +106,22 @@ The available settings are:
 from ...utils.importlib import require_modules
 
 
-required_modules = ['tornado']
+required_modules = ["tornado"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .stack_context import run_with_trace_context, TracerStackContext
+        from .stack_context import TracerStackContext
+        from .stack_context import run_with_trace_context
 
         context_provider = TracerStackContext()
 
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'context_provider',
-            'run_with_trace_context',
-            'TracerStackContext',
+            "patch",
+            "unpatch",
+            "context_provider",
+            "run_with_trace_context",
+            "TracerStackContext",
         ]

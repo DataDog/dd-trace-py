@@ -1,13 +1,14 @@
 # 3p
 import aiopg
 
-# project
-from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
-
+# project
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 from ..test import ConnCtx
 
 
@@ -46,7 +47,7 @@ class TestPsycopgPatch(AsyncioTestCase):
                 assert len(rows) == 1
                 assert rows[0][0] == 'blah'
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
         assert spans[0].name == 'postgres.connect'
         assert spans[1].name == 'postgres.execute'

@@ -2,11 +2,11 @@ import asyncio
 
 from aiohttp.test_utils import AioHTTPTestCase
 
+from ... import TracerTestCase
 from .app.web import setup_app
-from ...base import BaseTracerTestCase
 
 
-class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
+class TraceTestCase(TracerTestCase, AioHTTPTestCase):
     """
     Base class that provides a valid ``aiohttp`` application with
     the async tracer.

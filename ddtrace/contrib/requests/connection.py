@@ -1,13 +1,15 @@
 import ddtrace
 from ddtrace import config
-from ddtrace.http import store_request_headers, store_response_headers
 
+from .. import trace_utils
 from ...compat import parse
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
+
 
 log = get_logger(__name__)
 
@@ -30,8 +32,10 @@ def _extract_service_name(session, span, hostname=None):
         return hostname
 
     service_name = cfg["service_name"]
-    if service_name == DEFAULT_SERVICE and span._parent is not None and span._parent.service is not None:
+    if service_name is None and span._parent is not None and span._parent.service is not None:
         service_name = span._parent.service
+    elif service_name is None:
+        service_name = DEFAULT_SERVICE
     return service_name
 
 
@@ -51,21 +55,10 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    # sanitize url of query
     parsed_uri = parse.urlparse(request.url)
     hostname = parsed_uri.hostname
     if parsed_uri.port:
         hostname = "{}:{}".format(hostname, parsed_uri.port)
-    sanitized_url = parse.urlunparse(
-        (
-            parsed_uri.scheme,
-            parsed_uri.netloc,
-            parsed_uri.path,
-            parsed_uri.params,
-            None,  # drop parsed_uri.query
-            parsed_uri.fragment,
-        )
-    )
 
     with tracer.trace("requests.request", span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
@@ -81,11 +74,7 @@ def _wrap_send(func, instance, args, kwargs):
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, request.headers)
-
-        # Storing request headers in the span
-        store_request_headers(request.headers, span, config.requests)
+            HTTPPropagator.inject(span.context, request.headers)
 
         response = None
         try:
@@ -94,22 +83,29 @@ def _wrap_send(func, instance, args, kwargs):
             # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
             # requests custom structure, that we convert to a dict
             if hasattr(response, "headers"):
-                store_response_headers(dict(response.headers), span, config.requests)
+                response_headers = response.headers
+            else:
+                response_headers = None
+            trace_utils.set_http_meta(
+                span, config.requests, request_headers=request.headers, response_headers=response_headers
+            )
             return response
         finally:
             try:
-                span.set_tag(http.METHOD, request.method.upper())
-                span.set_tag(http.URL, sanitized_url)
-                if config.requests.trace_query_string:
-                    span.set_tag(http.QUERY_STRING, parsed_uri.query)
+                status = None
                 if response is not None:
-                    span.set_tag(http.STATUS_CODE, response.status_code)
-                    # `span.error` must be an integer
-                    span.error = int(500 <= response.status_code)
+                    status = response.status_code
                     # Storing response headers in the span.
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
-                    store_response_headers(response_headers, span, config.requests)
+                trace_utils.set_http_meta(
+                    span,
+                    config.requests,
+                    method=request.method.upper(),
+                    url=request.url,
+                    status_code=status,
+                    query=parsed_uri.query,
+                )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

@@ -6,25 +6,22 @@ https://docs.pytest.org/en/latest/writing_plugins.html#testing-plugins
 """
 import pytest
 
-from ddtrace.opentracer import Tracer, set_global_tracer
-
-from tests.test_tracer import get_dummy_tracer
+from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import set_global_tracer
+from tests import DummyTracer
+from tests import TracerSpanContainer
 
 
 @pytest.fixture()
 def ot_tracer_factory():
     """Fixture which returns an opentracer ready to use for testing."""
 
-    def make_ot_tracer(
-        service_name='my_svc', config=None, scope_manager=None, context_provider=None
-    ):
+    def make_ot_tracer(service_name="my_svc", config=None, scope_manager=None, context_provider=None):
         config = config or {}
-        tracer = Tracer(
-            service_name=service_name, config=config, scope_manager=scope_manager
-        )
+        tracer = Tracer(service_name=service_name, config=config, scope_manager=scope_manager)
 
         # similar to how we test the ddtracer, use a dummy tracer
-        dd_tracer = get_dummy_tracer()
+        dd_tracer = DummyTracer()
         if context_provider:
             dd_tracer.configure(context_provider=context_provider)
 
@@ -41,6 +38,13 @@ def ot_tracer(ot_tracer_factory):
     return ot_tracer_factory()
 
 
+@pytest.fixture
+def test_spans(ot_tracer):
+    container = TracerSpanContainer(ot_tracer._dd_tracer)
+    yield container
+    container.reset()
+
+
 @pytest.fixture()
 def global_tracer(ot_tracer):
     """A function similar to one OpenTracing users would write to initialize
@@ -49,11 +53,6 @@ def global_tracer(ot_tracer):
     set_global_tracer(ot_tracer)
 
     return ot_tracer
-
-
-@pytest.fixture()
-def writer(ot_tracer):
-    return ot_tracer._dd_tracer.writer
 
 
 @pytest.fixture()

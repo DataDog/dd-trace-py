@@ -1,0 +1,49 @@
+[[{"name" "wsgi.request"
+   "service" "wsgi"
+   "resource" "GET /"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1611691657730516000
+   "duration" 397000
+   "meta" {"runtime-id" "b4b1dd86b0fc47d1ad90714c169aaea5"
+           "http.status_msg" "OK"
+           "http.status_code" "200"
+           "http.response.headers.my-response-header" "test_response_value"
+           "http.method" "GET"
+           "http.url" "http://localhost:80/"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
+              "system.pid" 8522}}
+      {"name" "wsgi.application"
+       "service" "wsgi"
+       "resource" "wsgi.application"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611691657730695000
+       "duration" 153000}
+          {"name" "wsgi.start_response"
+           "service" "wsgi"
+           "resource" "wsgi.start_response"
+           "type" "web"
+           "error" 0
+           "span_id" 3
+           "trace_id" 0
+           "parent_id" 1
+           "start" 1611691657730788000
+           "duration" 49000}
+      {"name" "wsgi.response"
+       "service" "wsgi"
+       "resource" "wsgi.response"
+       "error" 0
+       "span_id" 2
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611691657730859000
+       "duration" 11000
+       "meta" {"result_class" "list"}}]]

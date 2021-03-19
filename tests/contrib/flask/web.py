@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 
-from flask import Flask, render_template
+from flask import Flask
+from flask import render_template
 
 
 class TestError(Exception):
@@ -18,67 +19,67 @@ def create_app():
     and without any tracing side effect from the previous execution.
     """
     cur_dir = os.path.dirname(os.path.realpath(__file__))
-    tmpl_path = os.path.join(cur_dir, 'test_templates')
+    tmpl_path = os.path.join(cur_dir, "test_templates")
     app = Flask(__name__, template_folder=tmpl_path)
 
-    @app.route('/')
+    @app.route("/")
     def index():
-        return 'hello'
+        return "hello"
 
-    @app.route('/error')
+    @app.route("/error")
     def error():
         raise TestError()
 
-    @app.route('/handleme')
+    @app.route("/handleme")
     def handle_me():
         raise HandleMe()
 
-    @app.route('/fatal')
+    @app.route("/fatal")
     def fatal():
         1 / 0
 
-    @app.route('/tmpl')
+    @app.route("/tmpl")
     def tmpl():
-        return render_template('test.html', world='earth')
+        return render_template("test.html", world="earth")
 
-    @app.route('/tmpl/err')
+    @app.route("/tmpl/err")
     def tmpl_err():
-        return render_template('err.html')
+        return render_template("err.html")
 
-    @app.route('/tmpl/render_err')
+    @app.route("/tmpl/render_err")
     def tmpl_render_err():
-        return render_template('render_err.html')
+        return render_template("render_err.html")
 
-    @app.route('/child')
+    @app.route("/child")
     def child():
-        with app._tracer.trace('child') as span:
-            span.set_tag('a', 'b')
-            return 'child'
+        with app._tracer.trace("child") as span:
+            span.set_tag("a", "b")
+            return "child"
 
-    @app.route('/custom_span')
+    @app.route("/custom_span")
     def custom_span():
         span = app._tracer.current_span()
         assert span
-        span.resource = 'overridden'
-        return 'hiya'
+        span.resource = "overridden"
+        return "hiya"
 
     def unicode_view():
-        return u'üŋïĉóđē'
+        return u"üŋïĉóđē"
 
     app.add_url_rule(
-        u'/üŋïĉóđē',
-        u'üŋïĉóđē',
+        u"/üŋïĉóđē",
+        u"üŋïĉóđē",
         unicode_view,
     )
 
     @app.errorhandler(TestError)
     def handle_my_exception(e):
         assert isinstance(e, TestError)
-        return 'error', 500
+        return "error", 500
 
     @app.errorhandler(HandleMe)
     def err_to_202(e):
         assert isinstance(e, HandleMe)
-        return 'handled', 202
+        return "handled", 202
 
     return app

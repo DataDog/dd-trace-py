@@ -1,6 +1,8 @@
 import collections
 import logging
+import os
 
+from ..utils.deprecation import deprecation
 from ..utils.formats import get_env
 
 
@@ -50,6 +52,30 @@ def get_logger(name):
     return logger
 
 
+def hasHandlers(self):
+    """
+    See if this logger has any handlers configured.
+    Loop through all handlers for this logger and its parents in the
+    logger hierarchy. Return True if a handler was found, else False.
+    Stop searching up the hierarchy whenever a logger with the "propagate"
+    attribute set to zero is found - that will be the last logger which
+    is checked for the existence of handlers.
+
+    https://github.com/python/cpython/blob/8f192d12af82c4dc40730bf59814f6a68f68f950/Lib/logging/__init__.py#L1629
+    """
+    c = self
+    rv = False
+    while c:
+        if c.handlers:
+            rv = True
+            break
+        if not c.propagate:
+            break
+        else:
+            c = c.parent
+    return rv
+
+
 class DDLogger(logging.Logger):
     """
     Custom rate limited logger used by ``ddtrace``
@@ -71,9 +97,23 @@ class DDLogger(logging.Logger):
         self.buckets = collections.defaultdict(lambda: DDLogger.LoggingBucket(0, 0))
 
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
-        # Allow configuring via `DD_LOGGING_RATE_LIMIT`
-        # DEV: `DD_LOGGING_RATE_LIMIT=0` means to disable all rate limiting
-        self.rate_limit = int(get_env("logging", "rate_limit", default=60))
+        # Allow configuring via `DD_TRACE_LOGGING_RATE`
+        # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
+        rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
+        if rate_limit is None:
+            # DEV: If not set, look at the deprecated (DD/DATADOG)_LOGGING_RATE_LIMIT
+            rate_limit = get_env("logging", "rate_limit", default=None)
+            if rate_limit is not None:
+                deprecation(
+                    name="DD_LOGGING_RATE_LIMIT",
+                    message="Use `DD_TRACE_LOGGING_RATE` instead",
+                    version="1.0.0",
+                )
+
+        if rate_limit is not None:
+            self.rate_limit = int(rate_limit)
+        else:
+            self.rate_limit = 60
 
     def handle(self, record):
         """
@@ -88,8 +128,9 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
-        # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
-        if not self.rate_limit:
+        # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
+        # If the logging is in debug, then do not apply any limits to any log
+        if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:
             super(DDLogger, self).handle(record)
             return
 

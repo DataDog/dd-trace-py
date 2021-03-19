@@ -1,20 +1,17 @@
 # stdlib
 import contextlib
 
+from sqlalchemy import Column
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import create_engine
 # 3rd party
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import (
-    create_engine,
-    Column,
-    Integer,
-    String,
-)
 
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import trace_engine
-
 # testing
 from tests.opentracer.utils import init_tracer
 
@@ -104,7 +101,7 @@ class SQLAlchemyTestMixin(object):
         self.session.add(wayne)
         self.session.commit()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -125,7 +122,7 @@ class SQLAlchemyTestMixin(object):
         out = list(self.session.query(Player).filter_by(name='wayne'))
         assert len(out) == 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -147,7 +144,7 @@ class SQLAlchemyTestMixin(object):
             rows = conn.execute('SELECT * FROM players').fetchall()
             assert len(rows) == 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -162,12 +159,6 @@ class SQLAlchemyTestMixin(object):
         assert span.error == 0
         assert span.duration > 0
 
-    def test_traced_service(self):
-        # ensures that the service is set as expected
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
-
     def test_opentracing(self):
         """Ensure that sqlalchemy works with the opentracer."""
         ot_tracer = init_tracer('sqlalch_svc', self.tracer)
@@ -177,7 +168,7 @@ class SQLAlchemyTestMixin(object):
                 rows = conn.execute('SELECT * FROM players').fetchall()
                 assert len(rows) == 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 2

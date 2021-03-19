@@ -2,15 +2,17 @@
 import rediscluster
 
 from ddtrace import Pin
-from ddtrace.contrib.rediscluster.patch import patch, unpatch
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
+from ddtrace.contrib.rediscluster.patch import patch
+from ddtrace.contrib.rediscluster.patch import unpatch
+
+from ... import DummyTracer
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import REDISCLUSTER_CONFIG
-from ...base import BaseTracerTestCase
-from ...test_tracer import get_dummy_tracer
-from ...utils import assert_is_measured
 
 
-class TestRedisPatch(BaseTracerTestCase):
+class TestRedisPatch(TracerTestCase):
 
     TEST_SERVICE = 'rediscluster-patch'
     TEST_HOST = REDISCLUSTER_CONFIG['host']
@@ -73,8 +75,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert span.get_metric('redis.pipeline_length') == 3
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
+        tracer = DummyTracer()
 
         # Test patch idempotence
         patch()
@@ -84,7 +85,7 @@ class TestRedisPatch(BaseTracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get('key')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -94,7 +95,7 @@ class TestRedisPatch(BaseTracerTestCase):
         r = self._get_test_client()
         r.get('key')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -104,11 +105,11 @@ class TestRedisPatch(BaseTracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get('key')
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

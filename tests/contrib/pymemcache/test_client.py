@@ -1,23 +1,25 @@
 # 3p
 import pymemcache
-from pymemcache.exceptions import (
-    MemcacheClientError,
-    MemcacheServerError,
-    MemcacheUnknownCommandError,
-    MemcacheUnknownError,
-    MemcacheIllegalInputError,
-)
+from pymemcache.exceptions import MemcacheClientError
+from pymemcache.exceptions import MemcacheIllegalInputError
+from pymemcache.exceptions import MemcacheServerError
+from pymemcache.exceptions import MemcacheUnknownCommandError
+from pymemcache.exceptions import MemcacheUnknownError
 import pytest
-from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch, unpatch
-from .utils import MockSocket, _str
-from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
-from ...base import BaseTracerTestCase
+from ddtrace.contrib.pymemcache.patch import patch
+from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.vendor import wrapt
 
-from tests.test_tracer import get_dummy_tracer
+from ... import DummyTracer
+from ... import TracerTestCase
+from .test_client_mixin import PymemcacheClientTestCaseMixin
+from .test_client_mixin import TEST_HOST
+from .test_client_mixin import TEST_PORT
+from .utils import MockSocket
+from .utils import _str
 
 
 _Client = pymemcache.client.base.Client
@@ -226,14 +228,14 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         for _, client in self.client.clients.items():
             pin = Pin.get_from(client)
             tracer = pin.tracer
-            spans.extend(tracer.writer.pop())
+            spans.extend(tracer.pop())
         return spans
 
     def make_client_pool(self, hostname, mock_socket_values, serializer=None, **kwargs):
         mock_client = pymemcache.client.base.Client(
             hostname, serializer=serializer, **kwargs
         )
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.override(mock_client, tracer=tracer)
 
         mock_client.sock = MockSocket(mock_socket_values)
@@ -272,7 +274,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         self.check_spans(2, ['add', 'delete'], ['add key', 'delete key'])
 
 
-class PymemcacheClientConfiguration(BaseTracerTestCase):
+class PymemcacheClientConfiguration(TracerTestCase):
     """Ensure that pymemache can be configured properly."""
 
     def setUp(self):
@@ -282,7 +284,7 @@ class PymemcacheClientConfiguration(BaseTracerTestCase):
         unpatch()
 
     def make_client(self, mock_socket_values, **kwargs):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.override(pymemcache, tracer=tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))
@@ -303,7 +305,7 @@ class PymemcacheClientConfiguration(BaseTracerTestCase):
 
         pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
 
         self.assertEqual(spans[0].service, 'mysvc')
 
@@ -316,11 +318,11 @@ class PymemcacheClientConfiguration(BaseTracerTestCase):
 
         pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
 
         self.assertEqual(spans[0].service, 'mysvc2')
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
@@ -335,6 +337,6 @@ class PymemcacheClientConfiguration(BaseTracerTestCase):
 
         pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
 
         assert spans[0].service != "mysvc"

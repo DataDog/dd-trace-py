@@ -1,6 +1,12 @@
-# project
-from ddtrace.contrib.aiopg.patch import patch, unpatch
+# 3p
+import aiopg
 
+from ddtrace import Pin
+# project
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
@@ -35,7 +41,7 @@ class AiopgTestCase(AsyncioTestCase):
                 rows.append(row)
 
         assert rows == [('foobarblah',)]
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == 'postgres.execute'

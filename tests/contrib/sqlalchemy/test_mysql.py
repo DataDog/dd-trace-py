@@ -1,13 +1,13 @@
-from sqlalchemy.exc import ProgrammingError
 import pytest
+from sqlalchemy.exc import ProgrammingError
 
-from .mixins import SQLAlchemyTestMixin
+from ... import TracerTestCase
+from ... import assert_is_measured
 from ..config import MYSQL_CONFIG
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from .mixins import SQLAlchemyTestMixin
 
 
-class MysqlConnectorTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for mysql-connector engine"""
     VENDOR = 'mysql'
     SQL_DB = 'test'
@@ -31,7 +31,7 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)

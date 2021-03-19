@@ -3,73 +3,111 @@ import threading
 
 import pytest
 
+from ddtrace.internal import service
 from ddtrace.profiling import _periodic
+
+
+if os.getenv("DD_PROFILE_TEST_GEVENT", False):
+    import gevent
+
+    class Event(object):
+        """
+        We can't use gevent Events here[0], nor can we use native threading
+        events (because gevent is not multi-threaded).
+
+        So for gevent, since it's not multi-threaded and will not run greenlets
+        in parallel (for our usage here, anyway) we can write a dummy Event
+        class which just does a simple busy wait on a shared variable.
+
+        [0] https://github.com/gevent/gevent/issues/891
+        """
+
+        state = False
+
+        def wait(self):
+            while not self.state:
+                gevent.sleep(0.001)
+
+        def set(self):
+            self.state = True
+
+
+else:
+    Event = threading.Event
 
 
 def test_periodic():
     x = {"OK": False}
 
+    thread_started = Event()
+    thread_continue = Event()
+
     def _run_periodic():
+        thread_started.set()
         x["OK"] = True
+        thread_continue.wait()
 
     def _on_shutdown():
         x["DOWN"] = True
 
-    t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
+    t = _periodic.PeriodicRealThreadClass()(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
-    assert t.ident in _periodic.PERIODIC_THREAD_IDS
-    while not x["OK"]:
-        pass
+    thread_started.wait()
+    thread_continue.set()
+    assert t.is_alive()
     t.stop()
     t.join()
+    assert not t.is_alive()
     assert x["OK"]
     assert x["DOWN"]
-    assert t.ident not in _periodic.PERIODIC_THREAD_IDS
+    if hasattr(threading, "get_native_id"):
+        assert t.native_id is not None
+
+
+def test_periodic_double_start():
+    def _run_periodic():
+        pass
+
+    t = _periodic.PeriodicRealThreadClass()(0.1, _run_periodic)
+    t.start()
+    with pytest.raises(RuntimeError):
+        t.start()
 
 
 def test_periodic_error():
     x = {"OK": False}
 
+    thread_started = Event()
+    thread_continue = Event()
+
     def _run_periodic():
-        x["OK"] = True
+        thread_started.set()
+        thread_continue.wait()
         raise ValueError
 
     def _on_shutdown():
         x["DOWN"] = True
 
-    t = _periodic.PeriodicRealThread(0.001, _run_periodic, on_shutdown=_on_shutdown)
+    t = _periodic.PeriodicRealThreadClass()(0.001, _run_periodic, on_shutdown=_on_shutdown)
     t.start()
-    assert t.ident in _periodic.PERIODIC_THREAD_IDS
-    while not x["OK"]:
-        pass
+    thread_started.wait()
+    thread_continue.set()
     t.stop()
     t.join()
     assert "DOWN" not in x
-    assert t.ident not in _periodic.PERIODIC_THREAD_IDS
 
 
 def test_gevent_class():
     if os.getenv("DD_PROFILE_TEST_GEVENT", False):
-        assert isinstance(_periodic.PeriodicRealThread(1, sum), _periodic._GeventPeriodicThread)
+        assert isinstance(_periodic.PeriodicRealThreadClass()(1, sum), _periodic._GeventPeriodicThread)
     else:
-        assert isinstance(_periodic.PeriodicRealThread(1, sum), _periodic.PeriodicThread)
-
-
-def test_periodic_real_thread_name():
-    def do_nothing():
-        pass
-
-    t = _periodic.PeriodicRealThread(interval=1, target=do_nothing)
-    t.start()
-    assert t in threading.enumerate()
-    t.stop()
-    t.join()
+        assert isinstance(_periodic.PeriodicRealThreadClass()(1, sum), _periodic.PeriodicThread)
 
 
 def test_periodic_service_start_stop():
     t = _periodic.PeriodicService(1)
     t.start()
-    with pytest.raises(RuntimeError):
+    with pytest.raises(service.ServiceAlreadyRunning):
         t.start()
     t.stop()
     t.join()
@@ -88,3 +126,11 @@ def test_periodic_join_stop_no_start():
     t.stop()
     t.join()
     t.stop()
+
+
+def test_is_alive_before_start():
+    def x():
+        pass
+
+    t = _periodic.PeriodicRealThreadClass()(1, x)
+    assert not t.is_alive()
