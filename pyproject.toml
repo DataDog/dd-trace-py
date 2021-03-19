@@ -62,7 +62,6 @@ exclude = '''
     contrib/
     (
       aiopg
-      | boto
       | cassandra
       | config.py
       | dbapi

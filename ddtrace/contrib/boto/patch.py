@@ -17,47 +17,39 @@ from ...utils.wrappers import unwrap
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
 
-AWS_QUERY_ARGS_NAME = ('operation_name', 'params', 'path', 'verb')
+AWS_QUERY_ARGS_NAME = ("operation_name", "params", "path", "verb")
 AWS_AUTH_ARGS_NAME = (
-    'method',
-    'path',
-    'headers',
-    'data',
-    'host',
-    'auth_path',
-    'sender',
+    "method",
+    "path",
+    "headers",
+    "data",
+    "host",
+    "auth_path",
+    "sender",
 )
-AWS_QUERY_TRACED_ARGS = ['operation_name', 'params', 'path']
-AWS_AUTH_TRACED_ARGS = ['path', 'data', 'host']
+AWS_QUERY_TRACED_ARGS = ["operation_name", "params", "path"]
+AWS_AUTH_TRACED_ARGS = ["path", "data", "host"]
 
 
 def patch():
-    if getattr(boto.connection, '_datadog_patch', False):
+    if getattr(boto.connection, "_datadog_patch", False):
         return
-    setattr(boto.connection, '_datadog_patch', True)
+    setattr(boto.connection, "_datadog_patch", True)
 
     # AWSQueryConnection and AWSAuthConnection are two different classes called by
     # different services for connection.
     # For exemple EC2 uses AWSQueryConnection and S3 uses AWSAuthConnection
-    wrapt.wrap_function_wrapper(
-        'boto.connection', 'AWSQueryConnection.make_request', patched_query_request
-    )
-    wrapt.wrap_function_wrapper(
-        'boto.connection', 'AWSAuthConnection.make_request', patched_auth_request
-    )
-    Pin(service='aws', app='aws').onto(
-        boto.connection.AWSQueryConnection
-    )
-    Pin(service='aws', app='aws').onto(
-        boto.connection.AWSAuthConnection
-    )
+    wrapt.wrap_function_wrapper("boto.connection", "AWSQueryConnection.make_request", patched_query_request)
+    wrapt.wrap_function_wrapper("boto.connection", "AWSAuthConnection.make_request", patched_auth_request)
+    Pin(service="aws", app="aws").onto(boto.connection.AWSQueryConnection)
+    Pin(service="aws", app="aws").onto(boto.connection.AWSAuthConnection)
 
 
 def unpatch():
-    if getattr(boto.connection, '_datadog_patch', False):
-        setattr(boto.connection, '_datadog_patch', False)
-        unwrap(boto.connection.AWSQueryConnection, 'make_request')
-        unwrap(boto.connection.AWSAuthConnection, 'make_request')
+    if getattr(boto.connection, "_datadog_patch", False):
+        setattr(boto.connection, "_datadog_patch", False)
+        unwrap(boto.connection.AWSQueryConnection, "make_request")
+        unwrap(boto.connection.AWSAuthConnection, "make_request")
 
 
 # ec2, sqs, kinesis
@@ -67,11 +59,11 @@ def patched_query_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    endpoint_name = getattr(instance, 'host').split('.')[0]
+    endpoint_name = getattr(instance, "host").split(".")[0]
 
     with pin.tracer.trace(
-        '{}.command'.format(endpoint_name),
-        service='{}.{}'.format(pin.service, endpoint_name),
+        "{}.command".format(endpoint_name),
+        service="{}.{}".format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
@@ -79,7 +71,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         operation_name = None
         if args:
             operation_name = args[0]
-            span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
+            span.resource = "%s.%s" % (endpoint_name, operation_name.lower())
         else:
             span.resource = endpoint_name
 
@@ -89,7 +81,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         region_name = _get_instance_region_name(instance)
 
         meta = {
-            aws.AGENT: 'boto',
+            aws.AGENT: "boto",
             aws.OPERATION: operation_name,
         }
         if region_name:
@@ -99,14 +91,11 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, 'status'))
-        span.set_tag(http.METHOD, getattr(result, '_method'))
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.boto.get_analytics_sample_rate()
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         return result
 
@@ -127,7 +116,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     frame = inspect.currentframe().f_back
     operation_name = None
     while frame:
-        if frame.f_code.co_name == 'make_request':
+        if frame.f_code.co_name == "make_request":
             operation_name = frame.f_back.f_code.co_name
             break
         frame = frame.f_back
@@ -136,17 +125,17 @@ def patched_auth_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    endpoint_name = getattr(instance, 'host').split('.')[0]
+    endpoint_name = getattr(instance, "host").split(".")[0]
 
     with pin.tracer.trace(
-        '{}.command'.format(endpoint_name),
-        service='{}.{}'.format(pin.service, endpoint_name),
+        "{}.command".format(endpoint_name),
+        service="{}.{}".format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         if args:
             http_method = args[0]
-            span.resource = '%s.%s' % (endpoint_name, http_method.lower())
+            span.resource = "%s.%s" % (endpoint_name, http_method.lower())
         else:
             span.resource = endpoint_name
 
@@ -156,7 +145,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         region_name = _get_instance_region_name(instance)
 
         meta = {
-            aws.AGENT: 'boto',
+            aws.AGENT: "boto",
             aws.OPERATION: operation_name,
         }
         if region_name:
@@ -166,24 +155,21 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, 'status'))
-        span.set_tag(http.METHOD, getattr(result, '_method'))
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.boto.get_analytics_sample_rate()
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         return result
 
 
 def _get_instance_region_name(instance):
-    region = getattr(instance, 'region', None)
+    region = getattr(instance, "region", None)
 
     if not region:
         return None
     if isinstance(region, str):
-        return region.split(':')[1]
+        return region.split(":")[1]
     else:
         return region.name
