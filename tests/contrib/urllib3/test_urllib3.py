@@ -205,7 +205,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == config.urllib3["_default_service"]
+        assert s.service == "urllib3"
 
     def test_user_set_service_name(self):
         """Test the user-set service name is set on the span"""
