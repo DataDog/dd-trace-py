@@ -23,23 +23,23 @@ from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
 
 
-ARGS_NAME = ('action', 'params', 'path', 'verb')
-TRACED_ARGS = ['params', 'path', 'verb']
+ARGS_NAME = ("action", "params", "path", "verb")
+TRACED_ARGS = ["params", "path", "verb"]
 
 
 def patch():
-    if getattr(aiobotocore.client, '_datadog_patch', False):
+    if getattr(aiobotocore.client, "_datadog_patch", False):
         return
-    setattr(aiobotocore.client, '_datadog_patch', True)
+    setattr(aiobotocore.client, "_datadog_patch", True)
 
-    wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
+    wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
     Pin(service=config.service or "aws", app="aws").onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
-    if getattr(aiobotocore.client, '_datadog_patch', False):
-        setattr(aiobotocore.client, '_datadog_patch', False)
-        unwrap(aiobotocore.client.AioBaseClient, '_make_api_call')
+    if getattr(aiobotocore.client, "_datadog_patch", False):
+        setattr(aiobotocore.client, "_datadog_patch", False)
+        unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
@@ -51,7 +51,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     @asyncio.coroutine
     def read(self, *args, **kwargs):
         # async read that must be child of the parent span operation
-        operation_name = '{}.read'.format(self._self_parent_span.name)
+        operation_name = "{}.read".format(self._self_parent_span.name)
 
         with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
             # inherit parent attributes
@@ -61,12 +61,13 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             span.metrics = dict(self._self_parent_span.metrics)
 
             result = yield from self.__wrapped__.read(*args, **kwargs)
-            span.set_tag('Length', len(result))
+            span.set_tag("Length", len(result))
 
         return result
 
     # wrapt doesn't proxy `async with` context managers
     if PYTHON_VERSION_INFO >= (3, 5, 0):
+
         @asyncio.coroutine
         def __aenter__(self):
             # call the wrapped method but return the object proxy
@@ -86,59 +87,54 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         result = yield from original_func(*args, **kwargs)
         return result
 
-    endpoint_name = deep_getattr(instance, '_endpoint._endpoint_prefix')
+    endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
-    with pin.tracer.trace('{}.command'.format(endpoint_name),
-                          service=service,
-                          span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 
         if len(args) > 0:
             operation = args[0]
-            span.resource = '{}.{}'.format(endpoint_name, operation.lower())
+            span.resource = "{}.{}".format(endpoint_name, operation.lower())
         else:
             operation = None
             span.resource = endpoint_name
 
         aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
-        region_name = deep_getattr(instance, 'meta.region_name')
+        region_name = deep_getattr(instance, "meta.region_name")
 
         meta = {
-            'aws.agent': 'aiobotocore',
-            'aws.operation': operation,
-            'aws.region': region_name,
+            "aws.agent": "aiobotocore",
+            "aws.operation": operation,
+            "aws.region": region_name,
         }
         span.set_tags(meta)
 
         result = yield from original_func(*args, **kwargs)
 
-        body = result.get('Body')
+        body = result.get("Body")
         if isinstance(body, ClientResponseContentProxy):
-            result['Body'] = WrappedClientResponseContentProxy(body, pin, span)
+            result["Body"] = WrappedClientResponseContentProxy(body, pin, span)
 
-        response_meta = result['ResponseMetadata']
-        response_headers = response_meta['HTTPHeaders']
+        response_meta = result["ResponseMetadata"]
+        response_headers = response_meta["HTTPHeaders"]
 
-        span.set_tag(http.STATUS_CODE, response_meta['HTTPStatusCode'])
-        if 500 <= response_meta['HTTPStatusCode'] < 600:
+        span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
+        if 500 <= response_meta["HTTPStatusCode"] < 600:
             span.error = 1
 
-        span.set_tag('retry_attempts', response_meta['RetryAttempts'])
+        span.set_tag("retry_attempts", response_meta["RetryAttempts"])
 
-        request_id = response_meta.get('RequestId')
+        request_id = response_meta.get("RequestId")
         if request_id:
-            span.set_tag('aws.requestid', request_id)
+            span.set_tag("aws.requestid", request_id)
 
-        request_id2 = response_headers.get('x-amz-id-2')
+        request_id2 = response_headers.get("x-amz-id-2")
         if request_id2:
-            span.set_tag('aws.requestid2', request_id2)
+            span.set_tag("aws.requestid2", request_id2)
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.aiobotocore.get_analytics_sample_rate()
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
 
         return result
