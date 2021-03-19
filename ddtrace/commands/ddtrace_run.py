@@ -107,11 +107,12 @@ def main():
     if os.path.basename(executable) == "uwsgi":
         print(
             (
-                "ddtrace-run is not supported with uwsgi. "
-                "See https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi for details."
+                "DeprecationWarning: "
+                "ddtrace-run is no longer supported with uWSGI since 0.48.0 release. "
+                "Remove ddtrace-run and update your uWSGI configuration following "
+                "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
             )
         )
-        sys.exit(1)
 
     try:
         # Raises OSError for permissions errors in Python 2
