@@ -109,8 +109,7 @@ class TraceMiddleware(object):
 
     def _start_span(self):
         if self.app._use_distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(request.headers)
+            context = HTTPPropagator.extract(request.headers)
             # Only need to active the new context if something was propagated
             if context.trace_id:
                 self.app._tracer.context_provider.activate(context)

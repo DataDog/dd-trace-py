@@ -10,11 +10,14 @@ from .constants import WORKER_SERVICE
 
 
 # Celery default settings
-config._add('celery', {
-    'distributed_tracing': get_env('celery', 'distributed_tracing', default=False),
-    'producer_service_name': get_env('celery', 'producer_service_name', default=PRODUCER_SERVICE),
-    'worker_service_name': get_env('celery', 'worker_service_name', default=WORKER_SERVICE),
-})
+config._add(
+    "celery",
+    {
+        "distributed_tracing": get_env("celery", "distributed_tracing", default=False),
+        "producer_service_name": get_env("celery", "producer_service_name", default=PRODUCER_SERVICE),
+        "worker_service_name": get_env("celery", "worker_service_name", default=WORKER_SERVICE),
+    },
+)
 
 
 def patch():

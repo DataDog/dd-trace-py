@@ -1,6 +1,7 @@
 import importlib
 
 import ddtrace
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -11,7 +12,6 @@ from ...ext import db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ...settings import config
 from ...utils.wrappers import unwrap
 from .constants import APP
 

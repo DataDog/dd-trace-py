@@ -58,6 +58,18 @@ def test_cgroup_info_init():
                 pod_id=None,
             ),
         ),
+        # Valid, fargate >= 1.4.0
+        (
+            "1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+            CGroupInfo(
+                id="1",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+                container_id="34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+                pod_id=None,
+            ),
+        ),
         # Invalid container_ids
         (
             # One character too short
@@ -199,7 +211,7 @@ def test_cgroup_info_from_line(line, expected_info):
             """,
             "38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce",
         ),
-        # Fargate file
+        # Fargate file < 1.4.0
         (
             """
 11:hugetlb:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
@@ -215,6 +227,23 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
             """,
             "432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da",
+        ),
+        # Fargate file >= 1.4.0
+        (
+            """
+11:hugetlb:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+10:pids:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+9:cpuset:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+8:net_cls,net_prio:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+7:cpu,cpuacct:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+6:perf_event:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+5:freezer:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+4:devices:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+3:blkio:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+2:memory:/ecs/55091c13-b8cf-4801-b527-f4601742204d/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
+            """,
+            "34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
         ),
         # Linux non-containerized file
         (

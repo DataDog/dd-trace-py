@@ -2,6 +2,7 @@
 import sqlite3
 import sqlite3.dbapi2
 
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 # project
@@ -9,7 +10,6 @@ from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
 from ...pin import Pin
-from ...settings import config
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 

@@ -119,7 +119,7 @@ def _check_span_tags(scope, span):
 
 
 @pytest.mark.asyncio
-async def test_basic_asgi(scope, tracer):
+async def test_basic_asgi(scope, tracer, test_spans):
     app = TraceMiddleware(basic_app, tracer=tracer)
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({"type": "http.request", "body": b""})
@@ -135,7 +135,7 @@ async def test_basic_asgi(scope, tracer):
         "body": b"*",
     }
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -147,7 +147,7 @@ async def test_basic_asgi(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_double_callable_asgi(scope, tracer):
+async def test_double_callable_asgi(scope, tracer, test_spans):
     app = TraceMiddleware(double_callable_app, tracer=tracer)
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({"type": "http.request", "body": b""})
@@ -163,7 +163,7 @@ async def test_double_callable_asgi(scope, tracer):
         "body": b"*",
     }
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -175,7 +175,7 @@ async def test_double_callable_asgi(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_query_string(scope, tracer):
+async def test_query_string(scope, tracer, test_spans):
     with override_http_config("asgi", dict(trace_query_string=True)):
         app = TraceMiddleware(basic_app, tracer=tracer)
         scope["query_string"] = "foo=bar"
@@ -193,7 +193,7 @@ async def test_query_string(scope, tracer):
             "body": b"*",
         }
 
-        spans = tracer.writer.pop_traces()
+        spans = test_spans.pop_traces()
         assert len(spans) == 1
         assert len(spans[0]) == 1
         request_span = spans[0][0]
@@ -205,14 +205,14 @@ async def test_query_string(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_asgi_error(scope, tracer):
+async def test_asgi_error(scope, tracer, test_spans):
     app = TraceMiddleware(error_app, tracer=tracer)
     instance = ApplicationCommunicator(app, scope)
     with pytest.raises(RuntimeError):
         await instance.send_input({"type": "http.request", "body": b""})
         await instance.receive_output(1)
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -227,14 +227,14 @@ async def test_asgi_error(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_asgi_500(scope, tracer):
+async def test_asgi_500(scope, tracer, test_spans):
     app = TraceMiddleware(error_handled_app, tracer=tracer)
     instance = ApplicationCommunicator(app, scope)
 
     await instance.send_input({"type": "http.request", "body": b""})
     await instance.receive_output(1)
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -245,7 +245,7 @@ async def test_asgi_500(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_asgi_error_custom(scope, tracer):
+async def test_asgi_error_custom(scope, tracer, test_spans):
     def custom_handle_exception_span(exc, span):
         span.set_tag("http.status_code", 501)
 
@@ -255,7 +255,7 @@ async def test_asgi_error_custom(scope, tracer):
         await instance.send_input({"type": "http.request", "body": b""})
         await instance.receive_output(1)
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -270,7 +270,7 @@ async def test_asgi_error_custom(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_distributed_tracing(scope, tracer):
+async def test_distributed_tracing(scope, tracer, test_spans):
     app = TraceMiddleware(basic_app, tracer=tracer)
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
@@ -291,7 +291,7 @@ async def test_distributed_tracing(scope, tracer):
         "body": b"*",
     }
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -305,7 +305,7 @@ async def test_distributed_tracing(scope, tracer):
 
 
 @pytest.mark.asyncio
-async def test_multiple_requests(tracer):
+async def test_multiple_requests(tracer, test_spans):
     with override_http_config("asgi", dict(trace_query_string=True)):
         app = TraceMiddleware(basic_app, tracer=tracer)
         async with httpx.AsyncClient(app=app) as client:
@@ -318,7 +318,7 @@ async def test_multiple_requests(tracer):
     assert [r.status_code for r in responses] == [200] * 2
     assert [r.text for r in responses] == ["sleep"] * 2
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 2
     assert len(spans[0]) == 1
     assert len(spans[1]) == 1

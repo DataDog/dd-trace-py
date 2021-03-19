@@ -97,8 +97,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     headers = request.headers.copy()
 
     if config.sanic.distributed_tracing:
-        propagator = HTTPPropagator()
-        context = propagator.extract(headers)
+        context = HTTPPropagator.extract(headers)
         if context.trace_id:
             ddtrace.tracer.context_provider.activate(context)
 

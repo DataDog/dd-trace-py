@@ -17,6 +17,7 @@ backend
 bikeshedding
 boto
 botocore
+cgroups
 cherrypy
 config
 coroutine
@@ -33,6 +34,7 @@ elasticsearch
 enqueue
 entrypoint
 entrypoints
+Fargate
 fastapi
 gRPC
 gevent
@@ -44,6 +46,7 @@ http
 httplib
 https
 iPython
+initializer
 integration
 integrations
 jinja
@@ -59,6 +62,7 @@ microservices
 middleware
 mongoengine
 multiprocess
+multithreaded
 mysql
 mysqlclient
 mysqldb
@@ -84,6 +88,7 @@ redis
 rediscluster
 renderers
 repo
+respawn
 runnable
 runtime
 sanic

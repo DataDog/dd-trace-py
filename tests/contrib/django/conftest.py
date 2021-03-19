@@ -37,7 +37,7 @@ def tracer():
 
     # Yield to our test
     yield tracer
-    tracer.writer.pop()
+    tracer.pop()
 
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test

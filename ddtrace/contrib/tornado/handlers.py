@@ -1,11 +1,12 @@
 from tornado.web import HTTPError
 
+from ddtrace import config
+
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
-from ...settings import config
 from .constants import CONFIG_KEY
 from .constants import REQUEST_CONTEXT_KEY
 from .constants import REQUEST_SPAN_KEY
@@ -30,8 +31,7 @@ def execute(func, handler, args, kwargs):
 
         # Read and use propagated context from HTTP headers
         if distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(handler.request.headers)
+            context = HTTPPropagator.extract(handler.request.headers)
             if context.trace_id:
                 tracer.context_provider.activate(context)
 

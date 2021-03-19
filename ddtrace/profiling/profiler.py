@@ -11,20 +11,18 @@ import warnings
 
 import ddtrace
 from ddtrace.internal import agent
+from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.profiling import _service
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import memalloc
-from ddtrace.profiling.collector import memory
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 from ddtrace.utils import deprecation
-from ddtrace.utils import formats
 from ddtrace.vendor import attr
 
 
@@ -175,7 +173,7 @@ def _get_default_url(
 
 
 @attr.s
-class _ProfilerInstance(_service.Service):
+class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
     Each process must manage its own instance.
@@ -207,7 +205,7 @@ class _ProfilerInstance(_service.Service):
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
-                file.PprofFileExporter(_OUTPUT_PPROF),
+                file.PprofFileExporter(_OUTPUT_PPROF),  # type: ignore[call-arg]
             ]
 
         api_key = _get_api_key()
@@ -221,7 +219,7 @@ class _ProfilerInstance(_service.Service):
         endpoint = _get_default_url(tracer, api_key) if url is None else url
 
         return [
-            http.PprofHTTPExporter(
+            http.PprofHTTPExporter(  # type: ignore[call-arg]
                 service=service,
                 env=env,
                 tags=tags,
@@ -238,9 +236,6 @@ class _ProfilerInstance(_service.Service):
                 # Allow to store up to 10 threads for 60 seconds at 100 Hz
                 stack.StackSampleEvent: 10 * 60 * 100,
                 stack.StackExceptionSampleEvent: 10 * 60 * 100,
-                # This can generate one event every 0.1s if 100% are taken — though we take 5% by default.
-                # = (60 seconds / 0.1 seconds)
-                memory.MemorySampleEvent: int(60 / 0.1),
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
@@ -251,14 +246,9 @@ class _ProfilerInstance(_service.Service):
             default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
 
-        if formats.asbool(os.environ.get("DD_PROFILING_MEMALLOC", "true")):
-            mem_collector = memalloc.MemoryCollector(r)
-        else:
-            mem_collector = memory.MemoryCollector(r)
-
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
-            mem_collector,
+            memalloc.MemoryCollector(r),
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
@@ -286,9 +276,9 @@ class _ProfilerInstance(_service.Service):
             service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
         )
 
-    def start(self):
+    def _start(self):
+        # type: () -> None
         """Start the profiler."""
-        super(_ProfilerInstance, self).start()
         collectors = []
         for col in self._collectors:
             try:
@@ -309,7 +299,7 @@ class _ProfilerInstance(_service.Service):
 
         :param flush: Flush a last profile.
         """
-        if self.status != _service.ServiceStatus.RUNNING:
+        if self.status != service.ServiceStatus.RUNNING:
             return
 
         if self._scheduler:

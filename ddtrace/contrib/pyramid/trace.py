@@ -4,6 +4,7 @@ from pyramid.settings import asbool
 
 # project
 import ddtrace
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
@@ -12,7 +13,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...settings import config
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
@@ -66,8 +66,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             if distributed_tracing:
-                propagator = HTTPPropagator()
-                context = propagator.extract(request.headers)
+                context = HTTPPropagator.extract(request.headers)
                 # only need to active the new context if something was propagated
                 if context.trace_id:
                     tracer.context_provider.activate(context)

@@ -41,18 +41,13 @@ exclude = '''
   | ddtrace/(
     contrib/
     (
-      aiobotocore
-      | aiopg
+      aiopg
       | boto
       | cassandra
-      | celery
       | dbapi
       | jinja2
-      | kombu
-      | mako
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
@@ -66,31 +61,18 @@ exclude = '''
   (
     contrib/
     (
-      aiobotocore
-      | aiopg
-      | boto
+      aiopg
       | cassandra
       | config.py
       | dbapi
       | jinja2
-      | kombu
-      | mako
-      | patch.py
       | psycopg
       | pylibmc
-      | pylons
       | pymemcache
       | pymongo
       | rediscluster
       | sqlalchemy
-      | test_utils.py
     )
-    | ddtrace_run.py
-    | profiling/_ast_test_file.py
-    | subprocesstest.py
-    | tracer/fixtures
-    | vendor
-    | wait-for-services.py
   )
 )
 '''

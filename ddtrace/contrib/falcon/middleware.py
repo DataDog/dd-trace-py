@@ -1,5 +1,6 @@
 import sys
 
+from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
 from ddtrace.propagation.http import HTTPPropagator
@@ -8,7 +9,6 @@ from .. import trace_utils
 from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...settings import config
 
 
 class TraceMiddleware(object):
@@ -22,8 +22,7 @@ class TraceMiddleware(object):
         if self._distributed_tracing:
             # Falcon uppercases all header names.
             headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
-            propagator = HTTPPropagator()
-            context = propagator.extract(headers)
+            context = HTTPPropagator.extract(headers)
             # Only activate the new context if there was a trace id extracted
             if context.trace_id:
                 self.tracer.context_provider.activate(context)

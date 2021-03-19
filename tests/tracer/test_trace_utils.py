@@ -10,7 +10,6 @@ from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
-from tests import DummyTracer
 from tests import override_global_config
 
 
@@ -19,12 +18,6 @@ def int_config():
     c = Config()
     c._add("myint", dict())
     return c
-
-
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    return tracer
 
 
 @pytest.fixture
@@ -164,6 +157,26 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
+@mock.patch("ddtrace.contrib.trace_utils.log")
+@pytest.mark.parametrize(
+    "val, bad",
+    [
+        ("asdf", True),
+        (object(), True),
+        ("234", False),
+        ("100.0", True),
+        ("-123", False),
+    ],
+)
+def test_bad_http_code(mock_log, span, int_config, val, bad):
+    trace_utils.set_http_meta(span, int_config, status_code=val)
+    if bad:
+        assert http.STATUS_CODE not in span.meta
+        mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
+    else:
+        assert span.meta[http.STATUS_CODE] == str(val)
+
+
 def test_activate_distributed_headers_enabled(int_config):
     tracer = Tracer()
     int_config.myint["distributed_tracing_enabled"] = True
@@ -201,3 +214,28 @@ def test_activate_distributed_headers_no_headers(int_config):
 
     assert context.trace_id is None
     assert context.span_id is None
+
+
+def test_sanitized_url_in_http_meta(span, int_config):
+    FULL_URL = "http://example.com/search?q=test+query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=FULL_URL,
+        status_code=200,
+    )
+    assert span.meta[http.URL] == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=FULL_URL,
+        status_code=200,
+    )
+    assert span.meta[http.URL] == FULL_URL

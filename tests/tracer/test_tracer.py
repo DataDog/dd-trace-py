@@ -368,7 +368,7 @@ class TracerTestCases(TracerTestCase):
         assert span.name == "web.request"
         assert span.parent_id is None
         span.finish()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0] is span
 
@@ -476,7 +476,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.port == 1234
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="foo:1234")
         assert tracer.writer.dogstatsd.host == "foo"
         assert tracer.writer.dogstatsd.port == 1234
@@ -489,7 +489,7 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
 
         tracer = Tracer()
-        writer = AgentWriter()
+        writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
         assert tracer.writer.dogstatsd.host is None
         assert tracer.writer.dogstatsd.port is None
@@ -550,14 +550,16 @@ def test_tracer_url():
     assert t.writer.agent_url == "unix:///foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.agent_url == "http://localhost:80"
+    assert t.writer.agent_url == "http://localhost"
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.agent_url == "https://localhost:443"
+    assert t.writer.agent_url == "https://localhost"
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
-        assert str(e) == "Unknown scheme `https` for agent URL"
+    assert (
+        str(e.value) == "Unsupported protocol 'foo' in Agent URL 'foo://foobar:12'. Must be one of: http, https, unix"
+    )
 
 
 def test_tracer_shutdown_no_timeout():
@@ -566,15 +568,20 @@ def test_tracer_shutdown_no_timeout():
 
     # The writer thread does not start until the first write.
     t.shutdown()
-    assert not t.writer.stop.called
+    assert t.writer.stop.called
     assert not t.writer.join.called
 
     # Do a write to start the writer.
     with t.trace("something"):
         pass
+    assert t.writer.is_alive()
     t.shutdown()
-    t.writer.stop.assert_called_once_with()
-    t.writer.join.assert_called_once_with(timeout=None)
+    t.writer.stop.assert_has_calls(
+        [
+            mock.call(timeout=None),
+            mock.call(timeout=None),
+        ]
+    )
 
 
 def test_tracer_configure_writer_stop_unstarted():
@@ -582,9 +589,9 @@ def test_tracer_configure_writer_stop_unstarted():
     t.writer = mock.Mock(wraps=t.writer)
     orig_writer = t.writer
 
-    # Make sure we aren't calling stop for an unstarted writer
+    # Stop should be called when replacing the writer.
     t.configure(hostname="localhost", port=8126)
-    assert not orig_writer.stop.called
+    assert orig_writer.stop.called
 
 
 def test_tracer_configure_writer_stop_started():
@@ -608,8 +615,7 @@ def test_tracer_shutdown_timeout():
         pass
 
     t.shutdown(timeout=2)
-    t.writer.stop.assert_called_once_with()
-    t.writer.join.assert_called_once_with(timeout=2)
+    t.writer.stop.assert_called_once_with(timeout=2)
 
 
 def test_tracer_dogstatsd_url():
@@ -688,7 +694,7 @@ def test_tracer_trace_across_fork():
     When a trace is started in a parent process and a child process is spawned
         The trace should be continued in the child process
     """
-    tracer = ddtrace.Tracer()
+    tracer = Tracer()
     tracer.writer = DummyWriter()
 
     def task(tracer, q):
@@ -907,11 +913,13 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env(self):
-        assert isinstance(self.tracer.original_writer, LogWriter)
+        tracer = Tracer()
+        assert isinstance(tracer.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(self.tracer.original_writer, AgentWriter)
+        tracer = Tracer()
+        assert isinstance(tracer.writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1093,25 +1101,22 @@ def test_multiple_tracer_ctx():
     assert s2.trace_id == s1.trace_id
 
 
-def test_filters():
-    t = ddtrace.Tracer()
-
+def test_filters(tracer, test_spans):
     class FilterAll(object):
         def process_trace(self, trace):
             return None
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterAll()],
         }
     )
-    t.writer = DummyWriter()
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 0
 
     class FilterMutate(object):
@@ -1124,36 +1129,34 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterMutate("boop", "beep")],
         }
     )
-    t.writer = DummyWriter()
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     s1, s2 = spans
     assert s1.get_tag("boop") == "beep"
     assert s2.get_tag("boop") == "beep"
 
     # Test multiple filters
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")],
         }
     )
-    t.writer = DummyWriter()
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     for s in spans:
         assert s.get_tag("boop") == "beep"
@@ -1163,56 +1166,51 @@ def test_filters():
         def process_trace(self, trace):
             _ = 1 / 0
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterBroken()],
         }
     )
-    t.writer = DummyWriter()
 
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
 
-    t.configure(
+    tracer.configure(
         settings={
             "FILTERS": [FilterMutate("boop", "beep"), FilterBroken()],
         }
     )
-    t.writer = DummyWriter()
-
-    with t.trace("root"):
-        with t.trace("child"):
+    with tracer.trace("root"):
+        with tracer.trace("child"):
             pass
 
-    spans = t.writer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     for s in spans:
         assert s.get_tag("boop") == "beep"
 
 
-def test_early_exit():
-    t = ddtrace.Tracer()
-    t.writer = DummyWriter()
-    s1 = t.trace("1")
-    s2 = t.trace("2")
+def test_early_exit(tracer, test_spans):
+    s1 = tracer.trace("1")
+    s2 = tracer.trace("2")
     s1.finish()
     s2.finish()
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
-    traces = t.writer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 2
 
-    s1 = t.trace("1-1")
+    s1 = tracer.trace("1-1")
     s1.finish()
     assert s1.parent_id is None
 
-    s1 = t.trace("1-2")
+    s1 = tracer.trace("1-2")
     s1.finish()
     assert s1.parent_id is None
 
@@ -1226,13 +1224,13 @@ class TestPartialFlush(TracerTestCase):
         for i in range(5):
             self.tracer.trace("child%s" % i).finish()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 5
         assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
 
         root.finish()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         assert traces[0][0].name == "root"
@@ -1245,14 +1243,14 @@ class TestPartialFlush(TracerTestCase):
         for i in range(5):
             self.tracer.trace("child%s" % i).finish()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 5
         for t in traces:
             assert len(t) == 1
         assert [t[0].name for t in traces] == ["child0", "child1", "child2", "child3", "child4"]
 
         root.finish()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert traces[0][0].name == "root"
 
@@ -1264,10 +1262,10 @@ class TestPartialFlush(TracerTestCase):
         for i in range(5):
             self.tracer.trace("child%s" % i).finish()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 0
         root.finish()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
 
@@ -1281,10 +1279,7 @@ def test_unicode_config_vals():
     t.shutdown()
 
 
-def test_ctx():
-    tracer = ddtrace.Tracer()
-    tracer.writer = DummyWriter()
-
+def test_ctx(tracer, test_spans):
     with tracer.trace("test") as s1:
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
@@ -1326,7 +1321,7 @@ def test_ctx():
     assert SAMPLING_PRIORITY_KEY not in s2.metrics
     assert ORIGIN_KEY not in s1.meta
 
-    t = tracer.writer.pop_traces()
+    t = test_spans.pop_traces()
     assert len(t) == 1
     assert len(t[0]) == 4
     _s1, _s2, _s3, _s4 = t[0]
@@ -1340,10 +1335,7 @@ def test_ctx():
         assert s.trace_id != s1.trace_id
 
 
-def test_multithreaded():
-    tracer = ddtrace.Tracer()
-    tracer.writer = DummyWriter()
-
+def test_multithreaded(tracer, test_spans):
     def target():
         with tracer.trace("s1"):
             with tracer.trace("s2"):
@@ -1359,17 +1351,14 @@ def test_multithreaded():
         for t in ts:
             t.join()
 
-        traces = tracer.writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 10
 
         for trace in traces:
             assert len(trace) == 3
 
 
-def test_ctx_distributed():
-    tracer = ddtrace.Tracer()
-    tracer.writer = DummyWriter()
-
+def test_ctx_distributed(tracer, test_spans):
     # Test activating an invalid context.
     ctx = Context(span_id=None, trace_id=None)
     tracer.context_provider.activate(ctx)
@@ -1382,7 +1371,7 @@ def test_ctx_distributed():
         assert tracer.get_call_context().span_id == s1.span_id
         assert s1.parent_id is None
 
-    trace = tracer.writer.pop_traces()
+    trace = test_spans.pop_traces()
     assert len(trace) == 1
 
     # Test activating a valid context.
@@ -1397,73 +1386,61 @@ def test_ctx_distributed():
         assert tracer.get_call_context().span_id == s2.span_id
         assert s2.parent_id == 1234
 
-    trace = tracer.writer.pop_traces()
+    trace = test_spans.pop_traces()
     assert len(trace) == 1
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
 
 
-def test_manual_keep():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
+def test_manual_keep(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
 
 
-def test_manual_keep_then_drop():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
+def test_manual_keep_then_drop(tracer, test_spans):
     # Test changing the value before finish.
     with tracer.trace("asdf") as root:
         with tracer.trace("child") as child:
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
 
-def test_manual_drop():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
+def test_manual_drop(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_enabled(get_hostname):
+def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
     with override_global_config(dict(report_hostname=True)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) == "test-hostname"
@@ -1471,17 +1448,14 @@ def test_get_report_hostname_enabled(get_hostname):
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_disabled(get_hostname):
+def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
     with override_global_config(dict(report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) is None
@@ -1489,17 +1463,14 @@ def test_get_report_hostname_disabled(get_hostname):
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
-def test_get_report_hostname_default(get_hostname):
+def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     get_hostname.return_value = "test-hostname"
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
     with override_global_config(dict(report_hostname=False)):
         with tracer.trace("span"):
             with tracer.trace("child"):
                 pass
 
-    spans = tracer.writer.pop()
+    spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) is None
@@ -1543,8 +1514,31 @@ def test_configure_url_partial():
     assert tracer.writer.agent_url == "http://abc:123"
 
     tracer = ddtrace.Tracer(url="http://abc")
-    assert tracer.writer.agent_url == "http://abc:80"
+    assert tracer.writer.agent_url == "http://abc"
     tracer.configure(port=123)
     assert tracer.writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
     assert tracer.writer.agent_url == "http://abc:431"
+
+
+def test_bad_agent_url(monkeypatch):
+    with pytest.raises(ValueError):
+        Tracer(url="bad://localhost:8126")
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "bad://localhost:1234")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert (
+        str(e.value)
+        == "Unsupported protocol 'bad' in Agent URL 'bad://localhost:1234'. Must be one of: http, https, unix"
+    )
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "unix://")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert str(e.value) == "Invalid file path in Agent URL 'unix://'"
+
+    monkeypatch.setenv("DD_TRACE_AGENT_URL", "http://")
+    with pytest.raises(ValueError) as e:
+        Tracer()
+    assert str(e.value) == "Invalid hostname in Agent URL 'http://'"

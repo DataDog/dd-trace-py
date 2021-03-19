@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    flask: deprecated configuration option `extra_error_codes` has been removed.
