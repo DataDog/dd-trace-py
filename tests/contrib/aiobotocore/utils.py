@@ -6,12 +6,12 @@ from ddtrace import Pin
 
 
 LOCALSTACK_ENDPOINT_URL = {
-    's3': 'http://localhost:5000',
-    'ec2': 'http://localhost:5001',
-    'kms': 'http://localhost:5002',
-    'sqs': 'http://localhost:5003',
-    'lambda': 'http://localhost:5004',
-    'kinesis': 'http://localhost:5005',
+    "s3": "http://localhost:5000",
+    "ec2": "http://localhost:5001",
+    "kms": "http://localhost:5002",
+    "sqs": "http://localhost:5003",
+    "lambda": "http://localhost:5004",
+    "kinesis": "http://localhost:5005",
 }
 
 
@@ -24,11 +24,11 @@ def aiobotocore_client(service, tracer):
     endpoint = LOCALSTACK_ENDPOINT_URL[service]
     client = session.create_client(
         service,
-        region_name='us-west-2',
+        region_name="us-west-2",
         endpoint_url=endpoint,
-        aws_access_key_id='aws',
-        aws_secret_access_key='aws',
-        aws_session_token='aws',
+        aws_access_key_id="aws",
+        aws_secret_access_key="aws",
+        aws_session_token="aws",
     )
     Pin.override(client, tracer=tracer)
     try:
