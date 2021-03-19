@@ -1,4 +1,5 @@
 import mako
+from mako.template import DefTemplate
 from mako.template import Template
 
 from ddtrace import config
@@ -40,7 +41,15 @@ def _wrap_render(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    template_name = instance.filename or DEFAULT_TEMPLATE_NAME
+    # Determine the resource and `mako.template_name` tag value
+    # DefTemplate is a wrapper around a callable from another template, it does not have a filename
+    # https://github.com/sqlalchemy/mako/blob/c2c690ac9add584f2216dc655cdf8215b24ef03c/mako/template.py#L603-L622
+    if isinstance(instance, DefTemplate) and hasattr(instance, "callable_"):
+        template_name = func_name(instance.callable_)
+    else:
+        template_name = getattr(instance, "filename", None)
+    template_name = template_name or DEFAULT_TEMPLATE_NAME
+
     with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         try:
