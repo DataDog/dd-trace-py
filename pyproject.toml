@@ -47,7 +47,6 @@ exclude = '''
       | cassandra
       | dbapi
       | jinja2
-      | mako
       | psycopg
       | pylibmc
       | pymemcache
@@ -70,7 +69,6 @@ exclude = '''
       | config.py
       | dbapi
       | jinja2
-      | mako
       | psycopg
       | pylibmc
       | pymemcache

@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import threading
 
-from ddtrace.profiling import _nogevent
+from ddtrace.internal import nogevent
 from ddtrace.profiling import _periodic
 
 
@@ -13,7 +13,7 @@ cpdef get_thread_name(thread_id):
     # Therefore we special case the MainThread that way.
     # If native threads are started using gevent.threading, they will be inserted in threading._active
     # so we will find them normally.
-    if thread_id == _nogevent.main_thread_id:
+    if thread_id == nogevent.main_thread_id:
         return "MainThread"
 
     # We don't want to bother to lock anything here, especially with eventlet involved 😓. We make a best effort to

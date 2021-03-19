@@ -171,6 +171,10 @@ class SpanTestCase(TracerTestCase):
         assert s.duration_ns == 3200000000
         assert isinstance(s.duration_ns, int)
 
+    def test_get_span_returns_none_by_default(self):
+        s = Span(tracer=None, name="test.span")
+        assert s.duration is None
+
     def test_traceback_with_error(self):
         s = Span(None, "test.span")
         try:

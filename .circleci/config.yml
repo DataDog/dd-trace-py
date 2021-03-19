@@ -998,8 +998,8 @@ jobs:
   mako:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^mako_contrib-'
+      - run_test:
+          pattern: 'mako'
 
   algoliasearch:
     <<: *contrib_job
