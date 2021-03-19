@@ -41,8 +41,8 @@ exclude = '''
   | ddtrace/(
     contrib/
     (
-      aiobotocore
-      | aiopg
+      aiopg
+      | boto
       | cassandra
       | dbapi
       | jinja2
@@ -61,8 +61,7 @@ exclude = '''
   (
     contrib/
     (
-      aiobotocore
-      | aiopg
+      aiopg
       | cassandra
       | config.py
       | dbapi
