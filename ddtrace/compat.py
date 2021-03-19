@@ -6,9 +6,14 @@ import textwrap
 import threading
 from typing import Any
 from typing import AnyStr
+from typing import TYPE_CHECKING
 from typing import Text
 
 from ddtrace.vendor import six
+
+
+if TYPE_CHECKING:
+    from .internal.writer import Response
 
 
 __all__ = [
@@ -187,7 +192,10 @@ def to_unicode(s):
     return six.text_type(s)
 
 
-def get_connection_response(conn):
+def get_connection_response(
+    conn,  # type: httplib.HTTPConnection  # type: ignore
+):
+    # type: (...) -> Response
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.
