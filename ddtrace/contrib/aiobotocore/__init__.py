@@ -21,10 +21,10 @@ To enable it, you must run ``patch_all(aiobotocore=True)``
 from ...utils.importlib import require_modules
 
 
-required_modules = ['aiobotocore.client']
+required_modules = ["aiobotocore.client"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
 
-        __all__ = ['patch']
+        __all__ = ["patch"]

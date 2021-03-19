@@ -6,8 +6,8 @@ import timeit
 
 import pytest
 
+from ddtrace.internal import nogevent
 from ddtrace.internal import service
-from ddtrace.profiling import _nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
@@ -38,7 +38,7 @@ def func4():
 
 
 def func5():
-    return _nogevent.sleep(1)
+    return nogevent.sleep(1)
 
 
 def test_collect_truncate():
@@ -331,14 +331,14 @@ def test_exception_collection():
         try:
             raise ValueError("hello")
         except Exception:
-            _nogevent.sleep(1)
+            nogevent.sleep(1)
 
     exception_events = r.events[stack.StackExceptionSampleEvent]
     assert len(exception_events) >= 1
     e = exception_events[0]
     assert e.timestamp > 0
     assert e.sampling_period > 0
-    assert e.thread_id == _nogevent.thread_get_ident()
+    assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
     assert e.frames == [(__file__, 334, "test_exception_collection")]
     assert e.nframes == 1
@@ -359,7 +359,7 @@ def tracer_and_collector(tracer):
 def test_thread_to_span_thread_isolation(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
 
     quit_thread = threading.Event()
@@ -390,7 +390,7 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
 def test_thread_to_span_multiple(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subspan}
@@ -409,7 +409,7 @@ def test_thread_to_child_span_multiple_unknown_thread(tracer_and_collector):
 def test_thread_to_child_span_clear(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     c._thread_span_links.clear_threads(set())
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
@@ -418,7 +418,7 @@ def test_thread_to_child_span_clear(tracer_and_collector):
 def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     subsubspan = t.start_span("subsubtrace", child_of=subspan)
@@ -486,10 +486,10 @@ def test_stress_trace_collection(tracer_and_collector):
 def test_thread_time_cache():
     tt = stack._ThreadTime()
 
-    lock = _nogevent.Lock()
+    lock = nogevent.Lock()
     lock.acquire()
 
-    t = _nogevent.Thread(target=lock.acquire)
+    t = nogevent.Thread(target=lock.acquire)
     t.start()
 
     main_thread_id = threading.current_thread().ident

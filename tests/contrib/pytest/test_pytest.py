@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pytest
 
@@ -28,6 +29,43 @@ class TestPytest(TracerTestCase):
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
+
+    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
+    def test_patch_all(self):
+        """Test with --ddtrace-patch-all."""
+        py_file = self.testdir.makepyfile(
+            """
+            import ddtrace.monkey
+
+            def test_patched_all():
+                assert ddtrace.monkey._PATCHED_MODULES
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace-patch-all", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
+
+    @pytest.mark.skipif(sys.version_info[0] == 2, reason="Triggers a bug with coverage, sqlite and Python 2")
+    def test_patch_all_init(self):
+        """Test with ddtrace-patch-all via ini."""
+        self.testdir.makefile(".ini", pytest="[pytest]\nddtrace-patch-all=1\n")
+        py_file = self.testdir.makepyfile(
+            """
+            import ddtrace.monkey
+
+            def test_patched_all():
+                assert ddtrace.monkey._PATCHED_MODULES
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 0
 
     def test_disabled(self):
         """Test without --ddtrace."""
