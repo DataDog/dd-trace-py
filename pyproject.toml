@@ -43,7 +43,6 @@ exclude = '''
     (
       aiobotocore
       | aiopg
-      | boto
       | cassandra
       | dbapi
       | jinja2
@@ -65,7 +64,6 @@ exclude = '''
     (
       aiobotocore
       | aiopg
-      | boto
       | cassandra
       | config.py
       | dbapi
