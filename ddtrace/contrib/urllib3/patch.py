@@ -117,7 +117,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
         try:
             response = func(*args, **kwargs)
         finally:
-            span.error = response is None or int(response.status >= 500)
             trace_utils.set_http_meta(
                 span,
                 integration_config=config.urllib3,
