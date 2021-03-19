@@ -1,8 +1,17 @@
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import TYPE_CHECKING
+
 import ddtrace
 from ddtrace.vendor import debtcollector
 
 from .internal.logger import get_logger
 from .vendor import wrapt
+
+
+if TYPE_CHECKING:
+    from .tracer import Tracer
 
 
 log = get_logger(__name__)
@@ -29,21 +38,31 @@ class Pin(object):
     __slots__ = ["app", "tags", "tracer", "_target", "_config", "_initialized"]
 
     @debtcollector.removals.removed_kwarg("app_type")
-    def __init__(self, service=None, app=None, app_type=None, tags=None, tracer=None, _config=None):
+    def __init__(
+        self,
+        service=None,  # type: Optional[str]
+        app=None,  # type: Optional[str]
+        app_type=None,
+        tags=None,  # type: Optional[Dict[str, str]]
+        tracer=None,  # type: Optional[Tracer]
+        _config=None,  # type: Optional[Dict[str, Any]]
+    ):
+        # type: (...) -> None
         tracer = tracer or ddtrace.tracer
         self.app = app
         self.tags = tags
         self.tracer = tracer
-        self._target = None
+        self._target = None  # type: Optional[int]
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
-        self._config = _config or {}
+        self._config = _config or {}  # type: Dict[str, Any]
         # [Backward compatibility]: service argument updates the `Pin` config
         self._config["service_name"] = service
         self._initialized = True
 
     @property
     def service(self):
+        # type: () -> str
         """Backward compatibility: accessing to `pin.service` returns the underlying
         configuration value.
         """
@@ -59,6 +78,7 @@ class Pin(object):
 
     @staticmethod
     def _find(*objs):
+        # type: (Any) -> Optional[Pin]
         """
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
@@ -78,6 +98,7 @@ class Pin(object):
 
     @staticmethod
     def get_from(obj):
+        # type: (Any) -> Pin
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
@@ -103,7 +124,16 @@ class Pin(object):
 
     @classmethod
     @debtcollector.removals.removed_kwarg("app_type")
-    def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+    def override(
+        cls,
+        obj,  # type: Any
+        service=None,  # type: Optional[str]
+        app=None,  # type: Optional[str]
+        app_type=None,
+        tags=None,  # type: Optional[Dict[str, str]]
+        tracer=None,  # type: Optional[Tracer]
+    ):
+        # type: (...) -> None
         """Override an object with the given attributes.
 
         That's the recommended way to customize an already instrumented client, without
@@ -128,10 +158,12 @@ class Pin(object):
         ).onto(obj)
 
     def enabled(self):
+        # type: () -> bool
         """Return true if this pin's tracer is enabled. """
         return bool(self.tracer) and self.tracer.enabled
 
     def onto(self, obj, send=True):
+        # type: (Any, bool) -> None
         """Patch this pin onto the given object. If send is true, it will also
         queue the metadata to be sent to the server.
         """
@@ -149,6 +181,7 @@ class Pin(object):
             log.debug("can't pin onto object. skipping", exc_info=True)
 
     def remove_from(self, obj):
+        # type: (Any) -> None
         # Remove pin from the object.
         try:
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
@@ -160,7 +193,15 @@ class Pin(object):
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
     @debtcollector.removals.removed_kwarg("app_type")
-    def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
+    def clone(
+        self,
+        service=None,  # type: Optional[str]
+        app=None,  # type: Optional[str]
+        app_type=None,
+        tags=None,  # type: Optional[Dict[str, str]]
+        tracer=None,  # type: Optional[Tracer]
+    ):
+        # type: (...) -> Pin
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts
         if not tags and self.tags:
