@@ -28,7 +28,7 @@ from ...utils.wrappers import unwrap
 _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ("action", "params", "path", "verb")
-TRACED_ARGS = ["params", "path", "verb"]
+TRACED_ARGS = {"params", "path", "verb"}
 
 log = get_logger(__name__)
 

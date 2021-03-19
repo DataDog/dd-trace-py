@@ -27,8 +27,8 @@ AWS_AUTH_ARGS_NAME = (
     "auth_path",
     "sender",
 )
-AWS_QUERY_TRACED_ARGS = ["operation_name", "params", "path"]
-AWS_AUTH_TRACED_ARGS = ["path", "data", "host"]
+AWS_QUERY_TRACED_ARGS = {"operation_name", "params", "path"}
+AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 
 
 def patch():

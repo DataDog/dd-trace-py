@@ -24,7 +24,7 @@ from ...utils.wrappers import unwrap
 
 
 ARGS_NAME = ("action", "params", "path", "verb")
-TRACED_ARGS = ["params", "path", "verb"]
+TRACED_ARGS = {"params", "path", "verb"}
 
 
 def patch():
