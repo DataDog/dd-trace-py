@@ -1,3 +1,4 @@
+from pylons import response
 from pylons.controllers import WSGIController
 
 from ..lib.helpers import ExceptionWithCodeMethod
@@ -42,3 +43,7 @@ class RootController(BaseController):
     def render_exception(self):
         render = get_render_fn()
         return render("/exception.mako")
+
+    def response_headers(self):
+        response.headers["custom-header"] = "value"
+        return "hi"

@@ -1,6 +1,8 @@
 Advanced Usage
 ==============
 
+.. _agentconfiguration:
+
 Agent Configuration
 -------------------
 
@@ -463,7 +465,6 @@ detailed in :ref:`Configuration`.
 - ``ddtrace-run python my_app.py``
 - ``ddtrace-run python manage.py runserver``
 - ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
 
 
 Pass along command-line arguments as your program would normally expect them::
@@ -482,18 +483,35 @@ traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
 
+.. _uwsgi:
+
 uWSGI
 -----
 
-The default configuration of uWSGI applications does not include the
-``--enable-threads`` setting which must be set to ``true`` for the
-tracing library to run.  This is noted in their best practices doc_.
+The tracer and profiler support uWSGI when configured with the following:
 
-  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+- Threads must be enabled with `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`_ or with `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`_ if running uWSGI in multithreaded mode.
+- If manual instrumentation and configuration is used, `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`_ must be used.
 
-Example run command:
+To enable tracing with automatic instrumentation and configuration with environment variables, use `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`_ option with the setting ``ddtrace.bootstrap.customize``. For example, add the following to the uWSGI configuration file::
 
-``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+  import=ddtrace.bootstrap.sitecustomize
+
+**Note:** Automatic instrumentation and configuration using ``ddtrace-run`` is not supported with uWSGI.
+
+To enable tracing with manual instrumentation and configuration, configure uWSGI with the ``lazy-apps`` option and use :ref:`patch_all()<patch_all>` and :ref:`agent configuration<agentconfiguration>` to a WSGI app::
+
+  from ddtrace import patch_all
+  from ddtrace import tracer
+
+
+  patch_all()
+  tracer.configure(collect_metrics=True)
+
+  def application(env, start_response):
+      with tracer.trace("uwsgi-app"):
+          start_response('200 OK', [('Content-Type','text/html')])
+          return [b"Hello World"]
 
 
 API
