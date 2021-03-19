@@ -31,7 +31,6 @@ and profiles.
 
 Examples
 ddtrace-run python app.py
-ddtrace-run uwsgi app.py
 ddtrace-run gunicorn myproject.wsgi
 """
 
@@ -104,6 +103,15 @@ def main():
         sys.exit(1)
 
     log.debug("program executable: %s", executable)
+
+    if os.path.basename(executable) == "uwsgi":
+        print(
+            (
+                "ddtrace-run is not supported with uwsgi. "
+                "See https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi for details."
+            )
+        )
+        sys.exit(1)
 
     try:
         # Raises OSError for permissions errors in Python 2
