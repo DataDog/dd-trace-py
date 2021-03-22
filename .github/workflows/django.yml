@@ -31,10 +31,12 @@ jobs:
         run: pip install ../ddtrace
       - name: Install django
         run: pip install ../django
+      - name: Set Pythonpath
+        run: echo "PYTHONPATH=." >> $GITHUB_ENV
       - name: Run tests
         # Django's test directory contains a 'requests' test module
         # This interferes with the requests library patching in the tracer
         # test_supports_json_field_operational_error will fail with the tracer
-        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py -k "not backends.sqlite.test_features.FeaturesTests.test_supports_json_field_operational_error"
+        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
 
