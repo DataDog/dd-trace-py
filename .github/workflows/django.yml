@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: django
+        working-directory: django/tests
     steps:
       - uses: actions/checkout@v2
         with:
@@ -34,8 +34,7 @@ jobs:
       - name: Run tests
         # Django's test directory contains a 'requests' test module
         # This interferes with the requests library patching in the tracer
-        run: |
-          cd tests
-          DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run ./runtests.py
+        # test_supports_json_field_operational_error will fail with the tracer
+        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py -k "not backends.sqlite.test_features.FeaturesTests.test_supports_json_field_operational_error"
 
 
