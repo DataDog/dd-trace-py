@@ -1,6 +1,8 @@
 name: flask-testsuite
 on:
   push:
+    branches:
+      - master
   pull_request:
 jobs:
   flask-testsuite-1_1_2:
