@@ -12,9 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          path: ddtrace
-      - uses: actions/checkout@v2
-        with:
           repository: django/django
           ref: 3.1.7
           path: django
@@ -26,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r tests/requirements/py3.txt
       - name: Install ddtrace
-        run: pip install ../ddtrace
+        run: pip install ddtrace
       - name: Install django
         run: pip install ../django
       - name: Run tests
