@@ -1,17 +1,17 @@
 from hypothesis import given
 
 from ddtrace import tracer
-from ddtrace.ext.aws import _flatten_dict
+from ddtrace.contrib.trace_utils import flatten_dict
 from ddtrace.ext.aws import add_span_arg_tags
 from tests.tracer.test_ext import nested_dicts
 
 
 def test_flatten_dict_hypothesis(benchmark):
     @given(nested_dicts)
-    def flatten_dict(d):
-        _flatten_dict(d)
+    def _wrapper(d):
+        flatten_dict(d)
 
-    benchmark(flatten_dict)
+    benchmark(_wrapper)
 
 
 NESTED_DICT = {
@@ -49,11 +49,11 @@ NESTED_DICT = {
 
 
 def test_flatten_dict_full(benchmark):
-    benchmark(_flatten_dict, NESTED_DICT)
+    benchmark(flatten_dict, NESTED_DICT)
 
 
 def test_flatten_dict_exclude(benchmark):
-    benchmark(_flatten_dict, NESTED_DICT, exclude={"params.Record"})
+    benchmark(flatten_dict, NESTED_DICT, exclude={"params.Record"})
 
 
 def test_add_span_arg_tags(benchmark):

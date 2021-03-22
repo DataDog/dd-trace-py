@@ -1,10 +1,9 @@
-from collections import deque
 from typing import Any
-from typing import Dict
-from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
+
+from ddtrace.contrib.trace_utils import flatten_dict
 
 
 if TYPE_CHECKING:
@@ -15,31 +14,6 @@ EXCLUDED_ENDPOINT = {"kms", "sts"}
 EXCLUDED_ENDPOINT_TAGS = {
     "s3": {"params.Body"},
 }
-
-
-def _flatten_dict(
-    d,  # type: Dict[str, Any]
-    sep=".",  # type: str
-    prefix="",  # type: str
-    exclude=None,  # type: Optional[Set[str]]
-):
-    # type: (...) -> Dict[str, Any]
-    """
-    Returns a normalized dict of depth 1
-    """
-    flat = {}
-    s = deque()  # type: ignore
-    s.append((prefix, d))
-    exclude = exclude or set()
-    while s:
-        p, v = s.pop()
-        if p in exclude:
-            continue
-        if isinstance(v, dict):
-            s.extend((p + sep + k if p else k, v) for k, v in v.items())
-        else:
-            flat[p] = v
-    return flat
 
 
 def truncate_arg_value(value, max_len=1024):
@@ -63,7 +37,7 @@ def add_span_arg_tags(
     # type: (...) -> None
     if endpoint_name not in EXCLUDED_ENDPOINT:
         tags = dict((name, value) for (name, value) in zip(args_names, args) if name in args_traced)
-        flat_tags = _flatten_dict(tags, exclude=EXCLUDED_ENDPOINT_TAGS.get(endpoint_name))
+        flat_tags = flatten_dict(tags, exclude=EXCLUDED_ENDPOINT_TAGS.get(endpoint_name))
         span.set_tags({k: truncate_arg_value(v) for k, v in flat_tags.items()})
 
 
