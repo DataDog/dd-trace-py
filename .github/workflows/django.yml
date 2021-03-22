@@ -13,20 +13,20 @@ jobs:
       - uses: actions/checkout@v2
         with:
           path: ddtrace
+        run: pip install ../ddtrace
       - uses: actions/checkout@v2
         with:
           repository: django/django
           ref: 3.1.7
           path: django
+        run: pip install ../django
       - uses: actions/setup-python@v2
         with:
           python-version: "3.8"
       - name: Install pylibmc
-        run: sudo apt install libmemcached-dev zlib1g-dev
+        run: sudo apt install libmemcached-dev zlib1g
       - name: Install dependencies
         run: pip install -r tests/requirements/py3.txt
-      - name: Install ddtrace
-        run: pip install ../ddtrace
       - name: Run tests
         # requests library patching interferes with test module namespace
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
