@@ -12,22 +12,30 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
           repository: django/django
           ref: 3.1.7
           path: django
       - uses: actions/setup-python@v2
         with:
           python-version: "3.8"
-      - name: Install pylibmc
+      - name: Install pylibmc's libmemcached package
+        # Django-specific: pylibmc in Ubuntu requires libmemcached package
         run: sudo apt install libmemcached-dev zlib1g
       - name: Install dependencies
+        # Django-specific: separate dependencies for tests
         run: pip install -r tests/requirements/py3.txt
       - name: Install ddtrace
-        run: pip install ddtrace
+        run: pip install ../ddtrace
       - name: Install django
         run: pip install ../django
       - name: Run tests
-        # requests library patching interferes with test module namespace
-        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
+        # Django's test directory contains a 'requests' test module
+        # This interferes with the requests library patching in the tracer
+        run: |
+          cd tests
+          DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run ./runtests.py
 
 
