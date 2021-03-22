@@ -139,7 +139,7 @@ class AgentWriterTests(BaseTestCase):
 
     def test_write_sync(self):
         statsd = mock.Mock()
-        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True, sync_flush_mode=True)
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True, sync_mode=True)
         writer.write([Span(tracer=None, name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
         statsd.distribution.assert_has_calls(
             [
