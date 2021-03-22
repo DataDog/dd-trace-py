@@ -3,7 +3,7 @@ from hypothesis import given
 from ddtrace import tracer
 from ddtrace.contrib.trace_utils import flatten_dict
 from ddtrace.ext.aws import add_span_arg_tags
-from tests.tracer.test_ext import nested_dicts
+from tests.tracer.test_trace_utils import nested_dicts
 
 
 def test_flatten_dict_hypothesis(benchmark):
