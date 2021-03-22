@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: django/tests
+        working-directory: django
     steps:
       - uses: actions/checkout@v2
         with:
