@@ -28,7 +28,7 @@ def _flatten_dict(
     Returns a normalized dict of depth 1
     """
     flat = {}
-    s = deque()
+    s = deque()  # type: ignore
     s.append((prefix, d))
     exclude = exclude or set()
     while s:
