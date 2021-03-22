@@ -276,9 +276,9 @@ class _ProfilerInstance(service.Service):
             service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
         )
 
-    def start(self):
+    def _start(self):
+        # type: () -> None
         """Start the profiler."""
-        super(_ProfilerInstance, self).start()
         collectors = []
         for col in self._collectors:
             try:

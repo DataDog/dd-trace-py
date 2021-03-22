@@ -163,6 +163,18 @@ class SpanTestCase(TracerTestCase):
         s.finish()
         assert s.duration == 1337.0
 
+    def test_setter_casts_duration_ns_as_int(self):
+        s = Span(tracer=None, name="test.span")
+        s.duration = 3.2
+        s.finish()
+        assert s.duration == 3.2
+        assert s.duration_ns == 3200000000
+        assert isinstance(s.duration_ns, int)
+
+    def test_get_span_returns_none_by_default(self):
+        s = Span(tracer=None, name="test.span")
+        assert s.duration is None
+
     def test_traceback_with_error(self):
         s = Span(None, "test.span")
         try:
@@ -532,3 +544,20 @@ def test_span_ignored_exception_subclass():
     assert s.get_tag(errors.ERROR_MSG) is None
     assert s.get_tag(errors.ERROR_TYPE) is None
     assert s.get_tag(errors.ERROR_STACK) is None
+
+
+def test_on_finish_single_callback():
+    m = mock.Mock()
+    s = Span(None, "test", on_finish=[m])
+    m.assert_not_called()
+    s.finish()
+    m.assert_called_once_with(s)
+
+
+def test_on_finish_multi_callback():
+    m1 = mock.Mock()
+    m2 = mock.Mock()
+    s = Span(None, "test", on_finish=[m1, m2])
+    s.finish()
+    m1.assert_called_once_with(s)
+    m2.assert_called_once_with(s)
