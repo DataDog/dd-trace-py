@@ -13,7 +13,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace.constants import DATADOG_LAMBDA_EXTENSION_PATH
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -913,18 +912,9 @@ class EnvTracerTestCase(TracerTestCase):
                     assert VERSION_KEY not in child2.meta
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_detect_agentless_env_with_lambda(self):
+    def test_detect_agentless_env(self):
         tracer = Tracer()
         assert isinstance(tracer.writer, LogWriter)
-
-    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_detect_agent_config_with_lambda_extension(self):
-        def mock_os_path_exists(path):
-            return path == DATADOG_LAMBDA_EXTENSION_PATH
-
-        with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
-            tracer = Tracer()
-            assert isinstance(tracer.writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):

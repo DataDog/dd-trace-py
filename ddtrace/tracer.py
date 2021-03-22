@@ -5,7 +5,6 @@ import logging
 import os
 from os import environ
 from os import getpid
-from os import path
 import sys
 from typing import Any
 from typing import Callable
@@ -19,7 +18,6 @@ from ddtrace import config
 
 from . import _hooks
 from . import compat
-from .constants import DATADOG_LAMBDA_EXTENSION_PATH
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
@@ -121,7 +119,7 @@ class Tracer(object):
         self.priority_sampler = RateByServiceSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
-        if self._use_log_writer() and url is None:
+        if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         else:
             url = url or agent.get_trace_url()
@@ -301,14 +299,12 @@ class Tracer(object):
         self.writer.stop()
         if url:
             agent.verify_url(url)
-        sync_flush_mode = self._is_agentless_environment()
         self.writer = writer or AgentWriter(
             url,
             sampler=self.sampler,
             priority_sampler=self.priority_sampler,
             dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
             report_metrics=config.health_metrics_enabled,
-            sync_flush_mode=sync_flush_mode,
         )
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
@@ -810,13 +806,6 @@ class Tracer(object):
 
     @staticmethod
     def _is_agentless_environment():
-        if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-            # We are in an AWS Lambda environment
-            return True
-        return False
-
-    @staticmethod
-    def _use_log_writer():
         if (
             environ.get("DD_AGENT_HOST")
             or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
@@ -824,13 +813,10 @@ class Tracer(object):
         ):
             # If one of these variables are set, we definitely have an agent
             return False
-        if not Tracer._is_agentless_environment():
-            return False
-        # The Datadog Lambda Extension is a special build of the agent made for lambda.
-        # It uses the agent writer instead of the log writer.
-        if path.exists(DATADOG_LAMBDA_EXTENSION_PATH):
-            return False
-        return True
+        if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+            # We are in an AWS Lambda environment
+            return True
+        return False
 
     @staticmethod
     def _is_span_internal(span):
