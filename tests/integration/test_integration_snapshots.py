@@ -1,7 +1,9 @@
 import pytest
 
+from ddtrace import Tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
@@ -43,8 +45,24 @@ def test_multiple_traces(tracer):
     tracer.shutdown()
 
 
+@pytest.mark.parametrize(
+    "writer",
+    ("default", "sync"),
+)
 @snapshot(include_tracer=True)
-def test_filters(tracer):
+def test_filters(writer, tracer):
+    if writer == "sync":
+        writer = AgentWriter(
+            tracer.writer.agent_url,
+            priority_sampler=tracer.priority_sampler,
+            sync_mode=True,
+        )
+        # Need to copy the headers which contain the test token to associate
+        # traces with this test case.
+        writer._headers = tracer.writer._headers
+    else:
+        writer = tracer.writer
+
     class FilterMutate(object):
         def __init__(self, key, value):
             self.key = key
@@ -59,7 +77,7 @@ def test_filters(tracer):
         settings={
             "FILTERS": [FilterMutate("boop", "beep")],
         },
-        writer=tracer.writer,
+        writer=writer,
     )
 
     with tracer.trace("root"):
@@ -68,53 +86,88 @@ def test_filters(tracer):
     tracer.shutdown()
 
 
+@pytest.mark.parametrize(
+    "writer",
+    ("default", "sync"),
+)
 @snapshot(include_tracer=True)
-def test_sampling(tracer):
+def test_sampling(writer, tracer):
+    if writer == "sync":
+        writer = AgentWriter(
+            tracer.writer.agent_url,
+            priority_sampler=tracer.priority_sampler,
+            sync_mode=True,
+        )
+        # Need to copy the headers which contain the test token to associate
+        # traces with this test case.
+        writer._headers = tracer.writer._headers
+    else:
+        writer = tracer.writer
+
+    tracer.configure(writer=writer)
+
     with tracer.trace("trace1"):
         with tracer.trace("child"):
             pass
 
     sampler = DatadogSampler(default_sample_rate=1.0)
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace2"):
         with tracer.trace("child"):
             pass
 
     sampler = DatadogSampler(default_sample_rate=0.000001)
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace3"):
         with tracer.trace("child"):
             pass
 
     sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1.0)])
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace4"):
         with tracer.trace("child"):
             pass
 
     sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)])
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace5"):
         with tracer.trace("child"):
             pass
 
     sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace6"):
         with tracer.trace("child") as span:
             span.set_tag(MANUAL_DROP_KEY)
 
     sampler = DatadogSampler(default_sample_rate=1)
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     with tracer.trace("trace7"):
         with tracer.trace("child") as span:
             span.set_tag(MANUAL_KEEP_KEY)
 
     sampler = RateSampler(0.0000000001)
-    tracer.configure(sampler=sampler, writer=tracer.writer)
+    tracer.configure(sampler=sampler, writer=writer)
     # This trace should not appear in the snapshot
     with tracer.trace("trace8"):
         with tracer.trace("child"):
             pass
 
     tracer.shutdown()
+
+
+# Have to use sync mode snapshot so that the traces are associated to this
+# test case since we use a custom writer (that doesn't have the trace headers
+# injected).
+@snapshot(async_mode=False)
+def test_synchronous_writer():
+    tracer = Tracer()
+    writer = AgentWriter(tracer.writer.agent_url, sync_mode=True, priority_sampler=tracer.priority_sampler)
+    tracer.configure(writer=writer)
+    with tracer.trace("operation1", service="my-svc"):
+        with tracer.trace("child1"):
+            pass
+
+    with tracer.trace("operation2", service="my-svc"):
+        with tracer.trace("child2"):
+            pass
