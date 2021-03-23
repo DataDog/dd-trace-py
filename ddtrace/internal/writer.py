@@ -281,7 +281,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self.agent_url)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
@@ -311,9 +311,10 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 payload = self._downgrade(payload, response)
             except ValueError:
                 log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent",
+                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
                     self._endpoint,
                     response.status,
+                    self.agent_url,
                 )
             else:
                 return self._send_payload(payload, count)
