@@ -5,13 +5,13 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1611739614070324000
-   "duration" 69000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717335957000
+   "duration" 56000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "_dd.tracer_kr" 1.0
-              "system.pid" 10144}}
+              "system.pid" 28857
+              "_dd.tracer_kr" 1.0}}
       {"name" "child"
        "service" nil
        "resource" "child"
@@ -19,8 +19,8 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1611739614070374000
-       "duration" 10000}]
+       "start" 1616453717336000000
+       "duration" 8000}]
  [{"name" "trace2"
    "service" nil
    "resource" "trace2"
@@ -28,13 +28,13 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1611739614070713000
-   "duration" 63000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717358366000
+   "duration" 165000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
               "_sampling_priority_v1" 1
+              "system.pid" 28857
               "_dd.tracer_kr" 1.0
-              "system.pid" 10144
               "_dd.rule_psr" 1.0}}
       {"name" "child"
        "service" nil
@@ -43,8 +43,8 @@
        "span_id" 1
        "trace_id" 1
        "parent_id" 0
-       "start" 1611739614070760000
-       "duration" 9000}]
+       "start" 1616453717358505000
+       "duration" 17000}]
  [{"name" "trace3"
    "service" nil
    "resource" "trace3"
@@ -52,11 +52,11 @@
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1611739614070850000
-   "duration" 41000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717358748000
+   "duration" 67000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_sampling_priority_v1" 0
-              "system.pid" 10144
+              "system.pid" 28857
               "_dd.tracer_kr" 1.0
               "_dd.rule_psr" 1.0E-6}}
       {"name" "child"
@@ -66,8 +66,8 @@
        "span_id" 1
        "trace_id" 2
        "parent_id" 0
-       "start" 1611739614070878000
-       "duration" 8000}]
+       "start" 1616453717358799000
+       "duration" 11000}]
  [{"name" "trace4"
    "service" nil
    "resource" "trace4"
@@ -75,13 +75,13 @@
    "span_id" 0
    "trace_id" 3
    "parent_id" nil
-   "start" 1611739614070959000
-   "duration" 50000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717358935000
+   "duration" 52000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
-              "_dd.tracer_kr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 10144
+              "system.pid" 28857
+              "_dd.tracer_kr" 1.0
               "_dd.rule_psr" 1.0}}
       {"name" "child"
        "service" nil
@@ -90,7 +90,7 @@
        "span_id" 1
        "trace_id" 3
        "parent_id" 0
-       "start" 1611739614070996000
+       "start" 1616453717358974000
        "duration" 8000}]
  [{"name" "trace5"
    "service" nil
@@ -99,12 +99,12 @@
    "span_id" 0
    "trace_id" 4
    "parent_id" nil
-   "start" 1611739614071075000
-   "duration" 41000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717359086000
+   "duration" 30000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_sampling_priority_v1" 0
+              "system.pid" 28857
               "_dd.tracer_kr" 1.0
-              "system.pid" 10144
               "_dd.rule_psr" 0}}
       {"name" "child"
        "service" nil
@@ -113,8 +113,8 @@
        "span_id" 1
        "trace_id" 4
        "parent_id" 0
-       "start" 1611739614071103000
-       "duration" 7000}]
+       "start" 1616453717359108000
+       "duration" 5000}]
  [{"name" "trace6"
    "service" nil
    "resource" "trace6"
@@ -122,13 +122,13 @@
    "span_id" 0
    "trace_id" 5
    "parent_id" nil
-   "start" 1611739614071176000
-   "duration" 55000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717359193000
+   "duration" 44000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
-              "_dd.tracer_kr" 1.0
               "_sampling_priority_v1" -1
-              "system.pid" 10144
+              "system.pid" 28857
+              "_dd.tracer_kr" 1.0
               "_dd.rule_psr" 1}}
       {"name" "child"
        "service" nil
@@ -137,8 +137,8 @@
        "span_id" 1
        "trace_id" 5
        "parent_id" 0
-       "start" 1611739614071208000
-       "duration" 17000}]
+       "start" 1616453717359221000
+       "duration" 13000}]
  [{"name" "trace7"
    "service" nil
    "resource" "trace7"
@@ -146,13 +146,13 @@
    "span_id" 0
    "trace_id" 6
    "parent_id" nil
-   "start" 1611739614071293000
-   "duration" 48000
-   "meta" {"runtime-id" "88c29c5e9e1445a8bcce78bd1238a4d4"}
+   "start" 1616453717359314000
+   "duration" 38000
+   "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
-              "_dd.tracer_kr" 1.0
               "_sampling_priority_v1" 2
-              "system.pid" 10144
+              "system.pid" 28857
+              "_dd.tracer_kr" 1.0
               "_dd.rule_psr" 1}}
       {"name" "child"
        "service" nil
@@ -161,5 +161,5 @@
        "span_id" 1
        "trace_id" 6
        "parent_id" 0
-       "start" 1611739614071323000
-       "duration" 13000}]]
+       "start" 1616453717359340000
+       "duration" 9000}]]
