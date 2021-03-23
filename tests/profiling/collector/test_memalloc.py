@@ -80,7 +80,7 @@ def test_iter_events():
         last_call = stack[0]
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
-            assert thread_id == nogevent.main_thread_id
+            assert thread_id == nogevent.main_thread_id()
             assert last_call[0] == __file__
             assert stack[1][0] == __file__
             assert stack[1][1] == _ALLOC_LINE_NUMBER
@@ -130,7 +130,7 @@ def test_iter_events_multi_thread():
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert last_call[0] == __file__
-            if thread_id == nogevent.main_thread_id:
+            if thread_id == nogevent.main_thread_id():
                 count_object += 1
                 assert stack[1][0] == __file__
                 assert stack[1][1] == _ALLOC_LINE_NUMBER
@@ -161,7 +161,7 @@ def test_memory_collector():
         last_call = event.frames[0]
         assert event.size > 0
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
-            assert event.thread_id == nogevent.main_thread_id
+            assert event.thread_id == nogevent.main_thread_id()
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
@@ -206,7 +206,7 @@ def test_heap():
     for (stack, nframe, thread_id), size in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         assert size > 0
-        if thread_id == nogevent.main_thread_id:
+        if thread_id == nogevent.main_thread_id():
             thread_found = True
         assert isinstance(thread_id, int)
         if (

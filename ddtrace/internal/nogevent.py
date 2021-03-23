@@ -37,41 +37,43 @@ Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
 
 
-if is_module_patched("threading"):
+@attr.s
+class _GeventDoubleLock(object):
+    """A lock that prevent concurrency from a gevent coroutine and from a threading.Thread at the same time."""
 
-    @attr.s
-    class DoubleLock(object):
-        """A lock that prevent concurrency from a gevent coroutine and from a threading.Thread at the same time."""
+    _lock = attr.ib(factory=threading.Lock, init=False, repr=False)
+    _thread_lock = attr.ib(factory=Lock, init=False, repr=False)
 
-        _lock = attr.ib(factory=threading.Lock, init=False, repr=False)
-        _thread_lock = attr.ib(factory=Lock, init=False, repr=False)
+    def acquire(self):
+        # You cannot acquire a gevent-lock from another thread if it has been acquired already:
+        # make sure we exclude the gevent-lock from being acquire by another thread by using a thread-lock first.
+        self._thread_lock.acquire()
+        self._lock.acquire()
 
-        def acquire(self):
-            # You cannot acquire a gevent-lock from another thread if it has been acquired already:
-            # make sure we exclude the gevent-lock from being acquire by another thread by using a thread-lock first.
-            self._thread_lock.acquire()
-            self._lock.acquire()
+    def release(self):
+        self._lock.release()
+        self._thread_lock.release()
 
-        def release(self):
-            self._lock.release()
-            self._thread_lock.release()
+    def __enter__(self):
+        self.acquire()
+        return self
 
-        def __enter__(self):
-            self.acquire()
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            self.release()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
 
 
-else:
-    DoubleLock = threading.Lock  # type:  ignore[misc,assignment]
+def DoubleLock():
+    if is_module_patched("threading"):
+        return _GeventDoubleLock()
+    else:
+        return threading.Lock()
 
 
-if is_module_patched("threading"):
-    # NOTE: bold assumption: this module is always imported by the MainThread.
-    # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
-    # We don't have the choice has we can't access the original MainThread
-    main_thread_id = thread_get_ident()
-else:
-    main_thread_id = compat.main_thread.ident
+def main_thread_id():
+    # type: () -> int
+    if is_module_patched("threading"):
+        # NOTE: bold assumption: there is only one OS thread and it's calling this code.
+        # We don't have the choice has we can't access the original MainThread object.
+        return thread_get_ident()
+    else:
+        return compat.main_thread.ident
