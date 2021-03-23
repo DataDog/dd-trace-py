@@ -10,7 +10,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
-from tests import DummyTracer
+from tests.utils import DummyTracer
 
 
 NOT_SET = object()

@@ -28,12 +28,12 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.vendor import six
-from tests import DummyWriter
-from tests import TracerTestCase
-from tests import override_global_config
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import DummyWriter
+from tests.utils import TracerTestCase
+from tests.utils import override_global_config
 
-from .. import override_env
+from ..utils import override_env
 
 
 class TracerTestCases(TracerTestCase):

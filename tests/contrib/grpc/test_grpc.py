@@ -11,8 +11,8 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from .hello_pb2 import HelloReply
 from .hello_pb2 import HelloRequest
 from .hello_pb2_grpc import HelloServicer

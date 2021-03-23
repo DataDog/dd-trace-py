@@ -4,7 +4,7 @@ from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS
 from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
-from tests import BaseTestCase
+from tests.utils import BaseTestCase
 
 
 class TestRuntimeMetricCollector(BaseTestCase):
