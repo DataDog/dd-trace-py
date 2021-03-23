@@ -11,7 +11,6 @@ from ...ext import SpanTypes
 from ...ext import errors
 from ...ext import http
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
 
 
@@ -108,11 +107,12 @@ class TraceMiddleware(object):
             log.debug("flask: error finishing span", exc_info=True)
 
     def _start_span(self):
-        if self.app._use_distributed_tracing:
-            context = HTTPPropagator.extract(request.headers)
-            # Only need to active the new context if something was propagated
-            if context.trace_id:
-                self.app._tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self.app._tracer,
+            request_headers=request.headers,
+            override_distributed_tracing=self.app._use_distributed_tracing,
+        )
+
         try:
             g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,

@@ -16,7 +16,6 @@ from .. import trace_utils
 from ... import compat
 from ...ext import SpanTypes
 from ...ext import errors
-from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 
@@ -68,11 +67,11 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        if self.use_distributed_tracing:
-            context = HTTPPropagator.extract(cherrypy.request.headers)
-            # Only need to activate the new context if something was propagated
-            if context.trace_id:
-                self._tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self._tracer,
+            request_headers=cherrypy.request.headers,
+            override_distributed_tracing=self.use_distributed_tracing,
+        )
 
         cherrypy.request._datadog_span = self._tracer.trace(
             SPAN_NAME,

@@ -12,7 +12,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
@@ -35,10 +34,9 @@ class PylonsTraceMiddleware(object):
 
     def __call__(self, environ, start_response):
         request = Request(environ)
-        if self._distributed_tracing:
-            context = HTTPPropagator.extract(request.headers)
-            if context.trace_id:
-                self._tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self._tracer, request_headers=request.headers, override_distributed_tracing=self._distributed_tracing
+        )
 
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
             span.set_tag(SPAN_MEASURED_KEY)
