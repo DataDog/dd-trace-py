@@ -318,7 +318,14 @@ def test_bad_endpoint():
         s.set_tag("env", "my-env")
         s.finish()
         t.shutdown()
-    calls = [mock.call("unsupported endpoint '%s': received response %s from Datadog Agent", "/bad", 404)]
+    calls = [
+        mock.call(
+            "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
+            "/bad",
+            404,
+            t.writer.agent_url,
+        )
+    ]
     log.error.assert_has_calls(calls)
 
 
@@ -512,5 +519,13 @@ def test_flush_log(caplog):
     with mock.patch("ddtrace.internal.writer.log") as log:
         writer.write([])
         writer.flush_queue(raise_exc=True)
-        calls = [mock.call(logging.DEBUG, "sent %s in %.5fs", AnyStr(), AnyFloat())]
+        calls = [
+            mock.call(
+                logging.DEBUG,
+                "sent %s in %.5fs to %s",
+                AnyStr(),
+                AnyFloat(),
+                writer.agent_url,
+            )
+        ]
         log.log.assert_has_calls(calls)
