@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 EXCLUDED_ENDPOINT = {"kms", "sts"}
 EXCLUDED_ENDPOINT_TAGS = {
     "s3": {"params.Body"},
+    "firehose": {"params.Records"},
 }
 
 
