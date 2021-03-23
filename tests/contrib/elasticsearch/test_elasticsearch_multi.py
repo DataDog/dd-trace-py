@@ -24,16 +24,20 @@ es.indices.delete(index=ES_INDEX, ignore=[400, 404])
 """
 
 
-@snapshot(async_mode=False)
-def test_elasticsearch(tmpdir):
+def do_test(tmpdir, es_version):
     f = tmpdir.join("test.py")
-    f.write(code % "elasticsearch")
+    f.write(code % es_version)
+    env = os.environ.copy()
+    # ddtrace-run patches sqlite3 which is used by coverage to store coverage
+    # results. This generates sqlite3 spans during the test run which interfere
+    # with the snapshot. So disable sqlite3.
+    env.update({"DD_TRACE_SQLITE3_ENABLED": "false"})
     p = subprocess.Popen(
         ["ddtrace-run", sys.executable, "test.py"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
-        env=os.environ,
+        env=env,
     )
     p.wait()
     stderr = p.stderr.read()
@@ -41,79 +45,28 @@ def test_elasticsearch(tmpdir):
     assert stderr == six.b(""), stderr
     assert stdout == six.b(""), stdout
     assert p.returncode == 0
+
+
+@snapshot(async_mode=False)
+def test_elasticsearch(tmpdir):
+    do_test(tmpdir, "elasticsearch")
 
 
 @snapshot(async_mode=False)
 def test_elasticsearch2(tmpdir):
-    f = tmpdir.join("test.py")
-    f.write(code % "elasticsearch2")
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=os.environ,
-    )
-    p.wait()
-    stderr = p.stderr.read()
-    stdout = p.stdout.read()
-    assert stderr == six.b(""), stderr
-    assert stdout == six.b(""), stdout
-    assert p.returncode == 0
+    do_test(tmpdir, "elasticsearch2")
 
 
 @snapshot(async_mode=False)
 def test_elasticsearch5(tmpdir):
-    f = tmpdir.join("test.py")
-    f.write(code % "elasticsearch5")
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=os.environ,
-    )
-    p.wait()
-    stderr = p.stderr.read()
-    stdout = p.stdout.read()
-    assert stderr == six.b(""), stderr
-    assert stdout == six.b(""), stdout
-    assert p.returncode == 0
+    do_test(tmpdir, "elasticsearch5")
 
 
 @snapshot(async_mode=False)
 def test_elasticsearch6(tmpdir):
-    f = tmpdir.join("test.py")
-    f.write(code % "elasticsearch6")
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=os.environ,
-    )
-    p.wait()
-    stderr = p.stderr.read()
-    stdout = p.stdout.read()
-    assert stderr == six.b(""), stderr
-    assert stdout == six.b(""), stdout
-    assert p.returncode == 0
+    do_test(tmpdir, "elasticsearch6")
 
 
 @snapshot(async_mode=False)
 def test_elasticsearch7(tmpdir):
-    f = tmpdir.join("test.py")
-    f.write(code % "elasticsearch7")
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=os.environ,
-    )
-    p.wait()
-    stderr = p.stderr.read()
-    stdout = p.stdout.read()
-    assert stderr == six.b(""), stderr
-    assert stdout == six.b(""), stdout
-    assert p.returncode == 0
+    do_test(tmpdir, "elasticsearch7")
