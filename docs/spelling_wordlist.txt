@@ -31,11 +31,14 @@ django
 dogpile
 dogstatsd
 elasticsearch
+elasticsearch1
+elasticsearch7
 enqueue
 entrypoint
 entrypoints
 Fargate
 fastapi
+Firehose
 gRPC
 gevent
 greenlet
@@ -62,6 +65,7 @@ microservices
 middleware
 mongoengine
 multiprocess
+multithreaded
 mysql
 mysqlclient
 mysqldb
@@ -87,6 +91,7 @@ redis
 rediscluster
 renderers
 repo
+respawn
 runnable
 runtime
 sanic
@@ -106,6 +111,7 @@ url
 urls
 username
 uvicorn
+versioned
 vertica
 whitelist
 wsgi

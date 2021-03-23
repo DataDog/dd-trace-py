@@ -1,4 +1,13 @@
+from typing import List
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Union
+
 from .encoding import Encoder
+
+
+if TYPE_CHECKING:
+    from .span import Span
 
 
 class PayloadFull(Exception):
@@ -24,7 +33,12 @@ class Payload(object):
     # 5 MB should be a good average efficient size
     DEFAULT_MAX_PAYLOAD_SIZE = 5 * 1000000
 
-    def __init__(self, encoder=None, max_payload_size=DEFAULT_MAX_PAYLOAD_SIZE):
+    def __init__(
+        self,
+        encoder=None,  # type: Optional[Encoder]
+        max_payload_size=DEFAULT_MAX_PAYLOAD_SIZE,  # type: int
+    ):
+        # type: (...) -> None
         """
         Constructor for Payload
 
@@ -35,10 +49,11 @@ class Payload(object):
         """
         self.max_payload_size = max_payload_size
         self.encoder = encoder or Encoder()
-        self.traces = []
+        self.traces = []  # type: List[bytes]
         self.size = 0
 
     def add_trace(self, trace):
+        # type: (Optional[List[Span]]) -> None
         """
         Encode and append a trace to this payload
 
@@ -58,6 +73,7 @@ class Payload(object):
 
     @property
     def length(self):
+        # type: () -> int
         """
         Get the number of traces in this payload
 
@@ -68,6 +84,7 @@ class Payload(object):
 
     @property
     def empty(self):
+        # type: () -> bool
         """
         Whether this payload is empty or not
 
@@ -77,6 +94,7 @@ class Payload(object):
         return self.length == 0
 
     def get_payload(self):
+        # type: () -> Union[str, bytes]
         """
         Get the fully encoded payload
 
@@ -87,6 +105,7 @@ class Payload(object):
         return self.encoder.join_encoded(self.traces)
 
     def __repr__(self):
+        # type: () -> str
         """Get the string representation of this payload"""
         return "{0}(length={1}, size={2} B, max_payload_size={3} B)".format(
             self.__class__.__name__, self.length, self.size, self.max_payload_size

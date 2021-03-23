@@ -6,9 +6,9 @@ import sys
 import threading
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 
 import ddtrace
-from ddtrace import Span
 from ddtrace.vendor import six
 
 from . import agent
@@ -29,9 +29,12 @@ from .runtime import container
 from .sma import SimpleMovingAverage
 
 
+if TYPE_CHECKING:
+    from ddtrace import Span
+
+
 log = get_logger(__name__)
 
-DEFAULT_SHUTDOWN_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 # The window size should be chosen so that the look-back period is
@@ -180,7 +183,6 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
     def __init__(
         self,
         agent_url,
-        shutdown_timeout=DEFAULT_SHUTDOWN_TIMEOUT,
         sampler=None,
         priority_sampler=None,
         processing_interval=1,
@@ -191,11 +193,9 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         timeout=agent.DEFAULT_TIMEOUT,
         dogstatsd=None,
         report_metrics=False,
-        sync_flush_mode=False,
+        sync_mode=False,
     ):
-        super(AgentWriter, self).__init__(
-            interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
-        )
+        super(AgentWriter, self).__init__(interval=processing_interval, name=self.__class__.__name__)
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
@@ -231,7 +231,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         self._report_metrics = report_metrics
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
-        self._sync_flush_mode = sync_flush_mode
+        self._sync_mode = sync_mode
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -264,9 +264,8 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         # type: () -> AgentWriter
         writer = self.__class__(
             agent_url=self.agent_url,
-            shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
-            sync_flush_mode=self._sync_flush_mode,
+            sync_mode=self._sync_mode,
         )
         writer._encoder = self._encoder
         writer._headers = self._headers
@@ -285,7 +284,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self.agent_url)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
@@ -315,9 +314,10 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 payload = self._downgrade(payload, response)
             except ValueError:
                 log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent",
+                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
                     self._endpoint,
                     response.status,
+                    self.agent_url,
                 )
             else:
                 return self._send_payload(payload, count)
@@ -350,7 +350,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
-        if self.started is False and self._sync_flush_mode is False:
+        if self.started is False and self._sync_mode is False:
             with self._started_lock:
                 if self.started is False:
                     self.start()
@@ -387,7 +387,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
             else:
                 self._metrics_dist("buffer.accepted.traces", 1)
                 self._metrics_dist("buffer.accepted.spans", len(spans))
-                if self._sync_flush_mode:
+                if self._sync_mode:
                     self.flush_queue()
 
     def flush_queue(self, raise_exc=False):

@@ -916,6 +916,8 @@ class EnvTracerTestCase(TracerTestCase):
     def test_detect_agentless_env_with_lambda(self):
         tracer = Tracer()
         assert isinstance(tracer.writer, LogWriter)
+        tracer.configure(enabled=False)
+        assert isinstance(tracer.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agent_config_with_lambda_extension(self):
@@ -925,6 +927,11 @@ class EnvTracerTestCase(TracerTestCase):
         with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
             tracer = Tracer()
             assert isinstance(tracer.writer, AgentWriter)
+            assert tracer.writer._sync_mode
+
+            tracer.configure(enabled=False)
+            assert isinstance(tracer.writer, AgentWriter)
+            assert tracer.writer._sync_mode
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):

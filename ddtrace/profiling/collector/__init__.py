@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
+from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
 from ddtrace.vendor import attr
 
 
@@ -28,7 +28,7 @@ class Collector(service.Service):
 
 
 @attr.s(slots=True)
-class PeriodicCollector(Collector, _periodic.PeriodicService):
+class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def periodic(self):
