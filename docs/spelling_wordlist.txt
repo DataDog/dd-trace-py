@@ -38,6 +38,7 @@ entrypoint
 entrypoints
 Fargate
 fastapi
+Firehose
 gRPC
 gevent
 greenlet
