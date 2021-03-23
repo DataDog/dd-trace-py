@@ -480,10 +480,10 @@ class StackCollector(collector.PeriodicCollector):
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
 
-    def start(self):
+    def _start(self):
         # This is split in its own function to ease testing
         self._init()
-        super(StackCollector, self).start()
+        super(StackCollector, self)._start()
 
     def stop(self):
         super(StackCollector, self).stop()
