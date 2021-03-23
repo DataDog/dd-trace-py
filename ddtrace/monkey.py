@@ -91,7 +91,13 @@ _PATCH_ON_IMPORT = {
     "gevent": ("gevent",),
     "requests": ("requests",),
     "botocore": ("botocore",),
-    "elasticsearch": ("elasticsearch",),
+    "elasticsearch": (
+        "elasticsearch",
+        "elasticsearch2",
+        "elasticsearch5",
+        "elasticsearch6",
+        "elasticsearch7",
+    ),
     "pynamodb": ("pynamodb",),
 }
 
@@ -113,8 +119,14 @@ def _on_import_factory(module, raise_errors=True):
     def on_import(hook):
         # Import and patch module
         path = "ddtrace.contrib.%s" % module
-        imported_module = importlib.import_module(path)
-        imported_module.patch()
+        try:
+            imported_module = importlib.import_module(path)
+        except ImportError:
+            if raise_errors:
+                raise
+            log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
+        else:
+            imported_module.patch()
 
     return on_import
 
@@ -161,18 +173,19 @@ def patch(raise_errors=True, **patch_modules):
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     for module in modules:
         if module in _PATCH_ON_IMPORT:
-            # If the module has already been imported then patch immediately
-            if module in sys.modules:
-                patch_module(module, raise_errors=raise_errors)
+            modules_to_poi = _PATCH_ON_IMPORT[module]
+            for m in modules_to_poi:
+                # If the module has already been imported then patch immediately
+                if m in sys.modules:
+                    patch_module(m, raise_errors=raise_errors)
+                # Otherwise, add a hook to patch when it is imported for the first time
+                else:
+                    # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+                    when_imported(m)(_on_import_factory(module, raise_errors))
 
-            # Otherwise, add a hook to patch when it is imported for the first time
-            else:
-                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-                when_imported(module)(_on_import_factory(module, raise_errors))
-
-                # manually add module to patched modules
-                with _LOCK:
-                    _PATCHED_MODULES.add(module)
+            # manually add module to patched modules
+            with _LOCK:
+                _PATCHED_MODULES.add(module)
         else:
             patch_module(module, raise_errors=raise_errors)
 
