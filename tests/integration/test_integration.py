@@ -393,6 +393,13 @@ def test_span_tags():
     log.error.assert_not_called()
 
 
+def test_synchronous_writer_shutdown():
+    tracer = Tracer()
+    tracer.configure(writer=AgentWriter(tracer.writer.agent_url, sync_mode=True))
+    # Ensure this doesn't raise.
+    tracer.shutdown()
+
+
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
 def test_flush_log(caplog):
     caplog.set_level(logging.INFO)
