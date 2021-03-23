@@ -24,6 +24,6 @@ class TraceProcessor(object):
                 log.error("error applying filter %r to traces", filtr, exc_info=True)
             else:
                 if trace is None:
-                    log.debug("dropping trace due to filter %r", filter)
+                    log.debug("dropping trace due to filter %r", filtr)
                     return
         return trace
