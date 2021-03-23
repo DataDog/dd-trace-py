@@ -105,6 +105,7 @@ def test_sampling(writer, tracer):
         writer = tracer.writer
 
     tracer.configure(writer=writer)
+
     with tracer.trace("trace1"):
         with tracer.trace("child"):
             pass
