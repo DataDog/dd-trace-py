@@ -157,10 +157,20 @@ class Context(object):
             # activate it next.
             if span._parent and not span._parent.finished:
                 self._set_current_span(span._parent)
-            # Else the span that is closing is the local root span or an error
-            # has been made in the context management (parent closed before a
-            # child so clear out the context to prepare for the next trace.
+            # Else if the span is the local root of this context, then clear the
+            # context so the next trace can be started.
+            elif span == self._local_root_span:
+                self._set_current_span(span._parent)
+                self._local_root_span = None
+                self._parent_trace_id = None
+                self._parent_span_id = None
+                self._sampling_priority = None
+            # Else the span that is closing is closing after its parent.
+            # This is most likely an error. To ensure future traces are not
+            # affected clear out the context and set the current span to
+            # ``None``.
             else:
+                log.debug("span %r closing after its parent %r, this is possibly an error", span, span._parent)
                 self._set_current_span(None)
                 self._local_root_span = None
                 self._parent_trace_id = None

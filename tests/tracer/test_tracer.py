@@ -1198,7 +1198,12 @@ def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
     s1.finish()
-    s2.finish()
+    with mock.patch("ddtrace.context.log") as log:
+        s2.finish()
+    calls = [
+        mock.call("span %r closing after its parent %r, this is possibly an error", s2, s1),
+    ]
+    log.debug.assert_has_calls(calls)
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
