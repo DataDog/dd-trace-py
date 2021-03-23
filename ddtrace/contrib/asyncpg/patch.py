@@ -31,8 +31,8 @@ def _create_pin(tags):
 
 
 def protocol_factory(protocol_cls, *args, **kwargs):
-    def unwrapped(addr, connected_fut, con_params, loop):
-        proto = protocol_cls(addr, connected_fut, con_params, loop)  # noqa: E999
+    def unwrapped(addr, connected_fut, con_params, *uargs, **ukwargs):
+        proto = protocol_cls(addr, connected_fut, con_params, *uargs, **ukwargs)  # noqa: E999
 
         tags = {
             net.TARGET_HOST: addr[0],
