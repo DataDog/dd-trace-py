@@ -100,6 +100,7 @@ class Span(object):
 
         :param int start: the start time of request as a unix epoch in seconds
         :param object context: the Context of the span.
+        :param on_finish: list of functions called when the span finishes.
         """
         # required span info
         self.name = name
@@ -207,6 +208,9 @@ class Span(object):
 
         if self._context:
             self._context.close_span(self)
+        for cb in self._on_finish_callbacks:
+            cb(self)
+
         for cb in self._on_finish_callbacks:
             cb(self)
 

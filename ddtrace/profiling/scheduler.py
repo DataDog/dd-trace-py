@@ -2,8 +2,8 @@
 import logging
 
 from ddtrace import compat
+from ddtrace.internal import periodic
 from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
@@ -13,7 +13,7 @@ LOG = logging.getLogger(__name__)
 
 
 @attr.s
-class Scheduler(_periodic.PeriodicService):
+class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
     recorder = attr.ib()
