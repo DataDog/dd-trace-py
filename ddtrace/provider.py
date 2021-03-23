@@ -9,7 +9,7 @@ from .context import Context
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 
-class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
+class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     """
     A ``ContextProvider`` is an interface that provides the blueprint
     for a callable class, capable to retrieve the current active
@@ -25,10 +25,12 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
 
     @abc.abstractmethod
     def activate(self, context):
+        # type: (Context) -> None
         pass
 
     @abc.abstractmethod
     def active(self):
+        # type: () -> Context
         pass
 
     def __call__(self, *args, **kwargs):
@@ -46,6 +48,7 @@ class DefaultContextProvider(BaseContextProvider):
     """
 
     def __init__(self):
+        # type: () -> None
         _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
@@ -59,12 +62,14 @@ class DefaultContextProvider(BaseContextProvider):
         return ctx is not None
 
     def activate(self, ctx):
+        # type: (Context) -> None
         """Makes the given ``context`` active, so that the provider calls
         the thread-local storage implementation.
         """
-        _DD_CONTEXTVAR.set(ctx)
+        _DD_CONTEXTVAR.set(ctx)  # type: ignore[arg-type]
 
     def active(self):
+        # type: () -> Context
         """Returns the current active ``Context`` for this tracer. Returned
         ``Context`` must be thread-safe or thread-local for this specific
         implementation.

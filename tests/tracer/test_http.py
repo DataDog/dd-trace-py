@@ -1,12 +1,17 @@
+from hypothesis import example
+from hypothesis import given
+from hypothesis.provisional import urls
 import pytest
 
 from ddtrace import Span
 from ddtrace import tracer
+from ddtrace.compat import parse
 from ddtrace.http import store_request_headers
 from ddtrace.http import store_response_headers
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
 from ddtrace.utils.http import normalize_header_name
+from ddtrace.utils.http import strip_query_string
 
 
 class TestHeaders(object):
@@ -229,3 +234,26 @@ class TestHeaderNameNormalization(object):
 
     def test_empty_does_not_raise_exception(self):
         assert normalize_header_name("") == ""
+
+
+@given(urls())
+@example("/relative/path")
+@example("")
+@example("#fragment?with=query&string")
+@example(":")
+@example(":/")
+@example("://?")
+@example("://?&?")
+@example("://?&#")
+def test_strip_query_string(url):
+    parsed_url = parse.urlparse(url)
+    assert strip_query_string(url) == parse.urlunparse(
+        (
+            parsed_url.scheme,
+            parsed_url.netloc,
+            parsed_url.path,
+            parsed_url.params,
+            None,
+            parsed_url.fragment,
+        )
+    )

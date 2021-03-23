@@ -1,12 +1,19 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
+from collections import deque
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Set
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
 
@@ -158,7 +165,7 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        span._set_str_tag(http.URL, url)
+        span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
 
     if status_code is not None:
         try:
@@ -194,3 +201,28 @@ def activate_distributed_headers(tracer, int_config, request_headers=None):
         # Only need to activate the new context if something was propagated
         if context.trace_id:
             tracer.context_provider.activate(context)
+
+
+def flatten_dict(
+    d,  # type: Dict[str, Any]
+    sep=".",  # type: str
+    prefix="",  # type: str
+    exclude=None,  # type: Optional[Set[str]]
+):
+    # type: (...) -> Dict[str, Any]
+    """
+    Returns a normalized dict of depth 1
+    """
+    flat = {}
+    s = deque()  # type: ignore
+    s.append((prefix, d))
+    exclude = exclude or set()
+    while s:
+        p, v = s.pop()
+        if p in exclude:
+            continue
+        if isinstance(v, dict):
+            s.extend((p + sep + k if p else k, v) for k, v in v.items())
+        else:
+            flat[p] = v
+    return flat

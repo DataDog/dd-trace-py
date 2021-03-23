@@ -17,7 +17,6 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -399,8 +398,6 @@ class DummyWriter(AgentWriter):
             kwargs["agent_url"] = "http://localhost:8126"
 
         super(DummyWriter, self).__init__(*args, **kwargs)
-
-        # dummy components
         self.spans = []
         self.traces = []
         self.json_encoder = JSONEncoder()
@@ -440,20 +437,7 @@ class DummyTracer(Tracer):
         self._update_writer()
 
     def _update_writer(self):
-        # Track which writer the DummyWriter was created with, used
-        # some tests
-        if not isinstance(self.writer, DummyWriter):
-            self.original_writer = self.writer
-        if isinstance(self.writer, AgentWriter):
-            self.writer = DummyWriter(
-                agent_url=self.writer.agent_url,
-                priority_sampler=self.writer._priority_sampler,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-            )
-        else:
-            self.writer = DummyWriter(
-                priority_sampler=self.writer._priority_sampler,
-            )
+        self.writer = DummyWriter()
 
     def pop(self):
         # type: () -> List[Span]

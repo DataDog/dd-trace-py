@@ -64,6 +64,7 @@ microservices
 middleware
 mongoengine
 multiprocess
+multithreaded
 mysql
 mysqlclient
 mysqldb
@@ -89,6 +90,7 @@ redis
 rediscluster
 renderers
 repo
+respawn
 runnable
 runtime
 sanic
