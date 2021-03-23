@@ -153,7 +153,7 @@ class Context(object):
                 if self._sampling_priority is not None:
                     span.metrics[SAMPLING_PRIORITY_KEY] = self._sampling_priority
 
-            # Ifa parent exists to the closing span and it is unfinished, then
+            # If a parent exists to the closing span and it is unfinished, then
             # activate it next.
             if span._parent and not span._parent.finished:
                 self._set_current_span(span._parent)

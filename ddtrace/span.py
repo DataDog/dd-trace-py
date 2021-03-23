@@ -211,9 +211,6 @@ class Span(object):
         for cb in self._on_finish_callbacks:
             cb(self)
 
-        for cb in self._on_finish_callbacks:
-            cb(self)
-
     def set_tag(self, key, value=None):
         # type: (str, Any) -> None
         """Set a tag key/value pair on the span.

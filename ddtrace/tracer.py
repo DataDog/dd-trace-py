@@ -35,7 +35,10 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.processor import SpanProcessor
+from .internal.processor import Processor
+from .internal.processor import SpansToTraceProcessor
+from .internal.processor import TraceFiltersProcessor
+from .internal.processor import TraceSamplingProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
@@ -136,11 +139,16 @@ class Tracer(object):
         atexit.register(self._atexit)
         self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
         self._partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
-        self.processor = SpanProcessor(  # type: ignore[call-arg]
-            filters=[],
-            partial_flush_enabled=self._partial_flush_enabled,
-            partial_flush_min_spans=self._partial_flush_min_spans,
-        )
+        self._processors = [
+            SpansToTraceProcessor(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+            ),
+            TraceSamplingProcessor(),
+            TraceFiltersProcessor(
+                filters=self._filters,
+            ),
+        ]  # type: List[Processor]
 
     def _atexit(self):
         # type: () -> None
@@ -321,11 +329,16 @@ class Tracer(object):
             report_metrics=config.health_metrics_enabled,
         )
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self.processor = SpanProcessor(  # type: ignore[call-arg]
-            filters=self._filters,
-            partial_flush_enabled=self._partial_flush_enabled,
-            partial_flush_min_spans=self._partial_flush_min_spans,
-        )
+        self._processors = [
+            SpansToTraceProcessor(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+            ),
+            TraceSamplingProcessor(),
+            TraceFiltersProcessor(
+                filters=self._filters,
+            ),
+        ]
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -527,7 +540,8 @@ class Tracer(object):
             if self._runtime_worker:
                 self._runtime_worker.update_runtime_tags()
 
-        self.processor.on_span_start(span)
+        for proc in self._processors:
+            proc.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
@@ -538,9 +552,11 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("writing span %r", span)
 
-        spans = self.processor.on_span_finish(span)
-        if spans is not None:
-            self.writer.write(spans=spans)
+        data = span
+        for proc in self._processors:
+            data = proc.on_span_finish(data)
+        if data is not None:
+            self.writer.write(data)
 
     def _start_runtime_worker(self):
         if not self._dogstatsd_url:
