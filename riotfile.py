@@ -270,7 +270,7 @@ venv = Venv(
         ),
         Venv(
             name="elasticsearch",
-            command="pytest {cmdargs} tests/contrib/elasticsearch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.8),
@@ -311,6 +311,22 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
+            ],
+        ),
+        Venv(
+            name="elasticsearch-multi",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "elasticsearch": ["~=1.6.0"],
+                        "elasticsearch2": [latest],
+                        "elasticsearch5": [latest],
+                        "elasticsearch6": [latest],
+                        "elasticsearch7": [latest],
+                    },
+                ),
             ],
         ),
         Venv(
