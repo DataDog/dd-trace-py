@@ -63,7 +63,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         tracer = self._pin.tracer
         headers = dict(self._handler_call_details.invocation_metadata)
 
-        trace_utils.activate_distributed_headers(tracer, config.grpc_server, request_headers=headers)
+        trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_server, request_headers=headers)
 
         span = tracer.trace(
             "grpc",

@@ -190,7 +190,7 @@ def set_http_meta(
         store_response_headers(dict(response_headers), span, integration_config)
 
 
-def activate_distributed_headers(tracer, int_config, request_headers=None):
+def activate_distributed_headers(tracer, int_config=None, request_headers=None):
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     """

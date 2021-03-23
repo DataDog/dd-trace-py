@@ -260,7 +260,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     request = werkzeug.Request(environ)
 
     # Configure distributed tracing
-    trace_utils.activate_distributed_headers(pin.tracer, config.flask, request_headers=request.headers)
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
 
     # Default resource is method and path:
     #   GET /

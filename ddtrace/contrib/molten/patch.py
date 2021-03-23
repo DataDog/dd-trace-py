@@ -79,7 +79,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
     resource = func_name(wrapped)
 
     # request.headers is type Iterable[Tuple[str, str]]
-    trace_utils.activate_distributed_headers(pin.tracer, config.molten, request_headers=dict(request.headers))
+    trace_utils.activate_distributed_headers(
+        pin.tracer, int_config=config.molten, request_headers=dict(request.headers)
+    )
 
     with pin.tracer.trace(
         "molten.request",

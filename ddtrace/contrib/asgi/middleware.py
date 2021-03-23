@@ -87,7 +87,9 @@ class TraceMiddleware:
 
         headers = _extract_headers(scope)
 
-        trace_utils.activate_distributed_headers(self.tracer, self.integration_config, request_headers=headers)
+        trace_utils.activate_distributed_headers(
+            self.tracer, int_config=self.integration_config, request_headers=headers
+        )
 
         resource = "{} {}".format(scope["method"], scope["path"])
 

@@ -95,7 +95,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
     headers = request.headers.copy()
 
-    trace_utils.activate_distributed_headers(ddtrace.tracer, config.sanic, request_headers=headers)
+    trace_utils.activate_distributed_headers(ddtrace.tracer, int_config=config.sanic, request_headers=headers)
 
     span = ddtrace.tracer.trace(
         "sanic.request",

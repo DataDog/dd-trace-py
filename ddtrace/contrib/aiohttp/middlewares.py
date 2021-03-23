@@ -35,7 +35,7 @@ def trace_middleware(app, handler):
         service = app[CONFIG_KEY]["service"]
 
         # Create a new context based on the propagated information.
-        trace_utils.activate_distributed_headers(tracer, app[CONFIG_KEY], request_headers=request.headers)
+        trace_utils.activate_distributed_headers(tracer, int_config=app[CONFIG_KEY], request_headers=request.headers)
 
         # trace the handler
         request_span = tracer.trace(
