@@ -2,6 +2,7 @@ import math
 import sys
 import traceback
 from typing import Any
+from typing import AnyStr
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -11,6 +12,7 @@ from typing import Text
 from typing import Union
 
 from .compat import StringIO
+from .compat import ensure_text
 from .compat import is_integer
 from .compat import iteritems
 from .compat import numeric_types
@@ -302,7 +304,7 @@ class Span(object):
 
     def _set_str_tag(self, key, value):
         # type: (_MetaKeyType, Text) -> None
-        self.meta[key] = stringify(value)
+        self.meta[key] = ensure_text(value, errors="replace")
 
     def _remove_tag(self, key):
         # type: (str) -> None
