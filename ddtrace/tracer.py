@@ -297,15 +297,21 @@ class Tracer(object):
             url = None  # type: ignore
 
         self.writer.stop()
-        if url:
+        if writer is not None:
+            self.writer = writer
+        elif url:
+            # Verify the URL and create a new AgentWriter with it.
             agent.verify_url(url)
-        self.writer = writer or AgentWriter(
-            url,
-            sampler=self.sampler,
-            priority_sampler=self.priority_sampler,
-            dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-            report_metrics=config.health_metrics_enabled,
-        )
+            self.writer = AgentWriter(
+                url,
+                sampler=self.sampler,
+                priority_sampler=self.priority_sampler,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+                report_metrics=config.health_metrics_enabled,
+            )
+        elif writer is None and isinstance(self.writer, LogWriter):
+            # No need to do anything for the LogWriter.
+            pass
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
 
