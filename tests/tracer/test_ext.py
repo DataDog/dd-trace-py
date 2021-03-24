@@ -17,7 +17,8 @@ def _ci_fixtures():
 
 def _updateenv(monkeypatch, env):
     for k, v in env.items():
-        monkeypatch.setenv(k, v)
+        # monkeypatch logs a warning if values passed to setenv are not strings
+        monkeypatch.setenv(str(k), str(v))
 
 
 @pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
