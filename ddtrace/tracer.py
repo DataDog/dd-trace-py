@@ -299,9 +299,11 @@ class Tracer(object):
             url = None  # type: ignore
 
         self.writer.stop()
-        if writer:
+
+        if writer is not None:
             self.writer = writer
         elif url:
+            # Verify the URL and create a new AgentWriter with it.
             agent.verify_url(url)
             self.writer = AgentWriter(
                 url,
@@ -312,8 +314,8 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         elif writer is None and isinstance(self.writer, LogWriter):
+            # No need to do anything for the LogWriter.
             pass
-
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
 

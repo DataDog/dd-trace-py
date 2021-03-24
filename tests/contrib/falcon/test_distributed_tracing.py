@@ -1,7 +1,8 @@
 import falcon as falcon
 from falcon import testing
 
-from ... import DummyTracer
+from tests.utils import DummyTracer
+
 from .app import get_app
 
 
