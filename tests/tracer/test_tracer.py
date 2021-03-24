@@ -915,6 +915,8 @@ class EnvTracerTestCase(TracerTestCase):
     def test_detect_agentless_env(self):
         tracer = Tracer()
         assert isinstance(tracer.writer, LogWriter)
+        tracer.configure(enabled=True)
+        assert isinstance(tracer.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
