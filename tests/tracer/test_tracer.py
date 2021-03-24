@@ -13,7 +13,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace.constants import DATADOG_LAMBDA_EXTENSION_PATH
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -28,6 +27,8 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
+from ddtrace.tracer import _has_aws_lambda_agent_extension
+from ddtrace.tracer import _in_aws_lambda
 from ddtrace.vendor import six
 from tests import DummyWriter
 from tests import TracerTestCase
@@ -914,6 +915,8 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
+        assert _in_aws_lambda()
+        assert not _has_aws_lambda_agent_extension()
         tracer = Tracer()
         assert isinstance(tracer.writer, LogWriter)
         tracer.configure(enabled=False)
@@ -922,9 +925,13 @@ class EnvTracerTestCase(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agent_config_with_lambda_extension(self):
         def mock_os_path_exists(path):
-            return path == DATADOG_LAMBDA_EXTENSION_PATH
+            return path == "/opt/extensions/datadog-agent"
+
+        assert _in_aws_lambda()
 
         with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
+            assert _has_aws_lambda_agent_extension()
+
             tracer = Tracer()
             assert isinstance(tracer.writer, AgentWriter)
             assert tracer.writer._sync_mode
