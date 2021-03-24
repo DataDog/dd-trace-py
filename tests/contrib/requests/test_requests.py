@@ -15,11 +15,10 @@ from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.vendor import six
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
-from ... import override_global_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_tracer
 
 
 # socket name comes from https://english.stackexchange.com/a/44048

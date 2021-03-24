@@ -5,10 +5,10 @@ from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.rediscluster.patch import patch
 from ddtrace.contrib.rediscluster.patch import unpatch
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
-from ... import DummyTracer
-from ... import TracerTestCase
-from ... import assert_is_measured
 from ..config import REDISCLUSTER_CONFIG
 
 

@@ -18,7 +18,7 @@ from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
-from tests import override_global_config
+from tests.utils import override_global_config
 
 
 @pytest.fixture

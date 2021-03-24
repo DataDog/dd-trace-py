@@ -14,14 +14,13 @@ from ddtrace.contrib.psycopg import connection_factory
 from ddtrace.contrib.psycopg.patch import PSYCOPG2_VERSION
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
-from tests import snapshot
 from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-
-from ... import DummyTracer
-from ... import TracerTestCase
-from ... import assert_is_measured
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import snapshot
 
 
 if PSYCOPG2_VERSION >= (2, 7):

@@ -7,9 +7,9 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
 from .utils import TornadoTestCase
 from .web.app import CustomDefaultHandler
 

@@ -17,9 +17,9 @@ else:
 
     generatorExit = builtins.GeneratorExit
 
-from tests import override_config
-from tests import override_http_config
-from tests import snapshot
+from tests.utils import override_config
+from tests.utils import override_http_config
+from tests.utils import snapshot
 
 
 def chunked_response(start_response):

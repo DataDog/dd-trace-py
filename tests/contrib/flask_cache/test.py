@@ -6,10 +6,10 @@ from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.ext import net
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_dict_issuperset
+from tests.utils import assert_is_measured
 
-from ... import TracerTestCase
-from ... import assert_dict_issuperset
-from ... import assert_is_measured
 from ..config import MEMCACHED_CONFIG
 from ..config import REDIS_CONFIG
 
