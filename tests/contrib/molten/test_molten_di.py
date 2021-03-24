@@ -6,7 +6,7 @@ from molten import DependencyInjector
 from ddtrace import Pin
 from ddtrace.contrib.molten import patch
 from ddtrace.contrib.molten import unpatch
-from tests import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 # Test base adapted from molten/tests/test_dependency_injection.py

@@ -5,7 +5,7 @@ import pytest
 import ddtrace
 from ddtrace.contrib.sanic import patch
 from ddtrace.contrib.sanic import unpatch
-from tests import DummyTracer
+from tests.utils import DummyTracer
 
 
 @pytest.fixture

@@ -10,8 +10,8 @@ from ddtrace.contrib.aiohttp.middlewares import trace_app
 from ddtrace.contrib.aiohttp.patch import patch
 from ddtrace.contrib.aiohttp.patch import unpatch
 from ddtrace.pin import Pin
+from tests.utils import assert_is_measured
 
-from ... import assert_is_measured
 from .utils import TraceTestCase
 
 

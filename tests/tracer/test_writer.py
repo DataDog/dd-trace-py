@@ -20,8 +20,8 @@ from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import socketserver
-from tests import AnyInt
-from tests import BaseTestCase
+from tests.utils import AnyInt
+from tests.utils import BaseTestCase
 
 
 class DummyOutput:

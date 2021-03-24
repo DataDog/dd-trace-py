@@ -12,10 +12,10 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from tests import TracerTestCase
-from tests import assert_is_measured
-from tests import assert_span_http_status_code
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 
 class PylonsTestCase(TracerTestCase):

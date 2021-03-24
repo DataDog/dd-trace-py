@@ -6,8 +6,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from ..config import ELASTICSEARCH_CONFIG
 
 

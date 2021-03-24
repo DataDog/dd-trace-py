@@ -7,7 +7,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
-from tests import snapshot
+from tests.utils import snapshot
 
 from .test_integration import AGENT_VERSION
 
