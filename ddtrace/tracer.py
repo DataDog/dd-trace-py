@@ -35,7 +35,7 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.processor import TraceFiltersProcessor
+from .internal.processor import TraceFilterProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
@@ -134,11 +134,7 @@ class Tracer(object):
         self.writer = writer
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
-        self._processors = [
-            TraceFiltersProcessor(
-                filters=self._filters,
-            ),
-        ]
+        self._processors = [TraceFilterProcessor(filter=f) for f in self._filters]
 
     def _atexit(self):
         # type: () -> None
@@ -312,9 +308,10 @@ class Tracer(object):
         )
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self._processors = [
-            TraceFiltersProcessor(
-                filters=self._filters,
-            ),
+            TraceFilterProcessor(
+                filter=f,
+            )
+            for f in self._filters
         ]
 
         if context_provider is not None:

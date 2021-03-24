@@ -58,18 +58,14 @@ class Processor(six.with_metaclass(abc.ABCMeta)):
 
 
 @attr.s(eq=False)
-class TraceFiltersProcessor(Processor):
-    """Processor for applying a list of ``TraceFilter`` to traces.
-
-    The filters are applied sequentially with the result of one passed on to
-    the next. If ``None`` is returned by a filter then execution short-circuits
-    and ``None`` is returned.
+class TraceFilterProcessor(Processor):
+    """Processor for applying a ``TraceFilter`` to traces.
 
     If a filter raises an exception it will be logged at the ``logging.ERROR``
     level and the filter chain will continue with the next filter in the list.
     """
 
-    _filters = attr.ib(type=List[TraceFilter], repr=True)
+    _filter = attr.ib(type=TraceFilter, repr=True)
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -77,18 +73,18 @@ class TraceFiltersProcessor(Processor):
 
     def on_span_finish(self, trace):
         # type: (Optional[List[Span]]) -> Optional[List[Span]]
-        if trace is None:
-            return
+        if not trace:
+            return trace
 
-        for filtr in self._filters:
-            try:
-                log.debug("applying filter %r to %s", filtr, trace[0].trace_id if trace else [])
-                trace = filtr.process_trace(trace)
-            except Exception:
-                log.error("error applying filter %r to traces", filtr, exc_info=True)
-            else:
-                if trace is None:
-                    log.debug("dropping trace due to filter %r", filtr)
-                    return
+        trace_id = trace[0].trace_id
+        try:
+            log.debug("applying filter %r to %d", self._filter, trace_id)
+            trace = self._filter.process_trace(trace)
+        except Exception:
+            log.error("error applying filter %r to traces", self._filter, exc_info=True)
+        else:
+            if trace is None:
+                log.debug("trace %d dropped due to filter %r", trace_id, self._filter)
+                return
 
         return trace
