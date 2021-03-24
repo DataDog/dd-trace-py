@@ -6,8 +6,10 @@ support for distributed tracing across services the client communicates with.
 Enabling
 ~~~~~~~~
 
-The ``urllib3`` integration is not enabled by default. Use :ref:`patch()<patch>`
-to manually enable the integration before importing and using ``urllib3``::
+The ``urllib3`` integration is not enabled by default. Use ``patch_all()``
+with the environment variable ``DD_TRACE_URLLIB3_ENABLED`` set, or call
+:ref:`patch()<patch>` with the ``urllib3`` argument set to ``True`` to manually
+enable the integration, before importing and using ``urllib3``::
 
     from ddtrace import patch
     patch(urllib3=True)
@@ -38,20 +40,6 @@ Global Configuration
 .. py:data:: ddtrace.config.urllib3['trace_query_string']
 
    Whether or not to include the query string as a tag.
-
-   Default: ``False``
-
-
-.. py:data:: ddtrace.config.urllib3['analytics_sample_rate']
-
-   The analytics sample rate.
-
-   Default: ``1.0``
-
-
-.. py:data:: ddtrace.config.urllib3['analytics_enabled']
-
-   Whether or not to include the analytics sample rate as a tag.
 
    Default: ``False``
 

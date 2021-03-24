@@ -8,7 +8,6 @@ from .. import trace_utils
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
-from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...utils import ArgumentError
 from ...utils import get_argument_value
@@ -26,9 +25,6 @@ config._add(
     {
         "_default_service": "urllib3",
         "distributed_tracing": asbool(get_env("urllib3", "distributed_tracing", default=True)),
-        "analytics_enabled": asbool(get_env("urllib3", "analytics_enabled", default=False)),
-        "analytics_sample_rate": float(get_env("urllib3", "analytics_sample_rate", default=1.0)),
-        "trace_query_string": asbool(get_env("urllib3", "trace_query_string", default=False)),
         "split_by_domain": asbool(get_env("urllib3", "split_by_domain", default=False)),
     },
 )
@@ -109,8 +105,8 @@ def _wrap_urlopen(func, instance, args, kwargs):
 
         if config.urllib3.analytics_enabled:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
-        if isinstance(request_retries, urllib3.util.retry.Retry):
-            span.set_tag(http.RETRIES_REMAIN, str(request_retries.total))
+
+        retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
 
         # Call the target function
         response = None
@@ -126,6 +122,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 query=parsed_uri.query,
                 request_headers=request_headers,
                 response_headers={} if response is None else dict(response.headers),
+                retries_remain=retries,
             )
 
         return response
