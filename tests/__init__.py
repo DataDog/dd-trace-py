@@ -810,11 +810,6 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
     """
     ignores = ignores or []
 
-    if include_tracer:
-        tracer = Tracer()
-    else:
-        tracer = ddtrace.tracer
-
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
         if len(args) > 1:
@@ -822,6 +817,11 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             clsname = self.__class__.__name__
         else:
             clsname = ""
+
+        if include_tracer:
+            tracer = Tracer()
+        else:
+            tracer = ddtrace.tracer
 
         module = inspect.getmodule(wrapped)
 

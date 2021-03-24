@@ -62,7 +62,7 @@ class TraceFilterProcessor(Processor):
     """Processor for applying a ``TraceFilter`` to traces.
 
     If a filter raises an exception it will be logged at the ``logging.ERROR``
-    level and the filter chain will continue with the next filter in the list.
+    level and the trace will be returned.
     """
 
     _filter = attr.ib(type=TraceFilter, repr=True)
@@ -85,6 +85,6 @@ class TraceFilterProcessor(Processor):
         else:
             if trace is None:
                 log.debug("trace %d dropped due to filter %r", trace_id, self._filter)
-                return
+                return None
 
         return trace

@@ -33,7 +33,7 @@ below:
    * - ``DD_TAGS``
      - String
      -
-     - Set global tags to be attached to every span. e.g. ``key1:value1,key2,value2``. Added in ``v0.38.0``.
+     - Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2,value2`` or ``key1:value key2:value2``. Comma separated support added in ``v0.38.0`` and space separated support added in ``v0.48.0``.
    * - ``DD_VERSION``
      - String
      -
