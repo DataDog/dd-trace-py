@@ -5,8 +5,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.ext import test
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class TestPytest(TracerTestCase):

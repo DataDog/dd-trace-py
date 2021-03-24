@@ -13,10 +13,10 @@ from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import six
-from tests import AnyFloat
-from tests import AnyInt
-from tests import AnyStr
-from tests import override_global_config
+from tests.utils import AnyFloat
+from tests.utils import AnyInt
+from tests.utils import AnyStr
+from tests.utils import override_global_config
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")

@@ -13,9 +13,9 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
 from ddtrace.span import Span
-from tests import TracerTestCase
-from tests import assert_is_measured
-from tests import assert_is_not_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_is_not_measured
 
 
 class SpanTestCase(TracerTestCase):

@@ -6,7 +6,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.django.conf import configure_from_settings
-from tests import override_config
+from tests.utils import override_config
 
 
 pytestmark = pytest.mark.skipif(
