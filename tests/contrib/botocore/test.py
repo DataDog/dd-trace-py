@@ -707,3 +707,48 @@ class BotocoreTest(TracerTestCase):
             stubber.add_response("list_buckets", response, {})
             service_response = s3.list_buckets()
             assert service_response == response
+
+    @mock_kinesis
+    def test_firehose_no_records_arg(self):
+        firehose = self.session.create_client("firehose", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(firehose)
+
+        stream_name = "test-stream"
+        account_id = "test-account"
+
+        firehose.create_delivery_stream(
+            DeliveryStreamName=stream_name,
+            RedshiftDestinationConfiguration={
+                "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
+                "ClusterJDBCURL": "jdbc:redshift://host.amazonaws.com:5439/database",
+                "CopyCommand": {
+                    "DataTableName": "outputTable",
+                    "CopyOptions": "CSV DELIMITER ',' NULL '\\0'",
+                },
+                "Username": "username",
+                "Password": "password",
+                "S3Configuration": {
+                    "RoleARN": "arn:aws:iam::{}:role/firehose_delivery_role".format(account_id),
+                    "BucketARN": "arn:aws:s3:::kinesis-test",
+                    "Prefix": "myFolder/",
+                    "BufferingHints": {"SizeInMBs": 123, "IntervalInSeconds": 124},
+                    "CompressionFormat": "UNCOMPRESSED",
+                },
+            },
+        )
+
+        firehose.put_record_batch(
+            DeliveryStreamName=stream_name,
+            Records=[{"Data": "some data"}],
+        )
+
+        spans = self.get_spans()
+
+        assert spans
+        assert len(spans) == 2
+        assert all(span.name == "firehose.command" for span in spans)
+
+        delivery_stream_span, put_record_batch_span = spans
+        assert delivery_stream_span.get_tag("aws.operation") == "CreateDeliveryStream"
+        assert put_record_batch_span.get_tag("aws.operation") == "PutRecordBatch"
+        assert put_record_batch_span.get_tag("params.Records") is None
