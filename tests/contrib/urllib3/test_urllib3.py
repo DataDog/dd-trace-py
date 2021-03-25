@@ -9,8 +9,8 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.pin import Pin
-from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
