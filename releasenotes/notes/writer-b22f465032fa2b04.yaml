@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The `spans` keyword argument to the `tracer.writer.write` method has been
+    made positional.
