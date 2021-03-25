@@ -806,9 +806,6 @@ class Tracer(object):
             self._shutdown_runtime_worker(timeout)
 
     def _shutdown_runtime_worker(self, timeout=None):
-        if not self._runtime_worker.is_alive():
-            return
-
         self._runtime_worker.stop()
         self._runtime_worker.join(timeout=timeout)
 
