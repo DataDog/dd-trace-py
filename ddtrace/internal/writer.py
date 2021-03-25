@@ -135,7 +135,7 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def write(self, trace):
+    def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
         pass
 
@@ -161,7 +161,7 @@ class LogWriter(TraceWriter):
         # type: (Optional[float]) -> None
         return
 
-    def write(self, spans):
+    def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
         if not spans:
             return
@@ -345,11 +345,14 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
 
-    def write(self, spans):
-        # type: (List[Span]) -> None
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
+        if spans is None:
+            return
+
         if self.started is False and self._sync_mode is False:
             with self._started_lock:
                 if self.started is False:
