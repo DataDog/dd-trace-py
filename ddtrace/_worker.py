@@ -1,6 +1,6 @@
-import threading
 from typing import Optional
 
+from .internal import periodic
 from .internal.logger import get_logger
 
 
@@ -34,11 +34,11 @@ class PeriodicWorkerThread(object):
         :param daemon: Whether the worker should be a daemon.
         """
 
-        self._thread = threading.Thread(target=self._target, name=name)
+        self._thread = periodic.PeriodicThread(
+            interval, target=self.run_periodic, name=name, on_shutdown=self.on_shutdown
+        )
         self._thread.daemon = daemon
-        self._stop = threading.Event()
         self.started = False
-        self.interval = interval
 
     def start(self):
         # type: () -> None
@@ -51,7 +51,7 @@ class PeriodicWorkerThread(object):
         # type: () -> None
         """Stop the worker."""
         _LOG.debug("Stopping %s thread", self._thread.name)
-        self._stop.set()
+        self._thread.stop()
 
     def is_alive(self):
         # type: () -> bool
@@ -61,25 +61,12 @@ class PeriodicWorkerThread(object):
         # type: (Optional[float]) -> None
         return self._thread.join(timeout)
 
-    def _target(self):
-        # type: () -> None
-        while not self._stop.wait(self.interval):
-            self.run_periodic()
-        self._on_shutdown()
-
     @staticmethod
     def run_periodic():
         # type: () -> None
         """Method executed every interval."""
-        pass
 
-    def _on_shutdown(self):
-        # type: () -> None
-        _LOG.debug("Shutting down %s thread", self._thread.name)
-        self.on_shutdown()
-
-    @staticmethod
-    def on_shutdown():
+    def on_shutdown(self):
         # type: () -> None
         """Method ran on worker shutdown."""
-        pass
+        _LOG.debug("Shutting down %s thread", self._thread.name)
