@@ -1,11 +1,13 @@
 import sqlalchemy
 
 from ddtrace import Pin
-from ddtrace.contrib.sqlalchemy import patch, unpatch
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.sqlalchemy import patch
+from ddtrace.contrib.sqlalchemy import unpatch
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 from ..config import POSTGRES_CONFIG
-from ... import TracerTestCase, assert_is_measured
 
 
 class SQLAlchemyPatchTestCase(TracerTestCase):
@@ -38,7 +40,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         rows = self.conn.execute('SELECT 1').fetchall()
         assert len(rows) == 1
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -56,7 +58,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         rows = self.conn.execute('SELECT 1').fetchall()
         assert len(rows) == 1
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         assert len(traces) == 1
         assert len(traces[0]) == 1

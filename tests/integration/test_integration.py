@@ -1,17 +1,22 @@
-import mock
+import logging
 import os
 import subprocess
 import sys
 
+import mock
 import pytest
-from ddtrace.vendor import six
 
 import ddtrace
-from ddtrace import Tracer, tracer
-from ddtrace.internal.writer import AgentWriter
+from ddtrace import Tracer
+from ddtrace import tracer
+from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
-
-from tests import TracerTestCase, snapshot, AnyInt, override_global_config
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.vendor import six
+from tests.utils import AnyFloat
+from tests.utils import AnyInt
+from tests.utils import AnyStr
+from tests.utils import override_global_config
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
@@ -23,14 +28,14 @@ def test_configure_keeps_api_hostname_and_port():
     previous overrides have been kept.
     """
     tracer = Tracer()
-    assert tracer.writer._hostname == "localhost"
-    assert tracer.writer._port == 8126
+    if AGENT_VERSION == "testagent":
+        assert tracer.writer.agent_url == "http://localhost:9126"
+    else:
+        assert tracer.writer.agent_url == "http://localhost:8126"
     tracer.configure(hostname="127.0.0.1", port=8127)
-    assert tracer.writer._hostname == "127.0.0.1"
-    assert tracer.writer._port == 8127
+    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
     tracer.configure(priority_sampling=True)
-    assert tracer.writer._hostname == "127.0.0.1"
-    assert tracer.writer._port == 8127
+    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
 
 
 def test_debug_mode():
@@ -130,7 +135,7 @@ def test_uds_wrong_socket_path():
 def test_payload_too_large():
     t = Tracer()
     # Make sure a flush doesn't happen partway through.
-    t.configure(writer=AgentWriter(processing_interval=1000))
+    t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:
         for i in range(100000):
             with t.trace("operation") as s:
@@ -197,11 +202,6 @@ def test_metrics():
             log.warning.assert_not_called()
             log.error.assert_not_called()
 
-        statsd_mock.increment.assert_has_calls(
-            [
-                mock.call("datadog.tracer.http.requests"),
-            ]
-        )
         statsd_mock.distribution.assert_has_calls(
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 5, tags=[]),
@@ -311,7 +311,14 @@ def test_bad_endpoint():
         s.set_tag("env", "my-env")
         s.finish()
         t.shutdown()
-    calls = [mock.call("unsupported endpoint '%s': received response %s from Datadog Agent", "/bad", 404)]
+    calls = [
+        mock.call(
+            "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
+            "/bad",
+            404,
+            t.writer.agent_url,
+        )
+    ]
     log.error.assert_has_calls(calls)
 
 
@@ -338,6 +345,24 @@ def test_bad_payload():
             "Bad Request",
         )
     ]
+    log.error.assert_has_calls(calls)
+
+
+def test_bad_encoder():
+    t = Tracer()
+
+    class BadEncoder:
+        def encode_trace(self, spans):
+            raise Exception()
+
+        def join_encoded(self, traces):
+            pass
+
+    t.writer._encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        t.trace("asdf").finish()
+        t.shutdown()
+    calls = [mock.call("failed to encode trace with encoder %r", t.writer._encoder, exc_info=True)]
     log.error.assert_has_calls(calls)
 
 
@@ -368,59 +393,29 @@ def test_span_tags():
     log.error.assert_not_called()
 
 
-@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-class TestTraces(TracerTestCase):
-    """
-    These snapshot tests ensure that trace payloads are being sent as expected.
-    """
+def test_synchronous_writer_shutdown():
+    tracer = Tracer()
+    tracer.configure(writer=AgentWriter(tracer.writer.agent_url, sync_mode=True))
+    # Ensure this doesn't raise.
+    tracer.shutdown()
 
-    @snapshot(include_tracer=True)
-    def test_single_trace_single_span(self, tracer):
-        s = tracer.trace("operation", service="my-svc")
-        s.set_tag("k", "v")
-        # numeric tag
-        s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
-        s.finish()
-        tracer.shutdown()
 
-    @snapshot(include_tracer=True)
-    def test_multiple_traces(self, tracer):
-        with tracer.trace("operation1", service="my-svc") as s:
-            s.set_tag("k", "v")
-            s.set_tag("num", 1234)
-            s.set_metric("float_metric", 12.34)
-            s.set_metric("int_metric", 4321)
-            tracer.trace("child").finish()
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
+def test_flush_log(caplog):
+    caplog.set_level(logging.INFO)
 
-        with tracer.trace("operation2", service="my-svc") as s:
-            s.set_tag("k", "v")
-            s.set_tag("num", 1234)
-            s.set_metric("float_metric", 12.34)
-            s.set_metric("int_metric", 4321)
-            tracer.trace("child").finish()
-        tracer.shutdown()
+    writer = AgentWriter(agent.get_trace_url())
 
-    @snapshot(include_tracer=True)
-    def test_filters(self, tracer):
-        class FilterMutate(object):
-            def __init__(self, key, value):
-                self.key = key
-                self.value = value
-
-            def process_trace(self, trace):
-                for s in trace:
-                    s.set_tag(self.key, self.value)
-                return trace
-
-        tracer.configure(
-            settings={
-                "FILTERS": [FilterMutate("boop", "beep")],
-            }
-        )
-
-        with tracer.trace("root"):
-            with tracer.trace("child"):
-                pass
-        tracer.shutdown()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        writer.write([])
+        writer.flush_queue(raise_exc=True)
+        calls = [
+            mock.call(
+                logging.DEBUG,
+                "sent %s in %.5fs to %s",
+                AnyStr(),
+                AnyFloat(),
+                writer.agent_url,
+            )
+        ]
+        log.log.assert_has_calls(calls)

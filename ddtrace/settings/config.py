@@ -4,9 +4,12 @@ import os
 from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.deprecation import get_service_legacy
-from ..utils.formats import asbool, get_env, parse_tags_str
+from ..utils.formats import asbool
+from ..utils.formats import get_env
+from ..utils.formats import parse_tags_str
 from .http import HttpConfig
 from .integration import IntegrationConfig
+
 
 log = get_logger(__name__)
 
@@ -58,6 +61,8 @@ class Config(object):
         self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
         self.http_server.error_statuses = "500-599"
+
+        self.service_mapping = parse_tags_str(get_env("service", "mapping", default=""))
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.

@@ -1,12 +1,14 @@
 import asyncio
 
-from ..asyncio import context_provider
-from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
-from ...propagation.http import HTTPPropagator
-from ...settings import config
+from ddtrace import config
+
 from .. import trace_utils
+from ...compat import stringify
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import http
+from ..asyncio import context_provider
 
 
 CONFIG_KEY = "datadog_trace"
@@ -31,15 +33,9 @@ def trace_middleware(app, handler):
         # application configs
         tracer = app[CONFIG_KEY]["tracer"]
         service = app[CONFIG_KEY]["service"]
-        distributed_tracing = app[CONFIG_KEY]["distributed_tracing_enabled"]
 
         # Create a new context based on the propagated information.
-        if distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(request.headers)
-            # Only need to active the new context if something was propagated
-            if context.trace_id:
-                tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(tracer, int_config=app[CONFIG_KEY], request_headers=request.headers)
 
         # trace the handler
         request_span = tracer.trace(
@@ -107,12 +103,11 @@ def on_prepare(request, response):
     if trace_query_string:
         request_span.set_tag(http.QUERY_STRING, request.query_string)
 
-    url = request.url.with_query(None)
     trace_utils.set_http_meta(
         request_span,
         config.aiohttp,
         method=request.method,
-        url=url,
+        url=str(request.url),  # DEV: request.url is a yarl's URL object
         status_code=response.status,
         request_headers=request.headers,
         response_headers=response.headers,

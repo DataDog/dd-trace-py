@@ -1,7 +1,11 @@
 from django.utils.functional import SimpleLazyObject
 
-from ...compat import PY3, binary_type, parse, to_unicode
+from ...compat import PY3
+from ...compat import binary_type
+from ...compat import parse
+from ...compat import to_unicode
 from ...internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
@@ -55,10 +59,10 @@ def set_tag_array(span, prefix, value):
         return
 
     if len(value) == 1:
-        span.set_tag(prefix, value[0])
+        span._set_str_tag(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
-            span.set_tag("{0}.{1}".format(prefix, i), v)
+            span._set_str_tag("{0}.{1}".format(prefix, i), v)
 
 
 def get_request_uri(request):

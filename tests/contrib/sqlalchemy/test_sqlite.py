@@ -1,9 +1,10 @@
 import pytest
-
 from sqlalchemy.exc import OperationalError
 
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+
 from .mixins import SQLAlchemyTestMixin
-from ... import TracerTestCase, assert_is_measured
 
 
 class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
@@ -25,7 +26,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)

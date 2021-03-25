@@ -7,15 +7,19 @@ import pymongo
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import mongo as mongox, SpanTypes
 from ddtrace.contrib.pymongo.client import normalize_filter
-from ddtrace.contrib.pymongo.patch import patch, unpatch, trace_mongo_client
-
+from ddtrace.contrib.pymongo.patch import patch
+from ddtrace.contrib.pymongo.patch import trace_mongo_client
+from ddtrace.contrib.pymongo.patch import unpatch
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import mongo as mongox
 # testing
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+
 from ..config import MONGO_CONFIG
-from ... import TracerTestCase, assert_is_measured
-from tests.tracer.test_tracer import get_dummy_tracer
 
 
 def test_normalize_filter():
@@ -79,7 +83,7 @@ class PymongoCore(object):
     def test_update(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
+
         db = client['testdb']
         db.drop_collection('songs')
         input_songs = [
@@ -99,7 +103,7 @@ class PymongoCore(object):
         assert result.modified_count == 2
 
         # ensure all is traced.
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
@@ -122,7 +126,7 @@ class PymongoCore(object):
     def test_delete(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
+
         db = client['testdb']
         collection_name = 'here.are.songs'
         db.drop_collection(collection_name)
@@ -149,7 +153,7 @@ class PymongoCore(object):
         assert songs.count(af) == 0
 
         # ensure all is traced.
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
@@ -176,7 +180,6 @@ class PymongoCore(object):
 
     def test_insert_find(self):
         tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
 
         start = time.time()
         db = client.testdb
@@ -216,7 +219,7 @@ class PymongoCore(object):
         assert queried[0]['name'] == 'Toronto Maple Leafs'
         assert queried[0]['established'] == 1917
 
-        spans = writer.pop()
+        spans = tracer.pop()
         for span in spans:
             # ensure all the of the common metadata is set
             assert_is_measured(span)
@@ -256,7 +259,6 @@ class PymongoCore(object):
         tracer, client = self.get_tracer_and_client()
         ot_tracer = init_tracer('mongo_svc', tracer)
 
-        writer = tracer.writer
         with ot_tracer.start_active_span('mongo_op'):
             db = client['testdb']
             db.drop_collection('songs')
@@ -276,7 +278,7 @@ class PymongoCore(object):
             assert result.modified_count == 2
 
         # ensure all is traced.
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 4
 
@@ -310,7 +312,7 @@ class PymongoCore(object):
         db = client['testdb']
         db.drop_collection('songs')
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
@@ -323,7 +325,7 @@ class PymongoCore(object):
             db = client['testdb']
             db.drop_collection('songs')
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
@@ -336,7 +338,7 @@ class PymongoCore(object):
             db = client['testdb']
             db.drop_collection('songs')
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
@@ -347,7 +349,7 @@ class TestPymongoTraceClient(TracerTestCase, PymongoCore):
     TEST_SERVICE = 'test-mongo-trace-client'
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         original_client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client = trace_mongo_client(original_client, tracer, service=self.TEST_SERVICE)
         # No need to disable tcp spans tracer here as trace_mongo_client does not call
@@ -367,21 +369,12 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         return tracer, client
-
-    def test_service(self):
-        tracer, client = self.get_tracer_and_client()
-        writer = tracer.writer
-        db = client['testdb']
-        db.drop_collection('songs')
-
-        services = writer.pop_services()
-        assert services == {}
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client
@@ -404,34 +397,32 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     TEST_SERVICE = 'test-mongo-trace-client'
 
     def setUp(self):
+        super(TestPymongoPatchConfigured, self).setUp()
         patch()
 
     def tearDown(self):
         unpatch()
+        super(TestPymongoPatchConfigured, self).tearDown()
 
     def get_tracer_and_client(self):
-        tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
-        return tracer, client
+        return self.tracer, client
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # Test patch idempotence
         patch()
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client['testdb'].drop_collection('whatever')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -441,19 +432,19 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client['testdb'].drop_collection('whatever')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client['testdb'].drop_collection('whatever')
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -467,13 +458,13 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         from ddtrace import config
         assert config.service == "mysvc"
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
         client["testdb"].drop_collection("whatever")
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
@@ -483,8 +474,8 @@ class TestPymongoSocketTracing(TracerTestCase):
     Test suite which checks that tcp socket creation/retrieval is correctly traced
     """
     def setUp(self):
+        super(TestPymongoSocketTracing, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
         # Override server pin's tracer with our dummy tracer
         Pin.override(pymongo.server.Server, tracer=self.tracer)
         # maxPoolSize controls the number of sockets that the client can instanciate
@@ -497,6 +488,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     def tearDown(self):
         unpatch()
         self.client.close()
+        super(TestPymongoSocketTracing, self).tearDown()
 
     @staticmethod
     def check_socket_metadata(span):
@@ -508,7 +500,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
@@ -527,7 +519,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         # Ensure patched pymongo's insert/find behave normally
         assert input_movies == docs_in_collection
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         # Check that we generated one get_socket span and one cmd span per cmd
         # drop(), insert_many(), find() drop_collection() -> four cmds
         count_commands_executed = 4
@@ -565,7 +557,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_server_info(self):
         self.client.server_info()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])

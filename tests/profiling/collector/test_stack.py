@@ -6,14 +6,17 @@ import timeit
 
 import pytest
 
+from ddtrace.internal import nogevent
+from ddtrace.internal import service
+from ddtrace.profiling import collector
+from ddtrace.profiling import profiler
+from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import _threading
+from ddtrace.profiling.collector import stack
 from ddtrace.vendor import six
 
-from ddtrace.profiling import _nogevent
-from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import stack
-from ddtrace.profiling.collector import _threading
-
 from . import test_collector
+
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
@@ -35,7 +38,7 @@ def func4():
 
 
 def func5():
-    return _nogevent.sleep(1)
+    return nogevent.sleep(1)
 
 
 def test_collect_truncate():
@@ -89,7 +92,7 @@ def _fib(n):
 
 
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
-def test_collect_thread():
+def test_collect_gevent_thread_task():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
 
@@ -133,18 +136,65 @@ def test_max_time_usage_over():
         stack.StackCollector(r, max_time_usage_pct=200)
 
 
-def test_ignore_profiler():
+def test_ignore_profiler_single():
     r, c, thread_id = test_collector._test_collector_collect(stack.StackCollector, stack.StackSampleEvent)
     events = r.events[stack.StackSampleEvent]
     assert thread_id not in {e.thread_id for e in events}
 
 
-def test_no_ignore_profiler():
+def test_no_ignore_profiler_single():
     r, c, thread_id = test_collector._test_collector_collect(
         stack.StackCollector, stack.StackSampleEvent, ignore_profiler=False
     )
     events = r.events[stack.StackSampleEvent]
     assert thread_id in {e.thread_id for e in events}
+
+
+class CollectorTest(collector.PeriodicCollector):
+    def collect(self):
+        _fib(20)
+        return []
+
+
+def test_ignore_profiler_gevent_task(profiler):
+    # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
+    # sure to catch it with the StackProfiler and that it's ignored.
+    c = CollectorTest(profiler._profiler._recorder, interval=0.00001)
+    c.start()
+    collector_thread_ids = {
+        col._worker.ident
+        for col in profiler._profiler._collectors
+        if (isinstance(col, collector.PeriodicCollector) and col.status == service.ServiceStatus.RUNNING)
+    }
+    collector_thread_ids.add(c._worker.ident)
+    while True:
+        events = profiler._profiler._recorder.reset()
+        if collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]}):
+            break
+        # Give some time for gevent to switch greenlets
+        time.sleep(0.1)
+    c.stop()
+
+
+@pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
+def test_not_ignore_profiler_gevent_task(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    p = profiler.Profiler()
+    p.start()
+    # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
+    # sure to catch it with the StackProfiler and that it's not ignored.
+    c = CollectorTest(p._profiler._recorder, interval=0.00001)
+    c.start()
+    # Wait forever and stop when we finally find an event with our collector task id
+    while True:
+        events = p._profiler._recorder.reset()
+        if c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}:
+            break
+        # Give some time for gevent to switch greenlets
+        time.sleep(0.1)
+    c.stop()
+    p.stop(flush=False)
 
 
 def test_collect():
@@ -159,14 +209,14 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=2.0, "
+        "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
         "nframes=64, ignore_profiler=True, tracer=None)",
     )
 
 
 def test_new_interval():
     r = recorder.Recorder()
-    c = stack.StackCollector(r)
+    c = stack.StackCollector(r, max_time_usage_pct=2)
     new_interval = c._compute_new_interval(1000000)
     assert new_interval == 0.049
     new_interval = c._compute_new_interval(2000000)
@@ -281,16 +331,16 @@ def test_exception_collection():
         try:
             raise ValueError("hello")
         except Exception:
-            _nogevent.sleep(1)
+            nogevent.sleep(1)
 
     exception_events = r.events[stack.StackExceptionSampleEvent]
     assert len(exception_events) >= 1
     e = exception_events[0]
     assert e.timestamp > 0
     assert e.sampling_period > 0
-    assert e.thread_id == _nogevent.thread_get_ident()
+    assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 284, "test_exception_collection")]
+    assert e.frames == [(__file__, 334, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -309,7 +359,7 @@ def tracer_and_collector(tracer):
 def test_thread_to_span_thread_isolation(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
 
     quit_thread = threading.Event()
@@ -340,7 +390,7 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
 def test_thread_to_span_multiple(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subspan}
@@ -359,7 +409,7 @@ def test_thread_to_child_span_multiple_unknown_thread(tracer_and_collector):
 def test_thread_to_child_span_clear(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     c._thread_span_links.clear_threads(set())
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
@@ -368,7 +418,7 @@ def test_thread_to_child_span_clear(tracer_and_collector):
 def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     t, c = tracer_and_collector
     root = t.start_span("root")
-    thread_id = _nogevent.thread_get_ident()
+    thread_id = nogevent.thread_get_ident()
     assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
     subspan = t.start_span("subtrace", child_of=root)
     subsubspan = t.start_span("subsubtrace", child_of=subspan)
@@ -436,10 +486,10 @@ def test_stress_trace_collection(tracer_and_collector):
 def test_thread_time_cache():
     tt = stack._ThreadTime()
 
-    lock = _nogevent.Lock()
+    lock = nogevent.Lock()
     lock.acquire()
 
-    t = _nogevent.Thread(target=lock.acquire)
+    t = nogevent.Thread(target=lock.acquire)
     t.start()
 
     main_thread_id = threading.current_thread().ident

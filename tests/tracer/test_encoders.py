@@ -8,10 +8,15 @@ from unittest import TestCase
 import msgpack
 import pytest
 
+from ddtrace.compat import msgpack_type
+from ddtrace.compat import string_type
+from ddtrace.encoding import JSONEncoder
+from ddtrace.encoding import JSONEncoderV2
+from ddtrace.encoding import MsgpackEncoder
+from ddtrace.encoding import _EncoderBase
+from ddtrace.span import Span
+from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
-from ddtrace.span import Span, SpanTypes
-from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import _EncoderBase, JSONEncoder, JSONEncoderV2, MsgpackEncoder
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -26,7 +31,11 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t, "span_name", resource="/fsdlajfdlaj/afdasd%s" % i, service="myservice", parent_id=parent_id,
+            t,
+            "span_name",
+            resource="/fsdlajfdlaj/afdasd%s" % i,
+            service="myservice",
+            parent_id=parent_id,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
@@ -82,10 +91,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -106,10 +121,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -208,10 +229,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()
@@ -232,10 +259,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()

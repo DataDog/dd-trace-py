@@ -78,6 +78,13 @@ Celery
 .. automodule:: ddtrace.contrib.celery
 
 
+.. _cherrypy:
+
+CherryPy
+^^^^^^^^
+.. automodule:: ddtrace.contrib.cherrypy
+
+
 .. _consul:
 
 Consul
@@ -93,6 +100,13 @@ Django
 .. automodule:: ddtrace.contrib.django
 
 
+.. _dogpile.cache:
+
+dogpile.cache
+^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.dogpile_cache
+
+
 .. _elasticsearch:
 
 Elasticsearch
@@ -105,6 +119,13 @@ Elasticsearch
 Falcon
 ^^^^^^
 .. automodule:: ddtrace.contrib.falcon
+
+
+.. _fastapi:
+
+Fastapi
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.fastapi
 
 
 .. _flask:
@@ -331,3 +352,10 @@ Tornado
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib.vertica
+
+
+.. _wsgi:
+
+WSGI
+^^^^
+.. automodule:: ddtrace.contrib.wsgi

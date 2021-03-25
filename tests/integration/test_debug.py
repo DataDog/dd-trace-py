@@ -1,19 +1,20 @@
 from datetime import datetime
 import json
 import logging
-import mock
 import os
 import re
 import subprocess
 import sys
 
+import mock
 import pytest
 
 import ddtrace
-import ddtrace.sampler
 from ddtrace.internal import debug
+import ddtrace.sampler
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 from .test_integration import AGENT_VERSION
 
 
@@ -132,7 +133,7 @@ def test_debug_post_configure():
     f = debug.collect(tracer)
 
     agent_url = f.get("agent_url")
-    assert agent_url == "uds:///file.sock"
+    assert agent_url == "unix:///file.sock"
 
     agent_error = f.get("agent_error")
     assert re.match("^Agent not reachable.*No such file or directory", agent_error)

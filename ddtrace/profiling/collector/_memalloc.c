@@ -4,15 +4,18 @@
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <frameobject.h>
 
+#include "_memalloc_heap.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
+#include "_utils.h"
 
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
+    /* The maximum number of events for allocation tracking */
     uint16_t max_events;
+    /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
 } memalloc_context_t;
 
@@ -34,13 +37,6 @@ typedef struct
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
 static alloc_tracker_t* global_alloc_tracker;
-
-static uint64_t
-random_range(uint64_t max)
-{
-    /* Return a random number between [0, max[ */
-    return (uint64_t)((double)rand() / ((double)RAND_MAX + 1) * max);
-}
 
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
@@ -80,6 +76,8 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
+    memalloc_heap_untrack(ptr);
+
     alloc->free(alloc->ctx, ptr);
 }
 
@@ -94,8 +92,10 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     else
         ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
 
-    if (ptr)
+    if (ptr) {
         memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize);
+    }
 
     return ptr;
 }
@@ -118,8 +118,11 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
 
-    if (ptr2)
+    if (ptr2) {
         memalloc_add_event(memalloc_ctx, ptr2, new_size);
+        memalloc_heap_untrack(ptr);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size);
+    }
 
     return ptr2;
 }
@@ -141,13 +144,15 @@ alloc_tracker_free(alloc_tracker_t* alloc_tracker)
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
-             "start($module, max_nframe, max_events)\n"
+             "start($module, max_nframe, max_events, heap_sample_size)\n"
              "--\n"
              "\n"
              "Start tracing Python memory allocations.\n"
              "\n"
              "Sets the maximum number of frames stored in the traceback of a\n"
-             "trace to max_nframe and the maximum number of events to max_events.");
+             "trace to max_nframe and the maximum number of events to max_events.\n"
+             "Set heap_sample_size to the granularity of the heap profiler, in bytes.\n"
+             "If heap_sample_size is set to 0, it is disabled entirely.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -157,9 +162,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     }
 
     long max_nframe, max_events;
+    long long int heap_sample_size;
 
-    /* Store short int in long so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "ll", &max_nframe, &max_events))
+    /* Store short ints in ints so we're sure they fit */
+    if (!PyArg_ParseTuple(args, "llL", &max_nframe, &max_events, &heap_sample_size))
         return NULL;
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
@@ -176,8 +182,15 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     global_memalloc_ctx.max_events = (uint16_t)max_events;
 
+    if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
+        PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %lu]", MAX_HEAP_SAMPLE_SIZE);
+        return NULL;
+    }
+
     if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
         return NULL;
+
+    memalloc_heap_tracker_init((uint32_t)heap_sample_size);
 
     PyMemAllocatorEx alloc;
 
@@ -194,35 +207,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
     Py_RETURN_NONE;
-}
-
-static PyObject*
-traceback_to_tuple(traceback_t* tb)
-{
-    /* Convert stack into a tuple of tuple */
-    PyObject* stack = PyTuple_New(tb->nframe);
-
-    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        PyObject* frame_tuple = PyTuple_New(3);
-
-        frame_t* frame = &tb->frames[nframe];
-
-        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
-        Py_INCREF(frame->filename);
-        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
-        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-        Py_INCREF(frame->name);
-
-        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
-    }
-
-    PyObject* tuple = PyTuple_New(3);
-
-    PyTuple_SET_ITEM(tuple, 0, stack);
-    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->total_nframe));
-    PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
-
-    return tuple;
 }
 
 PyDoc_STRVAR(memalloc_stop__doc__,
@@ -245,7 +229,25 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     alloc_tracker_free(global_alloc_tracker);
     global_alloc_tracker = NULL;
 
+    memalloc_heap_tracker_deinit();
+
     Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(memalloc_heap_py__doc__,
+             "heap($module, /)\n"
+             "--\n"
+             "\n"
+             "Get the sampled heap representation.\n");
+static PyObject*
+memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    if (!global_alloc_tracker) {
+        PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
+        return NULL;
+    }
+
+    return memalloc_heap();
 }
 
 typedef struct
@@ -374,6 +376,7 @@ static PyTypeObject MemallocIterEvents_Type = {
 
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
                                         { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
                                         /* sentinel */
                                         { NULL, NULL, 0, NULL } };
 

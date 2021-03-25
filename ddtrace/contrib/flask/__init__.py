@@ -78,6 +78,9 @@ Example::
     config.http_server.error_statuses = '401,403'
 
 .. __: http://flask.pocoo.org/
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules

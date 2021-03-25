@@ -1,24 +1,24 @@
+from pyramid.httpexceptions import HTTPException
 import pyramid.renderers
 from pyramid.settings import asbool
-from pyramid.httpexceptions import HTTPException
-from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from ...settings import config
-from .. import trace_utils
-from .constants import (
-    SETTINGS_TRACER,
-    SETTINGS_SERVICE,
-    SETTINGS_TRACE_ENABLED,
-    SETTINGS_DISTRIBUTED_TRACING,
-    SETTINGS_ANALYTICS_ENABLED,
-    SETTINGS_ANALYTICS_SAMPLE_RATE,
-)
+from .constants import SETTINGS_ANALYTICS_ENABLED
+from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
+from .constants import SETTINGS_DISTRIBUTED_TRACING
+from .constants import SETTINGS_SERVICE
+from .constants import SETTINGS_TRACER
+from .constants import SETTINGS_TRACE_ENABLED
 
 
 log = get_logger(__name__)
@@ -66,8 +66,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             if distributed_tracing:
-                propagator = HTTPPropagator()
-                context = propagator.extract(request.headers)
+                context = HTTPPropagator.extract(request.headers)
                 # only need to active the new context if something was propagated
                 if context.trace_id:
                     tracer.context_provider.activate(context)

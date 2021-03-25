@@ -4,8 +4,9 @@ import webtest
 import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
 
-from ... import TracerTestCase, assert_span_http_status_code
 
 SERVICE = "bottle-app"
 
@@ -51,7 +52,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -78,7 +79,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert compat.to_unicode(resp.body) == u"hi dougie"
 
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"

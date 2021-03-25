@@ -4,6 +4,17 @@
 #include <Python.h>
 #include <stdlib.h>
 
+
+static inline uint64_t
+random_range(uint64_t max)
+{
+    /* Return a random number between [0, max[ */
+    return (uint64_t)((double)rand() / ((double)RAND_MAX + 1) * max);
+}
+
+
+#define DO_NOTHING(...)
+
 #define p_new(type, count) PyMem_RawMalloc(sizeof(type) * (count))
 #define p_delete(mem_p) PyMem_Free(mem_p);
 // Allocate at least 16 and 50% more than requested to avoid allocating items one by one.

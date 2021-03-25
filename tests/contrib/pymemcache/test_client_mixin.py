@@ -4,12 +4,15 @@ import pymemcache
 # project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.pymemcache.patch import patch, unpatch
-from ddtrace.ext import memcached as memcachedx, net
+from ddtrace.contrib.pymemcache.patch import patch
+from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.ext import memcached as memcachedx
+from ddtrace.ext import net
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+
 from .utils import MockSocket
 
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import TracerTestCase
 
 _Client = pymemcache.client.base.Client
 
@@ -23,7 +26,7 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
     def get_spans(self):
         pin = Pin.get_from(self.client)
         tracer = pin.tracer
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         return spans
 
     def check_spans(self, num_expected, resources_expected, queries_expected):
@@ -50,7 +53,7 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         unpatch()
 
     def make_client(self, mock_socket_values, **kwargs):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.override(pymemcache, tracer=tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))

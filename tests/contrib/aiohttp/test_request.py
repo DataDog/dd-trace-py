@@ -1,17 +1,18 @@
-import threading
 import asyncio
+import threading
+from urllib import request
+
+from aiohttp.test_utils import unittest_run_loop
 import aiohttp_jinja2
 
-from urllib import request
-from aiohttp.test_utils import unittest_run_loop
-
-from ddtrace.pin import Pin
-from ddtrace.contrib.aiohttp.patch import patch, unpatch
-from ddtrace.contrib.aiohttp.middlewares import trace_app
 from ddtrace import config
+from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.aiohttp.patch import unpatch
+from ddtrace.pin import Pin
+from tests.utils import assert_is_measured
 
 from .utils import TraceTestCase
-from ... import assert_is_measured
 
 
 class TestRequestTracing(TraceTestCase):
@@ -39,7 +40,7 @@ class TestRequestTracing(TraceTestCase):
         assert 200 == request.status
         yield from request.text()
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         request_span = traces[0][0]
@@ -77,7 +78,7 @@ class TestRequestTracing(TraceTestCase):
             t.join(timeout=0.5)
 
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 10 == len(traces)
         assert 1 == len(traces[0])
 
@@ -91,7 +92,7 @@ class TestRequestTracing(TraceTestCase):
         """
         request = yield from self.client.request("GET", "/template/")
         yield from request.text()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
 
@@ -108,7 +109,7 @@ class TestRequestTracing(TraceTestCase):
         request = yield from self.client.request("GET", "/", headers={"my-header": "my_value"})
         yield from request.text()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -123,7 +124,7 @@ class TestRequestTracing(TraceTestCase):
         request = yield from self.client.request("GET", "/response_headers/")
         yield from request.text()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 

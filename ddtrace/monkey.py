@@ -10,11 +10,15 @@ import importlib
 import os
 import sys
 import threading
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
-from .settings import config
+from .settings import _config as config
 from .utils import formats
 
 
@@ -67,6 +71,8 @@ PATCH_MODULES = {
     "logging": config.logs_injection,
     "pynamodb": True,
     "pyodbc": True,
+    "fastapi": True,
+    "dogpile_cache": True,
 }
 
 _LOCK = threading.Lock()
@@ -81,11 +87,17 @@ _PATCH_ON_IMPORT = {
     "aiohttp": ("aiohttp",),
     "aiobotocore": ("aiobotocore",),
     "celery": ("celery",),
-    "flask": ("flask, "),
+    "flask": ("flask",),
     "gevent": ("gevent",),
     "requests": ("requests",),
     "botocore": ("botocore",),
-    "elasticsearch": ("elasticsearch",),
+    "elasticsearch": (
+        "elasticsearch",
+        "elasticsearch2",
+        "elasticsearch5",
+        "elasticsearch6",
+        "elasticsearch7",
+    ),
     "pynamodb": ("pynamodb",),
 }
 
@@ -101,18 +113,26 @@ class ModuleNotFoundException(PatchException):
 
 
 def _on_import_factory(module, raise_errors=True):
+    # type: (str, bool) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
         # Import and patch module
         path = "ddtrace.contrib.%s" % module
-        imported_module = importlib.import_module(path)
-        imported_module.patch()
+        try:
+            imported_module = importlib.import_module(path)
+        except ImportError:
+            if raise_errors:
+                raise
+            log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
+        else:
+            imported_module.patch()
 
     return on_import
 
 
 def patch_all(**patch_modules):
+    # type: (Dict[str, bool]) -> None
     """Automatically patches all available modules.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -142,6 +162,7 @@ def patch_all(**patch_modules):
 
 
 def patch(raise_errors=True, **patch_modules):
+    # type: (bool, Dict[str, bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -152,18 +173,19 @@ def patch(raise_errors=True, **patch_modules):
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     for module in modules:
         if module in _PATCH_ON_IMPORT:
-            # If the module has already been imported then patch immediately
-            if module in sys.modules:
-                patch_module(module, raise_errors=raise_errors)
+            modules_to_poi = _PATCH_ON_IMPORT[module]
+            for m in modules_to_poi:
+                # If the module has already been imported then patch immediately
+                if m in sys.modules:
+                    patch_module(m, raise_errors=raise_errors)
+                # Otherwise, add a hook to patch when it is imported for the first time
+                else:
+                    # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+                    when_imported(m)(_on_import_factory(module, raise_errors))
 
-            # Otherwise, add a hook to patch when it is imported for the first time
-            else:
-                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-                when_imported(module)(_on_import_factory(module, raise_errors))
-
-                # manually add module to patched modules
-                with _LOCK:
-                    _PATCHED_MODULES.add(module)
+            # manually add module to patched modules
+            with _LOCK:
+                _PATCHED_MODULES.add(module)
         else:
             patch_module(module, raise_errors=raise_errors)
 
@@ -177,6 +199,7 @@ def patch(raise_errors=True, **patch_modules):
 
 
 def patch_module(module, raise_errors=True):
+    # type: (str, bool) -> bool
     """Patch a single module
 
     Returns if the module got properly patched.
@@ -195,12 +218,14 @@ def patch_module(module, raise_errors=True):
 
 
 def get_patched_modules():
+    # type: () -> List[str]
     """Get the list of patched modules"""
     with _LOCK:
         return sorted(_PATCHED_MODULES)
 
 
 def _patch_module(module):
+    # type: (str) -> bool
     """_patch_module will attempt to monkey patch the module.
 
     Returns if the module got patched.
@@ -223,6 +248,6 @@ def _patch_module(module):
             if not hasattr(imported_module, "patch"):
                 raise ModuleNotFoundException("module '%s' not installed" % module)
 
-            imported_module.patch()
+            imported_module.patch()  # type: ignore
             _PATCHED_MODULES.add(module)
             return True

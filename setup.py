@@ -125,6 +125,7 @@ else:
                 "-Wall",
                 "-Wextra",
                 "-Wpedantic",
+                # Cython is not deprecation-proof
                 "-Wno-deprecated-declarations",
             ]
     else:
@@ -135,7 +136,11 @@ if sys.version_info[:2] >= (3, 4):
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
-            sources=["ddtrace/profiling/collector/_memalloc.c", "ddtrace/profiling/collector/_memalloc_tb.c"],
+            sources=[
+                "ddtrace/profiling/collector/_memalloc.c",
+                "ddtrace/profiling/collector/_memalloc_tb.c",
+                "ddtrace/profiling/collector/_memalloc_heap.c",
+            ],
             extra_compile_args=debug_compile_args,
         ),
     ]
@@ -162,7 +167,6 @@ setup(
             "funcsigs>=1.0.0; python_version=='2.7'",
             "typing; python_version<'3.5'",
             "protobuf>=3",
-            "intervaltree",
             "tenacity>=5",
         ],
         extras_require={
@@ -176,7 +180,6 @@ setup(
         entry_points={
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-                "pyddprofile = ddtrace.profiling.__main__:main",
             ],
             "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
             "gevent.plugins.monkey.did_patch_all": [

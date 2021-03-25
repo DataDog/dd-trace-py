@@ -1,12 +1,10 @@
-from .collector import ValueCollector
-from .constants import (
-    SERVICE,
-    LANG_INTERPRETER,
-    LANG_VERSION,
-    LANG,
-    TRACER_VERSION,
-)
 from ...constants import ENV_KEY
+from .collector import ValueCollector
+from .constants import LANG
+from .constants import LANG_INTERPRETER
+from .constants import LANG_VERSION
+from .constants import SERVICE
+from .constants import TRACER_VERSION
 
 
 class RuntimeTagCollector(ValueCollector):

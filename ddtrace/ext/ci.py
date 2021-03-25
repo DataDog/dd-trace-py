@@ -6,6 +6,7 @@ import re
 
 from . import git
 
+
 # Stage Name
 STAGE_NAME = "ci.stage.name"
 

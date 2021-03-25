@@ -20,7 +20,6 @@ memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
-localstack_image: &localstack_image localstack/localstack:0.12.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
 mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
@@ -37,6 +36,8 @@ machine_executor: &machine_executor
     image: ubuntu-1604:201903-01
   environment:
     - BOTO_CONFIG: /dev/null
+    # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+    - PYTHONUNBUFFERED: 1
   steps:
     - &pyenv-set-global
       run:
@@ -161,6 +162,8 @@ commands:
                 command: docker-compose logs -f
                 background: true
             - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
       - unless:
           condition:
@@ -186,6 +189,35 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+
+  run_tox_scenario_with_testagent:
+    description: Run scripts/run-tox-scenario with setup, caching persistence and the testagent
+    parameters:
+      pattern:
+        type: string
+      wait:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - restore_tox_cache
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          name: "Run scripts/run-tox-scenario"
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
+          command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
+      - save_tox_cache
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -333,6 +365,13 @@ jobs:
       - checkout
       - setup_riot
       - run: riot run -s flake8
+
+  mypy:
+    executor: python38
+    steps:
+      - checkout
+      - setup_riot
+      - run: riot run mypy
 
   coverage_report:
     executor: python38
@@ -492,6 +531,8 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
@@ -499,8 +540,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-vendor'
+      - run_test:
+          pattern: 'vendor'
 
   futures:
     <<: *contrib_job
@@ -523,15 +564,15 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py..-ddtracerun$'
+          pattern: 'ddtracerun'
 
   test_logging:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_logging$'
+      - run_test:
+          pattern: 'test_logging'
 
   asyncio:
     <<: *contrib_job
@@ -594,6 +635,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^celery_contrib-'
 
+  cherrypy:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
+
   consul:
     <<: *contrib_job
     docker:
@@ -610,13 +659,13 @@ jobs:
           pattern: '^dogpile_contrib-'
 
   elasticsearch:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *elasticsearch_image
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          pattern: '^elasticsearch_contrib-'
+      - run_test:
+          pattern: 'elasticsearch'
+          snapshot: true
+          docker_services: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
@@ -642,6 +691,13 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
+  fastapi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "fastapi"
+          snapshot: true
+
   flask:
     <<: *contrib_job
     docker:
@@ -649,8 +705,9 @@ jobs:
       - image: *redis_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
+      - run_test:
+          # Run both flask and flask_cache test suites
+          pattern: 'flask(_cache)?'
 
   gevent:
     <<: *contrib_job
@@ -666,9 +723,10 @@ jobs:
 
   grpc:
     <<: *contrib_job
+    parallelism: 6
     steps:
-      - run_tox_scenario:
-          pattern: '^grpc_contrib-'
+      - run_test:
+          pattern: "grpc"
 
   molten:
     <<: *contrib_job
@@ -813,9 +871,9 @@ jobs:
       - *postgres_server
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres mysql
-          pattern: '^sqlalchemy_contrib-'
+          pattern: "sqlalchemy"
 
   dbapi:
     <<: *contrib_job
@@ -824,14 +882,13 @@ jobs:
           pattern: '^dbapi_contrib-'
 
   psycopg:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          wait: postgres
-          pattern: '^psycopg_contrib-'
+      - run_test:
+          pattern: "psycopg"
+          snapshot: true
+          docker_services: "postgres"
 
   aiobotocore:
     <<: *contrib_job
@@ -856,13 +913,8 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+      - run_tox_scenario_with_testagent:
+          pattern: '^redis_contrib-'
 
   rediscluster:
     <<: *contrib_job
@@ -889,6 +941,13 @@ jobs:
       - run_tox_scenario:
           wait: vertica
           pattern: '^vertica_contrib-'
+
+  wsgi:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "wsgi"
+          snapshot: true
 
   kombu:
     <<: *contrib_job
@@ -939,8 +998,8 @@ jobs:
   mako:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^mako_contrib-'
+      - run_test:
+          pattern: 'mako'
 
   algoliasearch:
     <<: *contrib_job
@@ -975,6 +1034,7 @@ requires_pre_test: &requires_pre_test
     - black
     - flake8
     - ccheck
+    - mypy
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -991,6 +1051,7 @@ requires_tests: &requires_tests
     - bottle
     - cassandra
     - celery
+    - cherrypy
     - consul
     - dbapi
     - ddtracerun
@@ -999,6 +1060,7 @@ requires_tests: &requires_tests
     - djangorestframework
     - elasticsearch
     - falcon
+    - fastapi
     - flask
     - futures
     - gevent
@@ -1045,6 +1107,7 @@ requires_tests: &requires_tests
     - tracer
     - tornado
     - vertica
+    - wsgi
     - build-docker-ci-image
 
 workflows:
@@ -1069,6 +1132,7 @@ workflows:
       - build_docs
       - black
       - flake8
+      - mypy
       - ccheck
       - build_base_venvs
 
@@ -1096,6 +1160,7 @@ workflows:
       - bottle: *requires_pre_test
       - cassandra: *requires_pre_test
       - celery: *requires_pre_test
+      - cherrypy: *requires_pre_test
       - consul: *requires_pre_test
       - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
@@ -1104,6 +1169,7 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
+      - fastapi: *requires_pre_test
       - flask: *requires_pre_test
       - futures: *requires_pre_test
       - gevent: *requires_pre_test
@@ -1144,6 +1210,7 @@ workflows:
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - vertica: *requires_pre_test
+      - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
       - deploy_master:

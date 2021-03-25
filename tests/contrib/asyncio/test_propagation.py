@@ -2,14 +2,18 @@ import asyncio
 import time
 
 import pytest
+
 from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.context import Context
 from ddtrace.contrib.asyncio.helpers import set_call_context
-from ddtrace.contrib.asyncio.patch import patch, unpatch
+from ddtrace.contrib.asyncio.patch import patch
+from ddtrace.contrib.asyncio.patch import unpatch
 from ddtrace.provider import DefaultContextProvider
 from tests.opentracer.utils import init_tracer
 
-from .utils import AsyncioTestCase, mark_asyncio
+from .utils import AsyncioTestCase
+from .utils import mark_asyncio
+
 
 _orig_create_task = asyncio.BaseEventLoop.create_task
 
@@ -51,7 +55,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
 
         yield from coro_1()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 3
         assert len(traces[0]) == 1
         assert len(traces[1]) == 1
@@ -86,7 +90,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
             with self.tracer.trace("main_task_child"):
                 time.sleep(0.01)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 3
         assert len(traces[0]) == 1
         assert len(traces[1]) == 1
@@ -115,7 +119,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         with self.tracer.trace("async_task"):
             yield from asyncio.sleep(0.01)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -132,7 +136,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         with self.tracer.trace("async_task"):
             yield from asyncio.sleep(0.01)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -170,7 +174,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # the coroutine has been called correctly
         assert 42 == value
         # a single trace has been properly reported
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         assert "coroutine_1" == traces[0][0].name
@@ -198,7 +202,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # the coroutine has been called correctly
         assert 42 == value
         # a single trace has been properly reported
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         assert "coroutine_1" == traces[0][0].name

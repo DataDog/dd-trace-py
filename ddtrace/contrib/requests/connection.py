@@ -1,13 +1,15 @@
 import ddtrace
 from ddtrace import config
 
+from .. import trace_utils
 from ...compat import parse
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
-from .. import trace_utils
+
 
 log = get_logger(__name__)
 
@@ -53,21 +55,10 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    # sanitize url of query
     parsed_uri = parse.urlparse(request.url)
     hostname = parsed_uri.hostname
     if parsed_uri.port:
         hostname = "{}:{}".format(hostname, parsed_uri.port)
-    sanitized_url = parse.urlunparse(
-        (
-            parsed_uri.scheme,
-            parsed_uri.netloc,
-            parsed_uri.path,
-            parsed_uri.params,
-            None,  # drop parsed_uri.query
-            parsed_uri.fragment,
-        )
-    )
 
     with tracer.trace("requests.request", span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
@@ -83,8 +74,7 @@ def _wrap_send(func, instance, args, kwargs):
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, request.headers)
+            HTTPPropagator.inject(span.context, request.headers)
 
         response = None
         try:
@@ -113,7 +103,7 @@ def _wrap_send(func, instance, args, kwargs):
                     span,
                     config.requests,
                     method=request.method.upper(),
-                    url=sanitized_url,
+                    url=request.url,
                     status_code=status,
                     query=parsed_uri.query,
                 )

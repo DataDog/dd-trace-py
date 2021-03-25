@@ -9,15 +9,19 @@ plugin to your app::
     app = bottle.Bottle()
     plugin = TracePlugin(service="my-web-app")
     app.install(plugin)
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 
 from ...utils.importlib import require_modules
+
 
 required_modules = ["bottle"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .trace import TracePlugin
         from .patch import patch
+        from .trace import TracePlugin
 
         __all__ = ["TracePlugin", "patch"]

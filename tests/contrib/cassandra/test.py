@@ -1,25 +1,33 @@
 # stdlib
 import contextlib
 import logging
-import unittest
 from threading import Event
+import unittest
 
 # 3p
-from cassandra.cluster import Cluster, ResultSet
-from cassandra.query import BatchStatement, SimpleStatement
+from cassandra.cluster import Cluster
+from cassandra.cluster import ResultSet
+from cassandra.query import BatchStatement
+from cassandra.query import SimpleStatement
 
+from ddtrace import Pin
+from ddtrace import config
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.cassandra.patch import patch, unpatch
-from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
-from ddtrace.ext import net, cassandra as cassx, errors
-from ddtrace import config, Pin
-
+from ddtrace.contrib.cassandra.patch import patch
+from ddtrace.contrib.cassandra.patch import unpatch
+from ddtrace.contrib.cassandra.session import SERVICE
+from ddtrace.contrib.cassandra.session import get_traced_cassandra
+from ddtrace.ext import cassandra as cassx
+from ddtrace.ext import errors
+from ddtrace.ext import net
 # testing
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import TracerTestCase, assert_is_measured
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+
 
 # Oftentimes our tests fails because Cassandra connection timeouts during keyspace drop. Slowness in keyspace drop
 # is known and is due to 'auto_snapshot' configuration. In our test env we should disable it, but the official cassandra
@@ -109,11 +117,11 @@ class CassandraBase(object):
 
     def _test_query_base(self, execute_fn):
         session, tracer = self._traced_session()
-        writer = tracer.writer
+
         result = execute_fn(session, self.TEST_QUERY)
         self._assert_result_correct(result)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # another for the actual query
@@ -149,8 +157,7 @@ class CassandraBase(object):
             session, tracer = self._traced_session()
             session.execute(self.TEST_QUERY)
 
-            writer = tracer.writer
-            spans = writer.pop()
+            spans = tracer.pop()
             assert spans, spans
             # another for the actual query
             assert len(spans) == 1
@@ -166,8 +173,7 @@ class CassandraBase(object):
             session, tracer = self._traced_session()
             session.execute(self.TEST_QUERY)
 
-            writer = tracer.writer
-            spans = writer.pop()
+            spans = tracer.pop()
             assert spans, spans
             # another for the actual query
             assert len(spans) == 1
@@ -182,13 +188,12 @@ class CassandraBase(object):
 
         session, tracer = self._traced_session()
         ot_tracer = init_tracer('cass_svc', tracer)
-        writer = tracer.writer
 
         with ot_tracer.start_active_span('cass_op'):
             result = execute_fn(session, self.TEST_QUERY)
             self._assert_result_correct(result)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # another for the actual query
@@ -244,14 +249,14 @@ class CassandraBase(object):
 
     def test_paginated_query(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
+
         statement = SimpleStatement(self.TEST_QUERY_PAGINATED, fetch_size=1)
         result = session.execute(statement)
         # iterate over all pages
         results = list(result)
         assert len(results) == 3
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # There are 4 spans for 3 results since the driver makes a request with
@@ -276,9 +281,9 @@ class CassandraBase(object):
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
+
         session.execute(self.TEST_QUERY)
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans
         assert len(spans) == 1
         query = spans[0]
@@ -286,7 +291,6 @@ class CassandraBase(object):
 
     def test_trace_error(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         try:
             session.execute('select * from test.i_dont_exist limit 1')
@@ -295,7 +299,7 @@ class CassandraBase(object):
         else:
             assert 0
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans
         query = spans[0]
         assert query.error == 1
@@ -304,7 +308,6 @@ class CassandraBase(object):
 
     def test_bound_statement(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         query = 'INSERT INTO test.person_write (name, age, description) VALUES (?, ?, ?)'
         prepared = session.prepare(query)
@@ -314,14 +317,13 @@ class CassandraBase(object):
         bound_stmt = prepared.bind(('leo', 16, 'fr'))
         session.execute(bound_stmt)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         for s in spans:
             assert s.resource == query
 
     def test_batch_statement(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         batch = BatchStatement()
         batch.add(
@@ -334,7 +336,7 @@ class CassandraBase(object):
         )
         session.execute(batch)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == 'BatchStatement'
@@ -343,7 +345,6 @@ class CassandraBase(object):
 
     def test_batched_bound_statement(self):
         session, tracer = self._traced_session()
-        writer = tracer.writer
 
         batch = BatchStatement()
 
@@ -353,7 +354,7 @@ class CassandraBase(object):
         )
         session.execute(batch)
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == 'BatchStatement'
@@ -373,7 +374,7 @@ class TestCassPatchDefault(unittest.TestCase, CassandraBase):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
@@ -391,7 +392,7 @@ class TestCassPatchAll(TestCassPatchDefault):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -412,7 +413,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
 
     def _traced_session(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
         Pin(service='not-%s' % self.TEST_SERVICE).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -425,13 +426,13 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
         patch()
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(Cluster).clone(tracer=tracer).onto(Cluster)
 
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -441,7 +442,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -451,7 +452,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
 
@@ -471,7 +472,7 @@ class TestCassandraConfig(TracerTestCase):
     def setUp(self):
         super(TestCassandraConfig, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
         Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)
@@ -487,7 +488,7 @@ class TestCassandraConfig(TracerTestCase):
         assert config.service == "mysvc"
 
         self.session.execute(self.TEST_QUERY)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert spans
         assert len(spans) == 1
         query = spans[0]

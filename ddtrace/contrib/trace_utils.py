@@ -1,12 +1,22 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
-from ddtrace import Pin, config
+from collections import deque
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Set
+
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+
 
 log = get_logger(__name__)
 
@@ -123,6 +133,7 @@ def get_error_ranges(error_range_str):
 
 
 def is_error_code(status_code):
+    # type: (int) -> bool
     """Returns a boolean representing whether or not a status code is an error code.
     Error status codes by default are 500-599.
     You may also enable custom error codes::
@@ -132,10 +143,9 @@ def is_error_code(status_code):
 
     Ranges and singular error codes are permitted and can be separated using commas.
     """
-
     error_ranges = get_error_ranges(config.http_server.error_statuses)
     for error_range in error_ranges:
-        if error_range[0] <= int(status_code) <= error_range[1]:
+        if error_range[0] <= status_code <= error_range[1]:
             return True
     return False
 
@@ -146,6 +156,7 @@ def set_http_meta(
     method=None,
     url=None,
     status_code=None,
+    status_msg=None,
     query=None,
     request_headers=None,
     response_headers=None,
@@ -154,12 +165,20 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        span._set_str_tag(http.URL, url)
+        span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
 
     if status_code is not None:
-        span._set_str_tag(http.STATUS_CODE, status_code)
-        if is_error_code(status_code):
-            span.error = 1
+        try:
+            int_status_code = int(status_code)
+        except (TypeError, ValueError):
+            log.debug("failed to convert http status code %r to int", status_code)
+        else:
+            span._set_str_tag(http.STATUS_CODE, status_code)
+            if is_error_code(int_status_code):
+                span.error = 1
+
+    if status_msg is not None:
+        span._set_str_tag(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
@@ -169,3 +188,41 @@ def set_http_meta(
 
     if response_headers is not None:
         store_response_headers(dict(response_headers), span, integration_config)
+
+
+def activate_distributed_headers(tracer, int_config=None, request_headers=None):
+    """
+    Helper for activating a distributed trace headers' context if enabled in integration config.
+    """
+    int_config = int_config or {}
+
+    if int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
+        context = HTTPPropagator.extract(request_headers)
+        # Only need to activate the new context if something was propagated
+        if context.trace_id:
+            tracer.context_provider.activate(context)
+
+
+def flatten_dict(
+    d,  # type: Dict[str, Any]
+    sep=".",  # type: str
+    prefix="",  # type: str
+    exclude=None,  # type: Optional[Set[str]]
+):
+    # type: (...) -> Dict[str, Any]
+    """
+    Returns a normalized dict of depth 1
+    """
+    flat = {}
+    s = deque()  # type: ignore
+    s.append((prefix, d))
+    exclude = exclude or set()
+    while s:
+        p, v = s.pop()
+        if p in exclude:
+            continue
+        if isinstance(v, dict):
+            s.extend((p + sep + k if p else k, v) for k, v in v.items())
+        else:
+            flat[p] = v
+    return flat

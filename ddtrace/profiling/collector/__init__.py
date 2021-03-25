@@ -1,12 +1,20 @@
 # -*- encoding: utf-8 -*-
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
-from ddtrace.profiling import _service
+from ddtrace.internal import periodic
+from ddtrace.internal import service
+from ddtrace.utils import attr as attr_utils
 from ddtrace.vendor import attr
 
 
+class CollectorError(Exception):
+    pass
+
+
+class CollectorUnavailable(CollectorError):
+    pass
+
+
 @attr.s
-class Collector(_service.Service):
+class Collector(service.Service):
     """A profile collector."""
 
     recorder = attr.ib()
@@ -20,7 +28,7 @@ class Collector(_service.Service):
 
 
 @attr.s(slots=True)
-class PeriodicCollector(Collector, _periodic.PeriodicService):
+class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def periodic(self):
@@ -44,7 +52,7 @@ class CaptureSampler(object):
     capture_pct = attr.ib(default=100)
     _counter = attr.ib(default=0, init=False)
 
-    @capture_pct.validator
+    @capture_pct.validator  # type: ignore
     def capture_pct_validator(self, attribute, value):
         if value < 0 or value > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")
@@ -63,5 +71,5 @@ def _create_capture_sampler(collector):
 
 @attr.s
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
+    capture_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
     _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)

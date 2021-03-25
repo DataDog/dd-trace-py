@@ -9,13 +9,15 @@ import pylibmc
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylibmc import TracedClient
-from ddtrace.contrib.pylibmc.patch import patch, unpatch
+from ddtrace.contrib.pylibmc.patch import patch
+from ddtrace.contrib.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
+from ...contrib.config import MEMCACHED_CONFIG as cfg
 # testing
 from ...opentracer.utils import init_tracer
-from ...contrib.config import MEMCACHED_CONFIG as cfg
-from ... import TracerTestCase, assert_is_measured
 
 
 class PylibmcCore(object):
@@ -54,7 +56,7 @@ class PylibmcCore(object):
 
         end = time.time()
         # verify spans
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(['append', 'prepend', 'get', 'set'])
@@ -72,7 +74,7 @@ class PylibmcCore(object):
         assert v == 2
         end = time.time()
         # verify spans
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(['get', 'set', 'incr', 'decr'])
@@ -94,7 +96,7 @@ class PylibmcCore(object):
         end = time.time()
 
         # verify spans
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         ot_span = spans[0]
 
         assert ot_span.name == 'mc_ops'
@@ -113,7 +115,7 @@ class PylibmcCore(object):
         start = time.time()
         cloned.get('a')
         end = time.time()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
         expected_resources = ['get']
@@ -130,7 +132,7 @@ class PylibmcCore(object):
         client.delete_multi(['a', 'c'])
         end = time.time()
         # verify
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(['get_multi', 'set_multi', 'delete_multi'])
@@ -147,7 +149,7 @@ class PylibmcCore(object):
         client.delete_multi(['a', 'c'], key_prefix='foo')
         end = time.time()
         # verify
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
             assert s.get_tag('memcached.query') == '%s foo' % s.resource
@@ -169,7 +171,7 @@ class PylibmcCore(object):
         assert out == v
         end = time.time()
         # verify
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
             assert s.get_tag('memcached.query') == '%s %s' % (s.resource, k)
@@ -312,7 +314,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
 
         client.set('a', 1)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -322,7 +324,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         client = pylibmc.Client([url])
         client.set('a', 1)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
@@ -332,6 +334,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set('a', 1)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1

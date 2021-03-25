@@ -1,26 +1,27 @@
 # -*- coding: utf-8 -*-
-import time
 import re
+import time
+
 from flask import make_response
 
-from unittest import TestCase
-
-from ddtrace.contrib.flask import TraceMiddleware
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.ext import http, errors
 from ddtrace import config
-
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.flask import TraceMiddleware
+from ddtrace.ext import errors
+from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
+
 from .web import create_app
-from tests.tracer.test_tracer import get_dummy_tracer
-from ... import assert_span_http_status_code
 
 
-class TestFlask(TestCase):
+class TestFlask(TracerTestCase):
     """Ensures Flask is properly instrumented."""
 
     def setUp(self):
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self.app = create_app()
         self.traced_app = TraceMiddleware(
             self.app,
@@ -41,7 +42,7 @@ class TestFlask(TestCase):
         traced_app = TraceMiddleware(self.app, self.tracer)  # noqa: F841
         rv = self.client.get("/child")
         assert rv.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
     def test_double_instrumentation_config(self):
@@ -58,7 +59,7 @@ class TestFlask(TestCase):
         assert self.app._use_distributed_tracing is False
         rv = self.client.get("/child")
         assert rv.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
     def test_child(self):
@@ -69,7 +70,7 @@ class TestFlask(TestCase):
         assert rv.status_code == 200
         assert rv.data == b"child"
         # ensure trace worked
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         spans_by_name = {s.name: s for s in spans}
@@ -105,7 +106,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -115,10 +116,6 @@ class TestFlask(TestCase):
         assert s.error == 0
         assert_span_http_status_code(s, 200)
         assert s.meta.get(http.METHOD) == "GET"
-
-        services = self.tracer.writer.pop_services()
-        expected = {}
-        assert services == expected
 
     def test_template(self):
         start = time.time()
@@ -131,7 +128,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
         s = by_name["flask.request"]
@@ -160,7 +157,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -183,7 +180,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         by_name = {s.name: s for s in spans}
         s = by_name["flask.request"]
@@ -207,7 +204,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
         s = by_name["flask.request"]
@@ -235,7 +232,7 @@ class TestFlask(TestCase):
 
         # ensure the request was traced.
         assert not self.tracer.current_span()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -261,7 +258,7 @@ class TestFlask(TestCase):
 
         # ensure the request was traced.
         assert not self.tracer.current_span()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -286,7 +283,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -308,7 +305,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -332,7 +329,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -346,7 +343,7 @@ class TestFlask(TestCase):
         assert rv.status_code == 200
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.service == "test.flask.service"
@@ -358,7 +355,6 @@ class TestFlask(TestCase):
     def test_success_200_ot(self):
         """OpenTracing version of test_success_200."""
         ot_tracer = init_tracer("my_svc", self.tracer)
-        writer = self.tracer.writer
 
         with ot_tracer.start_active_span("ot_span"):
             start = time.time()
@@ -371,7 +367,7 @@ class TestFlask(TestCase):
 
         # ensure trace worked
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -397,7 +393,7 @@ class TestFlask(TestCase):
                 "my-header": "my_value",
             },
         )
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -417,7 +413,7 @@ class TestFlask(TestCase):
 
         self.client.get("/response_headers")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1

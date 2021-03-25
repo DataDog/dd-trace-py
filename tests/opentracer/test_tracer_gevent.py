@@ -1,9 +1,10 @@
 import gevent
-import pytest
 from opentracing.scope_managers.gevent import GeventScopeManager
+import pytest
 
 import ddtrace
-from ddtrace.contrib.gevent import patch, unpatch
+from ddtrace.contrib.gevent import patch
+from ddtrace.contrib.gevent import unpatch
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 
@@ -30,7 +31,7 @@ class TestTracerGevent(object):
 
         assert span.finished
 
-    def test_greenlets(self, ot_tracer, writer):
+    def test_greenlets(self, ot_tracer, test_spans):
         def f():
             with ot_tracer.start_span("f") as span:
                 gevent.sleep(0.04)
@@ -44,35 +45,35 @@ class TestTracerGevent(object):
         with ot_tracer.start_span("root"):
             gevent.joinall([gevent.spawn(f), gevent.spawn(g)])
 
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 3
 
-    def test_trace_greenlet(self, ot_tracer, writer):
+    def test_trace_greenlet(self, ot_tracer, test_spans):
         # a greenlet can be traced using the trace API
         def greenlet():
             with ot_tracer.start_span("greenlet"):
                 pass
 
         gevent.spawn(greenlet).join()
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         assert traces[0][0].name == "greenlet"
 
-    def test_trace_later_greenlet(self, ot_tracer, writer):
+    def test_trace_later_greenlet(self, ot_tracer, test_spans):
         # a greenlet can be traced using the trace API
         def greenlet():
             with ot_tracer.start_span("greenlet"):
                 pass
 
         gevent.spawn_later(0.01, greenlet).join()
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
         assert traces[0][0].name == "greenlet"
 
-    def test_trace_concurrent_calls(self, ot_tracer, writer):
+    def test_trace_concurrent_calls(self, ot_tracer, test_spans):
         # create multiple futures so that we expect multiple
         # traces instead of a single one
         def greenlet():
@@ -82,13 +83,13 @@ class TestTracerGevent(object):
         jobs = [gevent.spawn(greenlet) for x in range(100)]
         gevent.joinall(jobs)
 
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
 
         assert len(traces) == 100
         assert len(traces[0]) == 1
         assert traces[0][0].name == "greenlet"
 
-    def test_trace_concurrent_spawn_later_calls(self, ot_tracer, writer):
+    def test_trace_concurrent_spawn_later_calls(self, ot_tracer, test_spans):
         # create multiple futures so that we expect multiple
         # traces instead of a single one, even if greenlets
         # are delayed
@@ -99,7 +100,7 @@ class TestTracerGevent(object):
         jobs = [gevent.spawn_later(0.01, greenlet) for x in range(100)]
         gevent.joinall(jobs)
 
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 100
         assert len(traces[0]) == 1
         assert traces[0][0].name == "greenlet"
@@ -108,7 +109,7 @@ class TestTracerGevent(object):
 class TestTracerGeventCompatibility(object):
     """Ensure the opentracer works in tandem with the ddtracer and gevent."""
 
-    def test_trace_spawn_multiple_greenlets_multiple_traces_ot_parent(self, ot_tracer, dd_tracer, writer):
+    def test_trace_spawn_multiple_greenlets_multiple_traces_ot_parent(self, ot_tracer, dd_tracer, test_spans):
         """
         Copy of gevent test with the same name but testing with mixed usage of
         the opentracer and datadog tracers.
@@ -132,7 +133,7 @@ class TestTracerGeventCompatibility(object):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 3
         assert len(traces[0]) == 1
         parent_span = traces[2][0]
@@ -149,7 +150,7 @@ class TestTracerGeventCompatibility(object):
         assert worker_2.resource == "greenlet.worker"
         assert worker_2.parent_id == parent_span.span_id
 
-    def test_trace_spawn_multiple_greenlets_multiple_traces_dd_parent(self, ot_tracer, dd_tracer, writer):
+    def test_trace_spawn_multiple_greenlets_multiple_traces_dd_parent(self, ot_tracer, dd_tracer, test_spans):
         """
         Copy of gevent test with the same name but testing with mixed usage of
         the opentracer and datadog tracers.
@@ -173,7 +174,7 @@ class TestTracerGeventCompatibility(object):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 3
         assert len(traces[0]) == 1
         parent_span = traces[2][0]

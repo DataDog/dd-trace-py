@@ -3,16 +3,18 @@ import random
 import re
 
 import pytest
+from sanic import Sanic
+from sanic.exceptions import ServerError
+from sanic.response import json
+from sanic.response import stream
+from sanic.response import text
+from sanic.server import HttpProtocol
+
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.propagation import http as http_propagation
-from ddtrace import config
-
-from sanic import Sanic
-from sanic.server import HttpProtocol
-from sanic.exceptions import ServerError
-from sanic.response import json, stream, text
-
-from tests import override_config, override_http_config
+from tests.utils import override_config
+from tests.utils import override_http_config
 
 
 # Helpers for handling response objects across sanic versions
@@ -131,7 +133,7 @@ def client(loop, app, sanic_client):
     return loop.run_until_complete(sanic_client(app, protocol=HttpProtocol))
 
 
-async def test_basic_app(tracer, client, integration_config, integration_http_config):
+async def test_basic_app(tracer, client, integration_config, integration_http_config, test_spans):
     """Test Sanic Patching"""
     with override_http_config("sanic", integration_http_config):
         with override_config("sanic", integration_config):
@@ -143,7 +145,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
             assert _response_status(response) == 200
             assert await _response_json(response) == {"hello": "world"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 2
     request_span = spans[0][0]
@@ -189,22 +191,22 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
         ("/hello/foo/bar/2020", {"hello": "foo bar 2020"}, "GET /hello/<first_name>/<surname>/<year>"),
     ],
 )
-async def test_resource_name(tracer, client, url, expected_json, expected_resource):
+async def test_resource_name(tracer, client, url, expected_json, expected_resource, test_spans):
     response = await client.get(url)
     assert _response_status(response) == 200
     assert await _response_json(response) == expected_json
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     request_span = spans[0][0]
     assert request_span.resource == expected_resource
 
 
-async def test_streaming_response(tracer, client):
+async def test_streaming_response(tracer, client, test_spans):
     response = await client.get("/stream_response")
     assert _response_status(response) == 200
     assert (await _response_text(response)).endswith("foo,bar")
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -217,12 +219,12 @@ async def test_streaming_response(tracer, client):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-async def test_error_app(tracer, client):
+async def test_error_app(tracer, client, test_spans):
     response = await client.get("/nonexistent")
     assert _response_status(response) == 404
     assert "not found" in await _response_text(response)
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -235,12 +237,12 @@ async def test_error_app(tracer, client):
     assert request_span.get_tag("http.status_code") == "404"
 
 
-async def test_exception(tracer, client):
+async def test_exception(tracer, client, test_spans):
     response = await client.get("/error")
     assert _response_status(response) == 500
     assert "Something bad happened" in await _response_text(response)
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -253,7 +255,7 @@ async def test_exception(tracer, client):
     assert request_span.get_tag("http.status_code") == "500"
 
 
-async def test_multiple_requests(tracer, client):
+async def test_multiple_requests(tracer, client, test_spans):
     responses = await asyncio.gather(
         client.get("/hello"),
         client.get("/hello"),
@@ -263,7 +265,7 @@ async def test_multiple_requests(tracer, client):
     assert [_response_status(r) for r in responses] == [200] * 2
     assert [await _response_json(r) for r in responses] == [{"hello": "world"}] * 2
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 2
     assert len(spans[0]) == 2
     assert len(spans[1]) == 2
@@ -278,12 +280,12 @@ async def test_multiple_requests(tracer, client):
     assert spans[1][1].parent_id == spans[1][0].span_id
 
 
-async def test_invalid_response_type_str(tracer, client):
+async def test_invalid_response_type_str(tracer, client, test_spans):
     response = await client.get("/invalid")
     assert _response_status(response) == 500
     assert await _response_text(response) == "Invalid response type"
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -296,12 +298,12 @@ async def test_invalid_response_type_str(tracer, client):
     assert request_span.get_tag("http.status_code") == "500"
 
 
-async def test_invalid_response_type_empty(tracer, client):
+async def test_invalid_response_type_empty(tracer, client, test_spans):
     response = await client.get("/empty")
     assert _response_status(response) == 500
     assert await _response_text(response) == "Invalid response type"
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -314,7 +316,7 @@ async def test_invalid_response_type_empty(tracer, client):
     assert request_span.get_tag("http.status_code") == "500"
 
 
-async def test_http_request_header_tracing(tracer, client):
+async def test_http_request_header_tracing(tracer, client, test_spans):
     config.sanic.http.trace_headers(["my-header"])
 
     response = await client.get(
@@ -325,7 +327,7 @@ async def test_http_request_header_tracing(tracer, client):
     )
     assert _response_status(response) == 200
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 2
     request_span = spans[0][0]

@@ -3,14 +3,15 @@ import time
 import mock
 
 from ddtrace.ext import SpanTypes
-
-from ddtrace.internal.runtime.runtime_metrics import (
-    RuntimeTags,
-    RuntimeMetrics,
-)
-from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS, GC_COUNT_GEN0, SERVICE, ENV
-
-from tests import TracerTestCase, BaseTestCase
+from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import ENV
+from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
+from ddtrace.internal.runtime.constants import SERVICE
+from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
+from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+from tests.utils import BaseTestCase
+from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class TestRuntimeTags(TracerTestCase):
@@ -66,25 +67,25 @@ class TestRuntimeWorker(TracerTestCase):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch("socket.socket"):
             # configure tracer for runtime metrics
-            self.tracer._RUNTIME_METRICS_INTERVAL = 1.0 / 4
-            self.tracer.configure(collect_metrics=True)
-            self.tracer.set_tags({"env": "tests.dog"})
+            interval = 1.0 / 4
+            with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))):
+                self.tracer.configure(collect_metrics=True)
+                self.tracer.set_tags({"env": "tests.dog"})
 
-            with self.override_global_tracer(self.tracer):
-                # spans are started for three services but only web and worker
-                # span types should be included in tags for runtime metrics
-                root = self.start_span("parent", service="parent", span_type=SpanTypes.WEB)
-                context = root.context
-                child = self.start_span("child", service="child", span_type=SpanTypes.WORKER, child_of=context)
-                self.start_span("query", service="db", span_type=SpanTypes.SQL, child_of=child.context)
-                time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
+                with self.override_global_tracer(self.tracer):
+                    # spans are started for three services but only web and worker
+                    # span types should be included in tags for runtime metrics
+                    root = self.start_span("parent", service="parent", span_type=SpanTypes.WEB)
+                    context = root.context
+                    child = self.start_span("child", service="child", span_type=SpanTypes.WORKER, child_of=context)
+                    self.start_span("query", service="db", span_type=SpanTypes.SQL, child_of=child.context)
+                    time.sleep(interval * 4)
+                    # Get the mocked socket for inspection later
+                    statsd_socket = self.tracer._runtime_worker._dogstatsd_client.socket
+                    # now stop collection
+                    self.tracer.configure(collect_metrics=False)
 
-                # Get the socket before it disappears
-                statsd_socket = self.tracer._dogstatsd_client.socket
-                # now stop collection
-                self.tracer.configure(collect_metrics=False)
-
-        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
         # we expect more than one flush since it is also called on shutdown
         assert len(received) > 1

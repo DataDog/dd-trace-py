@@ -1,10 +1,11 @@
+from pylons import response
 from pylons.controllers import WSGIController
 
-from ..lib.helpers import ExceptionWithCodeMethod, get_render_fn
+from ..lib.helpers import ExceptionWithCodeMethod
+from ..lib.helpers import get_render_fn
 
 
 class BaseController(WSGIController):
-
     def __call__(self, environ, start_response):
         """Invoke the Controller"""
         # WSGIController.__call__ dispatches to the Controller method
@@ -17,28 +18,32 @@ class RootController(BaseController):
     """Controller used for most tests"""
 
     def index(self):
-        return 'Hello World'
+        return "Hello World"
 
     def raise_exception(self):
-        raise Exception('Ouch!')
+        raise Exception("Ouch!")
 
     def raise_wrong_code(self):
-        e = Exception('Ouch!')
-        e.code = 'wrong formatted code'
+        e = Exception("Ouch!")
+        e.code = "wrong formatted code"
         raise e
 
     def raise_code_method(self):
-        raise ExceptionWithCodeMethod('Ouch!')
+        raise ExceptionWithCodeMethod("Ouch!")
 
     def raise_custom_code(self):
-        e = Exception('Ouch!')
-        e.code = '512'
+        e = Exception("Ouch!")
+        e.code = "512"
         raise e
 
     def render(self):
         render = get_render_fn()
-        return render('/template.mako')
+        return render("/template.mako")
 
     def render_exception(self):
         render = get_render_fn()
-        return render('/exception.mako')
+        return render("/exception.mako")
+
+    def response_headers(self):
+        response.headers["custom-header"] = "value"
+        return "hi"
