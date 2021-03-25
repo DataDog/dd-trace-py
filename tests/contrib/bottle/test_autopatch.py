@@ -3,10 +3,9 @@ import webtest
 
 import ddtrace
 from ddtrace import compat
-
-from ... import DummyTracer
-from ... import TracerTestCase
-from ... import assert_span_http_status_code
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
 
 
 SERVICE = "bottle-app"

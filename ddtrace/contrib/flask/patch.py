@@ -10,7 +10,6 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
 from .helpers import get_current_app
 from .helpers import simple_tracer
@@ -261,11 +260,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     request = werkzeug.Request(environ)
 
     # Configure distributed tracing
-    if config.flask.get("distributed_tracing_enabled", False):
-        context = HTTPPropagator.extract(request.headers)
-        # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
 
     # Default resource is method and path:
     #   GET /
