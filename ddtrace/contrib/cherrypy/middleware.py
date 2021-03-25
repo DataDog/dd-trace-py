@@ -69,8 +69,8 @@ class TraceTool(cherrypy.Tool):
     def _on_start_resource(self):
         trace_utils.activate_distributed_headers(
             self._tracer,
-            request_headers=cherrypy.request.headers,
-            override_distributed_tracing=self.use_distributed_tracing,
+            int_config=config.cherrypy,
+            request_headers=cherrypy.request.headers
         )
 
         cherrypy.request._datadog_span = self._tracer.trace(
