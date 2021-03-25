@@ -15,10 +15,9 @@ from ddtrace.ext import http
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
-from ... import assert_span_http_status_code
-from ... import override_global_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_tracer
 
 
 if PY2:

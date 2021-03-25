@@ -20,8 +20,8 @@ from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import socketserver
-from tests import AnyInt
-from tests import BaseTestCase
+from tests.utils import AnyInt
+from tests.utils import BaseTestCase
 
 
 class DummyOutput:
@@ -130,6 +130,21 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
+
+    def test_write_sync(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True, sync_mode=True)
+        writer.write([Span(tracer=None, name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 5, tags=[]),
                 mock.call("datadog.tracer.http.requests", 1, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),

@@ -22,8 +22,8 @@ from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from ddtrace.span import Span
 
-from .. import DummyTracer
-from .. import override_env
+from ..utils import DummyTracer
+from ..utils import override_env
 
 
 @pytest.fixture

@@ -4,8 +4,7 @@ import time
 from ddtrace.contrib.futures import patch
 from ddtrace.contrib.futures import unpatch
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class PropagationTestCase(TracerTestCase):

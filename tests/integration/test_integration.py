@@ -13,10 +13,10 @@ from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import six
-from tests import AnyFloat
-from tests import AnyInt
-from tests import AnyStr
-from tests import override_global_config
+from tests.utils import AnyFloat
+from tests.utils import AnyInt
+from tests.utils import AnyStr
+from tests.utils import override_global_config
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
@@ -391,6 +391,13 @@ def test_span_tags():
         t.shutdown()
     log.warning.assert_not_called()
     log.error.assert_not_called()
+
+
+def test_synchronous_writer_shutdown():
+    tracer = Tracer()
+    tracer.configure(writer=AgentWriter(tracer.writer.agent_url, sync_mode=True))
+    # Ensure this doesn't raise.
+    tracer.shutdown()
 
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")

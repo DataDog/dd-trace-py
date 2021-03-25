@@ -1,6 +1,6 @@
 from ddtrace.contrib.pymysql import get_traced_pymysql_connection
-from tests import DummyTracer
 from tests.contrib import config
+from tests.utils import DummyTracer
 
 
 def test_pre_v4():

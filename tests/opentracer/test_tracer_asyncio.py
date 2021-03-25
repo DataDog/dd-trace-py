@@ -5,9 +5,9 @@ import pytest
 
 import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
-from tests import TracerSpanContainer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
+from tests.utils import TracerSpanContainer
 
 from .conftest import ot_tracer_factory  # noqa: F401
 

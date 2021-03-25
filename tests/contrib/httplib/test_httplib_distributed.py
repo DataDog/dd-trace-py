@@ -6,8 +6,8 @@ from ddtrace import config
 from ddtrace.compat import httplib
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from .test_httplib import HTTPLibBaseMixin
 from .test_httplib import SOCKET
 
