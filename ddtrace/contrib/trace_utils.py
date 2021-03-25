@@ -160,6 +160,7 @@ def set_http_meta(
     query=None,
     request_headers=None,
     response_headers=None,
+    retries_remain=None,
 ):
     if method is not None:
         span._set_str_tag(http.METHOD, method)
@@ -188,6 +189,9 @@ def set_http_meta(
 
     if response_headers is not None:
         store_response_headers(dict(response_headers), span, integration_config)
+
+    if retries_remain is not None:
+        span._set_str_tag(http.RETRIES_REMAIN, retries_remain)
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None):
