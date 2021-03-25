@@ -280,7 +280,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 conn.request("PUT", self._endpoint, data, headers)
                 resp = compat.get_connection_response(conn)
                 t = sw.elapsed()
-                if t >= self.interval:
+                if t >= self._thread.interval:
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
