@@ -10,7 +10,7 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool
 
 
 class TracePlugin(object):
@@ -18,9 +18,17 @@ class TracePlugin(object):
     api = 2
 
     def __init__(self, service="bottle", tracer=None, distributed_tracing=True):
-        self.service = ddtrace.config.service or service
+        self.service = config.service or service
         self.tracer = tracer or ddtrace.tracer
         self.distributed_tracing = distributed_tracing
+
+    @property
+    def distributed_tracing(self):
+        return config.bottle.get("distributed_tracing", True)
+
+    @distributed_tracing.setter
+    def distributed_tracing(self, distributed_tracing):
+        config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
     def apply(self, callback, route):
         def wrapped(*args, **kwargs):
@@ -29,11 +37,9 @@ class TracePlugin(object):
 
             resource = "{} {}".format(request.method, route.rule)
 
-            # Propagate headers such as x-datadog-trace-id.
-            if self.distributed_tracing:
-                context = HTTPPropagator.extract(request.headers)
-                if context.trace_id:
-                    self.tracer.context_provider.activate(context)
+            trace_utils.activate_distributed_headers(
+                self.tracer, int_config=config.bottle, request_headers=request.headers
+            )
 
             with self.tracer.trace(
                 "bottle.request",
