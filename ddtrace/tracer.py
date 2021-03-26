@@ -132,7 +132,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
             )
         self.writer = writer
-        self.processor = TraceProcessor([])  # type: ignore[call-arg]
+        self._processor = TraceProcessor([])  # type: ignore[call-arg]
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
 
@@ -313,7 +313,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self.processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
+        self._processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -675,7 +675,7 @@ class Tracer(object):
         if not self.enabled:
             return
 
-        spans = self.processor.process(spans)
+        spans = self._processor.process(spans)
         if spans is not None:
             self.writer.write(spans=spans)
 
