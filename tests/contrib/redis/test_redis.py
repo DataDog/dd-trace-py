@@ -8,10 +8,10 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
-from tests import DummyTracer
-from tests import TracerTestCase
-from tests import snapshot
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
 

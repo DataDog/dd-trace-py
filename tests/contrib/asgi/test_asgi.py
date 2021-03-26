@@ -9,8 +9,8 @@ import pytest
 
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.propagation import http as http_propagation
-from tests import DummyTracer
-from tests import override_http_config
+from tests.utils import DummyTracer
+from tests.utils import override_http_config
 
 
 @pytest.fixture(

@@ -41,13 +41,11 @@ exclude = '''
   | ddtrace/(
     contrib/
     (
-      aiobotocore
-      | aiopg
+      aiopg
       | boto
       | cassandra
       | dbapi
       | jinja2
-      | mako
       | psycopg
       | pylibmc
       | pymemcache
@@ -63,14 +61,11 @@ exclude = '''
   (
     contrib/
     (
-      aiobotocore
-      | aiopg
-      | boto
+      aiopg
       | cassandra
       | config.py
       | dbapi
       | jinja2
-      | mako
       | psycopg
       | pylibmc
       | pymemcache

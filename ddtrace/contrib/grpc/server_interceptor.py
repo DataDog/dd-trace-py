@@ -10,7 +10,6 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...propagation.http import HTTPPropagator
 from .utils import parse_method_path
 
 
@@ -61,14 +60,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):
-        if config.grpc_server.distributed_tracing_enabled:
-            headers = dict(self._handler_call_details.invocation_metadata)
-            context = HTTPPropagator.extract(headers)
-
-            if context.trace_id:
-                self._pin.tracer.context_provider.activate(context)
-
         tracer = self._pin.tracer
+        headers = dict(self._handler_call_details.invocation_metadata)
+
+        trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_server, request_headers=headers)
 
         span = tracer.trace(
             "grpc",

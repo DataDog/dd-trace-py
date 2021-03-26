@@ -11,6 +11,7 @@ from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
+import mock
 import pytest
 
 from ddtrace import config
@@ -27,12 +28,13 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
-from tests import assert_dict_issuperset
-from tests import override_config
-from tests import override_env
-from tests import override_global_config
-from tests import override_http_config
+from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_dict_issuperset
+from tests.utils import override_config
+from tests.utils import override_env
+from tests.utils import override_global_config
+from tests.utils import override_http_config
 
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
@@ -1333,6 +1335,32 @@ def test_middleware_trace_request_ot(client, test_spans, tracer):
     assert sp_request.get_tag("http.method") == "GET"
 
 
+def test_collecting_requests_handles_improperly_configured_error(client, test_spans):
+    """
+    Since it's difficult to reproduce the ImproperlyConfigured error via django (server setup), will instead
+    mimic the failure by mocking the user_is_authenticated to raise an error.
+    """
+    # patch django._patch - django.__init__.py imports patch.py module as _patch
+    with mock.patch(
+        "ddtrace.contrib.django._patch.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+    ):
+        # If ImproperlyConfigured error bubbles up, should automatically fail the test.
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+        # Assert the correct number of traces and spans
+        if django.VERSION >= (2, 0, 0):
+            test_spans.assert_span_count(26)
+        elif django.VERSION < (1, 11, 0):
+            test_spans.assert_span_count(15)
+        else:
+            test_spans.assert_span_count(16)
+
+        root = test_spans.get_root_span()
+        root.assert_matches(name="django.request")
+
+
 """
 urlpatterns tests
 There are a variety of ways a user can point to their views.
@@ -1655,3 +1683,12 @@ class TestWSGI:
             assert root.resource == "GET ^error-500/$"
         else:
             assert root.resource == "GET tests.contrib.django.views.error_500"
+
+
+@pytest.mark.django_db
+def test_connections_patched():
+    from django.db import connections
+
+    assert len(connections.all())
+    for conn in connections.all():
+        assert isinstance(conn.cursor, wrapt.ObjectProxy)

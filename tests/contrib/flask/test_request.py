@@ -9,10 +9,10 @@ from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
 
 
 base_exception_name = "builtins.Exception"
@@ -95,6 +95,22 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Request tags
         assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=biz"
+
+    def test_request_query_string_trace_encoding(self):
+        """Make sure when making a request that we create the expected spans and capture the query string with a non-UTF-8
+        encoding.
+        """
+
+        @self.app.route("/")
+        def index():
+            return "Hello Flask", 200
+
+        with self.override_http_config("flask", dict(trace_query_string=True)):
+            self.client.get(u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+        spans = self.get_spans()
+
+        # Request tags
+        assert spans[0].get_tag(http.QUERY_STRING) == u"foo=bar&baz=����ó��"
 
     def test_analytics_global_on_integration_default(self):
         """

@@ -15,11 +15,10 @@ from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.vendor import six
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
-from ... import override_global_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_tracer
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
@@ -153,7 +152,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == URL_200
+        assert s.get_tag(http.URL) == URL_200 + "?" + query_string
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string

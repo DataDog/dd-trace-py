@@ -12,9 +12,9 @@ from ddtrace import Pin
 from ddtrace.contrib.pymemcache.patch import patch
 from ddtrace.contrib.pymemcache.patch import unpatch
 from ddtrace.vendor import wrapt
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
 
-from ... import DummyTracer
-from ... import TracerTestCase
 from .test_client_mixin import PymemcacheClientTestCaseMixin
 from .test_client_mixin import TEST_HOST
 from .test_client_mixin import TEST_PORT

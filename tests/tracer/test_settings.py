@@ -3,7 +3,7 @@ from copy import deepcopy
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
-from tests import BaseTestCase
+from tests.utils import BaseTestCase
 
 
 class TestConfig(BaseTestCase):

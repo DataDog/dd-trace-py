@@ -1,7 +1,5 @@
-# 3p
 import pytest
 
-# project
 import ddtrace
 from ddtrace import Pin
 from ddtrace import config
@@ -13,11 +11,9 @@ from ddtrace.settings.config import _deepmerge
 from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
-
-# testing
-from ... import DummyTracer
-from ... import TracerTestCase
-from ... import assert_is_measured
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
 TEST_TABLE = "test_table"

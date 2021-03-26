@@ -4,9 +4,9 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import patch
 from ddtrace.contrib.sqlalchemy import unpatch
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
-from ... import TracerTestCase
-from ... import assert_is_measured
 from ..config import POSTGRES_CONFIG
 
 

@@ -1,7 +1,8 @@
 import flask
 
+from tests.utils import assert_span_http_status_code
+
 from . import BaseFlaskTestCase
-from ... import assert_span_http_status_code
 
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):

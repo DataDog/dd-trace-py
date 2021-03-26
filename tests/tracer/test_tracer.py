@@ -28,12 +28,12 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.vendor import six
-from tests import DummyWriter
-from tests import TracerTestCase
-from tests import override_global_config
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import DummyWriter
+from tests.utils import TracerTestCase
+from tests.utils import override_global_config
 
-from .. import override_env
+from ..utils import override_env
 
 
 class TracerTestCases(TracerTestCase):
@@ -913,11 +913,15 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env(self):
-        assert isinstance(self.tracer.original_writer, LogWriter)
+        tracer = Tracer()
+        assert isinstance(tracer.writer, LogWriter)
+        tracer.configure(enabled=True)
+        assert isinstance(tracer.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(self.tracer.original_writer, AgentWriter)
+        tracer = Tracer()
+        assert isinstance(tracer.writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
