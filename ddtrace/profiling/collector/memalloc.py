@@ -60,13 +60,13 @@ class MemoryCollector(collector.PeriodicCollector):
     )
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
-    def start(self):
+    def _start(self):
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
         _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
-        super(MemoryCollector, self).start()
+        super(MemoryCollector, self)._start()
 
     def stop(self):
         if _memalloc is not None:
