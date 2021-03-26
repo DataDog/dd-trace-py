@@ -194,13 +194,20 @@ def set_http_meta(
         span._set_str_tag(http.RETRIES_REMAIN, retries_remain)
 
 
-def activate_distributed_headers(tracer, int_config=None, request_headers=None):
+def activate_distributed_headers(tracer, int_config=None, request_headers=None, override_distributed_tracing=None):
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
+    int_config will be used to check if distributed trace headers context will be activated, but
+    override_distributed_tracing will override if passed
     """
     int_config = int_config or {}
 
-    if int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
+    if override_distributed_tracing is not None and not override_distributed_tracing:
+        return
+
+    if override_distributed_tracing or int_config.get(
+        "distributed_tracing_enabled", int_config.get("distributed_tracing", False)
+    ):
         context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
