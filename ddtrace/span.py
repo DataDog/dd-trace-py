@@ -106,6 +106,14 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
+        # pre-conditions
+        if not (span_id is None or isinstance(span_id, six.integer_types)):
+            raise TypeError("span_id must be an integer")
+        if not (trace_id is None or isinstance(trace_id, six.integer_types)):
+            raise TypeError("trace_id must be an integer")
+        if not (parent_id is None or isinstance(parent_id, six.integer_types)):
+            raise TypeError("parent_id must be an integer")
+
         # required span info
         self.name = name
         self.service = service
