@@ -561,3 +561,10 @@ def test_on_finish_multi_callback():
     s.finish()
     m1.assert_called_once_with(s)
     m2.assert_called_once_with(s)
+
+
+@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
+def test_span_preconditions(arg):
+    Span(None, "test", **{arg: None})
+    with pytest.raises(TypeError):
+        Span(None, "test", **{arg: "foo"})
