@@ -107,8 +107,10 @@ def main():
     if os.path.basename(executable) == "uwsgi":
         print(
             (
-                "ddtrace-run is no longer supported with uWSGI since 0.48.0 release. "
-                "Remove ddtrace-run and update your uWSGI configuration following "
+                "ddtrace-run has known compatibility issues with uWSGI where the "
+                "tracer is not started properly in uWSGI workers which can cause "
+                "broken behavior. It is recommended you remove ddtrace-run and "
+                "update your uWSGI configuration following "
                 "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
             )
         )
