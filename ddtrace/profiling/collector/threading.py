@@ -5,10 +5,10 @@ import sys
 import threading
 
 from ddtrace import compat
-from ddtrace.profiling import _attr
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
+from ddtrace.utils import attr as attr_utils
 from ddtrace.vendor import attr
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.six.moves import _thread  # type: ignore[import]
@@ -158,7 +158,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     tracer = attr.ib(default=None)
 
     def start(self):
