@@ -561,3 +561,16 @@ def test_on_finish_multi_callback():
     s.finish()
     m1.assert_called_once_with(s)
     m2.assert_called_once_with(s)
+
+
+def test_span_pprint():
+    s = Span(None, "test")
+    s.set_tag("foo", "bar")
+    s.set_metric("asd", 42)
+    sp = s.pprint()
+
+    # TODO: These checks are weak
+    assert "metrics" in sp
+    assert "asd:42" in sp
+    assert "tags" in sp
+    assert "foo:bar" in sp

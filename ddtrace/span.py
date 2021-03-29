@@ -7,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Tuple
 from typing import Union
 
 from .compat import StringIO
@@ -453,6 +454,13 @@ class Span(object):
     def pprint(self):
         # type: () -> str
         """ Return a human readable version of the span. """
+
+        def _dict_section(name, data):
+            # type: (str, Dict[str, Any]) -> List[Tuple[str, str]]
+            content = [(" ", "%s:%s" % _) for _ in sorted(data.items())]
+            content.insert(0, (name, ""))
+            return content
+
         lines = [
             ("name", self.name),
             ("id", self.span_id),
@@ -465,10 +473,11 @@ class Span(object):
             ("end", "" if not self.duration else self.start + self.duration),
             ("duration", "%fs" % (self.duration or 0)),
             ("error", self.error),
-            ("tags", ""),
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
+        lines.extend(_dict_section("tags", self.meta))
+        lines.extend(_dict_section("metrics", self.metrics))
+
         return "\n".join("%10s %s" % line for line in lines)
 
     @property
