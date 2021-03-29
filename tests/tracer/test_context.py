@@ -10,8 +10,8 @@ from ddtrace.ext.priority import AUTO_REJECT
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.ext.priority import USER_REJECT
 from ddtrace.span import Span
-from tests import BaseTestCase
-from tests import DummyTracer
+from tests.utils import BaseTestCase
+from tests.utils import DummyTracer
 
 
 @pytest.fixture

@@ -7,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Text
 from typing import Union
 
 from .compat import StringIO
@@ -36,6 +37,9 @@ if TYPE_CHECKING:
     from .context import Context
     from .tracer import Tracer
 
+
+_MetaKeyType = Union[Text, bytes]
+_MetaDictType = Dict[_MetaKeyType, Text]
 
 log = get_logger(__name__)
 
@@ -102,6 +106,14 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
+        # pre-conditions
+        if not (span_id is None or isinstance(span_id, six.integer_types)):
+            raise TypeError("span_id must be an integer")
+        if not (trace_id is None or isinstance(trace_id, six.integer_types)):
+            raise TypeError("trace_id must be an integer")
+        if not (parent_id is None or isinstance(parent_id, six.integer_types)):
+            raise TypeError("parent_id must be an integer")
+
         # required span info
         self.name = name
         self.service = service
@@ -110,7 +122,7 @@ class Span(object):
         self.span_type = span_type
 
         # tags / metadata
-        self.meta = {}  # type: Dict[str, Any]
+        self.meta = {}  # type: _MetaDictType
         self.error = 0
         self.metrics = {}  # type: Dict[str, Any]
 
@@ -215,7 +227,7 @@ class Span(object):
             cb(self)
 
     def set_tag(self, key, value=None):
-        # type: (str, Any) -> None
+        # type: (_MetaKeyType, Any) -> None
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``stringify``-able.
@@ -297,7 +309,7 @@ class Span(object):
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     def _set_str_tag(self, key, value):
-        # type: (str, str) -> None
+        # type: (_MetaKeyType, Text) -> None
         self.meta[key] = stringify(value)
 
     def _remove_tag(self, key):
@@ -306,12 +318,12 @@ class Span(object):
             del self.meta[key]
 
     def get_tag(self, key):
-        # type: (str) -> Optional[str]
+        # type: (_MetaKeyType) -> Optional[Text]
         """Return the given tag or None if it doesn't exist."""
         return self.meta.get(key, None)
 
     def set_tags(self, tags):
-        # type: (Dict[str, Any]) -> None
+        # type: (_MetaDictType) -> None
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -320,11 +332,11 @@ class Span(object):
                 self.set_tag(k, v)
 
     def set_meta(self, k, v):
-        # type: (str, Any) -> None
+        # type: (_MetaKeyType, Text) -> None
         self.set_tag(k, v)
 
     def set_metas(self, kvs):
-        # type: (Dict[str, Any]) -> None
+        # type: (_MetaDictType) -> None
         self.set_tags(kvs)
 
     def set_metric(self, key, value):
@@ -468,7 +480,7 @@ class Span(object):
             ("tags", ""),
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
+        lines.extend((" ", "%r:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % line for line in lines)
 
     @property

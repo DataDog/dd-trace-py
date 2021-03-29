@@ -2,8 +2,9 @@ import psycopg2
 import pytest
 from sqlalchemy.exc import ProgrammingError
 
-from ... import TracerTestCase
-from ... import assert_is_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+
 from ..config import POSTGRES_CONFIG
 from .mixins import SQLAlchemyTestMixin
 

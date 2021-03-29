@@ -160,6 +160,7 @@ def set_http_meta(
     query=None,
     request_headers=None,
     response_headers=None,
+    retries_remain=None,
 ):
     if method is not None:
         span._set_str_tag(http.METHOD, method)
@@ -189,14 +190,17 @@ def set_http_meta(
     if response_headers is not None:
         store_response_headers(dict(response_headers), span, integration_config)
 
+    if retries_remain is not None:
+        span._set_str_tag(http.RETRIES_REMAIN, retries_remain)
 
-def activate_distributed_headers(tracer, int_config, request_headers=None):
+
+def activate_distributed_headers(tracer, int_config=None, request_headers=None):
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     """
     int_config = int_config or {}
 
-    if int_config.get("distributed_tracing_enabled", False):
+    if int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
         context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
