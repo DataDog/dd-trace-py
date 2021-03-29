@@ -492,7 +492,7 @@ def test_span_binary_unicode_set_tag(span_log):
     assert span.meta["key_str"] == u"🤔"
 
 
-@pytest.mark.skipif(sys.version_info.major >= 2, reason="This test does not apply to Python 2")
+@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
 @mock.patch("ddtrace.span.log")
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None, None)

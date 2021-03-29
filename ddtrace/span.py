@@ -2,7 +2,6 @@ import math
 import sys
 import traceback
 from typing import Any
-from typing import AnyStr
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -312,6 +311,10 @@ class Span(object):
 
     def _set_str_tag(self, key, value):
         # type: (_MetaKeyType, Text) -> None
+        """Set a value for a tag. Values are coerced to unicode in Python 2 and
+        str in Python 3, with decoding errors in conversion being replaced with
+        U+FFFD.
+        """
         self.meta[key] = ensure_text(value, errors="replace")
 
     def _remove_tag(self, key):
