@@ -209,7 +209,9 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
+        self._buffer = TraceBuffer(
+            max_size=self._buffer_size, max_item_size=self._max_payload_size
+        )  # type: ignore[call-arg]
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -427,10 +429,16 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
+                    self.dogstatsd.distribution(  # type: ignore[union-attr]
+                        "datadog.tracer.http.sent.bytes", len(encoded)
+                    )
+                    self.dogstatsd.distribution(  # type: ignore[union-attr]
+                        "datadog.tracer.http.sent.traces", len(enc_traces)
+                    )
                     for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
+                        self.dogstatsd.distribution(  # type: ignore[union-attr]
+                            "datadog.tracer.%s" % name, metric["count"], tags=metric["tags"]
+                        )
         finally:
             self._set_drop_rate()
             self._metrics_reset()

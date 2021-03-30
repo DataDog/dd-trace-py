@@ -62,7 +62,7 @@ class TraceBuffer(object):
                 raise BufferFull()
 
     def get(self):
-        # type: () -> List[deque]
+        # type: () -> List[bytes]
         """Return the entire buffer.
 
         The buffer is cleared in the process.
