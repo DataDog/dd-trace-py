@@ -173,7 +173,7 @@ def set_http_meta(
         except (TypeError, ValueError):
             log.debug("failed to convert http status code %r to int", status_code)
         else:
-            span._set_str_tag(http.STATUS_CODE, status_code)
+            span._set_str_tag(http.STATUS_CODE, str(status_code))
             if is_error_code(int_status_code):
                 span.error = 1
 
@@ -189,6 +189,11 @@ def set_http_meta(
     if response_headers is not None:
         store_response_headers(dict(response_headers), span, integration_config)
 
+<<<<<<< HEAD
+=======
+    if retries_remain is not None:
+        span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+>>>>>>> c19c3341... fix: handle text types in _set_str_tag (#2218)
 
 def activate_distributed_headers(tracer, int_config, request_headers=None):
     """

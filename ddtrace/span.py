@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import Union
 
 from .compat import StringIO
+from .compat import ensure_text
 from .compat import is_integer
 from .compat import iteritems
 from .compat import numeric_types
@@ -297,8 +298,17 @@ class Span(object):
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     def _set_str_tag(self, key, value):
+<<<<<<< HEAD
         # type: (str, str) -> None
         self.meta[key] = stringify(value)
+=======
+        # type: (_MetaKeyType, Text) -> None
+        """Set a value for a tag. Values are coerced to unicode in Python 2 and
+        str in Python 3, with decoding errors in conversion being replaced with
+        U+FFFD.
+        """
+        self.meta[key] = ensure_text(value, errors="replace")
+>>>>>>> c19c3341... fix: handle text types in _set_str_tag (#2218)
 
     def _remove_tag(self, key):
         # type: (str) -> None
