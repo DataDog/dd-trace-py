@@ -1,4 +1,3 @@
-import functools
 import socket
 from typing import Optional
 
