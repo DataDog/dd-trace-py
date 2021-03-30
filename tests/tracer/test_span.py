@@ -574,3 +574,10 @@ def test_span_pprint():
     assert "asd:42" in sp
     assert "tags" in sp
     assert "foo:bar" in sp
+
+
+@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
+def test_span_preconditions(arg):
+    Span(None, "test", **{arg: None})
+    with pytest.raises(TypeError):
+        Span(None, "test", **{arg: "foo"})

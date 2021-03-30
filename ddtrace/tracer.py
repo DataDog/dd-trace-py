@@ -119,17 +119,19 @@ class Tracer(object):
         self.priority_sampler = RateByServiceSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
-        if self._is_agentless_environment() and url is None:
+        if self._use_log_writer() and url is None:
             writer = LogWriter()
         else:
             url = url or agent.get_trace_url()
             agent.verify_url(url)
+
             writer = AgentWriter(
                 agent_url=url,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
+                sync_mode=self._use_sync_mode(),
             )
         self.writer = writer
         self._processor = TraceProcessor([])  # type: ignore[call-arg]
@@ -297,6 +299,7 @@ class Tracer(object):
             url = None  # type: ignore
 
         self.writer.stop()
+
         if writer is not None:
             self.writer = writer
         elif url:
@@ -308,6 +311,7 @@ class Tracer(object):
                 priority_sampler=self.priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
+                sync_mode=self._use_sync_mode(),
             )
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -811,7 +815,14 @@ class Tracer(object):
         self._runtime_worker.join(timeout=timeout)
 
     @staticmethod
-    def _is_agentless_environment():
+    def _use_log_writer():
+        # type: () -> bool
+        """Returns whether the LogWriter should be used in the environment by
+        default.
+
+        The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
+        is not available in the Lambda.
+        """
         if (
             environ.get("DD_AGENT_HOST")
             or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
@@ -819,11 +830,43 @@ class Tracer(object):
         ):
             # If one of these variables are set, we definitely have an agent
             return False
-        if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-            # We are in an AWS Lambda environment
-            return True
-        return False
+        elif _in_aws_lambda() and _has_aws_lambda_agent_extension():
+            # If the Agent Lambda extension is available then an AgentWriter is used.
+            return False
+        else:
+            return _in_aws_lambda()
+
+    @staticmethod
+    def _use_sync_mode():
+        # type: () -> bool
+        """Returns, if an `AgentWriter` is to be used, whether it should be run
+         in synchronous mode by default.
+
+        There is only one case in which this is desirable:
+
+        - AWS Lambdas can have the Datadog agent installed via an extension.
+          When it's available traces must be sent synchronously to ensure all
+          are received before the Lambda terminates.
+        """
+        return _in_aws_lambda() and _has_aws_lambda_agent_extension()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+
+def _has_aws_lambda_agent_extension():
+    # type: () -> bool
+    """Returns whether the environment has the AWS Lambda Datadog Agent
+    extension available.
+    """
+    return os.path.exists("/opt/extensions/datadog-agent")
+
+
+def _in_aws_lambda():
+    # type: () -> bool
+    """Returns whether the environment is an AWS Lambda.
+    This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
+    variable is defined.
+    """
+    return bool(environ.get("AWS_LAMBDA_FUNCTION_NAME", False))
