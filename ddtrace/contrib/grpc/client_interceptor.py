@@ -9,6 +9,7 @@ from ddtrace.ext import errors
 from ddtrace.vendor import wrapt
 
 from . import constants
+from .compat import stringify
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...internal.logger import get_logger
@@ -102,7 +103,7 @@ def _handle_error(span, response_error, status_code):
             exc_val = to_unicode(response_error.details())
             span._set_str_tag(errors.ERROR_MSG, exc_val)
             span._set_str_tag(errors.ERROR_TYPE, status_code)
-            span._set_str_tag(errors.ERROR_STACK, traceback)
+            span._set_str_tag(errors.ERROR_STACK, stringify(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
