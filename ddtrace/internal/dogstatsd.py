@@ -1,8 +1,12 @@
+from typing import Dict
+from typing import Optional
+
 from ddtrace.compat import parse
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 
 def parse_dogstatsd_url(url):
+    # type: (Optional[str]) -> Optional[Dict[str, str]]
     if url is None:
         return
 
@@ -24,6 +28,7 @@ def parse_dogstatsd_url(url):
 
 
 def get_dogstatsd_client(dogstatsd_url):
+    # type: (str) -> Optional[DogStatsd]
     if not dogstatsd_url:
         return
 

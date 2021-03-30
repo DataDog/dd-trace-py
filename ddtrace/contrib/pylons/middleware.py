@@ -109,5 +109,7 @@ class PylonsTraceMiddleware(object):
                     url=url,
                     query=environ.get("QUERY_STRING"),
                 )
-                span._set_str_tag("pylons.route.controller", controller)
-                span._set_str_tag("pylons.route.action", action)
+                if controller:
+                    span._set_str_tag("pylons.route.controller", controller)
+                if action:
+                    span._set_str_tag("pylons.route.action", action)
