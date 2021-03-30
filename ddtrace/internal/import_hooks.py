@@ -51,6 +51,12 @@ For these reasons we have decided to patch Python's internal module loading func
 """
 import sys
 import threading
+from types import ModuleType
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Set
 
 from ..compat import PY3
 from ..vendor import wrapt
@@ -72,6 +78,7 @@ class ModuleHookRegistry(object):
     __slots__ = ("hooks", "lock")
 
     def __init__(self):
+        # type: () -> None
         """
         Initialize a new registry
         """
@@ -79,6 +86,7 @@ class ModuleHookRegistry(object):
         self.reset()
 
     def register(self, name, func):
+        # type: (str, Callable) -> None
         """
         Register a new hook function for the provided module name
 
@@ -100,6 +108,7 @@ class ModuleHookRegistry(object):
                 func(sys.modules[name])
 
     def deregister(self, name, func):
+        # type: (str, Callable) -> None
         """
         Deregister an already registered hook function
 
@@ -121,6 +130,7 @@ class ModuleHookRegistry(object):
                 log.debug("No hook %r registered for module %r", func, name)
 
     def call(self, name, module=None):
+        # type: (str, Optional[ModuleType]) -> None
         """
         Call all hooks for the provided module
 
@@ -154,9 +164,10 @@ class ModuleHookRegistry(object):
                     log.warning("Failed to call hook %r for module %r", hook, name, exc_info=True)
 
     def reset(self):
+        # type: () -> None
         """Reset/remove all registered hooks"""
         with self.lock:
-            self.hooks = dict()
+            self.hooks = dict()  # type: Dict[str, Set[Callable]]
 
 
 # Default/global module hook registry
@@ -164,6 +175,7 @@ hooks = ModuleHookRegistry()
 
 
 def exec_and_call_hooks(module_name, wrapped, args, kwargs):
+    # type: (str, Callable, Any, Any) -> Callable[[Any], Any]
     """
     Helper used to execute the wrapped function with args/kwargs and then call any
       module hooks for `module_name` after
@@ -180,6 +192,7 @@ def exec_and_call_hooks(module_name, wrapped, args, kwargs):
 
 
 def wrapped_reload(wrapped, instance, args, kwargs):
+    # type: (Callable, Any, Any, Any) -> Callable[[Any], Callable]
     """
     Wrapper for `importlib.reload` to we can trigger hooks on a module reload
     """
@@ -196,10 +209,11 @@ def wrapped_reload(wrapped, instance, args, kwargs):
     except Exception:
         log.debug("Failed to determine module name when calling `reload`: %r", args, exc_info=True)
 
-    return exec_and_call_hooks(module_name, wrapped, args, kwargs)
+    return exec_and_call_hooks(module_name, wrapped, args, kwargs)  # type: ignore
 
 
 def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
+    # type: (Callable, Any, Any, Any) -> Callable[[Any], Any]
     """
     Wrapper for `importlib._bootstrap._find_and_load_unlocked` so we can trigger
       hooks on module loading
@@ -217,6 +231,7 @@ def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
 
 
 def wrapped_import(*args, **kwargs):
+    # type: (*Any, **Any) -> Callable[[Any], Any]
     """
     Wrapper for `__import__` so we can trigger hooks on module loading
     """
@@ -235,6 +250,7 @@ _patched = False
 
 
 def _patch():
+    # type: () -> None
     # Only patch once
     global _patched
     if _patched:
@@ -279,6 +295,7 @@ def _patch():
 
 # DEV: This is called at the end of this module to ensure we always patch
 def patch():
+    # type: () -> None
     """
     Patch Python import system, enabling import hooks
     """
@@ -290,6 +307,7 @@ def patch():
 
 
 def unpatch():
+    # type: () -> None
     """
     Unpatch Python import system, disabling import hooks
     """
@@ -305,11 +323,11 @@ def unpatch():
     if (3, 4) <= sys.version_info <= (3, 8):
         import importlib
 
-        if isinstance(importlib._bootstrap._find_and_load_unlocked, wrapt.FunctionWrapper):
+        if isinstance(importlib._bootstrap._find_and_load_unlocked, wrapt.FunctionWrapper):  # type: ignore
             setattr(
-                importlib._bootstrap,
+                importlib._bootstrap,  # type: ignore
                 "_find_and_load_unlocked",
-                importlib._bootstrap._find_and_load_unlocked.__wrapped__,
+                importlib._bootstrap._find_and_load_unlocked.__wrapped__,  # type: ignore
             )
         if isinstance(importlib.reload, wrapt.FunctionWrapper):
             setattr(importlib, "reload", importlib.reload.__wrapped__)
@@ -317,12 +335,13 @@ def unpatch():
     # 2.7
     # DEV: Slightly more direct approach
     elif sys.version_info >= (2, 7):
-        __builtins__["__import__"] = ORIGINAL_IMPORT
-        if isinstance(__builtins__["reload"], wrapt.FunctionWrapper):
-            __builtins__["reload"] = __builtins__["reload"].__wrapped__
+        __builtins__["__import__"] = ORIGINAL_IMPORT  # type: ignore
+        if isinstance(__builtins__["reload"], wrapt.FunctionWrapper):  # type: ignore
+            __builtins__["reload"] = __builtins__["reload"].__wrapped__  # type: ignore
 
 
 def register_module_hook(module_name, func=None, registry=hooks):
+    # type: (str, Optional[Callable], ModuleHookRegistry) -> Callable[[Any], Any]
     """
     Register a function as a module import hook
 

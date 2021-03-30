@@ -123,7 +123,7 @@ class Response(object):
         )
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter

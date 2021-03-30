@@ -1,5 +1,6 @@
 from collections import deque
 import threading
+from typing import List
 
 from ddtrace.vendor import attr
 
@@ -33,15 +34,18 @@ class TraceBuffer(object):
 
     @property
     def size(self):
+        # type: () -> int
         """Return the size in bytes of the trace buffer."""
         with self._lock:
             return self._size
 
     def _clear(self):
+        # type: () -> None
         self._buffer.clear()
         self._size = 0
 
     def put(self, item):
+        # type: (bytes) -> None
         """Put an item in the buffer.
 
         The item should be an encoded trace (list of spans).
@@ -52,18 +56,19 @@ class TraceBuffer(object):
 
         with self._lock:
             if self._size + item_len <= self.max_size:
-                self._buffer.append(item)
+                self._buffer.append(item)  # type: ignore[arg-type]
                 self._size += item_len
             else:
                 raise BufferFull()
 
     def get(self):
+        # type: () -> List[deque]
         """Return the entire buffer.
 
         The buffer is cleared in the process.
         """
         with self._lock:
             try:
-                return list(self._buffer)
+                return list(self._buffer)  # type: ignore[arg-type]
             finally:
                 self._clear()

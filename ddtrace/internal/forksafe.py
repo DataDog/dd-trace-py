@@ -9,7 +9,7 @@ import typing
 log = logging.getLogger(__name__)
 
 
-_registry = []
+_registry = []  # type: typing.List[typing.Callable]
 
 
 def ddtrace_after_in_child():
@@ -49,11 +49,11 @@ if hasattr(os, "register_at_fork"):
 else:
     import threading
 
-    _threading_after_fork = threading._after_fork
+    _threading_after_fork = threading._after_fork  # type: ignore[attr-defined]
 
     def _after_fork():
         # type: () -> None
         _threading_after_fork()
         ddtrace_after_in_child()
 
-    threading._after_fork = _after_fork
+    threading._after_fork = _after_fork  # type: ignore[attr-defined]
