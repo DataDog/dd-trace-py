@@ -1,13 +1,16 @@
+from types import ModuleType
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Type
 
 from ..vendor import debtcollector
 
 
 # https://stackoverflow.com/a/26853961
 def merge_dicts(x, y):
+    # type: (dict, dict) -> dict
     """Returns a copy of y merged into x."""
     z = x.copy()  # start with x's keys and values
     z.update(y)  # modifies z with y's keys and values & returns None
@@ -15,17 +18,19 @@ def merge_dicts(x, y):
 
 
 def get_module_name(module):
+    # type: (ModuleType) -> str
     """Returns a module's name or None if one cannot be found.
     Relevant PEP: https://www.python.org/dev/peps/pep-0451/
     """
-    if hasattr(module, "__spec__"):
+    if hasattr(module, "__spec__") and module.__spec__ is not None:
         return module.__spec__.name
     return getattr(module, "__name__", None)
 
 
 # Based on: https://stackoverflow.com/a/7864317
 class removed_classproperty(property):
-    def __get__(self, cls, owner):
+    def __get__(self, cls, owner):  # type: ignore[override]
+        # type: (Type, Type) -> Any
         debtcollector.deprecate(
             "Usage of ddtrace.ext.AppTypes is not longer supported, please use ddtrace.ext.SpanTypes"
         )
