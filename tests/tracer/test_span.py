@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import sys
 import time
 from unittest.case import SkipTest
 
@@ -477,6 +478,45 @@ def test_span_unicode_set_tag():
     span.set_tag("😐", u"😌")
     span._set_str_tag("key", u"😌")
     span._set_str_tag(u"😐", u"😌")
+
+
+@pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
+@mock.patch("ddtrace.span.log")
+def test_span_binary_unicode_set_tag(span_log):
+    span = Span(None, None)
+    span.set_tag("key", "🤔")
+    span._set_str_tag("key_str", "🤔")
+    # only span.set_tag() will fail
+    span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
+    assert "key" not in span.meta
+    assert span.meta["key_str"] == u"🤔"
+
+
+@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
+@mock.patch("ddtrace.span.log")
+def test_span_bytes_string_set_tag(span_log):
+    span = Span(None, None)
+    span.set_tag("key", b"\xf0\x9f\xa4\x94")
+    span._set_str_tag("key_str", b"\xf0\x9f\xa4\x94")
+    assert span.meta["key"] == "b'\\xf0\\x9f\\xa4\\x94'"
+    assert span.meta["key_str"] == "🤔"
+    span_log.warning.assert_not_called()
+
+
+@mock.patch("ddtrace.span.log")
+def test_span_encoding_set_str_tag(span_log):
+    span = Span(None, None)
+    span._set_str_tag("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span_log.warning.assert_not_called()
+    assert span.meta["foo"] == u"/?foo=bar&baz=����ó��"
+
+
+@mock.patch("ddtrace.span.log")
+def test_span_nonstring_set_str_tag(span_log):
+    span = Span(None, None)
+    with pytest.raises(TypeError):
+        span._set_str_tag("foo", dict(a=1))
+    assert "foo" not in span.meta
 
 
 def test_span_ignored_exceptions():

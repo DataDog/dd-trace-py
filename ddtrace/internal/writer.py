@@ -7,9 +7,11 @@ import threading
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import TextIO
 
 import ddtrace
 from ddtrace.vendor import six
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
 from .. import _worker
@@ -19,6 +21,7 @@ from ..constants import KEEP_SPANS_RATE_KEY
 from ..encoding import Encoder
 from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
+from ..sampler import BaseSampler
 from ..utils.time import StopWatch
 from .agent import get_connection
 from .buffer import BufferFull
@@ -141,7 +144,13 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
 
 
 class LogWriter(TraceWriter):
-    def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
+    def __init__(
+        self,
+        out=sys.stdout,  # type: TextIO
+        sampler=None,  # type: BaseSampler
+        priority_sampler=None,  # type: BasePrioritySampler
+    ):
+        # type: (...) -> None
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self.encoder = JSONEncoderV2()
@@ -182,19 +191,20 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
 
     def __init__(
         self,
-        agent_url,
-        sampler=None,
-        priority_sampler=None,
-        processing_interval=1,
+        agent_url,  # type: str
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+        processing_interval=1.0,  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=8 * 1000000,
-        max_payload_size=8 * 1000000,
-        timeout=agent.DEFAULT_TIMEOUT,
-        dogstatsd=None,
-        report_metrics=False,
-        sync_mode=False,
+        buffer_size=8 * 1000000,  # type: int
+        max_payload_size=8 * 1000000,  # type: int
+        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        dogstatsd=None,  # type: Optional[DogStatsd]
+        report_metrics=False,  # type: bool
+        sync_mode=False,  # type: bool
     ):
+        # type: (...) -> None
         super(AgentWriter, self).__init__(interval=processing_interval, name=self.__class__.__name__)
         self.agent_url = agent_url
         self._buffer_size = buffer_size
@@ -394,6 +404,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                     self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
+        # type: (bool) -> None
         enc_traces = self._buffer.get()
         try:
             if not enc_traces:
