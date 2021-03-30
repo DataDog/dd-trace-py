@@ -564,16 +564,41 @@ def test_on_finish_multi_callback():
 
 
 def test_span_pprint():
+    def assert_field(field, name, _type):
+        assert field[0] == name
+        try:
+            _type(field[2])
+        except ValueError:
+            raise AssertionError("Invalid field value for field %s of type %s" % (name, _type))
+
     s = Span(None, "test")
     s.set_tag("foo", "bar")
     s.set_metric("asd", 42)
     sp = s.pprint()
 
-    # TODO: These checks are weak
-    assert "metrics" in sp
-    assert "asd:42" in sp
-    assert "tags" in sp
-    assert "foo:bar" in sp
+    data = [_.strip().partition(" ") for _ in sp.splitlines()]
+    start_field = data.pop(7)
+    trace_id_field = data.pop(2)
+    id_field = data.pop(1)
+
+    assert_field(id_field, "id", int)
+    assert_field(trace_id_field, "trace_id", int)
+    assert_field(start_field, "start", float)
+
+    assert data == [
+        ("name", " ", "test"),
+        ("parent_id", " ", "None"),
+        ("service", " ", "None"),
+        ("resource", " ", "test"),
+        ("type", " ", "None"),
+        ("end", "", ""),
+        ("duration", " ", "0.000000s"),
+        ("error", " ", "0"),
+        ("tags", "", ""),
+        ("foo:bar", "", ""),
+        ("metrics", "", ""),
+        ("asd:42", "", ""),
+    ]
 
 
 @pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
