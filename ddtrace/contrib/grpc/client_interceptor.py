@@ -3,13 +3,13 @@ import collections
 import grpc
 
 from ddtrace import config
+from ddtrace.compat import stringify
 from ddtrace.compat import to_unicode
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
 from ddtrace.vendor import wrapt
 
 from . import constants
-from .compat import stringify
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...internal.logger import get_logger
