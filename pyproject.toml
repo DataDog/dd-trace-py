@@ -49,7 +49,6 @@ exclude = '''
       | psycopg
       | pylibmc
       | pymemcache
-      | pymongo
       | rediscluster
       | sqlalchemy
       | util.py
@@ -69,7 +68,6 @@ exclude = '''
       | psycopg
       | pylibmc
       | pymemcache
-      | pymongo
       | rediscluster
       | sqlalchemy
     )
