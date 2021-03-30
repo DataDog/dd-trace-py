@@ -316,6 +316,10 @@ class LogWriterTests(BaseTestCase):
             )
         return writer
 
+    def test_log_writer(self):
+        self.create_writer()
+        self.assertEqual(len(self.output.entries), self.N_TRACES)
+
 
 def test_humansize():
     assert _human_size(0) == "0B"
