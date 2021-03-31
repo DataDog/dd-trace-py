@@ -49,6 +49,7 @@ iteritems = six.iteritems
 reraise = six.reraise
 reload_module = six.moves.reload_module  # type: ignore[attr-defined]
 
+ensure_text = six.ensure_text
 stringify = six.text_type
 string_type = six.string_types[0]
 binary_type = six.binary_type

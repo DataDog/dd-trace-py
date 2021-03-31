@@ -42,6 +42,7 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
@@ -98,8 +99,6 @@ class Tracer(object):
         :param url: The DogStatsD URL.
         """
         self.log = log
-        self.sampler = None  # type: Optional[BaseSampler]
-        self.priority_sampler = None
         self._runtime_worker = None
         self._filters = []  # type: List[TraceFilter]
 
@@ -115,8 +114,8 @@ class Tracer(object):
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
         self.context_provider = DefaultContextProvider()
-        self.sampler = DatadogSampler()
-        self.priority_sampler = RateByServiceSampler()
+        self.sampler = DatadogSampler()  # type: BaseSampler
+        self.priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
         if self._use_log_writer() and url is None:
@@ -133,7 +132,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
             )
-        self.writer = writer
+        self.writer = writer  # type: Union[AgentWriter, LogWriter]
         self._processor = TraceProcessor([])  # type: ignore[call-arg]
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -458,8 +457,7 @@ class Tracer(object):
             # only applied to spans with types that are internal to applications
             if self._runtime_worker and self._is_span_internal(span):
                 span.meta["language"] = "python"
-            # TODO: Can remove below type ignore once sampler is mypy type hinted
-            span.sampled = self.sampler.sample(span)  # type: ignore[union-attr]
+            span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self.sampler, DatadogSampler):
