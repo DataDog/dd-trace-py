@@ -9,11 +9,11 @@ import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.propagation import http as http_propagation
-from tests import DummyTracer
-from tests import TracerSpanContainer
-from tests import override_config
-from tests import override_http_config
-from tests import snapshot
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
+from tests.utils import override_config
+from tests.utils import override_http_config
+from tests.utils import snapshot
 
 from . import app
 

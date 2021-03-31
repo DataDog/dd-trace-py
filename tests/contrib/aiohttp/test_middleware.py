@@ -11,8 +11,8 @@ from ddtrace.contrib.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_span_http_status_code
 
-from ... import assert_span_http_status_code
 from .app.web import noop_middleware
 from .app.web import setup_app
 from .utils import TraceTestCase

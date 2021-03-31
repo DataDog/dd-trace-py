@@ -11,8 +11,8 @@ from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
 from ddtrace.ext.priority import USER_KEEP
-from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
 
 from .utils import silence_errors
 

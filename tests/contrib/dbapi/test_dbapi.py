@@ -8,10 +8,9 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.span import Span
 from ddtrace.utils.attrdict import AttrDict
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_is_not_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_is_not_measured
 
 
 class TestTracedCursor(TracerTestCase):

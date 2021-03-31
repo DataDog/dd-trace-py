@@ -13,8 +13,8 @@ from sanic.server import HttpProtocol
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.propagation import http as http_propagation
-from tests import override_config
-from tests import override_http_config
+from tests.utils import override_config
+from tests.utils import override_http_config
 
 
 # Helpers for handling response objects across sanic versions

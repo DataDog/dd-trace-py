@@ -4,8 +4,8 @@ from tornado import version_info
 
 from ddtrace.contrib.tornado.compat import futures_available
 from ddtrace.ext import http
+from tests.utils import assert_span_http_status_code
 
-from ... import assert_span_http_status_code
 from .utils import TornadoTestCase
 
 

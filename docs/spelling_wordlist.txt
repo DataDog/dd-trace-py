@@ -31,11 +31,14 @@ django
 dogpile
 dogstatsd
 elasticsearch
+elasticsearch1
+elasticsearch7
 enqueue
 entrypoint
 entrypoints
 Fargate
 fastapi
+Firehose
 gRPC
 gevent
 greenlet
@@ -108,6 +111,7 @@ url
 urls
 username
 uvicorn
+versioned
 vertica
 whitelist
 wsgi

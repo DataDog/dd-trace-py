@@ -10,8 +10,7 @@ from ddtrace.contrib.logging.patch import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
 from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 logger = logging.getLogger()
