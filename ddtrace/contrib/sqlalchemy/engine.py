@@ -54,23 +54,18 @@ def _wrap_create_engine(func, module, args, kwargs):
 
 
 class EngineTracer(object):
-
     def __init__(self, tracer, service, engine):
         self.tracer = tracer
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
         self.service = service or self.vendor
-        self.name = '%s.query' % self.vendor
+        self.name = "%s.query" % self.vendor
 
         # attach the PIN
-        Pin(
-            app=self.vendor,
-            tracer=tracer,
-            service=self.service
-        ).onto(engine)
+        Pin(app=self.vendor, tracer=tracer, service=self.service).onto(engine)
 
-        listen(engine, 'before_cursor_execute', self._before_cur_exec)
-        listen(engine, 'after_cursor_execute', self._after_cur_exec)
+        listen(engine, "before_cursor_execute", self._before_cur_exec)
+        listen(engine, "after_cursor_execute", self._after_cur_exec)
 
         # Determine name of error event to listen for
         # Ref: https://github.com/DataDog/dd-trace-py/issues/841
@@ -148,11 +143,11 @@ def _set_tags_from_url(span, url):
 
 def _set_tags_from_cursor(span, vendor, cursor):
     """ attempt to set db connection tags by introspecting the cursor. """
-    if 'postgres' == vendor:
-        if hasattr(cursor, 'connection') and hasattr(cursor.connection, 'dsn'):
-            dsn = getattr(cursor.connection, 'dsn', None)
+    if "postgres" == vendor:
+        if hasattr(cursor, "connection") and hasattr(cursor.connection, "dsn"):
+            dsn = getattr(cursor.connection, "dsn", None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span.set_tag(sqlx.DB, d.get('dbname'))
-                span.set_tag(netx.TARGET_HOST, d.get('host'))
-                span.set_tag(netx.TARGET_PORT, d.get('port'))
+                span.set_tag(sqlx.DB, d.get("dbname"))
+                span.set_tag(netx.TARGET_HOST, d.get("host"))
+                span.set_tag(netx.TARGET_PORT, d.get("port"))

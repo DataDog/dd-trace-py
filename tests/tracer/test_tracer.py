@@ -27,6 +27,8 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
+from ddtrace.tracer import _has_aws_lambda_agent_extension
+from ddtrace.tracer import _in_aws_lambda
 from ddtrace.vendor import six
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyWriter
@@ -574,7 +576,7 @@ def test_tracer_shutdown_no_timeout():
     # Do a write to start the writer.
     with t.trace("something"):
         pass
-    assert t.writer.is_alive()
+
     t.shutdown()
     t.writer.stop.assert_has_calls(
         [
@@ -661,8 +663,8 @@ def test_tracer_fork():
             # Assert we recreated the writer and have a new queue
             with capture_failures(errors):
                 assert t._pid != original_pid
-                assert t.writer != original_writer
-                assert t.writer._buffer != original_writer._buffer
+                assert t.writer is not original_writer
+                assert t.writer._buffer is not original_writer._buffer
 
         # Assert the trace got written into the correct queue
         assert len(original_writer._buffer) == 0
@@ -912,11 +914,31 @@ class EnvTracerTestCase(TracerTestCase):
                     assert VERSION_KEY not in child2.meta
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
-    def test_detect_agentless_env(self):
+    def test_detect_agentless_env_with_lambda(self):
+        assert _in_aws_lambda()
+        assert not _has_aws_lambda_agent_extension()
         tracer = Tracer()
         assert isinstance(tracer.writer, LogWriter)
         tracer.configure(enabled=True)
         assert isinstance(tracer.writer, LogWriter)
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_detect_agent_config_with_lambda_extension(self):
+        def mock_os_path_exists(path):
+            return path == "/opt/extensions/datadog-agent"
+
+        assert _in_aws_lambda()
+
+        with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
+            assert _has_aws_lambda_agent_extension()
+
+            tracer = Tracer()
+            assert isinstance(tracer.writer, AgentWriter)
+            assert tracer.writer._sync_mode
+
+            tracer.configure(enabled=False)
+            assert isinstance(tracer.writer, AgentWriter)
+            assert tracer.writer._sync_mode
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
