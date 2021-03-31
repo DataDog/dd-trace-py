@@ -6,10 +6,7 @@ from ddtrace.vendor.dogstatsd import DogStatsd
 
 
 def parse_dogstatsd_url(url):
-    # type: (Optional[str]) -> Optional[Dict[str, str]]
-    if url is None:
-        return
-
+    # type: (str) -> Dict[str, str]
     # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
     # also support without url scheme included
     if url.startswith("/"):

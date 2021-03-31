@@ -37,14 +37,16 @@ class Service(object):
         with self._service_lock:
             if self.status == ServiceStatus.RUNNING:
                 raise ServiceAlreadyRunning("%s is already running" % self.__class__.__name__)
-            self.status = ServiceStatus.RUNNING
             self._start()
+            self.status = ServiceStatus.RUNNING
 
     def _start(self):
         # type: () -> None
         """Start the service for real.
 
-        This method uses the internal lock to be sure there's no race conditions.
+        This method uses the internal lock to be sure there's no race conditions and that the service is really started
+        once start() returns.
+
         """
 
     def stop(self):
