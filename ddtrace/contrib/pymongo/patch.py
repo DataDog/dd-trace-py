@@ -3,6 +3,8 @@ import contextlib
 import pymongo
 
 from ddtrace import Pin
+from ddtrace import config
+from ddtrace.contrib import trace_utils
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
@@ -12,6 +14,14 @@ from ...utils.deprecation import deprecated
 from ...utils.wrappers import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
+
+
+config._add(
+    "pymongo",
+    dict(
+        _default_service=mongox.SERVICE,
+    ),
+)
 
 
 # Original Client class
@@ -41,7 +51,7 @@ def patch_pymongo_module():
     if getattr(pymongo, "_datadog_patch", False):
         return
     setattr(pymongo, "_datadog_patch", True)
-    Pin(service=mongox.SERVICE, app=mongox.SERVICE).onto(pymongo.server.Server)
+    Pin(app=mongox.SERVICE).onto(pymongo.server.Server)
 
     # Whenever a pymongo command is invoked, the lib either:
     # - Creates a new socket & performs a TCP handshake
@@ -65,7 +75,9 @@ def traced_get_socket(wrapped, instance, args, kwargs):
             yield sock_info
             return
 
-    with pin.tracer.trace("pymongo.get_socket", service=pin.service, span_type=SpanTypes.MONGODB) as span:
+    with pin.tracer.trace(
+        "pymongo.get_socket", service=trace_utils.int_service(pin, config.pymongo), span_type=SpanTypes.MONGODB
+    ) as span:
         with wrapped(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
             span.set_tag(SPAN_MEASURED_KEY)
