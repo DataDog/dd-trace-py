@@ -204,12 +204,12 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
-    override_distributed_tracing will override if passed any value other than None.
+    override will override whatever value is set in int_config if passed any value other than None.
     """
     int_config = int_config or {}
 
     if override is False:
-        return
+        return None
 
     if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
         context = HTTPPropagator.extract(request_headers)
