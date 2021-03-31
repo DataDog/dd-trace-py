@@ -48,7 +48,6 @@ exclude = '''
       | psycopg
       | pylibmc
       | pymemcache
-      | pymongo
       | rediscluster
     )
     | profiling/exporter/pprof_pb2.py$
@@ -65,7 +64,6 @@ exclude = '''
       | psycopg
       | pylibmc
       | pymemcache
-      | pymongo
       | rediscluster
     )
   )
