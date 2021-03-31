@@ -1,6 +1,7 @@
 import inspect
 from typing import Any
 from typing import Callable
+from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TypeVar
 
@@ -17,7 +18,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def iswrapped(obj, attr=None):
-    # type: (Any, str) -> bool
+    # type: (Any, Optional[str]) -> bool
     """Returns whether an attribute is wrapped or not."""
     if attr is not None:
         obj = getattr(obj, attr, None)

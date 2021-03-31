@@ -8,8 +8,6 @@ from typing import List
 from typing import Optional
 from typing import Type
 
-from typing_extensions import Literal
-
 
 class require_modules(object):
     """Context manager to check the availability of required modules."""
@@ -28,8 +26,8 @@ class require_modules(object):
         return self._missing_modules
 
     def __exit__(self, exc_type, exc_value, traceback):
-        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> Literal[False]
-        return False
+        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> None
+        return
 
 
 def func_name(f):

@@ -7,9 +7,6 @@ from typing import Optional
 from typing import Tuple
 import warnings
 
-from mypy_extensions import KwArg
-from mypy_extensions import VarArg
-
 from ddtrace.vendor import debtcollector
 
 
@@ -56,7 +53,7 @@ def deprecation(name="", message="", version=None):
 
 
 def deprecated(message="", version=None):
-    # type: (str, Optional[str]) -> Callable[[Callable[..., Any]], Callable[[VarArg(Any), KwArg(Any)], Any]]
+    # type: (str, Optional[str]) -> Callable[[Callable[..., Any]], Callable[..., Any]]
     """Decorator function to report a ``DeprecationWarning``. Bear
     in mind that `DeprecationWarning` are ignored by default so they're
     not available in user logs. To show them, the application must be launched
@@ -69,7 +66,7 @@ def deprecated(message="", version=None):
     """
 
     def decorator(func):
-        # type: (Callable[..., Any]) -> Callable[[VarArg(Any), KwArg(Any)], Any]
+        # type: (Callable[..., Any]) -> Callable[..., Any]
         @wraps(func)
         def wrapper(*args, **kwargs):
             # type: (Tuple[Any], Dict[str, Any]) -> Any
