@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Any
 from typing import DefaultDict
+from typing import Tuple
 
 from ..utils.deprecation import deprecation
 from ..utils.formats import get_env
@@ -99,7 +100,9 @@ class DDLogger(logging.Logger):
         super(DDLogger, self).__init__(*args, **kwargs)
 
         # Dict to keep track of the current time bucket per name/level/pathname/lineno
-        self.buckets = collections.defaultdict(lambda: DDLogger.LoggingBucket(0, 0))  # type: DefaultDict
+        self.buckets = collections.defaultdict(
+            lambda: DDLogger.LoggingBucket(0, 0)
+        )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
 
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
         # Allow configuring via `DD_TRACE_LOGGING_RATE`
