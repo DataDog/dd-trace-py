@@ -58,9 +58,7 @@ class MemoryCollector(collector.PeriodicCollector):
     heap_sample_size = attr.ib(
         factory=attr_utils.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int)
     )
-    ignore_profiler = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool)  # type: ignore[arg-type]
-    )
+    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
     def _start(self):
         """Start collecting memory profiles."""
