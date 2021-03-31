@@ -473,6 +473,8 @@ class TestPymongoSocketTracing(TracerTestCase):
     Test suite which checks that tcp socket creation/retrieval is correctly traced
     """
 
+    TEST_SERVICE = "testdb"
+
     def setUp(self):
         super(TestPymongoSocketTracing, self).setUp()
         patch()
@@ -483,7 +485,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         # let's limit this number to 1
         self.client = pymongo.MongoClient(port=MONGO_CONFIG["port"], maxPoolSize=1)
         # Override TracedMongoClient's pin's tracer with our dummy tracer
-        Pin.override(self.client, tracer=self.tracer)
+        Pin.override(self.client, tracer=self.tracer, service="testdb")
 
     def tearDown(self):
         unpatch()
@@ -505,6 +507,14 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
         assert spans[1].name == "pymongo.cmd"
+
+    def test_service_name_override(self):
+        with TracerTestCase.override_config("pymongo", dict(service_name=self.TEST_SERVICE)):
+            self.client["some_db"].drop_collection("some_collection")
+            spans = self.pop_spans()
+
+            assert len(spans) == 2
+            assert all(span.service == self.TEST_SERVICE for span in spans)
 
     def test_multiple_ops(self):
         db = self.client["medias"]
