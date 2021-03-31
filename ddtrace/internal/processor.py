@@ -1,13 +1,12 @@
 import abc
 from collections import defaultdict
 import threading
-from typing import Any
 from typing import DefaultDict
 from typing import List
 from typing import Optional
 
 from ddtrace import Span
-from ddtrace.filters import TraceFilter
+from ddtrace.internal.writer import TraceWriter
 from ddtrace.vendor import attr
 from ddtrace.vendor import six
 
@@ -18,7 +17,7 @@ log = get_logger(__name__)
 
 
 @attr.s
-class Processor(six.with_metaclass(abc.ABCMeta)):
+class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
     def __attrs_post_init__(self):
@@ -49,8 +48,8 @@ class Processor(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def on_span_finish(self, data):
-        # type: (Any) -> Any
+    def on_span_finish(self, span):
+        # type: (Span) -> None
         """Called with the result of any previous processors or initially with
         the finishing span when a span finishes.
 
@@ -60,55 +59,37 @@ class Processor(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
-@attr.s(eq=False)
-class TraceFiltersProcessor(Processor):
-    """Processor for applying a list of ``TraceFilter`` to traces.
+@attr.s
+class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
+    def __attrs_post_init__(self):
+        # type () -> None
+        """Default post initializer which logs the representation of the
+        TraceProcessor at the ``logging.DEBUG`` level.
 
-    The filters are applied sequentially with the result of one passed on to
-    the next. If ``None`` is returned by a filter then execution short-circuits
-    and ``None`` is returned.
+        The representation can be modified with the ``repr`` argument to the
+        attrs attribute::
 
-    If a filter raises an exception it will be logged at the ``logging.ERROR``
-    level and the filter chain will continue with the next filter in the list.
-    """
+            @attr.s
+            class MyTraceProcessor(TraceProcessor):
+                field_to_include = attr.ib(repr=True)
+                field_to_exclude = attr.ib(repr=False)
+        """
+        log.debug("initialized trace processor %r", self)
 
-    _filters = attr.ib(type=List[TraceFilter], repr=True)
+    @abc.abstractmethod
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        """Processes a trace.
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
-        return None
-
-    def on_span_finish(self, trace):
-        # type: (Optional[List[Span]]) -> Optional[List[Span]]
-        if trace is None:
-            return
-
-        for filtr in self._filters:
-            try:
-                log.debug("applying filter %r to %s", filtr, trace[0].trace_id if trace else [])
-                trace = filtr.process_trace(trace)
-            except Exception:
-                log.error("error applying filter %r to traces", filtr, exc_info=True)
-            else:
-                if trace is None:
-                    log.debug("dropping trace due to filter %r", filtr)
-                    return
-
-        return trace
+        None can be returned to prevent the trace from being exported.
+        """
+        pass
 
 
 @attr.s
-class TraceSamplingProcessor(Processor):
-    def on_span_start(self, span):
-        # type: (Span) -> None
-        # TODO: move tracer sampling decision logic here.
-        pass
-
-    def on_span_finish(self, trace):
-        # type: (Optional[List[Span]]) -> Optional[List[Span]]
-        if trace is None:
-            return None
-
+class TraceSamplingProcessor(TraceProcessor):
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
         sampled_spans = [s.sampled for s in trace]
         if len(sampled_spans) == 0:
             log.info("dropping trace, %d spans unsampled", len(trace))
@@ -119,7 +100,7 @@ class TraceSamplingProcessor(Processor):
 
 
 @attr.s
-class SpansToTraceProcessor(Processor):
+class SpansToTraceProcessor(SpanProcessor):
     """Processor that aggregates spans together by trace_id and submits the
     finalized trace if the trace is assumed to be complete[0] or if a partial
     flushing threshold has been met[1].
@@ -140,6 +121,8 @@ class SpansToTraceProcessor(Processor):
 
     _partial_flush_enabled = attr.ib(type=bool)
     _partial_flush_min_spans = attr.ib(type=int)
+    _trace_processors = attr.ib(type=List[TraceProcessor])
+    _writer = attr.ib(type=TraceWriter)
     _traces = attr.ib(
         factory=lambda: defaultdict(lambda: SpansToTraceProcessor._Trace()),
         init=False,
@@ -167,6 +150,19 @@ class SpansToTraceProcessor(Processor):
 
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
-                return finished
+
+                spans = finished
+                for tp in self._trace_processors:
+                    try:
+                        spans = tp.process_trace(spans)
+                    except Exception:
+                        log.error("error applying processor %r", tp, exc_info=True)
+                    else:
+                        if spans is None:
+                            return
+
+                self._writer.write(spans)
+                return
+
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None

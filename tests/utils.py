@@ -434,10 +434,7 @@ class DummyTracer(Tracer):
 
     def __init__(self):
         super(DummyTracer, self).__init__()
-        self._update_writer()
-
-    def _update_writer(self):
-        self.writer = DummyWriter()
+        self.configure()
 
     def pop(self):
         # type: () -> List[Span]
@@ -448,9 +445,8 @@ class DummyTracer(Tracer):
         return self.writer.pop_traces()
 
     def configure(self, *args, **kwargs):
+        kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
-        # `.configure()` may reset the writer
-        self._update_writer()
 
 
 class TestSpan(Span):

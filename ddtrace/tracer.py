@@ -35,9 +35,8 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.processor import Processor
+from .internal.processor import SpanProcessor
 from .internal.processor import SpansToTraceProcessor
-from .internal.processor import TraceFiltersProcessor
 from .internal.processor import TraceSamplingProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
@@ -144,12 +143,13 @@ class Tracer(object):
             SpansToTraceProcessor(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=[
+                    TraceSamplingProcessor(),
+                    *self._filters,
+                ],
+                writer=self.writer,
             ),
-            TraceSamplingProcessor(),
-            TraceFiltersProcessor(
-                filters=self._filters,
-            ),
-        ]  # type: List[Processor]
+        ]  # type: List[SpanProcessor]
 
     def _atexit(self):
         # type: () -> None
@@ -342,10 +342,11 @@ class Tracer(object):
             SpansToTraceProcessor(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
-            ),
-            TraceSamplingProcessor(),
-            TraceFiltersProcessor(
-                filters=self._filters,
+                trace_processors=[
+                    TraceSamplingProcessor(),
+                    *self._filters,
+                ],
+                writer=self.writer,
             ),
         ]
 
@@ -560,11 +561,8 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("writing span %r", span)
 
-        data = span
         for proc in self._processors:
-            data = proc.on_span_finish(data)
-        if data is not None:
-            self.writer.write(data)
+            proc.on_span_finish(span)
 
     def _start_runtime_worker(self):
         if not self._dogstatsd_url:
