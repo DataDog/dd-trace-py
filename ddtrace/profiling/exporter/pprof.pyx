@@ -1,13 +1,13 @@
 import collections
 import itertools
 import operator
-import sys
 
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof_pb2
+from ddtrace.utils import config
 from ddtrace.vendor import attr
 from ddtrace.vendor import six
 
@@ -270,23 +270,6 @@ class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
     @staticmethod
-    def _get_program_name(default="-"):
-        try:
-            import __main__
-
-            program_name = __main__.__file__
-        except (ImportError, AttributeError):
-            try:
-                program_name = sys.argv[0]
-            except IndexError:
-                program_name = None
-
-        if program_name is None:
-            return default
-
-        return program_name
-
-    @staticmethod
     def _get_trace_id(event):
         if event.trace_ids:
             return str(list(sorted(event.trace_ids))[0])
@@ -402,7 +385,7 @@ class PprofExporter(exporter.Exporter):
         :param end_time_ns: The end time of recording.
         :return: A protobuf Profile object.
         """
-        program_name = self._get_program_name()
+        program_name = config.get_application_name()
 
         sum_period = 0
         nb_event = 0
