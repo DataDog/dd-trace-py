@@ -4,7 +4,7 @@ import os
 import pytest
 
 from ddtrace.profiling.exporter import pprof_pb2
-from tests import call_program
+from tests.utils import call_program
 
 
 def test_call_script(monkeypatch):

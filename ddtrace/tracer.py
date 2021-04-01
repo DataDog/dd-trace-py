@@ -15,6 +15,7 @@ from typing import Set
 from typing import Union
 
 from ddtrace import config
+from ddtrace.filters import TraceFilter
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -36,9 +37,7 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import TraceProcessor
-from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
-from .internal.runtime.runtime_metrics import RuntimeWorker
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
@@ -100,7 +99,7 @@ class Tracer(object):
         :param url: The DogStatsD URL.
         """
         self.log = log
-        self._filters = []
+        self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
         self.tags = config.tags.copy()
@@ -209,7 +208,7 @@ class Tracer(object):
         return self.context_provider.active(*args, **kwargs)  # type: ignore
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
-    @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.49")
+    @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
     def configure(
         self,
         enabled=None,  # type: Optional[bool]
@@ -326,6 +325,10 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         runtime_metrics_was_running = False
+        # FIXME: Import RuntimeWorker here to avoid circular imports. This will
+        # be gone together with the collect_metrics attribute soon.
+        from .internal.runtime.runtime_metrics import RuntimeWorker
+
         if RuntimeWorker._instance is not None:
             runtime_metrics_was_running = True
             RuntimeWorker.disable()

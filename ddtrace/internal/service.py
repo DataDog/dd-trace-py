@@ -15,7 +15,7 @@ class ServiceAlreadyRunning(RuntimeError):
     pass
 
 
-@attr.s
+@attr.s(eq=False)
 class Service(object):
     """A service that can be started or stopped."""
 

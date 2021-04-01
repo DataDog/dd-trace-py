@@ -1,6 +1,8 @@
 import itertools
 import os
+from threading import RLock
 from typing import Optional
+from typing import Set
 
 import ddtrace
 from ddtrace.vendor import attr
@@ -53,26 +55,28 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-@attr.s
+@attr.s(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    dogstatsd_url = attr.ib(type=str)
     _interval = attr.ib(type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10)))
+    tracer = attr.ib(type=Optional[ddtrace.Tracer], default=None)
+    dogstatsd_url = attr.ib(type=Optional[str], default=None)
     _dogstatsd_client = attr.ib(init=False, repr=False)
     _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
-    _tracer = attr.ib(type=Optional[ddtrace.Tracer], default=None, repr=False)
-    _services = attr.ib(type=dict, init=False)
-    _instance = attr.ib(type=RuntimeMetrics, init=False, repr=False)
+    _services = attr.ib(type=Set[str], init=False)
+
+    _instance = None  # type: Optional[RuntimeWorker]
+    _lock = RLock()
 
     def __attrs_post_init__(self):
         # type: () -> None
-        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url)
-        self._tracer = self._tracer or ddtrace.tracer
-        self._tracer.on_start_span(self._set_language_on_span)
-        self._services = {}
+        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
+        self.tracer = self.tracer or ddtrace.tracer
+        self.tracer.on_start_span(self._set_language_on_span)
+        self._services = set()
 
     def _set_language_on_span(self, span):
         # add tags to root span to correlate trace with runtime metrics
@@ -83,32 +87,34 @@ class RuntimeWorker(periodic.PeriodicService):
     @staticmethod
     def disable():
         # type: () -> None
-        if RuntimeWorker._instance is None:
-            return
+        with RuntimeWorker._lock:
+            if RuntimeWorker._instance is None:
+                return
 
-        RuntimeWorker._instance.stop()
-        RuntimeWorker._instance.join()
-        RuntimeWorker._instance = None
+            RuntimeWorker._instance.stop()
+            RuntimeWorker._instance.join()
+            RuntimeWorker._instance = None
 
     @staticmethod
-    def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
-        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
-        if RuntimeWorker._instance is not None:
-            return
+    def enable(flush_interval=None, tracer=None, dogstatsd_url=None):
+        # type: (Optional[float], Optional[ddtrace.Tracer], Optional[str]) -> None
+        with RuntimeWorker._lock:
+            if RuntimeWorker._instance is not None:
+                return
 
-        runtime_worker = RuntimeWorker(tracer, dogstatsd_url, flush_interval)
-        runtime_worker.start()
-        # force an immediate update constant tags
-        runtime_worker.update_runtime_tags()
+            runtime_worker = RuntimeWorker(flush_interval, tracer, dogstatsd_url)
+            runtime_worker.start()
+            # force an immediate update constant tags
+            runtime_worker.update_runtime_tags()
 
-        def _restart():
-            RuntimeWorker.disable()
-            RuntimeWorker.enable()
+            def _restart():
+                RuntimeWorker.disable()
+                RuntimeWorker.enable()
 
-        if hasattr(os, "register_at_fork"):
-            os.register_at_fork(after_in_child=_restart)
+            if hasattr(os, "register_at_fork"):
+                os.register_at_fork(after_in_child=_restart)
 
-        RuntimeWorker._instance = runtime_worker
+            RuntimeWorker._instance = runtime_worker
 
     def flush(self):
         # type: () -> None
