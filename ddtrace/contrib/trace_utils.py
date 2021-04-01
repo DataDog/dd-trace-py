@@ -6,6 +6,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Set
+from typing import TYPE_CHECKING
 
 from ddtrace import Pin
 from ddtrace import config
@@ -16,6 +17,10 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+
+
+if TYPE_CHECKING:
+    from ddtrace import Tracer
 
 
 log = get_logger(__name__)
@@ -194,13 +199,19 @@ def set_http_meta(
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
 
-def activate_distributed_headers(tracer, int_config=None, request_headers=None):
+def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
+    # type: (Tracer, Optional[Dict[str, Any]], Optional[Dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
+    int_config will be used to check if distributed trace headers context will be activated, but
+    override will override whatever value is set in int_config if passed any value other than None.
     """
     int_config = int_config or {}
 
-    if int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
+    if override is False:
+        return None
+
+    if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
         context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
