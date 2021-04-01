@@ -928,6 +928,16 @@ jobs:
           wait: rediscluster
           pattern: '^rediscluster_contrib-'
 
+  urllib3:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *httpbin_local
+    resource_class: *resource_class
+    steps:
+      - run_test:
+          pattern: 'urllib3'
+
   vertica:
     <<: *contrib_job
     docker:
@@ -1106,6 +1116,7 @@ requires_tests: &requires_tests
     - test_logging
     - tracer
     - tornado
+    - urllib3
     - vertica
     - wsgi
     - build-docker-ci-image
@@ -1209,6 +1220,7 @@ workflows:
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
+      - urllib3: *requires_pre_test
       - vertica: *requires_pre_test
       - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test

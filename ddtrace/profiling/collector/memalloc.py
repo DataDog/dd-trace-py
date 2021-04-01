@@ -8,10 +8,10 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
-from ddtrace.profiling import _attr
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
+from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
 
@@ -53,18 +53,20 @@ class MemoryCollector(collector.PeriodicCollector):
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(factory=_attr.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
-    max_nframe = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    heap_sample_size = attr.ib(factory=_attr.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int))
-    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
+    _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
+    max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    heap_sample_size = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int)
+    )
+    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
-    def start(self):
+    def _start(self):
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
         _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
-        super(MemoryCollector, self).start()
+        super(MemoryCollector, self)._start()
 
     def stop(self):
         if _memalloc is not None:

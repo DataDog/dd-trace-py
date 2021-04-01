@@ -317,9 +317,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             config.flask,
             method=request.method,
             url=request.base_url,
-            # It's probably wrong to assume it's UTF-8, but there is no hint to know what the encoding of the query
-            # string is anyhow.
-            query=request.query_string.decode("utf-8", errors="replace"),
+            query=request.query_string,
             request_headers=request.headers,
         )
 

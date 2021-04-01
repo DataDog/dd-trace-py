@@ -33,9 +33,14 @@ jobs:
         run: pip install ../django
       - name: Set Pythonpath
         run: echo "PYTHONPATH=." >> $GITHUB_ENV
+      - name: Disable unsupported tests
+        run: |
+          # Note: test_supports_json_field_operational_error will fail with the tracer
+          # DEV: Insert @skipUnless before the test definition
+          # DEV: We need to escape the space indenting
+          sed -i'' '/def test_supports_json_field_operational_error/i \ \ \ \ @skipUnless(False, "test not supported by dd-trace-py")' tests/backends/sqlite/test_features.py
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        # Note: test_supports_json_field_operational_error will fail with the tracer
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
 

@@ -673,10 +673,10 @@ def test_to_str_none():
     assert id1 == id2 != id_o
 
 
-def test_ppprof_exporter():
+@mock.patch("ddtrace.utils.config.get_application_name")
+def test_ppprof_exporter(gan):
+    gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
-    exp._get_program_name = mock.Mock()
-    exp._get_program_name.return_value = "bonjour"
     exports = exp.export(TEST_EVENTS, 1, 7)
     if six.PY2:
         filename = "test-pprof-exporter-py2.txt"
