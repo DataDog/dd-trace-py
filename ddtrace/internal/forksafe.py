@@ -24,19 +24,15 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def register(
-    after_in_child,  # type: typing.Callable
-):
-    # type: (...) -> typing.Callable
+def register(after_in_child):
+    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
     """Register a function to be called after fork in the child process."""
     _registry.append(after_in_child)
     return after_in_child
 
 
-def unregister(
-    after_in_child,  # type: typing.Callable
-):
-    # type: (...) -> None
+def unregister(after_in_child):
+    # type: (typing.Callable[[], None]) -> None
     """Unregister a function to be called after fork in the child process.
 
     Raises `ValueError` if the function was not registered.
