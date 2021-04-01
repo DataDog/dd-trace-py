@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.profiling import _attr
+from ddtrace.utils import attr as attr_utils
 from ddtrace.vendor import attr
 
 
@@ -71,5 +71,5 @@ def _create_capture_sampler(collector):
 
 @attr.s
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
+    capture_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
     _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)

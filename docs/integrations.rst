@@ -347,6 +347,13 @@ Tornado
 .. automodule:: ddtrace.contrib.tornado
 
 
+.. _urllib3:
+
+urllib3
+^^^^^^^
+.. automodule:: ddtrace.contrib.urllib3
+
+
 .. _vertica:
 
 Vertica

@@ -44,15 +44,11 @@ exclude = '''
       aiopg
       | boto
       | cassandra
-      | dbapi
       | jinja2
       | psycopg
       | pylibmc
       | pymemcache
-      | pymongo
       | rediscluster
-      | sqlalchemy
-      | util.py
     )
     | profiling/exporter/pprof_pb2.py$
     | vendor/
@@ -64,14 +60,11 @@ exclude = '''
       aiopg
       | cassandra
       | config.py
-      | dbapi
       | jinja2
       | psycopg
       | pylibmc
       | pymemcache
-      | pymongo
       | rediscluster
-      | sqlalchemy
     )
   )
 )
