@@ -6,14 +6,6 @@ from typing import Optional
 from ..vendor import debtcollector
 
 
-# https://stackoverflow.com/a/26853961
-def merge_dicts(x, y):
-    """Returns a copy of y merged into x."""
-    z = x.copy()  # start with x's keys and values
-    z.update(y)  # modifies z with y's keys and values & returns None
-    return z
-
-
 # Based on: https://stackoverflow.com/a/7864317
 class removed_classproperty(property):
     def __get__(self, cls, owner):
