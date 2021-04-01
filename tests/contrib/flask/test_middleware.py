@@ -9,11 +9,11 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from tests import TracerTestCase
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
 
-from ... import DummyTracer
-from ... import assert_span_http_status_code
 from .web import create_app
 
 

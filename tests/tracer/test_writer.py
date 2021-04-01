@@ -12,6 +12,7 @@ from ddtrace.compat import PY3
 from ddtrace.compat import get_connection_response
 from ddtrace.compat import httplib
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
+from ddtrace.internal import service
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -20,8 +21,8 @@ from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import socketserver
-from tests import AnyInt
-from tests import BaseTestCase
+from tests.utils import AnyInt
+from tests.utils import BaseTestCase
 
 
 class DummyOutput:
@@ -130,6 +131,21 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
+                mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
+
+    def test_write_sync(self):
+        statsd = mock.Mock()
+        writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=True, sync_mode=True)
+        writer.write([Span(tracer=None, name="name", trace_id=1, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+        statsd.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 5, tags=[]),
                 mock.call("datadog.tracer.http.requests", 1, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
@@ -300,6 +316,10 @@ class LogWriterTests(BaseTestCase):
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)]
             )
         return writer
+
+    def test_log_writer(self):
+        self.create_writer()
+        self.assertEqual(len(self.output.entries), self.N_TRACES)
 
 
 def test_humansize():
@@ -474,10 +494,8 @@ def test_double_stop():
     # Ensure double stopping doesn't result in an exception.
     writer = AgentWriter(agent_url="http://dne:1234")
     writer.write([])
-    assert writer.started
+    assert writer.status == service.ServiceStatus.RUNNING
     writer.stop()
-    assert writer.started
-    assert not writer.is_alive()
+    assert writer.status == service.ServiceStatus.STOPPED
     writer.stop()
-    assert writer.started
-    assert not writer.is_alive()
+    assert writer.status == service.ServiceStatus.STOPPED

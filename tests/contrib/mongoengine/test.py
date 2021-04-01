@@ -9,10 +9,10 @@ from ddtrace.contrib.mongoengine.patch import patch
 from ddtrace.contrib.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
-from ... import DummyTracer
-from ... import TracerTestCase
-from ... import assert_is_measured
 from ..config import MONGO_CONFIG
 
 

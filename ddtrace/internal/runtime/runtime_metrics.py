@@ -3,9 +3,9 @@ import os
 from typing import Optional
 
 import ddtrace
+from ddtrace.vendor import attr
 
-from .. import agent
-from ... import _worker
+from .. import periodic
 from ...utils.formats import get_env
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
@@ -53,29 +53,26 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-class RuntimeWorker(_worker.PeriodicWorkerThread):
+@attr.s
+class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    FLUSH_INTERVAL = 10
-    _instance = None
+    dogstatsd_url = attr.ib(type=str)
+    _interval = attr.ib(type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10)))
+    _dogstatsd_client = attr.ib(init=False, repr=False)
+    _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
+    _tracer = attr.ib(type=Optional[ddtrace.Tracer], default=None, repr=False)
+    _services = attr.ib(type=dict, init=False)
+    _instance = attr.ib(type=RuntimeMetrics, init=False, repr=False)
 
-    def __init__(self, tracer=None, dogstatsd_url=None, flush_interval=None):
-        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
-        super(RuntimeWorker, self).__init__(
-            interval=flush_interval or float(get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)),
-            name=self.__class__.__name__,
-        )
-        self.tracer = tracer or ddtrace.tracer
-        self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url or agent.get_stats_url())
-
-        # Initialize collector
-        self._runtime_metrics = RuntimeMetrics()
+    def __attrs_post_init__(self):
+        # type: () -> None
+        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url)
+        self._tracer = self._tracer or ddtrace.tracer
+        self._tracer.on_start_span(self._set_language_on_span)
         self._services = {}
-
-        # Register span hook
-        self.tracer.on_start_span(self._set_language_on_span)
 
     def _set_language_on_span(self, span):
         # add tags to root span to correlate trace with runtime metrics
@@ -114,6 +111,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         RuntimeWorker._instance = runtime_worker
 
     def flush(self):
+        # type: () -> None
         # The constant tags for the dogstatsd client needs to updated with any new
         # service(s) that may have been added.
         if self._services != self.tracer._services:
@@ -131,16 +129,11 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         super(RuntimeWorker, self).stop()
 
     def update_runtime_tags(self):
+        # type: () -> None
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         tags = ["{}:{}".format(k, v) for k, v in RuntimeTags()]
         log.debug("Updating constant tags %s", tags)
         self._dogstatsd_client.constant_tags = tags
 
-    run_periodic = flush
+    periodic = flush
     on_shutdown = flush
-
-    def __repr__(self):
-        return "{}(runtime_metrics={})".format(
-            self.__class__.__name__,
-            self._runtime_metrics,
-        )

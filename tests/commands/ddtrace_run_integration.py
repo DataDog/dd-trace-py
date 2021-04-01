@@ -6,8 +6,8 @@ that we expect to be implicitly traced via `ddtrace-run`
 import redis
 
 from ddtrace import Pin
-from tests import DummyWriter
 from tests.contrib.config import REDIS_CONFIG
+from tests.utils import DummyWriter
 
 
 if __name__ == "__main__":

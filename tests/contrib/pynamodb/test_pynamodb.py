@@ -7,9 +7,8 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.pynamodb.patch import patch
 from ddtrace.contrib.pynamodb.patch import unpatch
-
-from ... import TracerTestCase
-from ... import assert_is_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
 class PynamodbTest(TracerTestCase):

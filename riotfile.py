@@ -1,4 +1,6 @@
-from riot import Venv, latest
+from riot import Venv
+from riot import latest
+
 
 SUPPORTED_PYTHON_VERSIONS = [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
 
@@ -9,7 +11,14 @@ def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPO
 
 
 venv = Venv(
-    pkgs={"mock": latest, "pytest": latest, "coverage": latest, "pytest-cov": latest, "opentracing": latest},
+    pkgs={
+        "mock": latest,
+        "pytest": latest,
+        "coverage": latest,
+        "pytest-cov": latest,
+        "opentracing": latest,
+        "hypothesis": latest,
+    },
     venvs=[
         Venv(
             pys="3",
@@ -63,6 +72,25 @@ venv = Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+        ),
+        Venv(
+            name="ddtracerun",
+            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
+            pys=select_pys(),
+            pkgs={
+                "redis": latest,
+                "gevent": latest,
+            },
+        ),
+        Venv(
+            name="vendor",
+            command="pytest {cmdargs} tests/vendor/",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="test_logging",
+            command="pytest {cmdargs} tests/contrib/logging",
+            pys=select_pys(),
         ),
         Venv(
             name="cherrypy",
@@ -249,7 +277,7 @@ venv = Venv(
         ),
         Venv(
             name="elasticsearch",
-            command="pytest {cmdargs} tests/contrib/elasticsearch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             venvs=[
                 Venv(
                     pys=select_pys(max_version=3.8),
@@ -290,6 +318,22 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
+            ],
+        ),
+        Venv(
+            name="elasticsearch-multi",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "elasticsearch": ["~=1.6.0"],
+                        "elasticsearch2": [latest],
+                        "elasticsearch5": [latest],
+                        "elasticsearch6": [latest],
+                        "elasticsearch7": [latest],
+                    },
+                ),
             ],
         ),
         Venv(
@@ -387,6 +431,12 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="mako",
+            command="pytest {cmdargs} tests/contrib/mako",
+            pys=select_pys(),
+            pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
@@ -433,7 +483,8 @@ venv = Venv(
                         "pytest-asyncio": latest,
                         "requests": latest,
                         "aiofiles": latest,
-                        "sqlalchemy": latest,
+                        # Pinned until https://github.com/encode/databases/issues/298 is resolved.
+                        "sqlalchemy": "~=1.3.0",
                         "aiosqlite": latest,
                         "databases": latest,
                     },
@@ -589,6 +640,12 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="urllib3",
+            pys=SUPPORTED_PYTHON_VERSIONS,
+            pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
+            command="pytest {cmdargs} tests/contrib/urllib3",
         ),
     ],
 )

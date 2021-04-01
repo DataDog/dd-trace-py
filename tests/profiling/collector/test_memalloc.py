@@ -11,10 +11,12 @@ try:
 except ImportError:
     pytestmark = pytest.mark.skip("_memalloc not available")
 
-from ddtrace.profiling import _nogevent
-from ddtrace.profiling import _periodic
+from ddtrace.internal import nogevent
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import memalloc
+
+
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 
 def test_start_twice():
@@ -50,7 +52,7 @@ def test_start_stop():
 
 
 # This is used by tests and must be equal to the line number where object() is called in _allocate_1k 😉
-_ALLOC_LINE_NUMBER = 57
+_ALLOC_LINE_NUMBER = 59
 
 
 def _allocate_1k():
@@ -78,7 +80,7 @@ def test_iter_events():
         last_call = stack[0]
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
-            assert thread_id == _nogevent.main_thread_id
+            assert thread_id == nogevent.main_thread_id
             assert last_call[0] == __file__
             assert stack[1][0] == __file__
             assert stack[1][1] == _ALLOC_LINE_NUMBER
@@ -128,7 +130,7 @@ def test_iter_events_multi_thread():
         assert size >= 1  # size depends on the object size
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
             assert last_call[0] == __file__
-            if thread_id == _nogevent.main_thread_id:
+            if thread_id == nogevent.main_thread_id:
                 count_object += 1
                 assert stack[1][0] == __file__
                 assert stack[1][1] == _ALLOC_LINE_NUMBER
@@ -159,16 +161,17 @@ def test_memory_collector():
         last_call = event.frames[0]
         assert event.size > 0
         if last_call[2] == "<listcomp>" and last_call[1] == _ALLOC_LINE_NUMBER:
-            assert event.thread_id == _nogevent.main_thread_id
+            assert event.thread_id == nogevent.main_thread_id
             assert event.thread_name == "MainThread"
             count_object += 1
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 150
+            assert event.frames[2][1] == 152
             assert event.frames[2][2] == "test_memory_collector"
 
     assert count_object > 0
 
 
+@pytest.mark.skipif(TESTING_GEVENT, reason="Test not compatible with gevent")
 @pytest.mark.parametrize(
     "ignore_profiler",
     (True, False),
@@ -177,18 +180,18 @@ def test_memory_collector_ignore_profiler(ignore_profiler):
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r, ignore_profiler=ignore_profiler)
     with mc:
+        thread_id = mc._worker.ident
         object()
         # Make sure we collect at least once
         mc.periodic()
 
     ok = False
     for event in r.events[memalloc.MemoryAllocSampleEvent]:
-        for frame in event.frames:
-            if ignore_profiler:
-                assert frame[0] != _periodic.__file__
-            elif frame[0] == _periodic.__file__:
-                ok = True
-                break
+        if ignore_profiler:
+            assert event.thread_id != thread_id
+        elif event.thread_id == thread_id:
+            ok = True
+            break
 
     if not ignore_profiler:
         assert ok
@@ -203,7 +206,7 @@ def test_heap():
     for (stack, nframe, thread_id), size in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         assert size > 0
-        if thread_id == _nogevent.main_thread_id:
+        if thread_id == nogevent.main_thread_id:
             thread_found = True
         assert isinstance(thread_id, int)
         if (

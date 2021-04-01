@@ -1,11 +1,12 @@
+from typing import Dict
+from typing import Optional
+
 from ddtrace.compat import parse
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 
 def parse_dogstatsd_url(url):
-    if url is None:
-        return
-
+    # type: (str) -> Dict[str, str]
     # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
     # also support without url scheme included
     if url.startswith("/"):
@@ -24,6 +25,7 @@ def parse_dogstatsd_url(url):
 
 
 def get_dogstatsd_client(dogstatsd_url):
+    # type: (str) -> Optional[DogStatsd]
     if not dogstatsd_url:
         return
 

@@ -10,7 +10,6 @@ from ...compat import urlencode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...utils.importlib import func_name
@@ -79,13 +78,10 @@ def patch_app_call(wrapped, instance, args, kwargs):
     request = molten.http.Request.from_environ(environ)
     resource = func_name(wrapped)
 
-    # Configure distributed tracing
-    if config.molten.get("distributed_tracing", True):
-        # request.headers is type Iterable[Tuple[str, str]]
-        context = HTTPPropagator.extract(dict(request.headers))
-        # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+    # request.headers is type Iterable[Tuple[str, str]]
+    trace_utils.activate_distributed_headers(
+        pin.tracer, int_config=config.molten, request_headers=dict(request.headers)
+    )
 
     with pin.tracer.trace(
         "molten.request",

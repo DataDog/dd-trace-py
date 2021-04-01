@@ -3,24 +3,20 @@ An API to provide after_in_child fork hooks across all Pythons.
 """
 import logging
 import os
-
-
-__all__ = [
-    "ddtrace_after_in_child",
-    "register",
-]
+import typing
 
 
 log = logging.getLogger(__name__)
 
 
-registry = []
+_registry = []
 
 
 def ddtrace_after_in_child():
-    global registry
+    # type: () -> None
+    global _registry
 
-    for hook in registry:
+    for hook in _registry:
         try:
             hook()
         except Exception:
@@ -28,14 +24,24 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def _register(hook):
-    if hook not in registry:
-        registry.append(hook)
+def register(
+    after_in_child,  # type: typing.Callable
+):
+    # type: (...) -> typing.Callable
+    """Register a function to be called after fork in the child process."""
+    _registry.append(after_in_child)
+    return after_in_child
 
 
-def register(after_in_child):
-    _register(after_in_child)
-    return lambda f: f
+def unregister(
+    after_in_child,  # type: typing.Callable
+):
+    # type: (...) -> None
+    """Unregister a function to be called after fork in the child process.
+
+    Raises `ValueError` if the function was not registered.
+    """
+    _registry.remove(after_in_child)
 
 
 if hasattr(os, "register_at_fork"):
@@ -46,6 +52,7 @@ else:
     _threading_after_fork = threading._after_fork
 
     def _after_fork():
+        # type: () -> None
         _threading_after_fork()
         ddtrace_after_in_child()
 

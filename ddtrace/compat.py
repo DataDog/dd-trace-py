@@ -4,8 +4,16 @@ import re
 import sys
 import textwrap
 import threading
+from typing import Any
+from typing import AnyStr
+from typing import TYPE_CHECKING
+from typing import Text
 
 from ddtrace.vendor import six
+
+
+if TYPE_CHECKING:
+    from .internal.writer import Response
 
 
 __all__ = [
@@ -29,18 +37,19 @@ PYTHON_VERSION = platform.python_version()
 PYTHON_INTERPRETER = platform.python_implementation()
 
 try:
-    StringIO = six.moves.cStringIO
+    StringIO = six.moves.cStringIO  # type: ignore[attr-defined]
 except ImportError:
     StringIO = six.StringIO
 
-httplib = six.moves.http_client
-urlencode = six.moves.urllib.parse.urlencode
-parse = six.moves.urllib.parse
-Queue = six.moves.queue.Queue
+httplib = six.moves.http_client  # type: ignore[attr-defined]
+urlencode = six.moves.urllib.parse.urlencode  # type: ignore[attr-defined]
+parse = six.moves.urllib.parse  # type: ignore[attr-defined]
+Queue = six.moves.queue.Queue  # type: ignore[attr-defined]
 iteritems = six.iteritems
 reraise = six.reraise
-reload_module = six.moves.reload_module
+reload_module = six.moves.reload_module  # type: ignore[attr-defined]
 
+ensure_text = six.ensure_text
 stringify = six.text_type
 string_type = six.string_types[0]
 binary_type = six.binary_type
@@ -52,10 +61,11 @@ numeric_types = six.integer_types + (float,)
 if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
-    pattern_type = re._pattern_type
+    pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
 
 def is_integer(obj):
+    # type: (Any) -> bool
     """Helper to determine if the provided ``obj`` is an integer type or not"""
     # DEV: We have to make sure it is an integer and not a boolean
     # >>> type(True)
@@ -71,6 +81,7 @@ except ImportError:
     from time import time as _time
 
     def time_ns():
+        # type: () -> int
         return int(_time() * 10e5) * 1000
 
 
@@ -85,15 +96,17 @@ try:
 except ImportError:
 
     def monotonic_ns():
+        # type: () -> int
         return int(monotonic() * 1e9)
 
 
 try:
     from time import process_time_ns
 except ImportError:
-    from time import clock as _process_time
+    from time import clock as _process_time  # type: ignore[attr-defined]
 
     def process_time_ns():
+        # type: () -> int
         return int(_process_time() * 1e9)
 
 
@@ -104,10 +117,10 @@ else:
 
 
 if sys.version_info.major < 3:
-    if isinstance(threading.current_thread(), threading._MainThread):
+    if isinstance(threading.current_thread(), threading._MainThread):  # type: ignore[attr-defined]
         main_thread = threading.current_thread()
     else:
-        main_thread = threading._shutdown.im_self
+        main_thread = threading._shutdown.im_self  # type: ignore[attr-defined]
 else:
     main_thread = threading.main_thread()
 
@@ -152,7 +165,7 @@ else:
     # asyncio is missing so we can't have coroutines; these
     # functions are used only to ensure code executions in case
     # of an unexpected behavior
-    def iscoroutinefunction(fn):
+    def iscoroutinefunction(fn):  # type: ignore
         return False
 
     def make_async_decorator(tracer, fn, *params, **kw_params):
@@ -161,6 +174,7 @@ else:
 
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
 def to_unicode(s):
+    # type: (AnyStr) -> Text
     """ Return a unicode string for the given bytes or string instance. """
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
@@ -179,7 +193,10 @@ def to_unicode(s):
     return six.text_type(s)
 
 
-def get_connection_response(conn):
+def get_connection_response(
+    conn,  # type: httplib.HTTPConnection  # type: ignore
+):
+    # type: (...) -> Response
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.
@@ -200,7 +217,7 @@ def get_connection_response(conn):
 try:
     import contextvars  # noqa
 except ImportError:
-    from ddtrace.vendor import contextvars  # noqa
+    from ddtrace.vendor import contextvars  # type: ignore  # noqa
 
     CONTEXTVARS_IS_AVAILABLE = False
 else:

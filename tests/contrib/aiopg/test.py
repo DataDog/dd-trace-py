@@ -16,8 +16,8 @@ from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_is_measured
 
-from ... import assert_is_measured
 from ...subprocesstest import run_in_subprocess
 
 

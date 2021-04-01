@@ -1,4 +1,6 @@
-import os.path
+# -*- encoding: utf-8 -*-
+import threading
+import typing
 
 
 try:
@@ -6,15 +8,12 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
-from ddtrace.profiling import _attr
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
+from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
 from ddtrace.vendor import attr
-
-
-_MODULE_TOP_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 @event.event_class
@@ -54,18 +53,20 @@ class MemoryCollector(collector.PeriodicCollector):
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
-    _max_events = attr.ib(factory=_attr.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
-    max_nframe = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    heap_sample_size = attr.ib(factory=_attr.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int))
-    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
+    _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
+    max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    heap_sample_size = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int)
+    )
+    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
-    def start(self):
+    def _start(self):
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
         _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
-        super(MemoryCollector, self).start()
+        super(MemoryCollector, self)._start()
 
     def stop(self):
         if _memalloc is not None:
@@ -75,7 +76,18 @@ class MemoryCollector(collector.PeriodicCollector):
                 pass
             super(MemoryCollector, self).stop()
 
+    def _get_thread_id_ignore_set(self):
+        # type: () -> typing.Set[int]
+        # This method is not perfect and prone to race condition in theory, but very little in practice.
+        # Anyhow it's not a big deal — it's a best effort feature.
+        return {
+            thread.ident
+            for thread in threading.enumerate()
+            if getattr(thread, "_ddtrace_profiling_ignore", False) and thread.ident is not None
+        }
+
     def snapshot(self):
+        thread_id_ignore_set = self._get_thread_id_ignore_set()
         return (
             tuple(
                 MemoryHeapSampleEvent(
@@ -88,14 +100,14 @@ class MemoryCollector(collector.PeriodicCollector):
                     sample_size=self.heap_sample_size,
                 )
                 for (stack, nframes, thread_id), size in _memalloc.heap()
-                # TODO: this should probably be implemented in _memalloc directly for speed
-                if not self.ignore_profiler or not any(frame[0].startswith(_MODULE_TOP_DIR) for frame in stack)
+                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
             ),
         )
 
     def collect(self):
         events, count, alloc_count = _memalloc.iter_events()
         capture_pct = 100 * count / alloc_count
+        thread_id_ignore_set = self._get_thread_id_ignore_set()
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
         # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
         # timestamp in C and then return it via iter_events.
@@ -112,8 +124,6 @@ class MemoryCollector(collector.PeriodicCollector):
                     nevents=alloc_count,
                 )
                 for (stack, nframes, thread_id), size in events
-                # TODO: this should be implemented in _memalloc directly so we have more space for samples
-                # not coming from the profiler
-                if not self.ignore_profiler or not any(frame[0].startswith(_MODULE_TOP_DIR) for frame in stack)
+                if not self.ignore_profiler or thread_id not in thread_id_ignore_set
             ),
         )

@@ -11,8 +11,8 @@ import warnings
 
 import ddtrace
 from ddtrace.internal import agent
+from ddtrace.internal import service
 from ddtrace.internal import uwsgi
-from ddtrace.profiling import _service
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
@@ -173,7 +173,7 @@ def _get_default_url(
 
 
 @attr.s
-class _ProfilerInstance(_service.Service):
+class _ProfilerInstance(service.Service):
     """A instance of the profiler.
 
     Each process must manage its own instance.
@@ -276,9 +276,9 @@ class _ProfilerInstance(_service.Service):
             service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
         )
 
-    def start(self):
+    def _start(self):
+        # type: () -> None
         """Start the profiler."""
-        super(_ProfilerInstance, self).start()
         collectors = []
         for col in self._collectors:
             try:
@@ -299,7 +299,7 @@ class _ProfilerInstance(_service.Service):
 
         :param flush: Flush a last profile.
         """
-        if self.status != _service.ServiceStatus.RUNNING:
+        if self.status != service.ServiceStatus.RUNNING:
             return
 
         if self._scheduler:

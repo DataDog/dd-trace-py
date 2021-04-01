@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace import config as ddconfig
+import ddtrace
 
 from ...constants import SPAN_KIND
 from ...ext import SpanTypes
@@ -28,6 +28,9 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
+PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+
+
 def pytest_addoption(parser):
     """Add ddtrace options."""
     group = parser.getgroup("ddtrace")
@@ -40,14 +43,23 @@ def pytest_addoption(parser):
         help=HELP_MSG,
     )
 
+    group._addoption(
+        "--ddtrace-patch-all",
+        action="store_true",
+        dest="ddtrace-patch-all",
+        default=False,
+        help=PATCH_ALL_HELP_MSG,
+    )
+
     parser.addini("ddtrace", HELP_MSG, type="bool")
+    parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
 
     if is_enabled(config):
-        Pin(tags=ci.tags(), _config=ddconfig.pytest).onto(config)
+        Pin(tags=ci.tags(), _config=ddtrace.config.pytest).onto(config)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -64,6 +76,12 @@ def ddspan(request):
         return _extract_span(request.node)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def patch_all(request):
+    if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
+        ddtrace.patch_all()
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
     pin = Pin.get_from(item.config)
@@ -72,8 +90,8 @@ def pytest_runtest_protocol(item, nextitem):
         return
 
     with pin.tracer.trace(
-        ddconfig.pytest.operation_name,
-        service=int_service(pin, ddconfig.pytest),
+        ddtrace.config.pytest.operation_name,
+        service=int_service(pin, ddtrace.config.pytest),
         resource=item.nodeid,
         span_type=SpanTypes.TEST.value,
     ) as span:

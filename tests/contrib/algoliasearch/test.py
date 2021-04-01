@@ -4,9 +4,8 @@ from ddtrace.contrib.algoliasearch.patch import algoliasearch_version
 from ddtrace.contrib.algoliasearch.patch import patch
 from ddtrace.contrib.algoliasearch.patch import unpatch
 from ddtrace.pin import Pin
-
-from ... import TracerTestCase
-from ... import assert_is_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
 class AlgoliasearchTest(TracerTestCase):

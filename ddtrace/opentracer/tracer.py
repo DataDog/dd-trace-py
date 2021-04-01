@@ -6,7 +6,6 @@ import ddtrace
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
-from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
 
 from ..internal.logger import get_logger
@@ -58,9 +57,9 @@ class Tracer(opentracing.Tracer):
             to the global ``ddtrace.tracer`` tracer.
         """
         # Merge the given config with the default into a new dict
-        config = config or {}
-        self._config = merge_dicts(DEFAULT_CONFIG, config)
-
+        self._config = DEFAULT_CONFIG.copy()
+        if config is not None:
+            self._config.update(config)
         # Pull out commonly used properties for performance
         self._service_name = service_name or get_application_name()
         self._enabled = self._config.get(keys.ENABLED)

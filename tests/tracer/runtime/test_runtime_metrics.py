@@ -14,9 +14,9 @@ from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-from tests import BaseTestCase
-from tests import TracerTestCase
-from tests import call_program
+from tests.utils import BaseTestCase
+from tests.utils import TracerTestCase
+from tests.utils import call_program
 
 
 @contextlib.contextmanager

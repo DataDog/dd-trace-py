@@ -1,3 +1,11 @@
+from hypothesis import given
+from hypothesis.strategies import booleans
+from hypothesis.strategies import dictionaries
+from hypothesis.strategies import floats
+from hypothesis.strategies import lists
+from hypothesis.strategies import none
+from hypothesis.strategies import recursive
+from hypothesis.strategies import text
 import mock
 import pytest
 
@@ -10,7 +18,7 @@ from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
-from tests import override_global_config
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -157,6 +165,26 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
+@mock.patch("ddtrace.contrib.trace_utils.log")
+@pytest.mark.parametrize(
+    "val, bad",
+    [
+        ("asdf", True),
+        (object(), True),
+        ("234", False),
+        ("100.0", True),
+        ("-123", False),
+    ],
+)
+def test_bad_http_code(mock_log, span, int_config, val, bad):
+    trace_utils.set_http_meta(span, int_config, status_code=val)
+    if bad:
+        assert http.STATUS_CODE not in span.meta
+        mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
+    else:
+        assert span.meta[http.STATUS_CODE] == str(val)
+
+
 def test_activate_distributed_headers_enabled(int_config):
     tracer = Tracer()
     int_config.myint["distributed_tracing_enabled"] = True
@@ -164,9 +192,15 @@ def test_activate_distributed_headers_enabled(int_config):
         HTTP_HEADER_PARENT_ID: "12345",
         HTTP_HEADER_TRACE_ID: "678910",
     }
-    trace_utils.activate_distributed_headers(tracer, int_config.myint, headers)
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
     context = tracer.context_provider.active()
+    assert context.trace_id == 678910
+    assert context.span_id == 12345
 
+    trace_utils.activate_distributed_headers(
+        tracer, int_config=int_config.myint, request_headers=headers, override=True
+    )
+    context = tracer.context_provider.active()
     assert context.trace_id == 678910
     assert context.span_id == 12345
 
@@ -178,9 +212,15 @@ def test_activate_distributed_headers_disabled(int_config):
         HTTP_HEADER_PARENT_ID: "12345",
         HTTP_HEADER_TRACE_ID: "678910",
     }
-    trace_utils.activate_distributed_headers(tracer, int_config.myint, headers)
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
     context = tracer.context_provider.active()
+    assert context.trace_id is None
+    assert context.span_id is None
 
+    trace_utils.activate_distributed_headers(
+        tracer, int_config=int_config.myint, request_headers=headers, override=False
+    )
+    context = tracer.context_provider.active()
     assert context.trace_id is None
     assert context.span_id is None
 
@@ -189,8 +229,91 @@ def test_activate_distributed_headers_no_headers(int_config):
     tracer = Tracer()
     int_config.myint["distributed_tracing_enabled"] = True
 
-    trace_utils.activate_distributed_headers(tracer, int_config.myint, request_headers=None)
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None)
     context = tracer.context_provider.active()
-
     assert context.trace_id is None
     assert context.span_id is None
+
+
+def test_activate_distributed_headers_override_true(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = False
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+    trace_utils.activate_distributed_headers(
+        tracer, int_config=int_config.myint, request_headers=headers, override=True
+    )
+    context = tracer.context_provider.active()
+    assert context.trace_id == 678910
+    assert context.span_id == 12345
+
+
+def test_activate_distributed_headers_override_false(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+    trace_utils.activate_distributed_headers(
+        tracer, int_config=int_config.myint, request_headers=headers, override=False
+    )
+    context = tracer.context_provider.active()
+    assert context.trace_id is None
+    assert context.span_id is None
+
+
+def test_sanitized_url_in_http_meta(span, int_config):
+    FULL_URL = "http://example.com/search?q=test+query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=FULL_URL,
+        status_code=200,
+    )
+    assert span.meta[http.URL] == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=FULL_URL,
+        status_code=200,
+    )
+    assert span.meta[http.URL] == FULL_URL
+
+
+nested_dicts = recursive(
+    none() | booleans() | floats() | text(),
+    lambda children: lists(children, min_size=1) | dictionaries(text(), children, min_size=1),
+    max_leaves=10,
+)
+
+
+@given(nested_dicts)
+def test_flatten_dict_is_flat(d):
+    """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
+    f = trace_utils.flatten_dict(d)
+    assert isinstance(f, dict)
+    assert not any(isinstance(v, dict) for v in f.values())
+
+
+def test_flatten_dict_keys():
+    """Ensure expected keys in flattened dictionary"""
+    d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
+    e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
+    assert trace_utils.flatten_dict(d, sep="_") == e
+
+
+def test_flatten_dict_exclude():
+    """Ensure expected keys in flattened dictionary with exclusion set"""
+    d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
+    e = dict(A=1, B=2, C_B=4)
+    assert trace_utils.flatten_dict(d, sep="_", exclude={"C_A", "C_C"}) == e
