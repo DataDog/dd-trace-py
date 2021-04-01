@@ -109,8 +109,9 @@ class TraceMiddleware(object):
     def _start_span(self):
         trace_utils.activate_distributed_headers(
             self.app._tracer,
+            int_config=config.flask,
             request_headers=request.headers,
-            override_distributed_tracing=self.app._use_distributed_tracing,
+            override=self.app._use_distributed_tracing,
         )
 
         try:

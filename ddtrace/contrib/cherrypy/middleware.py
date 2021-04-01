@@ -36,6 +36,7 @@ SPAN_NAME = "cherrypy.request"
 
 class TraceTool(cherrypy.Tool):
     def __init__(self, app, tracer, service, use_distributed_tracing):
+        # FIXME: use_distributed_tracing default to None, only get/set value from int_config if not None
         self.app = app
         self._tracer = tracer
         self.service = service
@@ -70,7 +71,8 @@ class TraceTool(cherrypy.Tool):
         trace_utils.activate_distributed_headers(
             self._tracer,
             int_config=config.cherrypy,
-            request_headers=cherrypy.request.headers
+            request_headers=cherrypy.request.headers,
+            override=self.use_distributed_tracing
         )
 
         cherrypy.request._datadog_span = self._tracer.trace(
@@ -140,6 +142,7 @@ class TraceTool(cherrypy.Tool):
 
 class TraceMiddleware(object):
     def __init__(self, app, tracer, service="cherrypy", distributed_tracing=True):
+        # FIXME: set distributed_tracing default to None, only set value in int_config if not None
         self.app = app
 
         self.app.tools.tracer = TraceTool(app, tracer, service, distributed_tracing)

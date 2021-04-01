@@ -12,6 +12,7 @@ from ...constants import SPAN_MEASURED_KEY
 
 class TraceMiddleware(object):
     def __init__(self, tracer, service="falcon", distributed_tracing=True):
+        # FIXME: distributed_tracing defaults to None, set/get int_config value if not None
         # store tracing references
         self.tracer = tracer
         self.service = service
@@ -21,7 +22,10 @@ class TraceMiddleware(object):
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
         trace_utils.activate_distributed_headers(
-            self.tracer, request_headers=headers, override_distributed_tracing=self._distributed_tracing
+            self.tracer,
+            int_config=config.falcon,
+            request_headers=headers,
+            override=self._distributed_tracing
         )
 
         span = self.tracer.trace(

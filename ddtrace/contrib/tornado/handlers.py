@@ -31,7 +31,7 @@ def execute(func, handler, args, kwargs):
 
         # Read and use propagated context from HTTP headers
         trace_utils.activate_distributed_headers(
-            tracer, request_headers=handler.request.headers, override_distributed_tracing=distributed_tracing
+            tracer, int_config=config.tornado, request_headers=handler.request.headers, override=distributed_tracing
         )
 
         # store the request span in the request so that it can be used later

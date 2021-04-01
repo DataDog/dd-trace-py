@@ -65,7 +65,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             trace_utils.activate_distributed_headers(
-                tracer, request_headers=request.headers, override_distributed_tracing=distributed_tracing
+                tracer, int_config=config.pyramid, request_headers=request.headers, override=distributed_tracing
             )
             with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
                 span.set_tag(SPAN_MEASURED_KEY)

@@ -30,7 +30,10 @@ class TracePlugin(object):
 
             # Propagate headers such as x-datadog-trace-id.
             trace_utils.activate_distributed_headers(
-                self.tracer, request_headers=request.headers, override_distributed_tracing=self.distributed_tracing
+                self.tracer,
+                int_config=config.bottle,
+                request_headers=request.headers,
+                override=self.distributed_tracing
             )
 
             with self.tracer.trace(

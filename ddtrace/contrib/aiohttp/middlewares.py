@@ -37,8 +37,9 @@ def trace_middleware(app, handler):
         # Create a new context based on the propagated information.
         trace_utils.activate_distributed_headers(
             tracer,
+            int_config=config.aiohttp,
             request_headers=request.headers,
-            override_distributed_tracing=app[CONFIG_KEY]["distributed_tracing_enabled"],
+            override=app[CONFIG_KEY]["distributed_tracing_enabled"],
         )
 
         # trace the handler

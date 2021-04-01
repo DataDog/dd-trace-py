@@ -35,7 +35,10 @@ class PylonsTraceMiddleware(object):
     def __call__(self, environ, start_response):
         request = Request(environ)
         trace_utils.activate_distributed_headers(
-            self._tracer, request_headers=request.headers, override_distributed_tracing=self._distributed_tracing
+            self._tracer,
+            int_config=ddconfig.pylons,
+            request_headers=request.headers,
+            override=self._distributed_tracing
         )
 
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
