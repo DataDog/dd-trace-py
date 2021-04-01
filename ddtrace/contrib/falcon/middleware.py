@@ -22,10 +22,7 @@ class TraceMiddleware(object):
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
         trace_utils.activate_distributed_headers(
-            self.tracer,
-            int_config=config.falcon,
-            request_headers=headers,
-            override=self._distributed_tracing
+            self.tracer, int_config=config.falcon, request_headers=headers, override=self._distributed_tracing
         )
 
         span = self.tracer.trace(

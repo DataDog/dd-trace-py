@@ -38,7 +38,7 @@ class PylonsTraceMiddleware(object):
             self._tracer,
             int_config=ddconfig.pylons,
             request_headers=request.headers,
-            override=self._distributed_tracing
+            override=self._distributed_tracing,
         )
 
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:

@@ -72,7 +72,7 @@ class TraceTool(cherrypy.Tool):
             self._tracer,
             int_config=config.cherrypy,
             request_headers=cherrypy.request.headers,
-            override=self.use_distributed_tracing
+            override=self.use_distributed_tracing,
         )
 
         cherrypy.request._datadog_span = self._tracer.trace(

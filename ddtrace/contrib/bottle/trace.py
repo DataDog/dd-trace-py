@@ -33,7 +33,7 @@ class TracePlugin(object):
                 self.tracer,
                 int_config=config.bottle,
                 request_headers=request.headers,
-                override=self.distributed_tracing
+                override=self.distributed_tracing,
             )
 
             with self.tracer.trace(
