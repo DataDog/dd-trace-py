@@ -1,5 +1,6 @@
 from collections import deque
 import threading
+from typing import Deque
 from typing import List
 
 from ddtrace.vendor import attr
@@ -27,7 +28,7 @@ class TraceBuffer(object):
     max_item_size = attr.ib(type=int)
     _size = attr.ib(init=False, type=int, default=0, repr=True)
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
-    _buffer = attr.ib(init=False, factory=deque, repr=False)
+    _buffer = attr.ib(init=False, factory=deque, repr=False, type=Deque[bytes])
 
     def __len__(self):
         return len(self._buffer)
@@ -56,7 +57,7 @@ class TraceBuffer(object):
 
         with self._lock:
             if self._size + item_len <= self.max_size:
-                self._buffer.append(item)  # type: ignore[arg-type]
+                self._buffer.append(item)
                 self._size += item_len
             else:
                 raise BufferFull()
@@ -69,6 +70,6 @@ class TraceBuffer(object):
         """
         with self._lock:
             try:
-                return list(self._buffer)  # type: ignore[arg-type]
+                return list(self._buffer)
             finally:
                 self._clear()
