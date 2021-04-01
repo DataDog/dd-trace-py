@@ -163,7 +163,7 @@ def PeriodicRealThreadClass():
     return PeriodicThread
 
 
-@attr.s
+@attr.s(eq=False)
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 

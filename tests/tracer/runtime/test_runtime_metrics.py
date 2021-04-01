@@ -14,6 +14,7 @@ from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.internal.service import ServiceStatus
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
 from tests.utils import call_program
@@ -23,10 +24,12 @@ from tests.utils import call_program
 def runtime_metrics_service(tracer=None, flush_interval=None):
     RuntimeWorker.enable(tracer=tracer, flush_interval=flush_interval)
     assert RuntimeWorker._instance is not None
+    assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
 
     yield RuntimeWorker._instance
 
     RuntimeWorker._instance.stop()
+    assert RuntimeWorker._instance.status == ServiceStatus.STOPPED
     RuntimeWorker._instance = None
 
 

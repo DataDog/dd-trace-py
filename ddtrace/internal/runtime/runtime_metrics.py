@@ -53,25 +53,25 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-@attr.s
+@attr.s(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    dogstatsd_url = attr.ib(type=str)
     _interval = attr.ib(type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10)))
+    tracer = attr.ib(type=Optional[ddtrace.Tracer], default=None)
+    dogstatsd_url = attr.ib(type=str, default=None)
     _dogstatsd_client = attr.ib(init=False, repr=False)
     _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
-    _tracer = attr.ib(type=Optional[ddtrace.Tracer], default=None, repr=False)
     _services = attr.ib(type=dict, init=False)
-    _instance = attr.ib(type=RuntimeMetrics, init=False, repr=False)
+    _instance = None
 
     def __attrs_post_init__(self):
         # type: () -> None
-        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url)
-        self._tracer = self._tracer or ddtrace.tracer
-        self._tracer.on_start_span(self._set_language_on_span)
+        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
+        self.tracer = self.tracer or ddtrace.tracer
+        self.tracer.on_start_span(self._set_language_on_span)
         self._services = {}
 
     def _set_language_on_span(self, span):
@@ -91,12 +91,12 @@ class RuntimeWorker(periodic.PeriodicService):
         RuntimeWorker._instance = None
 
     @staticmethod
-    def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
-        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
+    def enable(flush_interval=None, tracer=None, dogstatsd_url=None):
+        # type: (Optional[float], Optional[ddtrace.Tracer], Optional[str]) -> None
         if RuntimeWorker._instance is not None:
             return
 
-        runtime_worker = RuntimeWorker(tracer, dogstatsd_url, flush_interval)
+        runtime_worker = RuntimeWorker(flush_interval, tracer=tracer, dogstatsd_url=dogstatsd_url)
         runtime_worker.start()
         # force an immediate update constant tags
         runtime_worker.update_runtime_tags()
