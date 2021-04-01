@@ -13,9 +13,9 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from tests import TracerTestCase
-from tests import assert_span_http_status_code
-from tests import snapshot
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
+from tests.utils import snapshot
 
 from .web import TestApp
 

@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 from ddtrace.vendor import six
-from tests import snapshot
+from tests.utils import snapshot
 
 
 code = """

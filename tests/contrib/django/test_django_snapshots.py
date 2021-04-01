@@ -3,7 +3,7 @@ import os
 import django
 import pytest
 
-from tests import snapshot
+from tests.utils import snapshot
 
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")

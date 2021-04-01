@@ -21,7 +21,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.logger import get_logger
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
@@ -57,8 +56,6 @@ config._add(
         use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
     ),
 )
-
-propagator = HTTPPropagator
 
 
 def patch_conn(django, conn):
@@ -110,7 +107,7 @@ def _set_request_tags(django, span, request):
         # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
         try:
             if hasattr(user, "is_authenticated"):
-                span._set_str_tag("django.user.is_authenticated", user_is_authenticated(user))
+                span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
 
             uid = getattr(user, "pk", None)
             if uid:
@@ -138,7 +135,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
         if args:
             keys = utils.quantize_key_values(args[0])
-            span._set_str_tag("django.cache.key", keys)
+            span._set_str_tag("django.cache.key", str(keys))
 
         return func(*args, **kwargs)
 
@@ -323,7 +320,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     try:
         request_headers = request.META
 
-        trace_utils.activate_distributed_headers(pin.tracer, config.django, request_headers=request_headers)
+        trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request_headers)
 
         # Determine the resolver and resource name for this request
         resolver = get_resolver(getattr(request, "urlconf", None))

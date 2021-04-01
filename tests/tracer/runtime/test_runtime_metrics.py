@@ -9,9 +9,9 @@ from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
-from tests import BaseTestCase
-from tests import TracerTestCase
-from tests import override_env
+from tests.utils import BaseTestCase
+from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class TestRuntimeTags(TracerTestCase):

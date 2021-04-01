@@ -3,6 +3,7 @@ import collections
 import grpc
 
 from ddtrace import config
+from ddtrace.compat import stringify
 from ddtrace.compat import to_unicode
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
@@ -102,7 +103,7 @@ def _handle_error(span, response_error, status_code):
             exc_val = to_unicode(response_error.details())
             span._set_str_tag(errors.ERROR_MSG, exc_val)
             span._set_str_tag(errors.ERROR_TYPE, status_code)
-            span._set_str_tag(errors.ERROR_STACK, traceback)
+            span._set_str_tag(errors.ERROR_STACK, stringify(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)

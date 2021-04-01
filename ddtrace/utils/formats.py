@@ -1,8 +1,12 @@
 import logging
 import os
+import re
 
 from .deprecation import deprecation
 
+
+# Tags `key:value` must be separated by either comma or space
+_TAGS_NOT_SEPARATED = re.compile(r":[^,\s]+:")
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +93,7 @@ def parse_tags_str(tags_str):
 
     The expected string is of the form::
         "key1:value1,key2:value2"
+        "key1:value1 key2:value2"
 
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
@@ -97,7 +102,29 @@ def parse_tags_str(tags_str):
     if not tags_str:
         return parsed_tags
 
-    for tag in tags_str.split(","):
+    if _TAGS_NOT_SEPARATED.search(tags_str):
+        log.error("Malformed tag string with tags not separated by comma or space '%s'.", tags_str)
+        return parsed_tags
+
+    # Identify separator based on which successfully identifies the correct
+    # number of valid tags
+    numtagseps = tags_str.count(":")
+    for sep in [",", " "]:
+        if sum(":" in _ for _ in tags_str.split(sep)) == numtagseps:
+            break
+    else:
+        log.error(
+            (
+                "Failed to find separator for tag string: '%s'.\n"
+                "Tag strings must be comma or space separated:\n"
+                "  key1:value1,key2:value2\n"
+                "  key1:value1 key2:value2"
+            ),
+            tags_str,
+        )
+        return parsed_tags
+
+    for tag in tags_str.split(sep):
         try:
             key, value = tag.split(":", 1)
 
