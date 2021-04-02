@@ -10,9 +10,6 @@ import warnings
 from ddtrace.vendor import debtcollector
 
 
-F = Callable[[Tuple[Any], Dict[str, Any]], Any]
-
-
 class RemovedInDDTrace10Warning(DeprecationWarning):
     pass
 
