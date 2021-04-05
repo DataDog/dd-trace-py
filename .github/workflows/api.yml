@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install mypy doxxie
+        run: pip install mypy doxxie==0.2
       - name: Generate public API
         # || true since this job isn't concerned with mypy failures
         run: mypy --no-incremental || true

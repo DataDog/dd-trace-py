@@ -53,6 +53,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             pkgs={
                 "mypy": latest,
+                "doxxie": "==0.2",
             },
         ),
         Venv(
