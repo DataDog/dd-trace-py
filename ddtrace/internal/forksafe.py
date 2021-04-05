@@ -9,7 +9,7 @@ import typing
 log = logging.getLogger(__name__)
 
 
-_registry = []  # type: typing.List[typing.Callable]
+_registry = []  # type: typing.List[typing.Callable[[], None]]
 
 
 def ddtrace_after_in_child():
