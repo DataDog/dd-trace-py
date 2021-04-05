@@ -426,21 +426,15 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:
-                if self._report_metrics:
+                if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
-                    self.dogstatsd.distribution(  # type: ignore[union-attr]
-                        "datadog.tracer.http.sent.bytes", len(encoded)
-                    )
-                    self.dogstatsd.distribution(  # type: ignore[union-attr]
-                        "datadog.tracer.http.sent.traces", len(enc_traces)
-                    )
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
                     for name, metric in self._metrics.items():
-                        self.dogstatsd.distribution(  # type: ignore[union-attr]
-                            "datadog.tracer.%s" % name, metric["count"], tags=metric["tags"]
-                        )
+                        self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
         finally:
             self._set_drop_rate()
             self._metrics_reset()
