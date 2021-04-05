@@ -272,7 +272,7 @@ def test_agentless(monkeypatch):
     tracer = ddtrace.Tracer()
     info = debug.collect(tracer)
 
-    assert info.get("agent_url", "AGENTLESS")
+    assert info.get("agent_url") == "AGENTLESS"
 
 
 def test_custom_writer():
@@ -294,7 +294,7 @@ def test_custom_writer():
     tracer.writer = CustomWriter()
     info = debug.collect(tracer)
 
-    assert info.get("agent_url", "CUSTOM")
+    assert info.get("agent_url") == "CUSTOM"
 
 
 def test_different_samplers():
