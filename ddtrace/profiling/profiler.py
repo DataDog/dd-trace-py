@@ -205,7 +205,9 @@ class _ProfilerInstance(service.Service):
         # type: (...) -> List[exporter.Exporter]
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
-            return [file.PprofFileExporter(_OUTPUT_PPROF), ]
+            return [
+                file.PprofFileExporter(_OUTPUT_PPROF),
+            ]
 
         api_key = _get_api_key()
 
