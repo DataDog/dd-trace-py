@@ -84,7 +84,7 @@ class Span(object):
         parent_id=None,  # type: Optional[int]
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
-        on_finish=None,  # type: List[Callable[[Span], None]]
+        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
@@ -257,13 +257,13 @@ class Span(object):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value)  # type: ignore[arg-type]
+                value = int(value)
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if val_is_an_int and abs(value) <= 2 ** 53:  # type: ignore[arg-type]
+        if val_is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 
