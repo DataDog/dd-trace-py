@@ -3,6 +3,10 @@ import logging
 import os
 import platform
 import sys
+from typing import Any
+from typing import Dict
+from typing import TYPE_CHECKING
+from typing import Union
 
 import pkg_resources
 
@@ -13,10 +17,15 @@ from ddtrace.internal.writer import LogWriter
 from .logger import get_logger
 
 
+if TYPE_CHECKING:
+    from ddtrace import Tracer
+
+
 logger = get_logger(__name__)
 
 
 def in_venv():
+    # type: () -> bool
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -27,11 +36,13 @@ def in_venv():
 
 
 def tags_to_str(tags):
+    # type: (Dict[str, Any]) -> str
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
 def collect(tracer):
+    # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
     # The tracer doesn't actually maintain a hostname/port, instead it stores
@@ -45,7 +56,8 @@ def collect(tracer):
         if isinstance(tracer.writer, AgentWriter):
             writer = tracer.writer
         else:
-            writer = AgentWriter()
+            # FIXME: missing positional arg for agent_url
+            writer = AgentWriter()  # type: ignore
 
         agent_url = writer.agent_url
         try:
@@ -59,7 +71,7 @@ def collect(tracer):
     is_venv = in_venv()
 
     packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
-    integration_configs = {}
+    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace.monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.

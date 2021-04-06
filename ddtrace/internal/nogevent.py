@@ -47,16 +47,19 @@ if is_module_patched("threading"):
         _thread_lock = attr.ib(factory=Lock, init=False, repr=False)
 
         def acquire(self):
+            # type: () -> None
             # You cannot acquire a gevent-lock from another thread if it has been acquired already:
             # make sure we exclude the gevent-lock from being acquire by another thread by using a thread-lock first.
             self._thread_lock.acquire()
             self._lock.acquire()
 
         def release(self):
+            # type: () -> None
             self._lock.release()
             self._thread_lock.release()
 
         def __enter__(self):
+            # type: () -> DoubleLock
             self.acquire()
             return self
 
