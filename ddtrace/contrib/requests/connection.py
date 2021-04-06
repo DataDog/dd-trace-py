@@ -8,35 +8,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from .constants import DEFAULT_SERVICE
 
 
 log = get_logger(__name__)
-
-
-def _extract_service_name(session, span, hostname=None):
-    """Extracts the right service name based on the following logic:
-    - `requests` is the default service name
-    - users can change it via `session.service_name = 'clients'`
-    - if the Span doesn't have a parent, use the set service name or fallback to the default
-    - if the Span has a parent, use the set service name or the
-    parent service value if the set service name is the default
-    - if `split_by_domain` is used, always override users settings
-    and use the network location as a service name
-
-    The priority can be represented as:
-    Updated service name > parent service name > default to `requests`.
-    """
-    cfg = config.get_from(session)
-    if cfg["split_by_domain"] and hostname:
-        return hostname
-
-    service_name = cfg["service_name"]
-    if service_name is None and span._parent is not None and span._parent.service is not None:
-        service_name = span._parent.service
-    elif service_name is None:
-        service_name = DEFAULT_SERVICE
-    return service_name
 
 
 def _wrap_send(func, instance, args, kwargs):
@@ -60,10 +34,19 @@ def _wrap_send(func, instance, args, kwargs):
     if parsed_uri.port:
         hostname = "{}:{}".format(hostname, parsed_uri.port)
 
-    with tracer.trace("requests.request", span_type=SpanTypes.HTTP) as span:
+    cfg = config.get_from(instance)
+    service = None
+    if cfg["split_by_domain"] and hostname:
+        service = hostname
+    if service is None:
+        service = cfg.get("service", None)
+    if service is None:
+        service = cfg.get("service_name", None)
+    if service is None:
+        service = trace_utils.ext_service(None, config.requests)
+
+    with tracer.trace("requests.request", service=service, span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
-        # update the span service name before doing any action
-        span.service = _extract_service_name(instance, span, hostname=hostname)
 
         # Configure trace search sample rate
         # DEV: analytics enabled on per-session basis

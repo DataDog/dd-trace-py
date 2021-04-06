@@ -31,6 +31,7 @@ class Service(object):
         self.join()
 
     def start(self):
+        # type: () -> None
         """Start the service."""
         # Use a lock so we're sure that if 2 threads try to start the service at the same time, one of them will raise
         # an error.
@@ -50,6 +51,7 @@ class Service(object):
         """
 
     def stop(self):
+        # type: () -> None
         """Stop the service."""
         self.status = ServiceStatus.STOPPED
 
