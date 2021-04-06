@@ -10,11 +10,41 @@ SUPPORTED_PYTHON_VERSIONS = [(2, 7), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9)]  # 
 
 def version_to_str(version):
     # type: (Tuple[int, int]) -> str
+    """Convert a Python version tuple to a string
+
+    >>> version_to_str((2, 7))
+    '2.7'
+    >>> version_to_str((3, 5))
+    '3.5'
+    >>> version_to_str((3, 1))
+    '3.1'
+    >>> version_to_str((3, 10))
+    '3.10'
+    >>> version_to_str((3, 11))
+    '3.11'
+    >>> version_to_str((3, ))
+    '3'
+    """
     return ".".join(str(p) for p in version)
 
 
 def str_to_version(version):
     # type: (str) -> Tuple[int, int]
+    """Convert a Python version string to a tuple
+
+    >>> str_to_version("2.7")
+    (2, 7)
+    >>> str_to_version("3.5")
+    (3, 5)
+    >>> str_to_version("3.1")
+    (3, 1)
+    >>> str_to_version("3.10")
+    (3, 10)
+    >>> str_to_version("3.11")
+    (3, 11)
+    >>> str_to_version("3")
+    (3,)
+    """
     return tuple(int(p) for p in version.split("."))
 
 
@@ -24,7 +54,17 @@ MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     # type: (str, str) -> List[str]
-    """Helper to select python versions from the list of versions we support"""
+    """Helper to select python versions from the list of versions we support
+
+    >>> select_pys()
+    ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9']
+    >>> select_pys(min_version='3')
+    ['3.5', '3.6', '3.7', '3.8', '3.9']
+    >>> select_pys(max_version='3')
+    ['2.7']
+    >>> select_pys(min_version='3.5', max_version='3.8')
+    ['3.5', '3.6', '3.7', '3.8']
+    """
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
 
@@ -77,6 +117,13 @@ venv = Venv(
             pkgs={
                 "mypy": latest,
             },
+        ),
+        Venv(
+            pys=["3"],
+            name="riot-helpers",
+            # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
+            command="python -m doctest {cmdargs} riotfile.py",
+            pkgs={"riot": latest},
         ),
         Venv(
             name="benchmarks",
