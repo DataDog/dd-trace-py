@@ -1,4 +1,6 @@
 import os
+from typing import Any
+from typing import Union
 
 from ddtrace import compat
 from ddtrace.utils.formats import get_env
@@ -11,6 +13,8 @@ DEFAULT_TRACE_PORT = 8126
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 DEFAULT_TIMEOUT = 2
+
+ConnectionType = Union[compat.httplib.HTTPSConnection, compat.httplib.HTTPConnection, UDSHTTPConnection]  # type: ignore
 
 
 def get_hostname():
@@ -44,11 +48,12 @@ def get_stats_url():
 
 
 def verify_url(url):
-    # type: (str) -> compat.parse.ParseResult
+    # type: (str) -> Any
     """Verify that a URL can be used to communicate with the Datadog Agent.
-
+    Returns a compat.parse.ParseResult.
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
+    # FIXME: correctly type hint verify_url with output: compat.parse.ParseResult, currently incompatible with mypy
     parsed = compat.parse.urlparse(url)
 
     schemes = ("http", "https", "unix")
@@ -65,7 +70,7 @@ def verify_url(url):
 
 
 def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> compat.httplib.HTTPConnection
+    # type: (str, float) -> ConnectionType
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
