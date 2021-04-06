@@ -13,20 +13,17 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install mypy doxxie==0.2
+        run: pip install git+git://github.com/Datadog/riot.git@master#egg=riot
+      - name: Move original api file
+        run: mv .public_api .public_api_orig
       - name: Generate public API
         # || true since this job isn't concerned with mypy failures
-        run: mypy --no-incremental || true
-        env:
-          DOXXIE_INCLUDES: ddtrace
-          DOXXIE_EXCLUDES: ddtrace.internal,ddtrace.vendor
-          DOXXIE_OUTFILE: .public_api_delta
-          DOXXIE_DERIVE_OUTFILE: .public_api_derivation
+        run: riot run doxxie || true
       - name: Upload API delta
         uses: actions/upload-artifact@v2
         with:
           path: |
-            .public_api_delta
+            .public_api
             .public_api_derivation
       - name: Check API for changes
-        run: diff .public_api .public_api_delta
+        run: diff .public_api_orig .public_api

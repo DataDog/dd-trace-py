@@ -57,6 +57,20 @@ venv = Venv(
             },
         ),
         Venv(
+            pys="3",
+            name="doxxie",
+            command="mypy --no-incremental",
+            env={
+                "DOXXIE_INCLUDES": "ddtrace",
+                "DOXXIE_EXCLUDES": "ddtrace.internal,ddtrace.vendor",
+                "DOXXIE_DERIVE_OUTFILE": ".public_api_derivation",
+            },
+            pkgs={
+                "mypy": latest,
+                "doxxie": "==0.2",
+            },
+        ),
+        Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
