@@ -5,6 +5,7 @@ import pytest
 import requests
 from requests import Session
 from requests.exceptions import MissingSchema
+import six
 
 from ddtrace import Pin
 from ddtrace import config
@@ -13,7 +14,6 @@ from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from ddtrace.vendor import six
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
