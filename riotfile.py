@@ -63,6 +63,9 @@ venv = Venv(
             env={
                 "DOXXIE_INCLUDES": "ddtrace",
                 "DOXXIE_EXCLUDES": "ddtrace.internal,ddtrace.vendor",
+                # Output the derivation of each item in the public API.
+                # This can show how private attributes can be leaked through
+                # the public API.
                 "DOXXIE_DERIVE_OUTFILE": ".public_api_derivation",
             },
             pkgs={

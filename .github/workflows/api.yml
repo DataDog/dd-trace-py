@@ -14,8 +14,6 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: pip install git+git://github.com/Datadog/riot.git@master#egg=riot
-      - name: Move original api file
-        run: mv .public_api .public_api_orig
       - name: Generate public API
         # || true since this job isn't concerned with mypy failures
         run: riot run doxxie || true
@@ -26,4 +24,4 @@ jobs:
             .public_api
             .public_api_derivation
       - name: Check API for changes
-        run: diff .public_api_orig .public_api
+        run: git diff --exit-code
