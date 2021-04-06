@@ -58,14 +58,17 @@ config._add(
 )
 
 
+config_django = config.django
+
+
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
-        if config.django.database_service_name:
-            service = config.django.database_service_name
+        if config_django.database_service_name:
+            service = config_django.database_service_name
         else:
-            database_prefix = config.django.database_service_name_prefix
+            database_prefix = config_django.database_service_name_prefix
             service = "{}{}{}".format(database_prefix, alias, "db")
 
         vendor = getattr(conn, "vendor", "db")
@@ -75,7 +78,7 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
+        return dbapi.TracedCursor(func(*args, **kwargs), pin, config_django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
@@ -113,7 +116,7 @@ def _set_request_tags(django, span, request):
             if uid:
                 span._set_str_tag("django.user.id", str(uid))
 
-            if config.django.include_user_name:
+            if config_django.include_user_name:
                 username = getattr(user, "username", None)
                 if username:
                     span._set_str_tag("django.user.name", username)
@@ -123,11 +126,11 @@ def _set_request_tags(django, span, request):
 
 @trace_utils.with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
-    if not config.django.instrument_caches:
+    if not config_django.instrument_caches:
         return func(*args, **kwargs)
 
     # get the original function method
-    with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
+    with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config_django.cache_service_name) as span:
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
@@ -186,17 +189,17 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
     if hasattr(settings, "DATADOG_TRACE"):
         debtcollector.deprecate(("Using DATADOG_TRACE Django settings are no longer supported. "))
-        conf.configure_from_settings(pin, config.django, settings.DATADOG_TRACE)
+        conf.configure_from_settings(pin, config_django, settings.DATADOG_TRACE)
 
     # Instrument databases
-    if config.django.instrument_databases:
+    if config_django.instrument_databases:
         try:
             instrument_dbs(django)
         except Exception:
             log.debug("Error instrumenting Django database connections", exc_info=True)
 
     # Instrument caches
-    if config.django.instrument_caches:
+    if config_django.instrument_caches:
         try:
             instrument_caches(django)
         except Exception:
@@ -320,7 +323,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     try:
         request_headers = request.META
 
-        trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request_headers)
+        trace_utils.activate_distributed_headers(pin.tracer, int_config=config_django, request_headers=request_headers)
 
         # Determine the resolver and resource name for this request
         resolver = get_resolver(getattr(request, "urlconf", None))
@@ -333,43 +336,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         route = None
         resolver_match = None
         resource = request.method
-        try:
-            # Resolve the requested url and build resource name pieces
-            resolver_match = resolver.resolve(request.path_info)
-            handler, _, _ = resolver_match
-            handler = func_name(handler)
-            urlpattern = ""
-            resource_format = None
-
-            if config.django.use_handler_resource_format:
-                resource_format = "{method} {handler}"
-            elif config.django.use_legacy_resource_format:
-                resource_format = "{handler}"
-            else:
-                # In Django >= 2.2.0 we can access the original route or regex pattern
-                # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-                if django.VERSION >= (2, 2, 0):
-                    route = utils.get_django_2_route(resolver, resolver_match)
-                    resource_format = "{method} {urlpattern}"
-                else:
-                    resource_format = "{method} {handler}"
-
-                if route is not None:
-                    urlpattern = route
-
-            resource = resource_format.format(method=request.method, urlpattern=urlpattern, handler=handler)
-
-        except error_type_404:
-            # Normalize all 404 requests into a single resource name
-            # DEV: This is for potential cardinality issues
-            resource = "{0} 404".format(request.method)
-        except Exception:
-            log.debug(
-                "Failed to resolve request path %r with path info %r",
-                request,
-                getattr(request, "path_info", "not-set"),
-                exc_info=True,
-            )
     except Exception:
         log.debug("Failed to trace django request %r", args, exc_info=True)
         return func(*args, **kwargs)
@@ -377,11 +343,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(
             "django.request",
             resource=resource,
-            service=trace_utils.int_service(pin, config.django),
+            service=trace_utils.int_service(pin, config_django),
             span_type=SpanTypes.WEB,
         ) as span:
             span.metrics[SPAN_MEASURED_KEY] = 1
-            analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
+            analytics_sr = config_django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
@@ -399,6 +365,44 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             # Set HTTP Request tags
             response = func(*args, **kwargs)
+
+            try:
+                # Resolve the requested url and build resource name pieces
+                resolver_match = request.resolver_match
+                handler, _, _ = resolver_match
+                handler = func_name(handler)
+                urlpattern = ""
+                resource_format = None
+
+                if config_django.use_handler_resource_format:
+                    resource_format = "{method} {handler}"
+                elif config_django.use_legacy_resource_format:
+                    resource_format = "{handler}"
+                else:
+                    # In Django >= 2.2.0 we can access the original route or regex pattern
+                    # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+                    if django.VERSION >= (2, 2, 0):
+                        route = utils.get_django_2_route(resolver, resolver_match)
+                        resource_format = "{method} {urlpattern}"
+                    else:
+                        resource_format = "{method} {handler}"
+
+                    if route is not None:
+                        urlpattern = route
+
+                span.resource = resource_format.format(method=request.method, urlpattern=urlpattern, handler=handler)
+
+            except error_type_404:
+                # Normalize all 404 requests into a single resource name
+                # DEV: This is for potential cardinality issues
+                resource = "{0} 404".format(request.method)
+            except Exception:
+                log.debug(
+                    "Failed to resolve request path %r with path info %r",
+                    request,
+                    getattr(request, "path_info", "not-set"),
+                    exc_info=True,
+                )
 
             # Note: this call must be done after the function call because
             # some attributes (like `user`) are added to the request through
@@ -449,7 +453,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 response_headers = dict(response.items())
                 trace_utils.set_http_meta(
                     span,
-                    config.django,
+                    config_django,
                     method=request.method,
                     url=url,
                     status_code=status,
@@ -575,7 +579,7 @@ def _patch(django):
     if "django.core.handlers.base" not in sys.modules:
         import django.core.handlers.base
 
-    if config.django.instrument_middleware:
+    if config_django.instrument_middleware:
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))

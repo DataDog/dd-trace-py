@@ -2,7 +2,6 @@ from django.utils.functional import SimpleLazyObject
 
 from ...compat import PY3
 from ...compat import binary_type
-from ...compat import parse
 from ...compat import to_unicode
 from ...internal.logger import get_logger
 
@@ -75,9 +74,9 @@ def get_request_uri(request):
     """
     # DEV: Use django.http.request.HttpRequest._get_raw_host() when available
     # otherwise back-off to PEP 333 as done in django 1.8.x
-    if hasattr(request, "_get_raw_host"):
+    try:
         host = request._get_raw_host()
-    else:
+    except AttributeError:
         try:
             # Try to build host how Django would have
             # https://github.com/django/django/blob/e8d0d2a5efc8012dcc8bf1809dec065ebde64c81/django/http/request.py#L85-L102
@@ -128,9 +127,9 @@ def get_request_uri(request):
     # combining the url parts. We returns a byte string when all url parts are
     # byte strings.
     # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
-    if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
+    if PY3:
         for (key, value) in urlparts.items():
             if value is not None and isinstance(value, binary_type):
                 urlparts[key] = to_unicode(value)
 
-    return parse.urlunparse(parse.ParseResult(**urlparts))
+    return "%s://%s%s" % (urlparts["scheme"], urlparts["netloc"], urlparts["path"])
