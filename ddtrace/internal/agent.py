@@ -29,7 +29,7 @@ def get_trace_port():
 
 def get_stats_port():
     # type: () -> int
-    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))
+    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))  # type: ignore[arg-type]
 
 
 def get_trace_url():
@@ -44,7 +44,9 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    return get_env("dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port()))
+    return get_env(
+        "dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port())
+    )  # type: ignore[return-value]
 
 
 def verify_url(url):
