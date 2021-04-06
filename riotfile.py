@@ -57,7 +57,7 @@ venv = Venv(
             },
         ),
         Venv(
-            pys="3",
+            pys=["3"],
             name="doxxie",
             command="mypy --no-incremental",
             env={

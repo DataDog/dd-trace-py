@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install git+git://github.com/Datadog/riot.git@master#egg=riot
+        run: pip install riot
       - name: Generate public API
         # || true since this job isn't concerned with mypy failures
         run: riot run doxxie || true
