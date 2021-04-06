@@ -148,8 +148,8 @@ class LogWriter(TraceWriter):
     def __init__(
         self,
         out=sys.stdout,  # type: TextIO
-        sampler=None,  # type: BaseSampler
-        priority_sampler=None,  # type: BasePrioritySampler
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
     ):
         # type: (...) -> None
         self._sampler = sampler
