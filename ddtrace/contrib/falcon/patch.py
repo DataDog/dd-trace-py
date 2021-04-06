@@ -9,6 +9,14 @@ from ...utils.formats import get_env
 from .middleware import TraceMiddleware
 
 
+config._add(
+    "flask",
+    dict(
+        distributed_tracing=asbool(get_env("falcon", "distributed_tracing", default=True)),
+    ),
+)
+
+
 def patch():
     """
     Patch falcon.API to include contrib.falcon.TraceMiddleware

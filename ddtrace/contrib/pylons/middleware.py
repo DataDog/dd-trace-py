@@ -13,6 +13,7 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
@@ -21,17 +22,26 @@ log = get_logger(__name__)
 
 
 class PylonsTraceMiddleware(object):
-    def __init__(self, app, tracer, service="pylons", distributed_tracing=True):
+    def __init__(self, app, tracer, service="pylons", distributed_tracing=None):
         self.app = app
         self._service = service
-        self._distributed_tracing = distributed_tracing
         self._tracer = tracer
+        if distributed_tracing is not None:
+            self._distributed_tracing = distributed_tracing
 
         # register middleware reference
         config[CONFIG_MIDDLEWARE] = self
 
         # add template tracing
         trace_rendering()
+
+    @property
+    def _distributed_tracing(self):
+        return config.pylons.get("distributed_tracing", True)
+
+    @_distributed_tracing.setter
+    def _distributed_tracing(self, distributed_tracing):
+        config.pylons["distributed_tracing"] = asbool(distributed_tracing)
 
     def __call__(self, environ, start_response):
         request = Request(environ)

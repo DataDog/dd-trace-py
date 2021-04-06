@@ -11,16 +11,26 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool
 
 
 class TracePlugin(object):
     name = "trace"
     api = 2
 
-    def __init__(self, service="bottle", tracer=None, distributed_tracing=True):
+    def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
         self.service = ddtrace.config.service or service
         self.tracer = tracer or ddtrace.tracer
-        self.distributed_tracing = distributed_tracing
+        if distributed_tracing is not None:
+            self.distributed_tracing = distributed_tracing
+
+    @property
+    def distributed_tracing(self):
+        return config.bottle.get("distributed_tracing", True)
+
+    @distributed_tracing.setter
+    def distributed_tracing(self, distributed_tracing):
+        config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
     def apply(self, callback, route):
         def wrapped(*args, **kwargs):

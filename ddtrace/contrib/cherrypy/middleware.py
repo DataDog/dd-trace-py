@@ -36,11 +36,12 @@ SPAN_NAME = "cherrypy.request"
 
 
 class TraceTool(cherrypy.Tool):
-    def __init__(self, app, tracer, service, use_distributed_tracing):
+    def __init__(self, app, tracer, service, use_distributed_tracing=None):
         self.app = app
         self._tracer = tracer
         self.service = service
-        self.use_distributed_tracing = use_distributed_tracing
+        if use_distributed_tracing is not None:
+            self.use_distributed_tracing = use_distributed_tracing
 
         # CherryPy uses priority to determine which tools act first on each event. The lower the number, the higher
         # the priority. See: https://docs.cherrypy.org/en/latest/extend.html#tools-ordering
@@ -140,7 +141,7 @@ class TraceTool(cherrypy.Tool):
 
 
 class TraceMiddleware(object):
-    def __init__(self, app, tracer, service="cherrypy", distributed_tracing=True):
+    def __init__(self, app, tracer, service="cherrypy", distributed_tracing=None):
         self.app = app
 
         self.app.tools.tracer = TraceTool(app, tracer, service, distributed_tracing)
