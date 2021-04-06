@@ -1,6 +1,8 @@
 import itertools
 
-from ... import _worker
+from ddtrace.vendor import attr
+
+from .. import periodic
 from ...utils.formats import get_env
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
@@ -48,43 +50,38 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-class RuntimeWorker(_worker.PeriodicWorkerThread):
+@attr.s
+class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    FLUSH_INTERVAL = 10
+    dogstatsd_url = attr.ib(type=str)
+    _interval = attr.ib(type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10)))
+    _dogstatsd_client = attr.ib(init=False, repr=False)
+    _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
 
-    def __init__(self, dogstatsd_url, flush_interval=None):
-        super(RuntimeWorker, self).__init__(
-            interval=flush_interval or float(get_env("runtime_metrics", "interval", default=self.FLUSH_INTERVAL)),
-            name=self.__class__.__name__,
-        )
-        self._dogstatsd_client = get_dogstatsd_client(dogstatsd_url)
-        # Initialize collector
-        self._runtime_metrics = RuntimeMetrics()
+    def __attrs_post_init__(self):
+        # type: () -> None
+        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url)
         # force an immediate update constant tags
         self.update_runtime_tags()
         # Start worker thread
         self.start()
 
     def flush(self):
+        # type: () -> None
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.gauge(key, value)
 
     def update_runtime_tags(self):
+        # type: () -> None
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         tags = ["{}:{}".format(k, v) for k, v in RuntimeTags()]
         log.debug("Updating constant tags %s", tags)
         self._dogstatsd_client.constant_tags = tags
 
-    run_periodic = flush
+    periodic = flush
     on_shutdown = flush
-
-    def __repr__(self):
-        return "{}(runtime_metrics={})".format(
-            self.__class__.__name__,
-            self._runtime_metrics,
-        )

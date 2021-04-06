@@ -27,7 +27,7 @@ def parse_dogstatsd_url(url):
 def get_dogstatsd_client(dogstatsd_url):
     # type: (str) -> Optional[DogStatsd]
     if not dogstatsd_url:
-        return
+        return None
 
     dogstatsd_kwargs = parse_dogstatsd_url(dogstatsd_url)
-    return DogStatsd(**dogstatsd_kwargs)
+    return DogStatsd(**dogstatsd_kwargs)  # type: ignore[arg-type]
