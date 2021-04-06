@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    The `attrs` library has been removed from `vendor` and the system-wide version is being used.

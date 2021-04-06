@@ -168,6 +168,7 @@ setup(
             "typing; python_version<'3.5'",
             "protobuf>=3",
             "tenacity>=5",
+            "attrs>=20.3.0",
         ],
         extras_require={
             # users can include opentracing by having:

@@ -1,12 +1,13 @@
 # -*- encoding: utf-8 -*-
 import logging
 
+import attr
+
 from ddtrace import compat
 from ddtrace.internal import periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.utils import attr as attr_utils
-from ddtrace.vendor import attr
 
 
 LOG = logging.getLogger(__name__)

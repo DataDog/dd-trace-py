@@ -9,6 +9,8 @@ from typing import List
 from typing import Optional
 import warnings
 
+import attr
+
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import service
@@ -23,7 +25,6 @@ from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 from ddtrace.utils import deprecation
-from ddtrace.vendor import attr
 
 
 LOG = logging.getLogger(__name__)
