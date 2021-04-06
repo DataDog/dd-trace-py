@@ -1,16 +1,34 @@
 from typing import List
+from typing import Tuple
 
 from riot import Venv
 from riot import latest
 
 
-SUPPORTED_PYTHON_VERSIONS = ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9"]  # type: List[str]
+SUPPORTED_PYTHON_VERSIONS = [(2, 7), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9)]  # type: List[Tuple[int, int]]
 
 
-def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPORTED_PYTHON_VERSIONS)):
+def version_to_str(version):
+    # type: (Tuple[int, int]) -> str
+    return ".".join(str(p) for p in version)
+
+
+def str_to_version(version):
+    # type: (str) -> Tuple[int, int]
+    return tuple(int(p) for p in version.split("."))
+
+
+MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
+MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
+
+
+def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     # type: (str, str) -> List[str]
     """Helper to select python versions from the list of versions we support"""
-    return [version for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
+    min_version = str_to_version(min_version)
+    max_version = str_to_version(max_version)
+
+    return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
 venv = Venv(
