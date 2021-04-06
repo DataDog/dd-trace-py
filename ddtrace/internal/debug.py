@@ -45,20 +45,11 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    # The tracer doesn't actually maintain a hostname/port, instead it stores
-    # it on the possibly None writer which actually stores it on an API object.
-    # Note that the tracer DOES have hostname and port attributes that it
-    # sets to the defaults and ignores afterwards.
-    if tracer.writer and isinstance(tracer.writer, LogWriter):
+    if isinstance(tracer.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    else:
-        if isinstance(tracer.writer, AgentWriter):
-            writer = tracer.writer
-        else:
-            # FIXME: missing positional arg for agent_url
-            writer = AgentWriter()  # type: ignore
-
+    elif isinstance(tracer.writer, AgentWriter):
+        writer = tracer.writer
         agent_url = writer.agent_url
         try:
             writer.write([])
@@ -67,6 +58,9 @@ def collect(tracer):
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:
             agent_error = None
+    else:
+        agent_url = "CUSTOM"
+        agent_error = None
 
     is_venv = in_venv()
 
