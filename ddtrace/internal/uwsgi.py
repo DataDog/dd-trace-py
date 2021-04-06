@@ -1,5 +1,8 @@
 from __future__ import absolute_import
 
+from typing import Callable
+from typing import Optional
+
 
 class uWSGIConfigError(Exception):
     """uWSGI configuration error.
@@ -13,12 +16,13 @@ class uWSGIMasterProcess(Exception):
 
 
 def check_uwsgi(worker_callback=None, atexit=None):
+    # type: (Optional[Callable], Optional[Callable]) -> None
     """Check whetever uwsgi is running and what needs to be done.
 
     :param worker_callback: Callback function to call in uWSGI worker processes.
     """
     try:
-        import uwsgi
+        import uwsgi  # type: ignore[import]
     except ImportError:
         return
 
@@ -43,7 +47,7 @@ def check_uwsgi(worker_callback=None, atexit=None):
         # Register the function to be called in child process at startup
         if worker_callback is not None:
             try:
-                import uwsgidecorators
+                import uwsgidecorators  # type: ignore[import]
             except ImportError:
                 raise uWSGIConfigError("Running under uwsgi but uwsgidecorators cannot be imported")
             uwsgidecorators.postfork(worker_callback)

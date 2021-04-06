@@ -127,7 +127,7 @@ class Response(object):
         )
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter
@@ -210,7 +210,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
+        self._buffer = TraceBuffer(
+            max_size=self._buffer_size, max_item_size=self._max_payload_size
+        )  # type: ignore[call-arg]
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -424,7 +426,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:
-                if self._report_metrics:
+                if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
