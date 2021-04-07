@@ -24,7 +24,7 @@ class PeriodicThread(threading.Thread):
         interval,  # type: float
         target,  # type: typing.Callable[[], typing.Any]
         name=None,  # type: typing.Optional[str]
-        on_shutdown=None,  # type: typing.Callable[[], typing.Any]
+        on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
     ):
         # type: (...) -> None
         """Create a periodic thread.
