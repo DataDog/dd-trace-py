@@ -39,7 +39,7 @@ def trace_middleware(app, handler):
             tracer,
             int_config=config.aiohttp,
             request_headers=request.headers,
-            override_distributed_tracing=distributed_tracing,
+            override=distributed_tracing,
         )
 
         # trace the handler
