@@ -11,6 +11,6 @@ T = TypeVar("T")
 def from_env(name, default, value_type):
     # type: (str, T, Union[Callable[[Union[str, T, None]], T], Type[T]]) -> Callable[[], T]
     def _():
-        value_type(os.environ.get(name, default))
+        return value_type(os.environ.get(name, default))
 
     return _
