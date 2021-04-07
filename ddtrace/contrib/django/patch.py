@@ -369,33 +369,26 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             try:
                 # Resolve the requested url and build resource name pieces
                 resolver_match = request.resolver_match
-                handler, _, _ = resolver_match
-                handler = func_name(handler)
+                handler = func_name(resolver_match[0])
                 urlpattern = ""
-                resource_format = None
 
                 if config_django.use_handler_resource_format:
-                    resource_format = "{method} {handler}"
+                    span.resource = "%s %s" % (request.method, handler)
                 elif config_django.use_legacy_resource_format:
-                    resource_format = "{handler}"
+                    span.resource = handler
                 else:
                     # In Django >= 2.2.0 we can access the original route or regex pattern
                     # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
                     if django.VERSION >= (2, 2, 0):
                         route = utils.get_django_2_route(resolver, resolver_match)
-                        resource_format = "{method} {urlpattern}"
+                        span.resource = "%s %s" % (request.method, route or urlpattern)
                     else:
-                        resource_format = "{method} {handler}"
-
-                    if route is not None:
-                        urlpattern = route
-
-                span.resource = resource_format.format(method=request.method, urlpattern=urlpattern, handler=handler)
+                        span.resource = "%s %s" % (request.method, handler)
 
             except error_type_404:
                 # Normalize all 404 requests into a single resource name
                 # DEV: This is for potential cardinality issues
-                resource = "{0} 404".format(request.method)
+                resource = "%s 404" % request.method
             except Exception:
                 log.debug(
                     "Failed to resolve request path %r with path info %r",
@@ -412,13 +405,15 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if response:
                 status = response.status_code
                 span._set_str_tag("django.response.class", func_name(response))
-                if hasattr(response, "template_name"):
+                try:
                     # template_name is a bit of a misnomer, as it could be any of:
                     # a list of strings, a tuple of strings, a single string, or an instance of Template
                     # for more detail, see:
                     # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
                     template = response.template_name
-
+                except AttributeError:
+                    pass
+                else:
                     if isinstance(template, six.string_types):
                         template_names = [template]
                     elif isinstance(
@@ -429,12 +424,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                         ),
                     ):
                         template_names = template
-                    elif hasattr(template, "template"):
+                    try:
                         # ^ checking by attribute here because
                         # django backend implementations don't have a common base
                         # `.template` is also the most consistent across django versions
                         template_names = [template.template.name]
-                    else:
+                    except AttributeError:
                         template_names = None
 
                     utils.set_tag_array(span, "django.response.template", template_names)
