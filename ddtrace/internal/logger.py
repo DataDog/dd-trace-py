@@ -110,7 +110,7 @@ class DDLogger(logging.Logger):
         rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
         if rate_limit is None:
             # DEV: If not set, look at the deprecated (DD/DATADOG)_LOGGING_RATE_LIMIT
-            rate_limit = get_env("logging", "rate_limit", default=None)
+            rate_limit = get_env("logging", "rate_limit")
             if rate_limit is not None:
                 deprecation(
                     name="DD_LOGGING_RATE_LIMIT",
