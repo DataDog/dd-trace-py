@@ -373,6 +373,13 @@ jobs:
       - setup_riot
       - run: riot run mypy
 
+  riot-helpers:
+    executor: python38
+    steps:
+      - checkout
+      - setup_riot
+      - run: riot run -s riot-helpers
+
   coverage_report:
     executor: python38
     steps:
@@ -1045,6 +1052,7 @@ requires_pre_test: &requires_pre_test
     - flake8
     - ccheck
     - mypy
+    - riot-helpers
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -1144,6 +1152,7 @@ workflows:
       - black
       - flake8
       - mypy
+      - riot-helpers
       - ccheck
       - build_base_venvs
 
