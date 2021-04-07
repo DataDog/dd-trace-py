@@ -31,23 +31,27 @@ class Service(object):
         self.join()
 
     def start(self):
+        # type: () -> None
         """Start the service."""
         # Use a lock so we're sure that if 2 threads try to start the service at the same time, one of them will raise
         # an error.
         with self._service_lock:
             if self.status == ServiceStatus.RUNNING:
                 raise ServiceAlreadyRunning("%s is already running" % self.__class__.__name__)
-            self.status = ServiceStatus.RUNNING
             self._start()
+            self.status = ServiceStatus.RUNNING
 
     def _start(self):
         # type: () -> None
         """Start the service for real.
 
-        This method uses the internal lock to be sure there's no race conditions.
+        This method uses the internal lock to be sure there's no race conditions and that the service is really started
+        once start() returns.
+
         """
 
     def stop(self):
+        # type: () -> None
         """Stop the service."""
         self.status = ServiceStatus.STOPPED
 
