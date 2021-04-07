@@ -1,11 +1,74 @@
-from riot import Venv, latest
+from typing import List
+from typing import Tuple
 
-SUPPORTED_PYTHON_VERSIONS = [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
+from riot import Venv
+from riot import latest
 
 
-def select_pys(min_version=min(SUPPORTED_PYTHON_VERSIONS), max_version=max(SUPPORTED_PYTHON_VERSIONS)):
-    """Helper to select python versions from the list of versions we support"""
-    return [version for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
+SUPPORTED_PYTHON_VERSIONS = [(2, 7), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9)]  # type: List[Tuple[int, int]]
+
+
+def version_to_str(version):
+    # type: (Tuple[int, int]) -> str
+    """Convert a Python version tuple to a string
+
+    >>> version_to_str((2, 7))
+    '2.7'
+    >>> version_to_str((3, 5))
+    '3.5'
+    >>> version_to_str((3, 1))
+    '3.1'
+    >>> version_to_str((3, 10))
+    '3.10'
+    >>> version_to_str((3, 11))
+    '3.11'
+    >>> version_to_str((3, ))
+    '3'
+    """
+    return ".".join(str(p) for p in version)
+
+
+def str_to_version(version):
+    # type: (str) -> Tuple[int, int]
+    """Convert a Python version string to a tuple
+
+    >>> str_to_version("2.7")
+    (2, 7)
+    >>> str_to_version("3.5")
+    (3, 5)
+    >>> str_to_version("3.1")
+    (3, 1)
+    >>> str_to_version("3.10")
+    (3, 10)
+    >>> str_to_version("3.11")
+    (3, 11)
+    >>> str_to_version("3")
+    (3,)
+    """
+    return tuple(int(p) for p in version.split("."))
+
+
+MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
+MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
+
+
+def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
+    # type: (str, str) -> List[str]
+    """Helper to select python versions from the list of versions we support
+
+    >>> select_pys()
+    ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9']
+    >>> select_pys(min_version='3')
+    ['3.5', '3.6', '3.7', '3.8', '3.9']
+    >>> select_pys(max_version='3')
+    ['2.7']
+    >>> select_pys(min_version='3.5', max_version='3.8')
+    ['3.5', '3.6', '3.7', '3.8']
+    """
+    min_version = str_to_version(min_version)
+    max_version = str_to_version(max_version)
+
+    return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
 venv = Venv(
@@ -19,7 +82,7 @@ venv = Venv(
     },
     venvs=[
         Venv(
-            pys="3",
+            pys=["3"],
             pkgs={"black": "==20.8b1"},
             venvs=[
                 Venv(
@@ -33,7 +96,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=3,
+            pys=["3"],
             name="flake8",
             command="flake8 {cmdargs} ddtrace/ tests/",
             pkgs={
@@ -48,12 +111,19 @@ venv = Venv(
             },
         ),
         Venv(
-            pys=3,
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             pkgs={
                 "mypy": latest,
             },
+        ),
+        Venv(
+            pys=["3"],
+            name="riot-helpers",
+            # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
+            command="python -m doctest {cmdargs} riotfile.py",
+            pkgs={"riot": latest},
         ),
         Venv(
             name="benchmarks",
@@ -104,7 +174,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.5),
+                    pys=select_pys(min_version="3.5"),
                     pkgs={
                         "cherrypy": [">=18.0,<19", latest],
                     },
@@ -116,7 +186,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pymongo",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version=3.7),
+                    pys=select_pys(max_version="3.7"),
                     pkgs={
                         "pymongo": [
                             ">=3.0,<3.1",
@@ -136,7 +206,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.8),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "pymongo": [
                             ">=3.0,<3.1",
@@ -169,7 +239,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/django",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version=3.6),
+                    pys=select_pys(max_version="3.6"),
                     pkgs={
                         "django": [">=1.8,<1.9", ">=1.11,<1.12"],
                         "django-pylibmc": ">=0.6,<0.7",
@@ -181,7 +251,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.5],
+                    pys=["3.5"],
                     pkgs={
                         "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3"],
                         "django-pylibmc": ">=0.6,<0.7",
@@ -193,7 +263,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", latest],
                         "django-pylibmc": ">=0.6,<0.7",
@@ -205,7 +275,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version=3.6),
+                    pys=select_pys(max_version="3.6"),
                     env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
                     pkgs={
                         "pytest-django": "==3.10.0",
@@ -213,7 +283,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=[3.5],
+                    pys=["3.5"],
                     env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
                     pkgs={
                         "pytest-django": "==3.10.0",
@@ -221,7 +291,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
                     pkgs={
                         "pytest-django": "==3.10.0",
@@ -235,7 +305,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version=3.6),
+                    pys=select_pys(max_version="3.6"),
                     pkgs={
                         "django": "==1.11",
                         "djangorestframework": [">=3.4,<3.5", ">=3.7,<3.8"],
@@ -243,7 +313,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.5),
+                    pys=select_pys(min_version="3.5"),
                     pkgs={
                         "django": ">=2.2,<2.3",
                         "djangorestframework": [">=3.8,<3.9", ">=3.9,<3.10", latest],
@@ -251,7 +321,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "django": ">=3.0,<3.1",
                         "djangorestframework": ">=3.10,<3.11",
@@ -259,7 +329,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "django": latest,
                         "djangorestframework": ">=3.11,<3.12",
@@ -273,7 +343,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version=3.8),
+                    pys=select_pys(max_version="3.8"),
                     pkgs={
                         "elasticsearch": [
                             "~=1.6.0",
@@ -408,7 +478,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(max_version=2.7),
+                    pys=select_pys(max_version="2.7"),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
                         "Flask-Cache": ["~=0.12.0"],
@@ -434,15 +504,15 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version=2.7, max_version=3.6),
+                    pys=select_pys(min_version="2.7", max_version="3.6"),
                     pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
-                    pys=[3.7],
+                    pys=["3.7"],
                     pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.8, max_version=3.9),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={"psycopg2": ["~=2.8.0", latest]},
                 ),
             ],
@@ -455,7 +525,7 @@ venv = Venv(
                 "moto": ">=1.0,<2.0",
             },
             venvs=[
-                Venv(pys=select_pys(min_version=3.5)),
+                Venv(pys=select_pys(min_version="3.5")),
                 Venv(
                     pys=["2.7"],
                     pkgs={
@@ -469,7 +539,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/starlette",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "starlette": [">=0.13,<0.14", ">=0.14,<0.15", latest],
                         "httpx": latest,
@@ -535,14 +605,14 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version=3.6), pkgs={"boto": latest, "moto": ["<1.0"]})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": ["<1.0"]})],
         ),
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]},
             venvs=[
-                Venv(pys=select_pys(min_version=3.5)),
+                Venv(pys=select_pys(min_version="3.5")),
                 Venv(pys=["2.7"], pkgs={"rsa": ["<4.7.1"]}),
             ],
         ),
@@ -561,7 +631,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", latest]},
                 ),
             ],
@@ -573,7 +643,7 @@ venv = Venv(
                 "httpx": latest,
                 "asgiref": ["~=3.0.0", "~=3.0"],
             },
-            pys=select_pys(min_version=3.6),
+            pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/asgi",
         ),
         Venv(
@@ -581,7 +651,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/fastapi",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version=3.6),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "fastapi": [">=0.51,<0.52", ">=0.55,<0.56", ">=0.60,<0.61", latest],
                         "httpx": latest,
@@ -602,7 +672,7 @@ venv = Venv(
                 # Versions between 1.14 and 1.20 have known threading issues
                 # See https://github.com/grpc/grpc/issues/18994
                 Venv(
-                    pys=select_pys(max_version=3.6),
+                    pys=select_pys(max_version="3.6"),
                     pkgs={
                         "grpcio": [
                             "~=1.12.0",
@@ -627,7 +697,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version=3.8),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
                         "grpcio": ["~=1.24.0", "~=1.26.0", "~=1.28.0", latest],
                     },
@@ -636,7 +706,7 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            pys=SUPPORTED_PYTHON_VERSIONS,
+            pys=select_pys(),
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),

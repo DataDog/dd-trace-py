@@ -19,7 +19,7 @@ class TraceProcessor(object):
         # type: (List[Span]) -> Optional[List[Span]]
         for filtr in self._filters:
             try:
-                trace = filtr.process_trace(trace)
+                trace = filtr.process_trace(trace)  # type: ignore[assignment]
             except Exception:
                 log.error("error applying filter %r to traces", filtr, exc_info=True)
             else:

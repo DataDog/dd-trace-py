@@ -19,10 +19,13 @@ from ..trace_utils import iswrapped
 
 log = get_logger(__name__)
 
-config._add('dbapi2', dict(
-    _default_service="db",
-    trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', default=False)),
-))
+config._add(
+    "dbapi2",
+    dict(
+        _default_service="db",
+        trace_fetch_methods=asbool(get_env("dbapi2", "trace_fetch_methods", default=False)),
+    ),
+)
 
 
 class TracedCursor(wrapt.ObjectProxy):
@@ -31,8 +34,8 @@ class TracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin, cfg):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
-        name = pin.app or 'sql'
-        self._self_datadog_name = '{}.query'.format(name)
+        name = pin.app or "sql"
+        self._self_datadog_name = "{}.query".format(name)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
 
@@ -53,9 +56,7 @@ class TracedCursor(wrapt.ObjectProxy):
         measured = name == self._self_datadog_name
         cfg = _get_config(self._self_config)
 
-        with pin.tracer.trace(
-            name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL
-        ) as s:
+        with pin.tracer.trace(name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL) as s:
             if measured:
                 s.set_tag(SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
@@ -65,16 +66,13 @@ class TracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
-                s.set_tag(
-                    ANALYTICS_SAMPLE_RATE_KEY,
-                    config.dbapi2.get_analytics_sample_rate()
-                )
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.dbapi2.get_analytics_sample_rate())
 
             try:
                 return method(*args, **kwargs)
             finally:
                 row_count = self.__wrapped__.rowcount
-                s.set_metric('db.rowcount', row_count)
+                s.set_metric("db.rowcount", row_count)
                 # Necessary for django integration backward compatibility. Django integration used to provide its own
                 # implementation of the TracedCursor, which used to store the row count into a tag instead of
                 # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
@@ -92,8 +90,14 @@ class TracedCursor(wrapt.ObjectProxy):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         return self._trace_method(
-            self.__wrapped__.executemany, self._self_datadog_name, query, {'sql.executemany': 'true'},
-            query, *args, **kwargs)
+            self.__wrapped__.executemany,
+            self._self_datadog_name,
+            query,
+            {"sql.executemany": "true"},
+            query,
+            *args,
+            **kwargs
+        )
 
     def execute(self, query, *args, **kwargs):
         """ Wraps the cursor.execute method"""
@@ -125,34 +129,38 @@ class FetchTracedCursor(TracedCursor):
 
     We do not trace these functions by default since they can get very noisy (e.g. `fetchone` with 100k rows).
     """
+
     def fetchone(self, *args, **kwargs):
         """ Wraps the cursor.fetchone method"""
-        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchone')
-        return self._trace_method(self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {},
-                                  *args, **kwargs)
+        span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
+        return self._trace_method(
+            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, *args, **kwargs
+        )
 
     def fetchall(self, *args, **kwargs):
         """ Wraps the cursor.fetchall method"""
-        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchall')
-        return self._trace_method(self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {},
-                                  *args, **kwargs)
+        span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
+        return self._trace_method(
+            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, *args, **kwargs
+        )
 
     def fetchmany(self, *args, **kwargs):
         """ Wraps the cursor.fetchmany method"""
-        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchmany')
+        span_name = "{}.{}".format(self._self_datadog_name, "fetchmany")
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
-        size_tag_key = 'db.fetch.size'
-        if 'size' in kwargs:
-            extra_tags = {size_tag_key: kwargs.get('size')}
+        size_tag_key = "db.fetch.size"
+        if "size" in kwargs:
+            extra_tags = {size_tag_key: kwargs.get("size")}
         elif len(args) == 1 and isinstance(args[0], int):
             extra_tags = {size_tag_key: args[0]}
         else:
-            default_array_size = getattr(self.__wrapped__, 'arraysize', None)
+            default_array_size = getattr(self.__wrapped__, "arraysize", None)
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 
-        return self._trace_method(self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags,
-                                  *args, **kwargs)
+        return self._trace_method(
+            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, *args, **kwargs
+        )
 
 
 def _get_config(new_cfg):
@@ -176,7 +184,7 @@ class TracedConnection(wrapt.ObjectProxy):
 
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
-        self._self_datadog_name = '{}.connection'.format(name)
+        self._self_datadog_name = "{}.connection".format(name)
         db_pin = pin or Pin(service=name, app=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
@@ -248,25 +256,25 @@ class TracedConnection(wrapt.ObjectProxy):
         return self._self_cursor_cls(cursor, pin, cfg)
 
     def commit(self, *args, **kwargs):
-        span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
+        span_name = "{}.{}".format(self._self_datadog_name, "commit")
         return self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
     def rollback(self, *args, **kwargs):
-        span_name = '{}.{}'.format(self._self_datadog_name, 'rollback')
+        span_name = "{}.{}".format(self._self_datadog_name, "rollback")
         return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
 
 def _get_vendor(conn):
-    """ Return the vendor (e.g postgres, mysql) of the given
-        database.
+    """Return the vendor (e.g postgres, mysql) of the given
+    database.
     """
     try:
         name = _get_module_name(conn)
     except Exception:
-        log.debug('couldnt parse module name', exc_info=True)
-        name = 'sql'
+        log.debug("couldnt parse module name", exc_info=True)
+        name = "sql"
     return sql.normalize_vendor(name)
 
 
 def _get_module_name(conn):
-    return conn.__class__.__module__.split('.')[0]
+    return conn.__class__.__module__.split(".")[0]
