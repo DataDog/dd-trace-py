@@ -26,11 +26,11 @@ class TracePlugin(object):
 
     @property
     def distributed_tracing(self):
-        return config.bottle.distributed_tracing
+        return config.bottle.get("distributed_tracing", True)
 
     @distributed_tracing.setter
     def distributed_tracing(self, distributed_tracing):
-        config.bottle.distributed_tracing = asbool(distributed_tracing)
+        config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
     def apply(self, callback, route):
         def wrapped(*args, **kwargs):
