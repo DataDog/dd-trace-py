@@ -26,7 +26,7 @@ class TracePlugin(object):
 
     @property
     def distributed_tracing(self):
-        return config.bottle.get("distributed_tracing", True)
+        return config.bottle.distributed_tracing
 
     @distributed_tracing.setter
     def distributed_tracing(self, distributed_tracing):
