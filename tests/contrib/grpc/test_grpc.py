@@ -550,3 +550,25 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+
+
+def test_handle_response_future_like():
+    from ddtrace.contrib.grpc.client_interceptor import _handle_response
+    from ddtrace.span import Span
+
+    span = Span(None, None)
+
+    def finish_span():
+        span.finish()
+
+    class FutureLike(object):
+        def add_done_callback(self, fn):
+            finish_span()
+
+    class NotFutureLike(object):
+        pass
+
+    _handle_response(span, NotFutureLike())
+    assert span.duration is None
+    _handle_response(span, FutureLike())
+    assert span.duration is not None
