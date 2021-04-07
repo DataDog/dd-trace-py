@@ -64,7 +64,15 @@ venv = Venv(
         Venv(
             name="tracer",
             command="pytest {cmdargs} tests/tracer/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "attrs": [">=19.2.0,<20", latest],
+                    },
+                )
+            ],
         ),
         Venv(
             name="ddtracerun",
