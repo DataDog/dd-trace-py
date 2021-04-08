@@ -1,3 +1,6 @@
+from ddtrace.utils.cache import cached
+
+
 def get_wsgi_header(header):
     """Returns a WSGI compliant HTTP header.
     See https://www.python.org/dev/peps/pep-3333/#environ-variables for
@@ -6,6 +9,7 @@ def get_wsgi_header(header):
     return "HTTP_{}".format(header.upper().replace("-", "_"))
 
 
+@cached()
 def from_wsgi_header(header):
     """Convert a WSGI compliant HTTP header into the original header.
     See https://www.python.org/dev/peps/pep-3333/#environ-variables for

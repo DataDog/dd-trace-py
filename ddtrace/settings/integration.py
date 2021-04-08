@@ -1,6 +1,8 @@
 from copy import deepcopy
 import os
 
+from ddtrace.utils.cache import cachedmethod
+
 from .._hooks import Hooks
 from ..utils.attrdict import AttrDict
 from ..utils.formats import asbool
@@ -80,6 +82,7 @@ class IntegrationConfig(AttrDict):
             return self.http.trace_query_string
         return self.global_config.http.trace_query_string
 
+    @cachedmethod()
     def header_is_traced(self, header_name):
         """
         Returns whether or not the current header should be traced.
