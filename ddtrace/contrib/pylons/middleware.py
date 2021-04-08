@@ -37,16 +37,16 @@ class PylonsTraceMiddleware(object):
 
     @property
     def _distributed_tracing(self):
-        return config.pylons.distributed_tracing
+        return ddconfig.pylons.distributed_tracing
 
     @_distributed_tracing.setter
     def _distributed_tracing(self, distributed_tracing):
-        config.pylons["distributed_tracing"] = asbool(distributed_tracing)
+        ddconfig.pylons["distributed_tracing"] = asbool(distributed_tracing)
 
     def __call__(self, environ, start_response):
         request = Request(environ)
         trace_utils.activate_distributed_headers(
-            self._tracer, int_config=config.pylons, request_headers=request.headers
+            self._tracer, int_config=ddconfig.pylons, request_headers=request.headers
         )
 
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
