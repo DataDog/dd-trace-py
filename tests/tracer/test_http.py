@@ -9,7 +9,7 @@ from ddtrace.compat import parse
 from ddtrace.http import store_request_headers
 from ddtrace.http import store_response_headers
 from ddtrace.settings import Config
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.settings import IntegrationConfig
 from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
 
