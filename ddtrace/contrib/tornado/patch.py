@@ -2,6 +2,7 @@ import tornado
 
 import ddtrace
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace import config
 
 from . import application
 from . import compat
@@ -10,6 +11,16 @@ from . import decorators
 from . import handlers
 from . import template
 from ...utils.wrappers import unwrap as _u
+from ...utils.formats import asbool
+from ...utils.formats import get_env
+
+
+config._add(
+    "tornado",
+    dict(
+        distributed_tracing=asbool(get_env("tornado", "distributed_tracing", default=True)),
+    ),
+)
 
 
 def patch():
