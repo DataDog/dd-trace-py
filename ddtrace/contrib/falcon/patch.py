@@ -10,7 +10,7 @@ from .middleware import TraceMiddleware
 
 
 config._add(
-    "flask",
+    "falcon",
     dict(
         distributed_tracing=asbool(get_env("falcon", "distributed_tracing", default=True)),
     ),
