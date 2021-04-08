@@ -139,7 +139,7 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "msgpack": latest,
-                        "attrs": [">=19.2.0,<20", latest],
+                        "attrs": ["==19.2.0", latest],
                     },
                 )
             ],

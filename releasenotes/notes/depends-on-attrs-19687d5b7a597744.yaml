@@ -1,4 +1,5 @@
 ---
 other:
   - |
-    The `attrs` library has been removed from `vendor` and the system-wide version is being used.
+    The `attrs` library has been unvendored and is now required as a normal Python dependency
+    with a minimum version requirement of 19.2.0.

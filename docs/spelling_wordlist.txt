@@ -108,6 +108,7 @@ uWSGI
 unix
 unpatch
 unregister
+unvendored
 url
 urls
 username
