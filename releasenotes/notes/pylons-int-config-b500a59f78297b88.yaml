@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Added distributed tracing setting to integration config for pylons.
