@@ -11,6 +11,14 @@ from ...utils.wrappers import unwrap as _u
 from .middleware import PylonsTraceMiddleware
 
 
+config._add(
+    "pylons",
+    dict(
+        distributed_tracing=asbool(get_env("pylons", "distributed_tracing", default=True)),
+    ),
+)
+
+
 def patch():
     """Instrument Pylons applications"""
     if getattr(pylons.wsgiapp, "_datadog_patch", False):
@@ -34,9 +42,10 @@ def traced_init(wrapped, instance, args, kwargs):
 
     # set tracing options and create the TraceMiddleware
     service = config._get_service(default="pylons")
-    distributed_tracing = asbool(get_env("pylons", "distributed_tracing", default=True))
     Pin(service=service, tracer=tracer).onto(instance)
-    traced_app = PylonsTraceMiddleware(instance, tracer, service=service, distributed_tracing=distributed_tracing)
+    traced_app = PylonsTraceMiddleware(
+        instance, tracer, service=service, distributed_tracing=config.pylons.distributed_tracing
+    )
 
     # re-order the middleware stack so that the first middleware is ours
     traced_app.app = instance.app
