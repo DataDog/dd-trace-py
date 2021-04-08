@@ -9,7 +9,7 @@ from ddtrace.compat import parse
 from ddtrace.http import store_request_headers
 from ddtrace.http import store_response_headers
 from ddtrace.settings import Config
-from ddtrace.settings import IntegrationConfig
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
 
@@ -167,6 +167,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
+        integration_config.header_is_traced.invalidate()
         integration_config.http.trace_headers("Content-Type")
         store_response_headers(
             {
@@ -182,6 +183,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
+        integration_config.header_is_traced.invalidate()
         store_response_headers(
             {
                 "Content-Type": "some;value",
@@ -196,6 +198,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
+        integration_config.header_is_traced.invalidate()
         integration_config.http.trace_headers("content-type")
         store_response_headers(
             {

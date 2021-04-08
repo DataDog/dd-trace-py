@@ -14,6 +14,7 @@ from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.cache import cached
 from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
@@ -121,6 +122,7 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
+@cached(maxsize=1)
 def get_error_ranges(error_range_str):
     error_ranges = []
     error_range_str = error_range_str.strip()
@@ -137,6 +139,7 @@ def get_error_ranges(error_range_str):
     return error_ranges
 
 
+@cached()
 def is_error_code(status_code):
     # type: (int) -> bool
     """Returns a boolean representing whether or not a status code is an error code.

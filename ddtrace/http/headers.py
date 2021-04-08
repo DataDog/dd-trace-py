@@ -1,5 +1,7 @@
 import re
 
+from ddtrace.utils.cache import cached
+
 from ..internal.logger import get_logger
 from ..utils.http import normalize_header_name
 
@@ -67,6 +69,11 @@ def _store_headers(headers, span, integration_config, request_or_response):
         span.set_tag(tag_name, header_value)
 
 
+@cached()
+def _normalized_header_name(header_name):
+    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
 def _normalize_tag_name(request_or_response, header_name):
     """
     Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
@@ -87,5 +94,5 @@ def _normalize_tag_name(request_or_response, header_name):
     #   - any letter is converted to lowercase
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+    normalized_name = _normalized_header_name(header_name)
     return "http.{}.headers.{}".format(request_or_response, normalized_name)
