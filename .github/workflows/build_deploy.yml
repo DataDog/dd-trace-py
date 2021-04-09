@@ -34,7 +34,7 @@ jobs:
           python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
-          CIBW_SKIP: pp* cp27-win*
+          CIBW_SKIP: pp*
 
       - uses: actions/upload-artifact@v2
         with:
