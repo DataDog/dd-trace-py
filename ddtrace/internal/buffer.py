@@ -3,7 +3,7 @@ import threading
 from typing import Deque
 from typing import List
 
-from ddtrace.vendor import attr
+import attr
 
 
 class BufferFull(Exception):
