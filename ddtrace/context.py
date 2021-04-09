@@ -34,7 +34,7 @@ class Context(object):
     """
 
     _partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
-    _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
+    _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))  # type: ignore[arg-type]
 
     def __init__(
         self,

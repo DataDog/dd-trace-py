@@ -4,8 +4,9 @@ from threading import RLock
 from typing import Optional
 from typing import Set
 
+import attr
+
 import ddtrace
-from ddtrace.vendor import attr
 
 from .. import periodic
 from ...utils.formats import get_env

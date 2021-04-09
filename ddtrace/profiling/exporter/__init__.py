@@ -1,4 +1,4 @@
-from ddtrace.vendor import attr
+import attr
 
 
 class ExportError(Exception):

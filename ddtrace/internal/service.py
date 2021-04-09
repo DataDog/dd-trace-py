@@ -1,7 +1,7 @@
 import enum
 import threading
 
-from ddtrace.vendor import attr
+import attr
 
 
 class ServiceStatus(enum.Enum):

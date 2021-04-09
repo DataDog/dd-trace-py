@@ -2,8 +2,9 @@
 """This files exposes non-gevent Python original functions."""
 import threading
 
+import attr
+
 from ddtrace import compat
-from ddtrace.vendor import attr
 from ddtrace.vendor import six
 
 
