@@ -167,7 +167,6 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.header_is_traced.invalidate()
         integration_config.http.trace_headers("Content-Type")
         store_response_headers(
             {
@@ -183,7 +182,6 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.header_is_traced.invalidate()
         store_response_headers(
             {
                 "Content-Type": "some;value",
@@ -198,7 +196,6 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.header_is_traced.invalidate()
         integration_config.http.trace_headers("content-type")
         store_response_headers(
             {

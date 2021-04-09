@@ -60,7 +60,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    class HTTPServerConfig:
+    class HTTPServerConfig(object):
         _error_statuses = "500-599"
         _error_ranges = get_error_ranges(_error_statuses)
 

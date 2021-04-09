@@ -163,17 +163,14 @@ class TestIntegrationConfig(BaseTestCase):
         assert self.integration_config["setting"] == "new-value"
 
     def test_allow_configuring_http(self):
-        self.integration_config.header_is_traced.invalidate()
         self.integration_config.http.trace_headers("integration_header")
         assert self.integration_config.http.header_is_traced("integration_header")
         assert not self.integration_config.http.header_is_traced("other_header")
 
     def test_allow_exist_both_global_and_integration_config(self):
-        self.integration_config.header_is_traced.invalidate()
         self.config.trace_headers("global_header")
         assert self.integration_config.header_is_traced("global_header")
 
-        self.integration_config.header_is_traced.invalidate()
         self.integration_config.http.trace_headers("integration_header")
         assert self.integration_config.header_is_traced("integration_header")
         assert not self.integration_config.header_is_traced("global_header")

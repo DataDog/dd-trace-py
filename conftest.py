@@ -11,6 +11,9 @@ import sys
 
 import pytest
 
+from ddtrace.utils.cache import _CACHED_OBJECTS
+
+
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
 pytest_plugins = ("pytester",)
 
@@ -71,3 +74,11 @@ def pytest_ignore_collect(path, config):
             # If the current Python version does not meet the minimum required, skip this directory
             if sys.version_info[0:2] < min_required:
                 outcome.force_result(True)
+
+
+@pytest.mark.hookwrapper
+def pytest_runtest_teardown(item, nextitem):
+    for object in _CACHED_OBJECTS:
+        object.invalidate()
+
+    yield
