@@ -8,18 +8,6 @@ whenever a dependency is imported. Doing this allows us to have a little more co
 Dependencies
 ============
 
-six
----
-
-Website: https://six.readthedocs.io/
-Source: https://github.com/benjaminp/six
-Version: 1.14.0
-License: MIT
-
-Notes:
-  `six/__init__.py` is just the source code's `six.py`
-
-
 wrapt
 -----
 
