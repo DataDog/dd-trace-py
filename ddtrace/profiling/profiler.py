@@ -9,6 +9,8 @@ from typing import List
 from typing import Optional
 import warnings
 
+import attr
+
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import service
@@ -23,7 +25,6 @@ from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 from ddtrace.utils import deprecation
-from ddtrace.vendor import attr
 
 
 LOG = logging.getLogger(__name__)
@@ -205,7 +206,7 @@ class _ProfilerInstance(service.Service):
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
-                file.PprofFileExporter(_OUTPUT_PPROF),  # type: ignore[call-arg]
+                file.PprofFileExporter(_OUTPUT_PPROF),
             ]
 
         api_key = _get_api_key()
@@ -219,7 +220,7 @@ class _ProfilerInstance(service.Service):
         endpoint = _get_default_url(tracer, api_key) if url is None else url
 
         return [
-            http.PprofHTTPExporter(  # type: ignore[call-arg]
+            http.PprofHTTPExporter(
                 service=service,
                 env=env,
                 tags=tags,

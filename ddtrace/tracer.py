@@ -133,7 +133,7 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: Union[AgentWriter, LogWriter]
-        self._processor = TraceProcessor([])  # type: ignore[call-arg]
+        self._processor = TraceProcessor([])
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
 
@@ -316,7 +316,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self._processor = TraceProcessor(filters=self._filters)  # type: ignore[call-arg]
+        self._processor = TraceProcessor(filters=self._filters)
 
         if context_provider is not None:
             self.context_provider = context_provider
