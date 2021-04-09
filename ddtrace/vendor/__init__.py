@@ -83,14 +83,6 @@ Source: https://github.com/giampaolo/psutil
 Version: 5.6.7
 License: BSD 3
 
-attrs
------
-
-Website: http://www.attrs.org/
-Source: https://github.com/python-attrs/attrs
-Version: 20.3.0
-License: MIT
-
 
 contextvars
 -------------
@@ -112,4 +104,6 @@ Notes:
 #      not conflict with any non-vendored datadog.dogstatsd logger
 from ..internal.logger import get_logger
 from .dogstatsd import base
+
+
 base.log = get_logger('ddtrace.vendor.dogstatsd')

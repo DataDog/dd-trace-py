@@ -2,6 +2,8 @@
 import threading
 import typing
 
+import attr
+
 
 try:
     from ddtrace.profiling.collector import _memalloc
@@ -13,7 +15,6 @@ from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
-from ddtrace.vendor import attr
 
 
 @event.event_class

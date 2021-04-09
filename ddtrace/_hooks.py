@@ -6,8 +6,9 @@ from typing import DefaultDict
 from typing import Optional
 from typing import Set
 
+import attr
+
 from .internal.logger import get_logger
-from .vendor import attr
 
 
 log = get_logger(__name__)

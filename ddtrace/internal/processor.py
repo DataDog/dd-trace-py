@@ -1,9 +1,10 @@
 from typing import List
 from typing import Optional
 
+import attr
+
 from ddtrace import Span
 from ddtrace.filters import TraceFilter
-from ddtrace.vendor import attr
 
 from .logger import get_logger
 
