@@ -2,8 +2,9 @@
 import collections
 import os
 
+import attr
+
 from ddtrace.internal import nogevent
-from ddtrace.vendor import attr
 
 
 class _defaultdictkey(dict):

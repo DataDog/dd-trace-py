@@ -6,6 +6,8 @@ import sys
 import threading
 import weakref
 
+import attr
+
 from ddtrace import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
@@ -14,7 +16,6 @@ from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
-from ddtrace.vendor import attr
 from ddtrace.vendor import six
 
 

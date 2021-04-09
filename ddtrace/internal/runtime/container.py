@@ -1,7 +1,8 @@
 import errno
 import re
 
-from ...vendor import attr
+import attr
+
 from ..logger import get_logger
 
 

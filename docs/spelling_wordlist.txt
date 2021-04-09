@@ -11,6 +11,7 @@ analytics
 api
 app
 asgi
+attrs
 autodetected
 autopatching
 backend
@@ -107,6 +108,7 @@ uWSGI
 unix
 unpatch
 unregister
+unvendored
 url
 urls
 username
