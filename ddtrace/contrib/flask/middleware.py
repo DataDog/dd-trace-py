@@ -111,7 +111,7 @@ class TraceMiddleware(object):
             self.app._tracer,
             int_config=config.flask,
             request_headers=request.headers,
-            override=self.app._use_distributed_tracing
+            override=self.app._use_distributed_tracing,
         )
 
         try:
