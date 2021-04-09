@@ -1,6 +1,6 @@
 import itertools
 
-from ddtrace.vendor import attr
+import attr
 
 from .. import periodic
 from ...utils.formats import get_env
