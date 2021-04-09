@@ -1,4 +1,7 @@
 CPython
+Fargate
+Firehose
+Gunicorn
 INfo
 MySQL
 OpenTracing
@@ -37,9 +40,7 @@ elasticsearch7
 enqueue
 entrypoint
 entrypoints
-Fargate
 fastapi
-Firehose
 gRPC
 gevent
 greenlet
