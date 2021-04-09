@@ -1,5 +1,7 @@
 from copy import deepcopy
 import os
+from typing import List
+from typing import Tuple
 
 from ddtrace.utils.cache import cachedmethod
 
@@ -38,6 +40,7 @@ def _deepmerge(source, destination):
 
 
 def get_error_ranges(error_range_str):
+    # type: (str) -> List[Tuple[int, int]]
     error_ranges = []
     error_range_str = error_range_str.strip()
     error_ranges_str = error_range_str.split(",")
@@ -48,7 +51,7 @@ def get_error_ranges(error_range_str):
         except ValueError:
             log.exception("Error status codes was not a number %s", values)
             continue
-        error_range = [min(values), max(values)]
+        error_range = (min(values), max(values))
         error_ranges.append(error_range)
     return error_ranges
 
@@ -61,19 +64,22 @@ class Config(object):
     """
 
     class HTTPServerConfig(object):
-        _error_statuses = "500-599"
-        _error_ranges = get_error_ranges(_error_statuses)
+        _error_statuses = "500-599"  # type: str
+        _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
         @property
         def error_statuses(self):
+            # type: () -> str
             return self._error_statuses
 
         @property
         def error_ranges(self):
+            # type: () -> List[Tuple[int, int]]
             return self._error_ranges
 
         @error_statuses.setter
         def error_statuses(self, value):
+            # type: (str) -> None
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
             self.is_error_code.invalidate()
