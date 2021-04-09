@@ -11,6 +11,7 @@ from unittest.case import SkipTest
 
 import mock
 import pytest
+import six
 
 import ddtrace
 from ddtrace.constants import ENV_KEY
@@ -29,7 +30,6 @@ from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
-from ddtrace.vendor import six
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyWriter
 from tests.utils import TracerTestCase

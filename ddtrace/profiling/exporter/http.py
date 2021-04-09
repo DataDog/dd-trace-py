@@ -7,6 +7,8 @@ import os
 import platform
 
 import attr
+import six
+from six.moves import http_client
 import tenacity
 
 import ddtrace
@@ -17,8 +19,6 @@ from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import pprof
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils.formats import parse_tags_str
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client  # type: ignore[import]
 
 
 HOSTNAME = platform.node()

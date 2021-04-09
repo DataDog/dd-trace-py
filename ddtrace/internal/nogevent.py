@@ -3,9 +3,9 @@
 import threading
 
 import attr
+import six
 
 from ddtrace import compat
-from ddtrace.vendor import six
 
 
 try:
@@ -32,8 +32,8 @@ try:
 except AttributeError:
     threading_get_native_id = None
 
-start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")  # type: ignore[attr-defined]
-thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")  # type: ignore[attr-defined]
+start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")
+thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")
 Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
 

@@ -3,9 +3,10 @@ import subprocess
 import sys
 import tempfile
 
+import six
+
 import ddtrace
 from ddtrace.compat import PY3
-from ddtrace.vendor import six
 
 from ..utils import BaseTestCase
 

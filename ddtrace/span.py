@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 from typing import Text
 from typing import Union
 
+import six
+
 from .compat import StringIO
 from .compat import ensure_text
 from .compat import is_integer
@@ -31,7 +33,6 @@ from .ext import net
 from .ext import priority
 from .internal import _rand
 from .internal.logger import get_logger
-from .vendor import six
 
 
 if TYPE_CHECKING:
