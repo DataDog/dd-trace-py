@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import sys
 import time
 from unittest.case import SkipTest
@@ -608,3 +609,44 @@ def test_span_preconditions(arg):
     Span(None, "test", **{arg: None})
     with pytest.raises(TypeError):
         Span(None, "test", **{arg: "foo"})
+
+
+def test_span_pprint():
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.set_tag("t", "v")
+    root.set_metric("m", 1.0)
+    root.finish()
+    actual = json.loads(root.pprint())
+    expected = {
+        "name": "test.span",
+        "service": "s",
+        "resource": "r",
+        "type": "web",
+        "error": 0,
+        "tags": "t:v",
+        "metrics": "m:1.0",
+    }
+    assert set(expected.items()) < set(actual.items())
+    assert isinstance(actual["trace_id"], int)
+    assert isinstance(actual["id"], int)
+    assert actual["parent_id"] is None
+    assert isinstance(actual["duration"], float)
+    assert actual["start"] < actual["end"]
+    assert set(actual.keys()) == set(
+        list(expected.keys()) + ["id", "trace_id", "parent_id", "duration", "start", "end"]
+    )
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    actual = json.loads(root.pprint())
+    assert actual["end"] is None
+    assert actual["duration"] is None
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.error = 1
+    actual = json.loads(root.pprint())
+    assert actual["error"] == 1
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.set_tag(u"😌", u"😌")
+    actual = json.loads(root.pprint())
+    assert actual["tags"] == u"😌:😌"

@@ -488,10 +488,11 @@ class Span(object):
             ("resource", self.resource),
             ("type", self.span_type),
             ("start", self.start),
-            ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", "%fs" % (self.duration or 0)),
+            ("end", None if not self.duration else self.start + self.duration),
+            ("duration", self.duration),
             ("error", self.error),
-            ("tags", ",".join("%r:%s" % kv for kv in sorted(self.meta.items()))),
+            ("tags", ",".join("%s:%s" % (str(k), v) for (k, v) in sorted(self.meta.items()))),
+            ("metrics", ",".join("%s:%s" % (str(k), v) for (k, v) in sorted(self.metrics.items()))),
         ]
         return json.dumps(collections.OrderedDict(data))
 
