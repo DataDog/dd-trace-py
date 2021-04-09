@@ -1,7 +1,8 @@
 import sys
 
+import six
+
 from ddtrace import config
-from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils

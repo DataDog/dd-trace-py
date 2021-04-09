@@ -1,10 +1,10 @@
 import threading
 
 import pytest
+from six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import threading as collector_threading
-from ddtrace.vendor.six.moves import _thread
 
 from . import test_collector
 
