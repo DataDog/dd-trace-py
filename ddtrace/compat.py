@@ -6,14 +6,9 @@ import textwrap
 import threading
 from typing import Any
 from typing import AnyStr
-from typing import TYPE_CHECKING
 from typing import Text
 
-from ddtrace.vendor import six
-
-
-if TYPE_CHECKING:
-    from .internal.writer import Response
+import six
 
 
 __all__ = [
@@ -37,17 +32,17 @@ PYTHON_VERSION = platform.python_version()
 PYTHON_INTERPRETER = platform.python_implementation()
 
 try:
-    StringIO = six.moves.cStringIO  # type: ignore[attr-defined]
+    StringIO = six.moves.cStringIO
 except ImportError:
-    StringIO = six.StringIO
+    StringIO = six.StringIO  # type: ignore[misc]
 
-httplib = six.moves.http_client  # type: ignore[attr-defined]
-urlencode = six.moves.urllib.parse.urlencode  # type: ignore[attr-defined]
-parse = six.moves.urllib.parse  # type: ignore[attr-defined]
-Queue = six.moves.queue.Queue  # type: ignore[attr-defined]
+httplib = six.moves.http_client
+urlencode = six.moves.urllib.parse.urlencode
+parse = six.moves.urllib.parse
+Queue = six.moves.queue.Queue
 iteritems = six.iteritems
 reraise = six.reraise
-reload_module = six.moves.reload_module  # type: ignore[attr-defined]
+reload_module = six.moves.reload_module
 
 ensure_text = six.ensure_text
 stringify = six.text_type
@@ -194,9 +189,9 @@ def to_unicode(s):
 
 
 def get_connection_response(
-    conn,  # type: httplib.HTTPConnection  # type: ignore
+    conn,  # type: httplib.HTTPConnection
 ):
-    # type: (...) -> Response
+    # type: (...) -> httplib.HTTPResponse
     """Returns the response for a connection.
 
     If using Python 2 enable buffering.

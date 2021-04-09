@@ -5,6 +5,7 @@ import time
 import timeit
 
 import pytest
+import six
 
 from ddtrace.internal import nogevent
 from ddtrace.internal import service
@@ -13,7 +14,6 @@ from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import stack
-from ddtrace.vendor import six
 
 from . import test_collector
 

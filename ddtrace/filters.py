@@ -4,7 +4,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from ddtrace.vendor import six
+import six
 
 from .ext import http
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ddtrace import Span
 
 
-class TraceFilter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
+class TraceFilter(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
