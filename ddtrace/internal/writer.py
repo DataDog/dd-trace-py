@@ -9,8 +9,9 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TextIO
 
+import six
+
 import ddtrace
-from ddtrace.vendor import six
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -127,7 +128,7 @@ class Response(object):
         )
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter
