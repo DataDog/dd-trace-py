@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    Added distributed tracing setting to integration config for falcon.
+    Added an environment variable to enable distributed tracing for falcon.
