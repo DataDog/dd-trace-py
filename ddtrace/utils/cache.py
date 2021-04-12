@@ -2,7 +2,9 @@ from threading import RLock
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Optional
 from typing import Tuple
+from typing import Type
 from typing import TypeVar
 
 
@@ -56,7 +58,7 @@ def cached(maxsize=256):
     return cached_wrapper
 
 
-class CachedMethod:
+class CachedMethod(object):
     def __init__(self, method, maxsize=256):
         # type: (F, int) -> None
         self._method = method
@@ -97,21 +99,23 @@ class CachedMethod:
             return result
 
 
+class CachedMethodDescriptor(object):
+    def __init__(self, method, maxsize):
+        # type: (M, int) -> None
+        self._method = method
+        self._maxsize = maxsize
+
+    def __get__(self, obj, objtype=None):
+        # type: (Any, Optional[Type]) -> CachedMethod
+        cached_method = CachedMethod(self._method.__get__(obj, objtype), self._maxsize)  # type: ignore[attr-defined]
+        setattr(obj, self._method.__name__, cached_method)
+        return cached_method
+
+
 def cachedmethod(maxsize=256):
-    # type: (int) -> Callable[[M], M]
+    # type: (int) -> Callable[[M], CachedMethodDescriptor]
     def cached_wrapper(f):
-        # type: (M) -> M
-        def cached_f(self, key):
-            # type: (Any, T) -> S
-            method_name = f.__name__
-            method = getattr(self, method_name)
-            if not isinstance(method, CachedMethod):
-                method = CachedMethod(f.__get__(self, type(self)), maxsize)  # type: ignore[attr-defined]
-                setattr(self, method_name, method)
-            return method(key)
-
-        cached_f.invalidate = lambda: None  # type: ignore[attr-defined]
-
-        return cached_f
+        # type: (M) -> CachedMethodDescriptor
+        return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
