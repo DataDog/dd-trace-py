@@ -51,11 +51,12 @@ test_randbits_stdlib          114.1084 (1.90)     169.3871 (1.71)     125.7419 (
 test_rand64bits_pid_check     121.8156 (2.03)     168.9837 (1.71)     130.3854 (2.00)      8.5097 (1.54)     127.8620 (2.01)     7.8514 (1.56)          9;5        7.6696 (0.50)         81      100000
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
-from libc.stdint cimport uint64_t
 import os
 
 from ddtrace import compat
 
+cdef extern from "_stdint.h" nogil:
+    ctypedef unsigned long long uint64_t
 
 cdef uint64_t state
 cdef object pid = None
