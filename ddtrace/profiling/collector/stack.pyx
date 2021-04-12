@@ -7,6 +7,7 @@ import threading
 import weakref
 
 import attr
+import six
 
 from ddtrace import compat
 from ddtrace.internal import nogevent
@@ -16,7 +17,6 @@ from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
-from ddtrace.vendor import six
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`

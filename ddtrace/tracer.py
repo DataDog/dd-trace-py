@@ -119,7 +119,7 @@ class Tracer(object):
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
         if self._use_log_writer() and url is None:
-            writer = LogWriter()
+            writer = LogWriter()  # type: TraceWriter
         else:
             url = url or agent.get_trace_url()
             agent.verify_url(url)
@@ -132,7 +132,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
             )
-        self.writer = writer  # type: Union[AgentWriter, LogWriter]
+        self.writer = writer  # type: TraceWriter
         self._processor = TraceProcessor([])
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -315,7 +315,8 @@ class Tracer(object):
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.
             pass
-        self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        if isinstance(self.writer, AgentWriter):
+            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self._processor = TraceProcessor(filters=self._filters)
 
         if context_provider is not None:

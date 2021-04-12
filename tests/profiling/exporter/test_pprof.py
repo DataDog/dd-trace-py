@@ -1,12 +1,12 @@
 import os
 
 import mock
+import six
 
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
-from ddtrace.vendor import six
 
 
 TEST_EVENTS = {
