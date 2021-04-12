@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    Added an environment variable to enable distributed tracing for pylons.
+    Added environment variable `DD_PYLONS_DISTRIBUTED_TRACING` to enable distributed tracing for pylons.
