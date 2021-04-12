@@ -126,6 +126,18 @@ venv = Venv(
             pkgs={"riot": latest},
         ),
         Venv(
+            name="docs",
+            pys=["3"],
+            pkgs={
+                "cython": latest,
+                "reno[sphinx]": latest,
+                "sphinx": latest,
+                "sphinxcontrib-spelling": latest,
+                "PyEnchant": latest,
+            },
+            command="scripts/build-docs",
+        ),
+        Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
