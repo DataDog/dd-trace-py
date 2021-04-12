@@ -35,7 +35,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         self.app = webtest.TestApp(self.app)
 
     def _trace_app_not_distributed(self, tracer=None):
-        ddtrace.config.bottle['distributed_tracing'] = False
+        ddtrace.config.bottle["distributed_tracing"] = False
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
         self.app = webtest.TestApp(self.app)
 
