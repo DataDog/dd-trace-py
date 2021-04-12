@@ -13,6 +13,7 @@ else:
     generatorExit = builtins.GeneratorExit
 
 
+import six
 from six.moves.urllib.parse import quote
 
 import ddtrace
@@ -21,7 +22,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
-from ddtrace.vendor import six
 
 from .. import trace_utils
 

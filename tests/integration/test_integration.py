@@ -5,6 +5,7 @@ import sys
 
 import mock
 import pytest
+import six
 
 import ddtrace
 from ddtrace import Tracer
@@ -12,7 +13,6 @@ from ddtrace import tracer
 from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.vendor import six
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
