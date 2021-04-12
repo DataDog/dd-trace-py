@@ -7,14 +7,14 @@ import threading
 import time
 
 import pytest
+import six
+from six.moves import BaseHTTPServer
+from six.moves import http_client
 
 import ddtrace
 from ddtrace import compat
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import BaseHTTPServer
-from ddtrace.vendor.six.moves import http_client
 
 from . import test_pprof
 

@@ -1,11 +1,11 @@
 import pytest
+import six
 from webtest import TestApp
 
 from ddtrace import config
 from ddtrace.compat import PY2
 from ddtrace.compat import PY3
 from ddtrace.contrib.wsgi import wsgi
-from ddtrace.vendor import six
 
 
 if PY2:

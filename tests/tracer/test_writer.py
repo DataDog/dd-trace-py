@@ -7,6 +7,8 @@ import time
 import mock
 import msgpack
 import pytest
+from six.moves import BaseHTTPServer
+from six.moves import socketserver
 
 from ddtrace.compat import PY3
 from ddtrace.compat import get_connection_response
@@ -19,8 +21,6 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
-from ddtrace.vendor.six.moves import BaseHTTPServer
-from ddtrace.vendor.six.moves import socketserver
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 
@@ -378,7 +378,7 @@ def _make_uds_server(path, request_handler):
     # Wait for the server to start
     resp = None
     while resp != 200:
-        conn = UDSHTTPConnection(server.server_address, False, _HOST, 2019)
+        conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
         try:
             conn.request("PUT", path)
             resp = get_connection_response(conn).status
