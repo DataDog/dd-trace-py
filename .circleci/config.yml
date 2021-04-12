@@ -265,11 +265,11 @@ commands:
 
   build_docs:
     steps:
-      - setup_tox
+      - setup_riot
       - run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: tox -e docs
+      - run: riot run docs
 
 executors:
   cimg_base:
