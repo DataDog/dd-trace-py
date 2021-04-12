@@ -8,8 +8,6 @@ from typing import Type
 from typing import TypeVar
 
 
-_CACHED_OBJECTS = []
-
 miss = object()
 
 T = TypeVar("T")
@@ -51,7 +49,6 @@ def cached(maxsize=256):
                 return result
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
-        _CACHED_OBJECTS.append(cached_f)
 
         return cached_f
 
