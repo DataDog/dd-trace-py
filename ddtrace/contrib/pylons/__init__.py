@@ -26,7 +26,7 @@ Global Configuration
 
    Whether to parse distributed tracing headers from requests received by your pylons app.
 
-   Can also be enabled with the ``DD_BOTOCORE_DISTRIBUTED_TRACING`` environment variable.
+   Can also be enabled with the ``DD_PYLONS_DISTRIBUTED_TRACING`` environment variable.
 
    Default: ``True``
 

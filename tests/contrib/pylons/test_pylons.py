@@ -391,24 +391,24 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
     def test_distributed_tracing_disabled(self):
-        with self.override_config("pylons", dict(distributed_tracing=False)):
-            headers = {
-                "x-datadog-trace-id": "100",
-                "x-datadog-parent-id": "42",
-                "x-datadog-sampling-priority": "2",
-            }
+        config.pylons["distributed_tracing"] = False
+        headers = {
+            "x-datadog-trace-id": "100",
+            "x-datadog-parent-id": "42",
+            "x-datadog-sampling-priority": "2",
+        }
 
-            res = self.app.get(url_for(controller="root", action="index"), headers=headers)
-            assert res.status == 200
+        res = self.app.get(url_for(controller="root", action="index"), headers=headers)
+        assert res.status == 200
 
-            spans = self.pop_spans()
-            assert spans, spans
-            assert len(spans) == 1
-            span = spans[0]
+        spans = self.pop_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        span = spans[0]
 
-            assert span.trace_id != 100
-            assert span.parent_id != 42
-            assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert span.trace_id != 100
+        assert span.parent_id != 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
 
     def test_success_200_ot(self):
         """OpenTracing version of test_success_200."""
