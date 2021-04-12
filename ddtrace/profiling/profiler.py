@@ -74,7 +74,7 @@ class Profiler(object):
 
         if profile_children:
             try:
-                uwsgi.check_uwsgi(self.start, atexit=self.stop if stop_on_exit else None)
+                uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
             except uwsgi.uWSGIMasterProcess:
                 # Do nothing, the start() method will be called in each worker subprocess
                 return
