@@ -10,7 +10,6 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool
 
 
@@ -39,11 +38,9 @@ class TracePlugin(object):
 
             resource = "{} {}".format(request.method, route.rule)
 
-            # Propagate headers such as x-datadog-trace-id.
-            if self.distributed_tracing:
-                context = HTTPPropagator.extract(request.headers)
-                if context.trace_id:
-                    self.tracer.context_provider.activate(context)
+            trace_utils.activate_distributed_headers(
+                self.tracer, int_config=config.bottle, request_headers=request.headers
+            )
 
             with self.tracer.trace(
                 "bottle.request",
