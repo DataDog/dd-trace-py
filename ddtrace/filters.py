@@ -4,7 +4,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from ddtrace.internal.processor import TraceProcessor
+from ddtrace.internal.processor.trace import TraceProcessor
 
 from .ext import http
 

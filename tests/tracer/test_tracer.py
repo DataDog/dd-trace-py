@@ -24,9 +24,14 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
 from ddtrace.ext import system
+from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.ext.priority import USER_KEEP
+from ddtrace.ext.priority import USER_REJECT
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
+from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
@@ -1585,3 +1590,53 @@ def test_bad_agent_url(monkeypatch):
     with pytest.raises(ValueError) as e:
         Tracer()
     assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+
+
+def test_context_priority(tracer, test_spans):
+    """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
+    for priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
+        with tracer.trace("span_%s" % priority) as span:
+            span.context.sampling_priority = priority
+
+        # Spans should always be written regardless of sampling priority since
+        # the agent needs to know the sampling decision.
+        spans = test_spans.pop()
+        assert len(spans) == 1, "trace should be sampled"
+        if priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
+            assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == priority
+
+
+def test_spans_sampled_out(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+
+    spans = test_spans.pop()
+    assert len(spans) == 0
+
+
+def test_spans_sampled_one(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = True
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
+
+
+def test_spans_sampled_all(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = True
+        with tracer.trace("child") as span:
+            span.sampled = True
+        with tracer.trace("child") as span:
+            span.sampled = True
+
+    spans = test_spans.pop()
+    assert len(spans) == 3

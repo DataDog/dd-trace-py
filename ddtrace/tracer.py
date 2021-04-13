@@ -37,9 +37,9 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
-from .internal.processor import SpansToTraceProcessor
-from .internal.processor import TraceProcessor
-from .internal.processor import TraceSamplingProcessor
+from .internal.processor.trace import SpansToTraceProcessor
+from .internal.processor.trace import TraceProcessor
+from .internal.processor.trace import TraceSamplingProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
