@@ -188,9 +188,15 @@ class DatadogSampler(BasePrioritySampler):
         self.limiter = RateLimiter(rate_limit)
 
         if default_sample_rate is None:
+            log.debug("initialized DatadogSampler, limit %r traces per second", rate_limit)
             # Default to previous default behavior of RateByServiceSampler
             self.default_sampler = RateByServiceSampler()  # type: BaseSampler
         else:
+            log.debug(
+                "initialized DatadogSampler, sample %s%% traces, limit %r traces per second",
+                100 * default_sample_rate,
+                rate_limit,
+            )
             self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
 
     def update_rate_by_service_sample_rates(self, sample_rates):
