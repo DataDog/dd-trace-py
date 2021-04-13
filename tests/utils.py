@@ -445,6 +445,7 @@ class DummyTracer(Tracer):
         return self.writer.pop_traces()
 
     def configure(self, *args, **kwargs):
+        assert "writer" not in kwargs, "cannot configure writer of DummyTracer"
         kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
 

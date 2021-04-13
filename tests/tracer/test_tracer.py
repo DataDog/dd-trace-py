@@ -24,14 +24,9 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
 from ddtrace.ext import system
-from ddtrace.ext.priority import AUTO_KEEP
-from ddtrace.ext.priority import AUTO_REJECT
-from ddtrace.ext.priority import USER_KEEP
-from ddtrace.ext.priority import USER_REJECT
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
-from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
@@ -705,10 +700,11 @@ def test_tracer_trace_across_fork():
     tracer.writer = DummyWriter()
 
     def task(tracer, q):
-        tracer.writer = DummyWriter()
+        writer = DummyWriter()
+        tracer.configure(writer=writer)
         with tracer.trace("child"):
             pass
-        spans = tracer.writer.pop()
+        spans = writer.pop()
         q.put([dict(trace_id=s.trace_id, parent_id=s.parent_id) for s in spans])
 
     # Assert tracer in a new process correctly recreates the writer
@@ -731,15 +727,15 @@ def test_tracer_trace_across_multiple_forks():
         The trace should be continued in the child processes
     """
     tracer = ddtrace.Tracer()
-    tracer.writer = DummyWriter()
+    tracer.configure(writer=DummyWriter())
 
     # Start a span in this process then start a child process which itself
     # starts a span and spawns another child process which starts a span.
     def task(tracer, q):
-        tracer.writer = DummyWriter()
+        tracer.configure(writer=DummyWriter())
 
         def task2(tracer, q):
-            tracer.writer = DummyWriter()
+            tracer.configure(writer=DummyWriter())
 
             with tracer.trace("child2"):
                 pass
@@ -1594,16 +1590,16 @@ def test_bad_agent_url(monkeypatch):
 
 def test_context_priority(tracer, test_spans):
     """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
-    for priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
-        with tracer.trace("span_%s" % priority) as span:
-            span.context.sampling_priority = priority
+    for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
+        with tracer.trace("span_%s" % p) as span:
+            span.context.sampling_priority = p
 
         # Spans should always be written regardless of sampling priority since
         # the agent needs to know the sampling decision.
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
-        if priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
-            assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == priority
+        if p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP]:
+            assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
 
 
 def test_spans_sampled_out(tracer, test_spans):

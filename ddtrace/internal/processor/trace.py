@@ -92,8 +92,9 @@ class SpansToTraceProcessor(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
-        trace = self._traces[span.trace_id]
-        trace.spans.append(span)
+        with self._lock:
+            trace = self._traces[span.trace_id]
+            trace.spans.append(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None

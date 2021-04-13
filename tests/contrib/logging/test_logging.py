@@ -101,8 +101,10 @@ class LoggingTestCase(TracerTestCase):
                 trace_id = span.trace_id
                 span_id = span.span_id
 
-            assert output == "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
-                service, version, env, trace_id, span_id
+            assert output.startswith(
+                "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
+                    service, version, env, trace_id, span_id
+                )
             )
 
             # without format string
