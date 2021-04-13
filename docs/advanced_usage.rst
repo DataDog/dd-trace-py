@@ -513,6 +513,25 @@ To enable tracing with manual instrumentation and configuration, configure uWSGI
           start_response('200 OK', [('Content-Type','text/html')])
           return [b"Hello World"]
 
+Gunicorn
+--------
+
+``ddtrace`` supports `Gunicorn <https://gunicorn.org>`_.
+
+However, if you are using the ``gevent`` worker class, you have to make sure
+``gevent`` monkey patching is done before loading the ``ddtrace`` library.
+
+There are different options to make that happen:
+
+- If you rely on ``ddtrace-run``, you must set ``DD_GEVENT_PATCH_ALL=1`` in
+  your environment to have gevent patched first-thing.
+
+- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
+  as the first import of your application.
+
+- Use a ```post_fork`` hook
+  <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`_ to import
+  ``ddtrace.bootstrap.sitecustomize``.
 
 API
 ---

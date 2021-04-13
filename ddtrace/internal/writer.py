@@ -9,8 +9,9 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TextIO
 
+import six
+
 import ddtrace
-from ddtrace.vendor import six
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -127,7 +128,7 @@ class Response(object):
         )
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter
@@ -210,9 +211,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = TraceBuffer(
-            max_size=self._buffer_size, max_item_size=self._max_payload_size
-        )  # type: ignore[call-arg]
+        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
