@@ -11,10 +11,12 @@ from ...constants import SPAN_MEASURED_KEY
 
 
 class TraceMiddleware(object):
-    def __init__(self, tracer, service="falcon"):
+    def __init__(self, tracer, service="falcon", distributed_tracing=None):
         # store tracing references
         self.tracer = tracer
         self.service = service
+        if distributed_tracing is not None:
+            config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
         # Falcon uppercases all header names.

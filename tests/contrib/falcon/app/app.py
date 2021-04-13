@@ -5,9 +5,9 @@ from ddtrace.contrib.falcon import TraceMiddleware
 from . import resources
 
 
-def get_app(tracer=None):
+def get_app(tracer=None, distributed_tracing=None):
     # initialize a traced Falcon application
-    middleware = [TraceMiddleware(tracer)] if tracer else []
+    middleware = [TraceMiddleware(tracer, distributed_tracing=distributed_tracing)] if tracer else []
     app = falcon.API(middleware=middleware)
 
     # add resource routing
