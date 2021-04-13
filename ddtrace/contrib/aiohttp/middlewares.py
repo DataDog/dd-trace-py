@@ -33,9 +33,14 @@ def trace_middleware(app, handler):
         # application configs
         tracer = app[CONFIG_KEY]["tracer"]
         service = app[CONFIG_KEY]["service"]
-
+        distributed_tracing = app[CONFIG_KEY]["distributed_tracing_enabled"]
         # Create a new context based on the propagated information.
-        trace_utils.activate_distributed_headers(tracer, int_config=app[CONFIG_KEY], request_headers=request.headers)
+        trace_utils.activate_distributed_headers(
+            tracer,
+            int_config=config.aiohttp,
+            request_headers=request.headers,
+            override=distributed_tracing,
+        )
 
         # trace the handler
         request_span = tracer.trace(
@@ -135,7 +140,7 @@ def trace_app(app, tracer, service="aiohttp-web"):
     app[CONFIG_KEY] = {
         "tracer": tracer,
         "service": config._get_service(default=service),
-        "distributed_tracing_enabled": True,
+        "distributed_tracing_enabled": None,
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,
     }
