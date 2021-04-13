@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 import threading
 from typing import DefaultDict
+from typing import Iterable
 from typing import List
 from typing import Optional
 
@@ -122,7 +123,7 @@ class SpansToTraceProcessor(SpanProcessor):
 
     _partial_flush_enabled = attr.ib(type=bool)
     _partial_flush_min_spans = attr.ib(type=int)
-    _trace_processors = attr.ib(type=List[TraceProcessor])
+    _trace_processors = attr.ib(type=Iterable[TraceProcessor])
     _writer = attr.ib(type=TraceWriter)
     _traces = attr.ib(
         factory=lambda: defaultdict(lambda: SpansToTraceProcessor._Trace()),

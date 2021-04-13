@@ -13,6 +13,7 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
+from typing import cast
 
 from ddtrace import config
 
@@ -37,6 +38,7 @@ from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor import SpansToTraceProcessor
+from .internal.processor import TraceProcessor
 from .internal.processor import TraceSamplingProcessor
 from .internal.runtime import RuntimeWorker
 from .internal.runtime import get_runtime_id
@@ -141,14 +143,12 @@ class Tracer(object):
         self._partial_flush_min_spans = int(
             get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
         )
-        self._processors = [
+        self._span_processors = [
             SpansToTraceProcessor(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=[
-                    TraceSamplingProcessor(),
-                    *self._filters,
-                ],
+                trace_processors=cast("List[TraceProcessor]", [TraceSamplingProcessor()])
+                + cast("List[TraceProcessor]", self._filters),
                 writer=self.writer,
             ),
         ]  # type: List[SpanProcessor]
@@ -341,14 +341,12 @@ class Tracer(object):
             pass
         if isinstance(self.writer, AgentWriter):
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self._processors = [
+        self._span_processors = [
             SpansToTraceProcessor(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=[
-                    TraceSamplingProcessor(),
-                    *self._filters,
-                ],
+                trace_processors=cast("List[TraceProcessor]", [TraceSamplingProcessor()])
+                + cast("List[TraceProcessor]", self._filters),
                 writer=self.writer,
             ),
         ]
@@ -552,8 +550,8 @@ class Tracer(object):
             if self._runtime_worker:
                 self._runtime_worker.update_runtime_tags()
 
-        for proc in self._processors:
-            proc.on_span_start(span)
+        for p in self._span_processors:
+            p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
@@ -562,10 +560,10 @@ class Tracer(object):
             return  # nothing to do
 
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("writing span %r", span)
+            self.log.debug("finishing span %r", span)
 
-        for proc in self._processors:
-            proc.on_span_finish(span)
+        for p in self._span_processors:
+            p.on_span_finish(span)
 
     def _start_runtime_worker(self):
         if not self._dogstatsd_url:
