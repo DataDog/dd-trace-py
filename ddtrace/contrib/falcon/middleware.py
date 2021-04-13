@@ -8,24 +8,13 @@ from .. import trace_utils
 from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...utils.formats import asbool
 
 
 class TraceMiddleware(object):
-    def __init__(self, tracer, service="falcon", distributed_tracing=None):
+    def __init__(self, tracer, service="falcon"):
         # store tracing references
         self.tracer = tracer
         self.service = service
-        if distributed_tracing is not None:
-            self._distributed_tracing = distributed_tracing
-
-    @property
-    def _distributed_tracing(self):
-        return config.falcon.distributed_tracing
-
-    @_distributed_tracing.setter
-    def _distributed_tracing(self, distributed_tracing):
-        config.falcon["distributed_tracing"] = asbool(distributed_tracing)
 
     def process_request(self, req, resp):
         # Falcon uppercases all header names.
