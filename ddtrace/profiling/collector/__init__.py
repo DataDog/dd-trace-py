@@ -1,8 +1,9 @@
 # -*- encoding: utf-8 -*-
+import attr
+
 from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.utils import attr as attr_utils
-from ddtrace.vendor import attr
 
 
 class CollectorError(Exception):
@@ -52,7 +53,7 @@ class CaptureSampler(object):
     capture_pct = attr.ib(default=100)
     _counter = attr.ib(default=0, init=False)
 
-    @capture_pct.validator  # type: ignore
+    @capture_pct.validator
     def capture_pct_validator(self, attribute, value):
         if value < 0 or value > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")
