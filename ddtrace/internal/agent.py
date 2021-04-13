@@ -14,7 +14,7 @@ DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
 
-ConnectionType = Union[compat.httplib.HTTPSConnection, compat.httplib.HTTPConnection, UDSHTTPConnection]  # type: ignore
+ConnectionType = Union[compat.httplib.HTTPSConnection, compat.httplib.HTTPConnection, UDSHTTPConnection]
 
 
 def get_hostname():
@@ -78,12 +78,10 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     hostname = parsed.hostname or ""
 
     if parsed.scheme == "https":
-        conn = compat.httplib.HTTPSConnection(hostname, parsed.port, timeout=timeout)
+        return compat.httplib.HTTPSConnection(hostname, parsed.port, timeout=timeout)
     elif parsed.scheme == "http":
-        conn = compat.httplib.HTTPConnection(hostname, parsed.port, timeout=timeout)
+        return compat.httplib.HTTPConnection(hostname, parsed.port, timeout=timeout)
     elif parsed.scheme == "unix":
-        conn = UDSHTTPConnection(parsed.path, parsed.scheme == "https", hostname, parsed.port, timeout=timeout)
-    else:
-        raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+        return UDSHTTPConnection(parsed.path, hostname, parsed.port, timeout=timeout)
 
-    return conn
+    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)

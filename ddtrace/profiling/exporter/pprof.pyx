@@ -2,14 +2,15 @@ import collections
 import itertools
 import operator
 
+import attr
+import six
+
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof_pb2
 from ddtrace.utils import config
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
 
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)
