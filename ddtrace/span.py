@@ -12,6 +12,7 @@ from typing import Union
 
 import six
 
+from .compat import NumericType
 from .compat import StringIO
 from .compat import ensure_text
 from .compat import is_integer
@@ -40,8 +41,9 @@ if TYPE_CHECKING:
     from .tracer import Tracer
 
 
-_MetaKeyType = Union[Text, bytes]
-_MetaDictType = Dict[_MetaKeyType, Text]
+_TagNameType = Union[Text, bytes]
+_MetaDictType = Dict[_TagNameType, Text]
+_MetricDictType = Dict[_TagNameType, NumericType]
 
 log = get_logger(__name__)
 
@@ -126,7 +128,7 @@ class Span(object):
         # tags / metadata
         self.meta = {}  # type: _MetaDictType
         self.error = 0
-        self.metrics = {}  # type: Dict[str, Any]
+        self.metrics = {}  # type: _MetricDictType
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)
@@ -229,7 +231,7 @@ class Span(object):
             cb(self)
 
     def set_tag(self, key, value=None):
-        # type: (_MetaKeyType, Any) -> None
+        # type: (_TagNameType, Any) -> None
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``stringify``-able.
@@ -264,7 +266,7 @@ class Span(object):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if val_is_an_int and abs(value) <= 2 ** 53:
+        if value is not None and val_is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 
@@ -275,6 +277,10 @@ class Span(object):
 
         # Key should explicitly be converted to a float if needed
         elif key in NUMERIC_TAGS:
+            if value is None:
+                log.debug("ignoring not number metric %s:%s", key, value)
+                return
+
             try:
                 # DEV: `set_metric` will try to cast to `float()` for us
                 self.set_metric(key, value)
@@ -311,7 +317,7 @@ class Span(object):
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     def _set_str_tag(self, key, value):
-        # type: (_MetaKeyType, Text) -> None
+        # type: (_TagNameType, Text) -> None
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -319,12 +325,12 @@ class Span(object):
         self.meta[key] = ensure_text(value, errors="replace")
 
     def _remove_tag(self, key):
-        # type: (str) -> None
+        # type: (_TagNameType) -> None
         if key in self.meta:
             del self.meta[key]
 
     def get_tag(self, key):
-        # type: (_MetaKeyType) -> Optional[Text]
+        # type: (_TagNameType) -> Optional[Text]
         """Return the given tag or None if it doesn't exist."""
         return self.meta.get(key, None)
 
@@ -338,7 +344,7 @@ class Span(object):
                 self.set_tag(k, v)
 
     def set_meta(self, k, v):
-        # type: (_MetaKeyType, Text) -> None
+        # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
     def set_metas(self, kvs):
@@ -346,7 +352,7 @@ class Span(object):
         self.set_tags(kvs)
 
     def set_metric(self, key, value):
-        # type: (str, Any) -> None
+        # type: (_TagNameType, NumericType) -> None
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
 
@@ -379,13 +385,13 @@ class Span(object):
         self.metrics[key] = value
 
     def set_metrics(self, metrics):
-        # type: (Dict[str, Any]) -> None
+        # type: (_MetricDictType) -> None
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
 
     def get_metric(self, key):
-        # type: (str) -> Any
+        # type: (_TagNameType) -> Optional[NumericType]
         return self.metrics.get(key)
 
     def to_dict(self):
