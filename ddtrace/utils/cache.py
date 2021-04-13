@@ -18,6 +18,14 @@ M = Callable[[Any, T], S]
 
 def cached(maxsize=256):
     # type: (int) -> Callable[[F], F]
+    """
+    Decorator for caching the result of functions with a single argument.
+
+    The strategy is MFU, meaning that only the most frequently used values are
+    retained. The amortized cost of shrinking the cache when it grows behond
+    the requested size is O(log(size)).
+    """
+
     def cached_wrapper(f):
         # type: (F) -> F
         cache = {}  # type: Dict[Any, Tuple[Any, int]]
