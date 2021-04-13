@@ -22,6 +22,22 @@ To enable the Pylons integration, wrap a Pylons application with the provided
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
+.. py:data:: ddtrace.config.pylons['distributed_tracing']
+
+   Whether to parse distributed tracing headers from requests received by your pylons app.
+
+   Can also be enabled with the ``DD_PYLONS_DISTRIBUTED_TRACING`` environment variable.
+
+   Default: ``True``
+
+   Example::
+
+    from ddtrace import config
+
+    # Enable distributed tracing
+    config.pylons['distributed_tracing'] = True
+
+
 .. py:data:: ddtrace.config.pylons["service"]
 
    The service name reported by default for Pylons requests.
