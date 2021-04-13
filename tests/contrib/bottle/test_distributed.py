@@ -92,3 +92,30 @@ class TraceBottleDistributedTest(TracerTestCase):
         # check distributed headers
         assert 123 != s.trace_id
         assert 456 != s.parent_id
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTTLE_DISTRIBUTED_TRACING="False"))
+    def test_distributed_tracing_disabled_via_env_var(self):
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app_distributed(self.tracer)
+
+        # make a request
+        headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
+        resp = self.app.get("/hi/dougie", headers=headers)
+        assert resp.status_int == 200
+        assert compat.to_unicode(resp.body) == u"hi dougie"
+
+        # validate it's traced
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == "bottle.request"
+        assert s.service == "bottle-app"
+        assert s.resource == "GET /hi/<name>"
+        assert_span_http_status_code(s, 200)
+        assert s.get_tag("http.method") == "GET"
+        # check distributed headers
+        assert 123 != s.trace_id
+        assert 456 != s.parent_id
