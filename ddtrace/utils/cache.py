@@ -22,7 +22,7 @@ def cached(maxsize=256):
     Decorator for caching the result of functions with a single argument.
 
     The strategy is MFU, meaning that only the most frequently used values are
-    retained. The amortized cost of shrinking the cache when it grows behond
+    retained. The amortized cost of shrinking the cache when it grows beyond
     the requested size is O(log(size)).
     """
 
