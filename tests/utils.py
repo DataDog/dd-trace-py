@@ -18,6 +18,7 @@ from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.settings import IntegrationConfig
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -111,15 +112,18 @@ def override_config(integration, values):
         >>> with self.override_config('flask', dict(service_name='test-service')):
             # Your test
     """
-    options = getattr(ddtrace.config, integration)
+    original = getattr(ddtrace.config, integration)
 
-    original = dict((key, options.get(key)) for key in values.keys())
-
+    # Ensure IntegrationConfig initialization is performed with updated options
+    options = dict(original.items())
     options.update(values)
+    new = IntegrationConfig(ddtrace.config, original.integration_name, **options)
+
     try:
+        setattr(ddtrace.config, integration, new)
         yield
     finally:
-        options.update(original)
+        setattr(ddtrace.config, integration, original)
 
 
 @contextlib.contextmanager

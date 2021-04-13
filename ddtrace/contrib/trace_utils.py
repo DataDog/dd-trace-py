@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import http
 import ddtrace.http
 from ddtrace.internal.logger import get_logger
@@ -241,3 +242,13 @@ def flatten_dict(
         else:
             flat[p] = v
     return flat
+
+
+def set_analytics_sample_rate(span, integration_config):
+    analytics_sample_rate = integration_config.analytics_sample_rate
+    if integration_config._is_analytics_enabled():
+        # set rate to True if none set but analytics has been enabled
+        if analytics_sample_rate is None:
+            analytics_sample_rate = True
+        if analytics_sample_rate:
+            span.set_metric(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)

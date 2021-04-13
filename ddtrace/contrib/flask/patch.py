@@ -6,7 +6,6 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
@@ -36,6 +35,7 @@ config._add(
         distributed_tracing_enabled=True,
         template_default_name="<memory>",
         trace_signals=True,
+        _analytics_use_global_config=True,
     ),
 )
 
@@ -274,10 +274,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         span_type=SpanTypes.WEB,
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        trace_utils.set_analytics_sample_rate(s, config.flask)
 
         s.set_tag(FLASK_VERSION, flask_version_str)
 

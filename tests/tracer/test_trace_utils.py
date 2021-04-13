@@ -13,11 +13,13 @@ from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.compat import stringify
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -317,3 +319,41 @@ def test_flatten_dict_exclude():
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_B=4)
     assert trace_utils.flatten_dict(d, sep="_", exclude={"C_A", "C_C"}) == e
+
+
+@pytest.mark.parametrize(
+    "global_analytics_enabled,analytics_use_global_config,int_analytics_enabled,int_analytics_sample_rate,expected",
+    [
+        (False, False, None, None, None),
+        (False, True, None, None, None),
+        (False, False, True, 0.5, 0.5),
+        (False, True, True, 0.5, 0.5),
+        (True, False, None, None, None),
+        (True, True, None, None, 1.0),
+        (True, False, False, 1.0, None),
+        (True, True, False, 1.0, None),
+    ],
+)
+def test_set_analytics_sample_rate(
+    span,
+    global_analytics_enabled,
+    analytics_use_global_config,
+    int_analytics_enabled,
+    int_analytics_sample_rate,
+    expected,
+):
+    int_config_options = {}
+    if analytics_use_global_config is not None:
+        int_config_options["_analytics_use_global_config"] = analytics_use_global_config
+    if int_analytics_enabled is not None:
+        int_config_options["analytics_enabled"] = int_analytics_enabled
+    if int_analytics_sample_rate is not None:
+        int_config_options["analytics_sample_rate"] = int_analytics_sample_rate
+    with override_global_config(dict(analytics_enabled=global_analytics_enabled)):
+        with override_config("myint", int_config_options):
+            trace_utils.set_analytics_sample_rate(span, config.myint)
+
+    if expected is None:
+        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+    else:
+        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == expected

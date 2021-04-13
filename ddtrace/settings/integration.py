@@ -93,7 +93,8 @@ class IntegrationConfig(AttrDict):
             else self.global_config.header_is_traced(header_name)
         )
 
-    def _is_analytics_enabled(self, use_global_config):
+    def _is_analytics_enabled(self, use_global_config=None):
+        use_global_config = use_global_config or getattr(self, "_analytics_use_global_config", False)
         # DEV: analytics flag can be None which should not be taken as
         # enabled when global flag is disabled
         if use_global_config and self.global_config.analytics_enabled:
