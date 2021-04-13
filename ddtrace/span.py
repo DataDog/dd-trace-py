@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 from typing import Text
 from typing import Union
 
+import six
+
 from .compat import StringIO
 from .compat import ensure_text
 from .compat import is_integer
@@ -31,7 +33,6 @@ from .ext import net
 from .ext import priority
 from .internal import _rand
 from .internal.logger import get_logger
-from .vendor import six
 
 
 if TYPE_CHECKING:
@@ -84,7 +85,7 @@ class Span(object):
         parent_id=None,  # type: Optional[int]
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
-        on_finish=None,  # type: List[Callable[[Span], None]]
+        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
@@ -254,13 +255,13 @@ class Span(object):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value)  # type: ignore[arg-type]
+                value = int(value)
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if val_is_an_int and abs(value) <= 2 ** 53:  # type: ignore[arg-type]
+        if val_is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 

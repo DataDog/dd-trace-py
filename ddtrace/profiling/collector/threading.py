@@ -4,14 +4,15 @@ import os.path
 import sys
 import threading
 
+import attr
+from six.moves import _thread
+
 from ddtrace import compat
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
-from ddtrace.vendor import attr
 from ddtrace.vendor import wrapt
-from ddtrace.vendor.six.moves import _thread  # type: ignore[import]
 
 
 @event.event_class

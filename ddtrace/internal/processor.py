@@ -5,10 +5,11 @@ from typing import DefaultDict
 from typing import List
 from typing import Optional
 
+import attr
+import six
+
 from ddtrace import Span
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
 
 from .logger import get_logger
 
@@ -93,7 +94,7 @@ class TraceSamplingProcessor(TraceProcessor):
         sampled_spans = [s.sampled for s in trace]
         if len(sampled_spans) == 0:
             log.info("dropping trace, %d spans unsampled", len(trace))
-            return
+            return None
 
         log.info("trace %d sampled (%d/%d spans sampled)", trace[0].trace_id, len(sampled_spans), len(trace))
         return trace
@@ -126,7 +127,7 @@ class SpansToTraceProcessor(SpanProcessor):
     _traces = attr.ib(
         factory=lambda: defaultdict(lambda: SpansToTraceProcessor._Trace()),
         init=False,
-        type=DefaultDict[str, "_Trace"],
+        type=DefaultDict[int, "_Trace"],
         repr=False,
     )
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
@@ -137,7 +138,7 @@ class SpansToTraceProcessor(SpanProcessor):
         trace.spans.append(span)
 
     def on_span_finish(self, span):
-        # type: (Span) -> Optional[List[Span]]
+        # type: (Span) -> None
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
@@ -151,15 +152,14 @@ class SpansToTraceProcessor(SpanProcessor):
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
 
-                spans = finished
+                spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:
                     try:
+                        if spans is None:
+                            return
                         spans = tp.process_trace(spans)
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
-                    else:
-                        if spans is None:
-                            return
 
                 self._writer.write(spans)
                 return

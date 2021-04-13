@@ -121,7 +121,7 @@ class Tracer(object):
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
         if self._use_log_writer() and url is None:
-            writer = LogWriter()
+            writer = LogWriter()  # type: TraceWriter
         else:
             url = url or agent.get_trace_url()
             agent.verify_url(url)
@@ -134,11 +134,13 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
             )
-        self.writer = writer  # type: Union[AgentWriter, LogWriter]
+        self.writer = writer  # type: TraceWriter
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
-        self._partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
+        self._partial_flush_min_spans = int(
+            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
+        )
         self._processors = [
             SpansToTraceProcessor(
                 partial_flush_enabled=self._partial_flush_enabled,
@@ -337,7 +339,8 @@ class Tracer(object):
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.
             pass
-        self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        if isinstance(self.writer, AgentWriter):
+            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self._processors = [
             SpansToTraceProcessor(
                 partial_flush_enabled=self._partial_flush_enabled,
@@ -850,9 +853,6 @@ class Tracer(object):
             self._shutdown_runtime_worker(timeout)
 
     def _shutdown_runtime_worker(self, timeout=None):
-        if not self._runtime_worker.is_alive():
-            return
-
         self._runtime_worker.stop()
         self._runtime_worker.join(timeout=timeout)
 
