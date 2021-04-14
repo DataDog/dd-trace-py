@@ -991,9 +991,9 @@ jobs:
       - store_artifacts:
           path: benchmarks/results/
       - persist_to_workspace:
-          root: benchmark/results/
+          root: .
           paths:
-            - "*.json"
+            - "benchmarks/results/*.json"
 
   deploy_master:
     # build the master branch releasing development docs and wheels
