@@ -905,6 +905,8 @@ jobs:
           pattern: '^benchmark'
       - store_artifacts:
           path: benchmarks/results/
+      - persist_to_workspace:
+          path: benchmarks/results/
 
   jinja2:
     <<: *contrib_job
