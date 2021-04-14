@@ -71,14 +71,14 @@ def run_sirun(meta_path, variant=None):
         major=sys.version_info.major,
         minor=sys.version_info.minor,
         micro=sys.version_info.micro,
-        name=sys.implementation.name,
+        name=platform.python_implementation(),
     )
-    uname = platform.uname()
+    system, node, release, _, machine, _ = platform.uname()
     results["platform"] = dict(
-        system=uname.system,
-        node=uname.node,
-        release=uname.release,
-        machine=uname.machine,
+        system=system,
+        node=node,
+        release=release,
+        machine=machine,
     )
 
     return results
