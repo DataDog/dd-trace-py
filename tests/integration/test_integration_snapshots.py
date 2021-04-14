@@ -1,3 +1,5 @@
+import multiprocessing
+
 import pytest
 
 from ddtrace import Tracer
@@ -171,3 +173,52 @@ def test_synchronous_writer():
     with tracer.trace("operation2", service="my-svc"):
         with tracer.trace("child2"):
             pass
+
+
+@snapshot(async_mode=False)
+def test_tracer_trace_across_fork():
+    """
+    When a trace is started in a parent process and a child process is spawned
+        The trace should be continued in the child process
+    """
+    tracer = Tracer()
+
+    def task(tracer):
+        with tracer.trace("child"):
+            pass
+        tracer.shutdown()
+
+    with tracer.trace("parent"):
+        p = multiprocessing.Process(target=task, args=(tracer,))
+        p.start()
+        p.join()
+        tracer.shutdown()
+
+    tracer.shutdown()
+
+
+@snapshot(async_mode=False)
+def test_tracer_trace_across_multiple_forks():
+    """
+    When a trace is started and crosses multiple process boundaries
+        The trace should be continued in the child processes
+    """
+    tracer = Tracer()
+
+    def task(tracer):
+        def task2(tracer):
+            with tracer.trace("child2"):
+                pass
+            tracer.shutdown()
+
+        with tracer.trace("child1"):
+            p = multiprocessing.Process(target=task2, args=(tracer,))
+            p.start()
+            p.join()
+        tracer.shutdown()
+
+    with tracer.trace("parent"):
+        p = multiprocessing.Process(target=task, args=(tracer,))
+        p.start()
+        p.join()
+    tracer.shutdown()
