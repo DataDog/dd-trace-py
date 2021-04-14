@@ -987,7 +987,7 @@ jobs:
     steps:
       - run_test:
           store_coverage: false
-          pattern: '^benchmarks'
+          pattern: '^benchmark'
 
   deploy_master:
     # build the master branch releasing development docs and wheels

@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+import collections
+import contextlib
+import glob
+import json
+import logging
+import os
+import subprocess
+import sys
+import typing
+
+
+log = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def cwd(path):
+    # type: (str) -> None
+    original = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(original)
+
+
+def run_sirun(meta_path, variant=None):
+    # type: (str, typing.Optional[str]) -> typing.Dict[str, typing.Any]
+    env = os.environ.copy()
+    if variant:
+        env["SIRUN_VARIANT"] = variant
+
+    args = ["sirun", meta_path]
+
+    with cwd(os.path.dirname(meta_path)):
+        output = subprocess.check_output(args, env=env)
+
+    # Grab the last line of output
+    sirun_data = [l.strip() for l in output.splitlines() if l.strip()][-1]
+    data = json.loads(sirun_data)
+
+    results = dict(
+        name=data.get("name"),
+        variant=data.get("variant"),
+        instructions=data.get("instructions"),
+        iterations=len(data["iterations"]),
+        metrics=dict().
+    )
+
+    metrics = collections.defaultdict(list)
+    for iteration in data["iterations"]:
+        for metric, value in iteration.items():
+            metrics[metric].append(value)
+
+    for metric, values in metrics.items():
+        results["metrics"][metric] = dict(
+            min=min(values),
+            max=max(values),
+            mean=sum(values) / float(len(values)),
+        )
+
+    return results
+
+
+def run_suite(suite_dir):
+    # type: (str) -> typing.Dict[str, typing.Any]:
+    meta_path = os.path.join(suite_dir, "meta.json")
+    if not os.path.isfile(meta_path):
+        raise FileNotFoundError("Suite meta path {!r} does not exist".format(meta_path))
+
+    with open(meta_path, "r") as fp:
+        meta_data = json.load(fp)
+
+    variants = meta_data.get("variants")
+    if not variants:
+        variants = [None]
+    else:
+        variants = variants.keys()
+
+    results = dict()
+    log.info("Running suite: {}".format(suite_dir))
+    for variant in variants:
+        log.info("Running variant: {}".format(variant))
+        results[variant] = run_sirun(meta_path, variant=variant)
+
+    return results
+
+
+def main(base_dir, suites):
+    # type: (str, typing.List[str]) -> None
+    if not suites:
+        suites = [os.path.basename(fname) for fname in glob.glob(os.path.join(base_dir, "*")) if os.path.isdir(fname)]
+
+    for suite_name in suites:
+        suite_dir = os.path.join(base_dir, suite_name)
+        results = run_suite(suite_dir)
+        json.dump(results, sys.stdout)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    main(base_dir, sys.argv[1:])
