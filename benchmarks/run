@@ -40,6 +40,9 @@ def run_sirun(meta_path, variant=None):
 
     # Grab the last line of output
     sirun_data = [l.strip() for l in output.splitlines() if l.strip()][-1]
+    # DEV: Python 3.5 `json.loads` does not accept `bytes` or `bytearray`
+    if sys.version_info.major == 3 and sys.version_info.minor == 5:
+        sirun_data = sirun_data.decode("utf-8")
     results = json.loads(sirun_data)
 
     # If there is only 1 iteration we don't get a list of iterations
