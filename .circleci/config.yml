@@ -988,6 +988,8 @@ jobs:
       - run_test:
           store_coverage: false
           pattern: '^benchmark'
+      - store_artifacts:
+          path: benchmark/results/
 
   deploy_master:
     # build the master branch releasing development docs and wheels

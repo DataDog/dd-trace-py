@@ -139,6 +139,7 @@ venv = Venv(
         ),
         Venv(
             pys=select_pys(),
+            pkgs={"rich": latest},
             venvs=[
                 Venv(
                     name="benchmark-startup",
