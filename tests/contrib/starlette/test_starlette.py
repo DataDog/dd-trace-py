@@ -86,7 +86,7 @@ def test_200(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /200"
@@ -104,7 +104,7 @@ def test_200_query_string(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /"
@@ -122,7 +122,7 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /"
@@ -139,7 +139,7 @@ def test_201(client, tracer, test_spans):
     assert r.status_code == 201
     assert r.text == "Created"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "POST /201"
@@ -156,7 +156,7 @@ def test_404(client, tracer, test_spans):
     assert r.status_code == 404
     assert r.text == "Not Found"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /404"
@@ -170,7 +170,7 @@ def test_500error(client, tracer, test_spans):
     with pytest.raises(RuntimeError):
         client.get("/500")
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /500"
@@ -193,7 +193,7 @@ def test_distributed_tracing(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /"
@@ -241,7 +241,7 @@ def test_streaming_response(client, tracer, test_spans):
 
     assert r.text.endswith("streaming")
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /stream"
@@ -258,7 +258,7 @@ def test_file_response(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Datadog says hello!"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /file"
@@ -275,7 +275,7 @@ def test_invalid_path_param(client, tracer, test_spans):
     assert r.status_code == 404
     assert r.text == "Not Found"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/test"
@@ -291,7 +291,7 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/{userid:int}"
@@ -307,7 +307,7 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/{userid:int}/info"
@@ -323,7 +323,7 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/{userid:int}/{attribute:str}"
@@ -340,7 +340,7 @@ def test_path_param_no_aggregate(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    request_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
     assert request_span.resource == "GET /users/1"
@@ -356,7 +356,7 @@ def test_table_query(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "Success"
 
-    starlette_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    starlette_span = next(test_spans.filter_spans(name="starlette.request"))
     assert starlette_span.service == "starlette"
     assert starlette_span.name == "starlette.request"
     assert starlette_span.resource == "POST /notes"
@@ -365,7 +365,7 @@ def test_table_query(client, tracer, test_spans):
     assert starlette_span.get_tag("http.url") == "http://testserver/notes"
     assert starlette_span.get_tag("http.status_code") == "200"
 
-    sql_span = list(test_spans.filter_spans(name="sqlite.query", trace_id=starlette_span.trace_id))[0]
+    sql_span = next(test_spans.filter_spans(name="sqlite.query", trace_id=starlette_span.trace_id))
     assert sql_span.service == "sqlite"
     assert sql_span.name == "sqlite.query"
     assert sql_span.resource == "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)"
@@ -379,7 +379,7 @@ def test_table_query(client, tracer, test_spans):
     assert r.status_code == 200
     assert r.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
 
-    starlette_span = list(test_spans.filter_spans(name="starlette.request"))[0]
+    starlette_span = next(test_spans.filter_spans(name="starlette.request"))
     assert starlette_span.service == "starlette"
     assert starlette_span.name == "starlette.request"
     assert starlette_span.resource == "GET /notes"
@@ -388,7 +388,7 @@ def test_table_query(client, tracer, test_spans):
     assert starlette_span.get_tag("http.url") == "http://testserver/notes"
     assert starlette_span.get_tag("http.status_code") == "200"
 
-    sql_span = list(test_spans.filter_spans(name="sqlite.query", trace_id=starlette_span.trace_id))[0]
+    sql_span = next(test_spans.filter_spans(name="sqlite.query", trace_id=starlette_span.trace_id))
     assert sql_span.service == "sqlite"
     assert sql_span.name == "sqlite.query"
     assert sql_span.resource == "SELECT * FROM NOTES"
