@@ -54,6 +54,8 @@ coverage.json
 *,cover
 .hypothesis/
 .pytest_cache/
+benchmarks/results
+cachegrind.out.*
 
 # Translations
 *.mo

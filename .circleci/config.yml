@@ -903,6 +903,8 @@ jobs:
       - run_test:
           store_coverage: false
           pattern: '^benchmark'
+      - store_artifacts:
+          path: benchmark/results/
 
   jinja2:
     <<: *contrib_job

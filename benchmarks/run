@@ -9,6 +9,10 @@ import subprocess
 import sys
 import typing
 
+from rich.console import Console
+from rich.progress import Progress
+from rich.table import Table
+
 
 log = logging.getLogger(__name__)
 
@@ -37,33 +41,32 @@ def run_sirun(meta_path, variant=None):
 
     # Grab the last line of output
     sirun_data = [l.strip() for l in output.splitlines() if l.strip()][-1]
-    data = json.loads(sirun_data)
+    results = json.loads(sirun_data)
 
-    results = dict(
-        name=data.get("name"),
-        variant=data.get("variant"),
-        instructions=data.get("instructions"),
-        iterations=len(data["iterations"]),
-        metrics=dict().
-    )
+    # If there is only 1 iteration we don't get a list of iterations
+    #   turn
+    # {"name": "test", "sys.time": 5, "max.rss": 20, ...}
+    #   into
+    # {"name": "test", "iterations": [{"sys.time": 5, ...}]}
+    if "iterations" not in results:
+        iteration = dict()
+        new_results = dict(iterations=[iteration])
+        for key, value in results.items():
+            if key in ("name", "variant", "instructions"):
+                new_results[key] = value
+            else:
+                iteration[key] = value
+        results = new_results
 
-    metrics = collections.defaultdict(list)
-    for iteration in data["iterations"]:
-        for metric, value in iteration.items():
-            metrics[metric].append(value)
-
-    for metric, values in metrics.items():
-        results["metrics"][metric] = dict(
-            min=min(values),
-            max=max(values),
-            mean=sum(values) / float(len(values)),
-        )
-
+    # Make sure the list of keys is consistent, even if we don't have any data
+    for key in ("name", "variant", "instructions"):
+        if key not in results:
+            results[key] = None
     return results
 
 
-def run_suite(suite_dir):
-    # type: (str) -> typing.Dict[str, typing.Any]:
+def run_suite(suite_dir, progress):
+    # type: (str, Progress) -> typing.Dict[str, typing.Any]:
     meta_path = os.path.join(suite_dir, "meta.json")
     if not os.path.isfile(meta_path):
         raise FileNotFoundError("Suite meta path {!r} does not exist".format(meta_path))
@@ -77,24 +80,79 @@ def run_suite(suite_dir):
     else:
         variants = variants.keys()
 
-    results = dict()
-    log.info("Running suite: {}".format(suite_dir))
-    for variant in variants:
-        log.info("Running variant: {}".format(variant))
+    results = collections.OrderedDict()
+    task_id = progress.add_task(total=len(variants), description="[0/{}] [bold]Variant[/bold]".format(len(variants)))
+    for i, variant in enumerate(sorted(variants), start=1):
+        progress.update(task_id, description="[{}/{}] [bold]Variant:[/bold] {}".format(i, len(variants), variant))
         results[variant] = run_sirun(meta_path, variant=variant)
+        progress.update(task_id, advance=1)
 
     return results
 
 
 def main(base_dir, suites):
     # type: (str, typing.List[str]) -> None
+    console = Console()
+
+    # No suites provided, go find all of them to run
     if not suites:
         suites = [os.path.basename(fname) for fname in glob.glob(os.path.join(base_dir, "*")) if os.path.isdir(fname)]
 
-    for suite_name in suites:
-        suite_dir = os.path.join(base_dir, suite_name)
-        results = run_suite(suite_dir)
-        json.dump(results, sys.stdout)
+    # Run our benchmark suites
+    results = collections.OrderedDict()
+    with Progress(console=console) as progress:
+        task_id = progress.add_task(total=len(suites), description="[0/{}] [bold]Suite[/bold]".format(len(suites)))
+        for i, suite_name in enumerate(sorted(suites), start=1):
+            progress.update(task_id, description="[{}/{}] [bold]Suite:[/bold] {}".format(i, len(suites), suite_name))
+            suite_dir = os.path.join(base_dir, suite_name)
+            results[suite_name] = run_suite(suite_dir, progress=progress)
+            progress.update(task_id, advance=1)
+
+    # Write full results as json file
+    results_dir = os.path.join(base_dir, "results")
+    os.makedirs(results_dir, exist_ok=True)
+    results_filename = os.path.join(results_dir, "results.{}.json".format(os.getpid()))
+    with open(results_filename, "w") as fp:
+        json.dump(results, fp)
+    console.print("[italic]Results JSON: {}[/italic]".format(results_filename))
+
+    # Print results as a table
+    for suite, variants in results.items():
+        table = Table(title="Results: {}".format(suite))
+        table.add_column("Variant")
+        table.add_column("Iterations")
+        table.add_column("Instructions")
+        table.add_column("max.res.size min")
+        table.add_column("max.res.size max")
+        table.add_column("max.res.size mean")
+        table.add_column("wall.time min")
+        table.add_column("wall.time max")
+        table.add_column("wall.time mean")
+
+        for variant, data in variants.items():
+            metrics = collections.defaultdict(list)
+            for iteration in data["iterations"]:
+                for metric, value in iteration.items():
+                    metrics[metric].append(value)
+
+            iterations = len(data["iterations"])
+            table.add_row(
+                *[
+                    str(i)
+                    for i in [
+                        variant,
+                        iterations,
+                        data["instructions"],
+                        min(metrics["max.res.size"]),
+                        max(metrics["max.res.size"]),
+                        sum(metrics["max.res.size"]) / float(iterations),
+                        min(metrics["wall.time"]),
+                        max(metrics["wall.time"]),
+                        sum(metrics["wall.time"]) / float(iterations),
+                    ]
+                ]
+            )
+    console.print(table)
 
 
 if __name__ == "__main__":
