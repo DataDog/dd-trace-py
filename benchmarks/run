@@ -4,6 +4,7 @@ import contextlib
 import glob
 import json
 import os
+import platform
 import subprocess
 import sys
 import typing
@@ -64,6 +65,22 @@ def run_sirun(meta_path, variant=None):
     for key in ("name", "variant", "instructions"):
         if key not in results:
             results[key] = None
+
+    # Add additional metadata
+    results["python"] = dict(
+        major=sys.version_info.major,
+        minor=sys.version_info.minor,
+        micro=sys.version_info.micro,
+        name=sys.implementation.name,
+    )
+    uname = platform.uname()
+    results["platform"] = dict(
+        system=uname.system,
+        node=uname.node,
+        release=uname.release,
+        machine=uname.machine,
+    )
+
     return results
 
 
@@ -108,7 +125,7 @@ def main(base_dir, suites):
     results_dir = os.path.join(base_dir, "results")
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
-    results_filename = os.path.join(results_dir, "results.{}.json".format(os.getpid()))
+    results_filename = os.path.join(results_dir, "results.{}.{}.json".format(platform.python_version(), os.getpid()))
     with open(results_filename, "w") as fp:
         json.dump(results, fp)
     print("Results JSON: {}".format(results_filename))
@@ -119,6 +136,7 @@ def main(base_dir, suites):
         print("Results: {}".format(suite))
         print_result_row(
             (
+                "Python",
                 "Variant",
                 "Iterations",
                 "Instructions",
@@ -140,6 +158,11 @@ def main(base_dir, suites):
             iterations = len(data["iterations"])
             print_result_row(
                 [
+                    "{}.{}.{}".format(
+                        data["python"]["major"],
+                        data["python"]["minor"],
+                        data["python"]["micro"],
+                    ),
                     variant,
                     iterations,
                     data["instructions"],
