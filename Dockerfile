@@ -16,6 +16,7 @@ RUN \
   && apt-get install -y --no-install-recommends \
       build-essential \
       ca-certificates \
+      clang-format \
       curl \
       git \
       jq \
@@ -33,15 +34,15 @@ RUN \
       libreadline-dev \
       libsasl2-dev \
       libsqlite3-dev \
+      libsqliteodbc \
       libssh-dev \
       libssl1.0-dev \
       patch \
       python-openssl\
+      unixodbc-dev \
+      valgrind \
       wget \
       zlib1g-dev \
-      clang-format \
-      unixodbc-dev \
-      libsqliteodbc \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
@@ -66,5 +67,14 @@ RUN \
   # Order matters: first version is the global one
   && pyenv global 3.9.1 2.7.18 3.5.10 3.6.12 3.7.9 3.8.7 3.10-dev \
   && pip install --upgrade pip
+
+
+# Install sirun for running benchmarks
+# https://github.com/DataDog/sirun
+ENV SIRUN_VERSION=0.1.6
+RUN \
+  wget https://github.com/DataDog/sirun/releases/download/v${SIRUN_VERSION}/sirun-v${SIRUN_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
+  && tar -C /usr/local/bin/ -zxf sirun-v${SIRUN_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
+  && rm sirun-v${SIRUN_VERSION}-x86_64-unknown-linux-gnu.tar.gz
 
 CMD ["/bin/bash"]
