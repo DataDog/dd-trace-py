@@ -66,7 +66,7 @@ def run_sirun(meta_path, variant=None):
 
 
 def run_suite(suite_dir, progress):
-    # type: (str, Progress) -> typing.Dict[str, typing.Any]:
+    # type: (str, Progress) -> typing.Dict[str, typing.Dict[str, typing.Any]]:
     meta_path = os.path.join(suite_dir, "meta.json")
     if not os.path.isfile(meta_path):
         raise FileNotFoundError("Suite meta path {!r} does not exist".format(meta_path))

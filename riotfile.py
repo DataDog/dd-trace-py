@@ -138,7 +138,7 @@ venv = Venv(
             command="scripts/build-docs",
         ),
         Venv(
-            pys=select_pys(),
+            pys=select_pys(min_version="3.6"),  # TODO: This is because rich is only supported on >=3.6
             pkgs={"rich": latest},
             venvs=[
                 Venv(
