@@ -39,7 +39,7 @@ services:
         ports:
             - "127.0.0.1:6379:6379"
     rediscluster:
-        image: grokzen/redis-cluster:4.0.9
+        image: grokzen/redis-cluster:6.2.0
         environment:
             - IP=0.0.0.0
         ports:
