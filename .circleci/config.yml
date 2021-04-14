@@ -439,54 +439,12 @@ jobs:
       - run: |
           docker build .
 
+  # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
     executor: python38-alpine
     steps:
       - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
       - test_build
-  test_build_py38:
-    executor: python38
-    steps:
-      - test_build
-  test_build_py37:
-    executor: python37
-    steps:
-      - test_build
-  test_build_py36:
-    executor: python36
-    steps:
-      - test_build
-  test_build_py35:
-    executor: python35
-    steps:
-      - test_build
-  test_build_py27:
-    executor: python27
-    steps:
-      - test_build
-  test_build_win_py38: &test_build_win
-    executor:
-      name: win/default
-      size: *resource_class
-      shell: bash.exe
-    environment:
-      PYTHON_VERSION: 3.8.3
-    working_directory: ~/repo
-    steps:
-      - checkout
-      - test_build
-  test_build_win_py37:
-    <<: *test_build_win
-    environment:
-      PYTHON_VERSION: 3.7.7
-  test_build_win_py36:
-    <<: *test_build_win
-    environment:
-      PYTHON_VERSION: 3.6.8
-  test_build_win_py35:
-    <<: *test_build_win
-    environment:
-      PYTHON_VERSION: 3.5.4
 
   tracer:
     <<: *contrib_job
@@ -1116,11 +1074,6 @@ requires_tests: &requires_tests
     - sqlite3
     - starlette
     - test_build_alpine
-    - test_build_py38
-    - test_build_py37
-    - test_build_py36
-    - test_build_py35
-    - test_build_py27
     - test_logging
     - tracer
     - tornado
@@ -1158,15 +1111,6 @@ workflows:
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
-      - test_build_py38: *requires_pre_test
-      - test_build_py37: *requires_pre_test
-      - test_build_py36: *requires_pre_test
-      - test_build_py35: *requires_pre_test
-      - test_build_py27: *requires_pre_test
-      - test_build_win_py38: *requires_pre_test
-      - test_build_win_py37: *requires_pre_test
-      - test_build_win_py36: *requires_pre_test
-      - test_build_win_py35: *requires_pre_test
 
       # Integration test suites
       - aiobotocore: *requires_pre_test
