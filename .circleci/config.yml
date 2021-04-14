@@ -902,7 +902,7 @@ jobs:
     steps:
       - run_test:
           store_coverage: false
-          pattern: '^benchmarks'
+          pattern: '^benchmark'
 
   jinja2:
     <<: *contrib_job

@@ -138,10 +138,18 @@ venv = Venv(
             command="scripts/build-docs",
         ),
         Venv(
-            name="benchmarks",
             pys=select_pys(),
-            pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest --no-cov {cmdargs} tests/benchmarks",
+            venvs=[
+                Venv(
+                    name="benchmark-startup",
+                    command="benchmarks/run startup",
+                ),
+                Venv(
+                    name="benchmark-flask",
+                    command="benchmarks/run flask",
+                    pkgs={"flask": latest},
+                ),
+            ],
         ),
         Venv(
             name="tracer",

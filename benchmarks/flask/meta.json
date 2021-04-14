@@ -1,0 +1,22 @@
+{
+  "name": "flask",
+  "cachegrind": true,
+  "iterations": 5,
+  "run": "python app.py",
+  "environment": {
+    "DD_TRACE_ENABLED": "false"
+  },
+  "variants": {
+    "control": {
+    },
+    "ddtrace_patch_all": {
+      "environment": {
+        "DD_TRACE_ENABLED": "false",
+        "DD_TRACE_PATCH_ALL": "true"
+      }
+    },
+    "ddtrace_run": {
+      "run": "ddtrace-run python app.py"
+    }
+  }
+}
