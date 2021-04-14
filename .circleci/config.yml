@@ -906,7 +906,9 @@ jobs:
       - store_artifacts:
           path: benchmarks/results/
       - persist_to_workspace:
-          path: benchmarks/results/
+          root: benchmark/results/
+          paths:
+            - "*.json"
 
   jinja2:
     <<: *contrib_job
