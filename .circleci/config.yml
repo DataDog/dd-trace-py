@@ -15,7 +15,7 @@ python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
-rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
+rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
