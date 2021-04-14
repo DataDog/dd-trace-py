@@ -125,7 +125,7 @@ def main(base_dir, suites):
     results_dir = os.path.join(base_dir, "results")
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
-    results_filename = os.path.join(results_dir, "results.{}.{}.json".format(platform.python_version(), os.getpid()))
+    results_filename = os.path.join(results_dir, "results-{}-{}.json".format(platform.python_version(), os.getpid()))
     with open(results_filename, "w") as fp:
         json.dump(results, fp)
     print("Results JSON: {}".format(results_filename))
