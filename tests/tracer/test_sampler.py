@@ -135,7 +135,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer != tracer.writer, "writer should have been updated by configure"
+            assert writer is not tracer.writer, "writer should have been updated by configure"
             tracer.writer = writer
             tracer.priority_sampler.set_sample_rate(sample_rate)
 

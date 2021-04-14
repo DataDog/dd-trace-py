@@ -139,7 +139,7 @@ def test_rate_liimter_effective_rate_rates():
             assert limiter.current_window == window
 
 
-def test_rate_liimter_effective_rate_starting_rate():
+def test_rate_limiter_effective_rate_starting_rate():
     limiter = RateLimiter(rate_limit=1)
 
     now = compat.monotonic()

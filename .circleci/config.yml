@@ -164,7 +164,7 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
+                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --pass-env -s '<< parameters.pattern >>'"
       - unless:
           condition:
               << parameters.snapshot >>
@@ -265,11 +265,11 @@ commands:
 
   build_docs:
     steps:
-      - setup_tox
+      - setup_riot
       - run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: tox -e docs
+      - run: riot run docs
 
 executors:
   cimg_base:
@@ -372,6 +372,13 @@ jobs:
       - checkout
       - setup_riot
       - run: riot run mypy
+
+  riot-helpers:
+    executor: python38
+    steps:
+      - checkout
+      - setup_riot
+      - run: riot run -s riot-helpers
 
   coverage_report:
     executor: python38
@@ -1045,6 +1052,7 @@ requires_pre_test: &requires_pre_test
     - flake8
     - ccheck
     - mypy
+    - riot-helpers
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -1144,6 +1152,7 @@ workflows:
       - black
       - flake8
       - mypy
+      - riot-helpers
       - ccheck
       - build_base_venvs
 

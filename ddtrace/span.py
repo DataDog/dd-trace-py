@@ -7,9 +7,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Text
 from typing import Union
 
+import six
+
+from .compat import NumericType
 from .compat import StringIO
+from .compat import ensure_text
 from .compat import is_integer
 from .compat import iteritems
 from .compat import numeric_types
@@ -29,13 +34,16 @@ from .ext import net
 from .ext import priority
 from .internal import _rand
 from .internal.logger import get_logger
-from .vendor import six
 
 
 if TYPE_CHECKING:
     from .context import Context
     from .tracer import Tracer
 
+
+_TagNameType = Union[Text, bytes]
+_MetaDictType = Dict[_TagNameType, Text]
+_MetricDictType = Dict[_TagNameType, NumericType]
 
 log = get_logger(__name__)
 
@@ -79,7 +87,7 @@ class Span(object):
         parent_id=None,  # type: Optional[int]
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
-        on_finish=None,  # type: List[Callable[[Span], None]]
+        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
         _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
@@ -102,6 +110,14 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
+        # pre-conditions
+        if not (span_id is None or isinstance(span_id, six.integer_types)):
+            raise TypeError("span_id must be an integer")
+        if not (trace_id is None or isinstance(trace_id, six.integer_types)):
+            raise TypeError("trace_id must be an integer")
+        if not (parent_id is None or isinstance(parent_id, six.integer_types)):
+            raise TypeError("parent_id must be an integer")
+
         # required span info
         self.name = name
         self.service = service
@@ -110,9 +126,9 @@ class Span(object):
         self.span_type = span_type
 
         # tags / metadata
-        self.meta = {}  # type: Dict[str, Any]
+        self.meta = {}  # type: _MetaDictType
         self.error = 0
-        self.metrics = {}  # type: Dict[str, Any]
+        self.metrics = {}  # type: _MetricDictType
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)
@@ -215,7 +231,7 @@ class Span(object):
             cb(self)
 
     def set_tag(self, key, value=None):
-        # type: (str, Any) -> None
+        # type: (_TagNameType, Any) -> None
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``stringify``-able.
@@ -244,13 +260,13 @@ class Span(object):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value)  # type: ignore[arg-type]
+                value = int(value)
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if val_is_an_int and abs(value) <= 2 ** 53:  # type: ignore[arg-type]
+        if value is not None and val_is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 
@@ -261,6 +277,10 @@ class Span(object):
 
         # Key should explicitly be converted to a float if needed
         elif key in NUMERIC_TAGS:
+            if value is None:
+                log.debug("ignoring not number metric %s:%s", key, value)
+                return
+
             try:
                 # DEV: `set_metric` will try to cast to `float()` for us
                 self.set_metric(key, value)
@@ -297,21 +317,25 @@ class Span(object):
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     def _set_str_tag(self, key, value):
-        # type: (str, str) -> None
-        self.meta[key] = stringify(value)
+        # type: (_TagNameType, Text) -> None
+        """Set a value for a tag. Values are coerced to unicode in Python 2 and
+        str in Python 3, with decoding errors in conversion being replaced with
+        U+FFFD.
+        """
+        self.meta[key] = ensure_text(value, errors="replace")
 
     def _remove_tag(self, key):
-        # type: (str) -> None
+        # type: (_TagNameType) -> None
         if key in self.meta:
             del self.meta[key]
 
     def get_tag(self, key):
-        # type: (str) -> Optional[str]
+        # type: (_TagNameType) -> Optional[Text]
         """Return the given tag or None if it doesn't exist."""
         return self.meta.get(key, None)
 
     def set_tags(self, tags):
-        # type: (Dict[str, Any]) -> None
+        # type: (_MetaDictType) -> None
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -320,15 +344,15 @@ class Span(object):
                 self.set_tag(k, v)
 
     def set_meta(self, k, v):
-        # type: (str, Any) -> None
+        # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
     def set_metas(self, kvs):
-        # type: (Dict[str, Any]) -> None
+        # type: (_MetaDictType) -> None
         self.set_tags(kvs)
 
     def set_metric(self, key, value):
-        # type: (str, Any) -> None
+        # type: (_TagNameType, NumericType) -> None
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
 
@@ -361,13 +385,13 @@ class Span(object):
         self.metrics[key] = value
 
     def set_metrics(self, metrics):
-        # type: (Dict[str, Any]) -> None
+        # type: (_MetricDictType) -> None
         if metrics:
             for k, v in iteritems(metrics):
                 self.set_metric(k, v)
 
     def get_metric(self, key):
-        # type: (str) -> Any
+        # type: (_TagNameType) -> Optional[NumericType]
         return self.metrics.get(key)
 
     def to_dict(self):
@@ -468,7 +492,7 @@ class Span(object):
             ("tags", ""),
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
+        lines.extend((" ", "%r:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % line for line in lines)
 
     @property

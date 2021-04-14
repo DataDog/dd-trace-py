@@ -1,9 +1,10 @@
 from typing import List
 from typing import Optional
 
+import attr
+
 from ddtrace import Span
 from ddtrace.filters import TraceFilter
-from ddtrace.vendor import attr
 
 from .logger import get_logger
 
@@ -19,7 +20,7 @@ class TraceProcessor(object):
         # type: (List[Span]) -> Optional[List[Span]]
         for filtr in self._filters:
             try:
-                trace = filtr.process_trace(trace)
+                trace = filtr.process_trace(trace)  # type: ignore[assignment]
             except Exception:
                 log.error("error applying filter %r to traces", filtr, exc_info=True)
             else:

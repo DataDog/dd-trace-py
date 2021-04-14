@@ -1,4 +1,7 @@
 CPython
+Fargate
+Firehose
+Gunicorn
 INfo
 MySQL
 OpenTracing
@@ -11,6 +14,7 @@ analytics
 api
 app
 asgi
+attrs
 autodetected
 autopatching
 backend
@@ -36,9 +40,7 @@ elasticsearch7
 enqueue
 entrypoint
 entrypoints
-Fargate
 fastapi
-Firehose
 gRPC
 gevent
 greenlet
@@ -107,6 +109,7 @@ uWSGI
 unix
 unpatch
 unregister
+unvendored
 url
 urls
 username

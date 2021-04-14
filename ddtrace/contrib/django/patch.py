@@ -11,6 +11,8 @@ from inspect import isclass
 from inspect import isfunction
 import sys
 
+import six
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -25,7 +27,6 @@ from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 from ddtrace.vendor import debtcollector
-from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
 from . import conf
@@ -107,7 +108,7 @@ def _set_request_tags(django, span, request):
         # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
         try:
             if hasattr(user, "is_authenticated"):
-                span._set_str_tag("django.user.is_authenticated", user_is_authenticated(user))
+                span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
 
             uid = getattr(user, "pk", None)
             if uid:
@@ -135,7 +136,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
         if args:
             keys = utils.quantize_key_values(args[0])
-            span._set_str_tag("django.cache.key", keys)
+            span._set_str_tag("django.cache.key", str(keys))
 
         return func(*args, **kwargs)
 
