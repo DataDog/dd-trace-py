@@ -5,6 +5,7 @@ from ...compat import binary_type
 from ...compat import parse
 from ...compat import to_unicode
 from ...internal.logger import get_logger
+from .compat import get_resolver
 
 
 log = get_logger(__name__)
@@ -38,19 +39,21 @@ def quantize_key_values(key):
     return key
 
 
-def get_django_2_route(resolver, resolver_match):
+def get_django_2_route(request, resolver_match):
     # Try to use `resolver_match.route` if available
     # Otherwise, look for `resolver.pattern.regex.pattern`
     route = resolver_match.route
-    if not route:
-        # DEV: Use all these `getattr`s to protect against changes between versions
-        pattern = getattr(resolver, "pattern", None)
-        if pattern:
-            regex = getattr(pattern, "regex", None)
-            if regex:
-                route = getattr(regex, "pattern", "")
+    if route:
+        return route
 
-    return route
+    resolver = get_resolver(getattr(request, "urlconf", None))
+    if resolver:
+        try:
+            return resolver.pattern.regex.pattern
+        except AttributeError:
+            pass
+
+    return None
 
 
 def set_tag_array(span, prefix, value):
