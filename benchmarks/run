@@ -7,6 +7,7 @@ import os
 import platform
 import subprocess
 import sys
+import time
 import typing
 
 
@@ -66,21 +67,6 @@ def run_sirun(meta_path, variant=None):
         if key not in results:
             results[key] = None
 
-    # Add additional metadata
-    results["python"] = dict(
-        major=sys.version_info.major,
-        minor=sys.version_info.minor,
-        micro=sys.version_info.micro,
-        name=platform.python_implementation(),
-    )
-    system, node, release, _, machine, _ = platform.uname()
-    results["platform"] = dict(
-        system=system,
-        node=node,
-        release=release,
-        machine=machine,
-    )
-
     return results
 
 
@@ -121,13 +107,31 @@ def main(base_dir, suites):
         suite_dir = os.path.join(base_dir, suite_name)
         results[suite_name] = run_suite(suite_dir)
 
+    system, node, release, _, machine, _ = platform.uname()
+    data = dict(
+        timestamp=time.time(),
+        platform=dict(
+            system=system,
+            node=node,
+            release=release,
+            machine=machine,
+        ),
+        python=dict(
+            major=sys.version_info.major,
+            minor=sys.version_info.minor,
+            micro=sys.version_info.micro,
+            name=platform.python_implementation(),
+        ),
+        suites=results,
+    )
+
     # Write full results as json file
     results_dir = os.path.join(base_dir, "results")
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
     results_filename = os.path.join(results_dir, "results-{}-{}.json".format(platform.python_version(), os.getpid()))
     with open(results_filename, "w") as fp:
-        json.dump(results, fp)
+        json.dump(data, fp)
     print("Results JSON: {}".format(results_filename))
 
     # Print results as a table
@@ -158,11 +162,7 @@ def main(base_dir, suites):
             iterations = len(data["iterations"])
             print_result_row(
                 [
-                    "{}.{}.{}".format(
-                        data["python"]["major"],
-                        data["python"]["minor"],
-                        data["python"]["micro"],
-                    ),
+                    platform.python_version(),
                     variant,
                     iterations,
                     data["instructions"],

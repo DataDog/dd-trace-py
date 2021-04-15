@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+import collections
+import csv
+import datetime
+import glob
+import json
+import os
+import statistics
+import sys
+import typing
+
+
+def print_row(fields):
+    # type: (typing.List[str]) -> None
+    placeholders = ["|{:>20}"] * len(fields)
+    format_str = "".join(placeholders) + "|"
+    print(format_str.format(*fields))
+
+
+def print_spacer(n):
+    # type: (int) -> None
+    spacer = "-" * 20
+    spacers = ["|{}".format(spacer)] * n
+    print("".join(spacers) + "|")
+
+
+def main(base_dir):
+    # type: (str) -> None
+    results_by_suite_python_variant = collections.defaultdict(lambda: collections.defaultdict(dict))
+
+    for fname in glob.glob(os.path.join(base_dir, "results-*.json")):
+        with open(fname) as fp:
+            data = json.load(fp)
+
+        for suite, variants in data["suites"].items():
+            for variant, variant_data in variants.items():
+                metrics = collections.defaultdict(list)
+                for iteration in variant_data["iterations"]:
+                    for metric, value in iteration.items():
+                        metrics[metric].append(value)
+
+                python_version = "{}.{}.{}".format(
+                    data["python"]["major"], data["python"]["minor"], data["python"]["micro"]
+                )
+                system = "{} {} {}".format(
+                    data["platform"]["system"], data["platform"]["machine"], data["platform"]["release"]
+                )
+
+                # If we have already processed results for this suite/python/variant
+                #   keep the most recent results
+                if variant in results_by_suite_python_variant[suite][python_version]:
+                    if data["timestamp"] < results_by_suite_python_variant[suite][python_version][variant]["timestamp"]:
+                        continue
+
+                results = dict(
+                    timestamp=data["timestamp"],
+                    suite=suite,
+                    variant=variant,
+                    python_version=python_version,
+                    python_implementation=data["python"]["name"],
+                    system=system,
+                    node=data["platform"]["node"],
+                    iterations=len(variant_data["iterations"]),
+                    instructions=variant_data["instructions"],
+                )
+
+                for metric, values in metrics.items():
+                    if len(values) > 1:
+                        mean = statistics.mean(values)
+                        stdev = statistics.stdev(values)
+                    else:
+                        mean = values[0]
+                        stdev = 0
+
+                    results[metric] = dict(
+                        min=min(values),
+                        max=max(values),
+                        mean=mean,
+                        stdev=stdev,
+                    )
+
+                results_by_suite_python_variant[suite][python_version][variant] = results
+
+    out_json = os.path.join(base_dir, "combined.json")
+    with open(out_json, "w") as fp:
+        json.dump(results_by_suite_python_variant, fp)
+    print("Results JSON: {}".format(out_json))
+
+    csv_headings = (
+        "Timestamp",
+        "Suite",
+        "Implementation",
+        "Python",
+        "Variant",
+        "Iterations",
+        "Instructions",
+        "max.res.size min",
+        "max.res.size mean",
+        "max.res.size max",
+        "max.res.size stdev",
+        "System",
+        "Node",
+    )
+    cli_headings = (
+        "Python",
+        "Variant",
+        "Iterations",
+        "Instructions",
+        "max.res mean",
+        "max.res stdev",
+        "wall.time mean",
+        "wall.time stdev",
+    )
+    out_csv = os.path.join(base_dir, "combined.csv")
+    print("Results CSV: {}".format(out_csv))
+    with open(out_csv, "w") as fp:
+        w = csv.writer(fp)
+        w.writerow(csv_headings)
+
+        for suite, pythons in results_by_suite_python_variant.items():
+            print("\r\nSuite: {}".format(suite))
+            print_row(cli_headings)
+            for python_version, variants in sorted(pythons.items(), key=lambda e: e[0]):
+                print_spacer(len(cli_headings))
+                for i, (variant, results) in enumerate(sorted(variants.items(), key=lambda e: e[0])):
+                    py = python_version if i == 0 else ""
+                    print_row(
+                        (
+                            py,
+                            variant,
+                            results["iterations"],
+                            results["instructions"],
+                            round(results["max.res.size"]["mean"], 2),
+                            round(
+                                results["max.res.size"]["stdev"],
+                            ),
+                            round(results["wall.time"]["mean"], 2),
+                            round(
+                                results["wall.time"]["stdev"],
+                            ),
+                        )
+                    )
+
+                    w.writerow(
+                        (
+                            datetime.datetime.fromtimestamp(results["timestamp"]).isoformat(),
+                            suite,
+                            results["python_implementation"],
+                            python_version,
+                            results["iterations"],
+                            results["instructions"],
+                            results["max.res.size"]["min"],
+                            results["max.res.size"]["mean"],
+                            results["max.res.size"]["max"],
+                            results["max.res.size"]["stdev"],
+                            results["system"],
+                            results["node"],
+                        )
+                    )
+
+
+if __name__ == "__main__":
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "results"))
+    main(base_dir)
