@@ -386,12 +386,13 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - run: pip install coverage diff_cover
+      - run: pip install coverage codecov diff_cover
       - run: ls -hal *.coverage
       # Combine all job coverage reports into one
       - run: coverage combine *.coverage
       # Upload coverage report to Codecov
-      - run: bash <(curl -s https://codecov.io/bash)
+      # DEV: Do not use the bash uploader, it cannot be trusted
+      - run: codecov
       # Generate and save xml report
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage xml --ignore-errors
