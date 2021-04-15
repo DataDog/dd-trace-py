@@ -99,6 +99,9 @@ class HTTPPropagator(object):
                 normalized_headers,
                 default=0,
             )
+            if not trace_id:
+                return Context()
+
             parent_span_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_PARENT_IDS,
                 normalized_headers,
