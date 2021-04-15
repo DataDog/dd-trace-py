@@ -4,12 +4,12 @@ import six
 
 import ddtrace
 from ddtrace.compat import StringIO
-from ddtrace.constants import ENV_KEY
-from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.logging import patch
 from ddtrace.contrib.logging import unpatch
 from ddtrace.contrib.logging.patch import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
+from ddtrace.internal.constants import ENV_KEY
+from ddtrace.internal.constants import VERSION_KEY
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 

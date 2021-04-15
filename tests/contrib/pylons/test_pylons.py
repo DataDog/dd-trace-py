@@ -8,10 +8,10 @@ from routes import url_for
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

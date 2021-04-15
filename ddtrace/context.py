@@ -4,8 +4,8 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
 
-from .constants import ORIGIN_KEY
-from .constants import SAMPLING_PRIORITY_KEY
+from .internal.constants import ORIGIN_KEY
+from .internal.constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
 from .utils.formats import asbool
 from .utils.formats import get_env

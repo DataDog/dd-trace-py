@@ -3,9 +3,9 @@ import tornado
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ORIGIN_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
+from ddtrace.internal.constants import ORIGIN_KEY
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

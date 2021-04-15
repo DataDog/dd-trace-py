@@ -43,7 +43,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
-    span_from_log = getattr(record, ddtrace.constants.LOG_SPAN_KEY, None)
+    span_from_log = getattr(record, ddtrace.internal.constants.LOG_SPAN_KEY, None)
     if isinstance(span_from_log, ddtrace.Span):
         span = span_from_log
     else:

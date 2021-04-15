@@ -20,19 +20,19 @@ from .compat import iteritems
 from .compat import numeric_types
 from .compat import stringify
 from .compat import time_ns
-from .constants import MANUAL_DROP_KEY
-from .constants import MANUAL_KEEP_KEY
-from .constants import NUMERIC_TAGS
-from .constants import SERVICE_KEY
-from .constants import SERVICE_VERSION_KEY
-from .constants import SPAN_MEASURED_KEY
-from .constants import VERSION_KEY
 from .ext import SpanTypes
 from .ext import errors
 from .ext import http
 from .ext import net
 from .ext import priority
 from .internal import _rand
+from .internal.constants import MANUAL_DROP_KEY
+from .internal.constants import MANUAL_KEEP_KEY
+from .internal.constants import NUMERIC_TAGS
+from .internal.constants import SERVICE_KEY
+from .internal.constants import SERVICE_VERSION_KEY
+from .internal.constants import SPAN_MEASURED_KEY
+from .internal.constants import VERSION_KEY
 from .internal.logger import get_logger
 
 

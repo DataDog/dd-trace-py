@@ -14,16 +14,16 @@ import pytest
 import six
 
 import ddtrace
-from ddtrace.constants import ENV_KEY
-from ddtrace.constants import HOSTNAME_KEY
-from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import ORIGIN_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
 from ddtrace.ext import system
+from ddtrace.internal.constants import ENV_KEY
+from ddtrace.internal.constants import HOSTNAME_KEY
+from ddtrace.internal.constants import MANUAL_DROP_KEY
+from ddtrace.internal.constants import MANUAL_KEEP_KEY
+from ddtrace.internal.constants import ORIGIN_KEY
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import VERSION_KEY
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config

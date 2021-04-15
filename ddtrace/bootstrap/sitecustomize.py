@@ -16,7 +16,7 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 
 
 from ddtrace import config  # noqa
-from ddtrace import constants
+from ddtrace.internal import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode

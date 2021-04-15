@@ -1,4 +1,4 @@
-from ...constants import ENV_KEY
+from ...internal.constants import ENV_KEY
 from .collector import ValueCollector
 from .constants import LANG
 from .constants import LANG_INTERPRETER

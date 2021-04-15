@@ -1,6 +1,6 @@
 from ddtrace import config
-from ddtrace.constants import ORIGIN_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import ORIGIN_KEY
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 
 from .utils import PyramidBase
 from .utils import PyramidTestCase

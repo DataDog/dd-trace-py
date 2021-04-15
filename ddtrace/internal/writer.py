@@ -19,9 +19,9 @@ from . import periodic
 from . import service
 from .. import compat
 from ..compat import httplib
-from ..constants import KEEP_SPANS_RATE_KEY
 from ..encoding import Encoder
 from ..encoding import JSONEncoderV2
+from ..internal.constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.time import StopWatch

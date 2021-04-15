@@ -13,8 +13,8 @@ from six.moves import socketserver
 from ddtrace.compat import PY3
 from ddtrace.compat import get_connection_response
 from ddtrace.compat import httplib
-from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal import service
+from ddtrace.internal.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter

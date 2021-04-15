@@ -9,10 +9,10 @@ from six.moves.urllib.parse import quote as url_quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.cherrypy import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import snapshot

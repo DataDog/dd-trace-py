@@ -5,10 +5,10 @@ import time
 from flask import make_response
 
 from ddtrace import config
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase

@@ -18,11 +18,6 @@ from ddtrace import config
 
 from . import _hooks
 from . import compat
-from .constants import ENV_KEY
-from .constants import FILTERS_KEY
-from .constants import HOSTNAME_KEY
-from .constants import SAMPLE_RATE_METRIC_KEY
-from .constants import VERSION_KEY
 from .context import Context
 from .ext import system
 from .ext.priority import AUTO_KEEP
@@ -32,6 +27,11 @@ from .internal import _rand
 from .internal import agent
 from .internal import debug
 from .internal import hostname
+from .internal.constants import ENV_KEY
+from .internal.constants import FILTERS_KEY
+from .internal.constants import HOSTNAME_KEY
+from .internal.constants import SAMPLE_RATE_METRIC_KEY
+from .internal.constants import VERSION_KEY
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
