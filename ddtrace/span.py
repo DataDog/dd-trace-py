@@ -494,7 +494,15 @@ class Span(object):
             ("tags", ",".join("%s:%s" % (str(k), v) for (k, v) in sorted(self.meta.items()))),
             ("metrics", ",".join("%s:%s" % (str(k), v) for (k, v) in sorted(self.metrics.items()))),
         ]
-        return json.dumps(collections.OrderedDict(data))
+        return json.dumps(
+            collections.OrderedDict(
+                (
+                    k,
+                    v if isinstance(v, six.integer_types) or isinstance(v, float) or v is None else six.text_type(v),
+                )
+                for (k, v) in data
+            )
+        )
 
     @property
     def context(self):

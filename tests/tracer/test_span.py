@@ -650,3 +650,7 @@ def test_span_pprint():
     root.set_tag(u"😌", u"😌")
     actual = json.loads(root.pprint())
     assert actual["tags"] == u"😌:😌"
+
+    root = Span(None, "test.span", service=object())
+    actual = json.loads(root.pprint())
+    assert actual["service"].startswith("<object object at")
