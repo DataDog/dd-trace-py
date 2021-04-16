@@ -83,6 +83,14 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
+            name="pre-commit",
+            command="pre-commit install",
+            pkgs={
+                "pre-commit": latest,
+            },
+        ),
+        Venv(
+            pys=["3"],
             pkgs={"black": "==20.8b1"},
             venvs=[
                 Venv(
