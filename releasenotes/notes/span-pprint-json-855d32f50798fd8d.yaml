@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The return value of ``Span.pprint()`` has been changed to a serialized json string which will be used for the tracer debug logs rather than previous custom multiline format.
