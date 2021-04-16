@@ -1,4 +1,6 @@
 from contextlib import contextmanager
+import io
+import zipfile
 
 import aiobotocore.session
 
@@ -35,3 +37,17 @@ def aiobotocore_client(service, tracer):
         yield client
     finally:
         client.close()
+
+
+def get_zip_lambda():
+    """Helper function that returns a valid lambda package."""
+    code = """
+def lambda_handler(event, context):
+    return event
+"""
+    zip_output = io.BytesIO()
+    zip_file = zipfile.ZipFile(zip_output, "w", zipfile.ZIP_DEFLATED)
+    zip_file.writestr("lambda_function.py", code)
+    zip_file.close()
+    zip_output.seek(0)
+    return zip_output.read()

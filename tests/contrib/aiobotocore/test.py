@@ -1,3 +1,6 @@
+import base64
+import json
+
 import aiobotocore
 from botocore.errorfactory import ClientError
 
@@ -5,6 +8,8 @@ from ddtrace.compat import stringify
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -12,6 +17,7 @@ from tests.utils import assert_span_http_status_code
 from ..asyncio.utils import AsyncioTestCase
 from ..asyncio.utils import mark_asyncio
 from .utils import aiobotocore_client
+from .utils import get_zip_lambda
 
 
 class AIOBotocoreTest(AsyncioTestCase):
@@ -215,6 +221,176 @@ class AIOBotocoreTest(AsyncioTestCase):
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "aws.lambda")
         self.assertEqual(span.resource, "lambda.listfunctions")
+
+    @mark_asyncio
+    def test_lambda_invoke_no_context_client(self):
+        with aiobotocore_client("lambda", self.tracer) as lambda_client:
+            yield from lambda_client.create_function(
+                FunctionName="ironmaiden",
+                Runtime="python3.7",
+                Role="test-iam-role",
+                Handler="lambda_function.lambda_handler",
+                Code={
+                    "ZipFile": get_zip_lambda(),
+                },
+                Publish=True,
+                Timeout=30,
+                MemorySize=128
+            )
+
+            # we are not interested in the traces of the previous call
+            self.reset()
+
+            yield from lambda_client.invoke(
+                FunctionName="ironmaiden",
+                Payload=json.dumps({})
+            )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 202)
+        self.assertEqual(span.service, "aws.lambda")
+        self.assertEqual(span.resource, "lambda.invoke")
+        context_b64 = span.get_tag("params.ClientContext")
+        context_json = base64.b64decode(context_b64.encode()).decode()
+        context_obj = json.loads(context_json)
+
+        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        with aiobotocore_client("lambda", self.tracer) as lambda_client:
+            yield from lambda_client.delete_function(FunctionName="ironmaiden")
+
+    @mark_asyncio
+    def test_lambda_invoke_distributed_tracing_off(self):
+        with self.override_config("aiobotocore", dict(distributed_tracing=False)):
+            with aiobotocore_client("lambda", self.tracer) as lambda_client:
+                yield from lambda_client.create_function(
+                    FunctionName="ironmaiden",
+                    Runtime="python3.7",
+                    Role="test-iam-role",
+                    Handler="lambda_function.lambda_handler",
+                    Code={
+                        "ZipFile": get_zip_lambda(),
+                    },
+                    Publish=True,
+                    Timeout=30,
+                    MemorySize=128
+                )
+
+                # we are not interested in the traces of the previous call
+                self.reset()
+
+                yield from lambda_client.invoke(
+                    FunctionName="ironmaiden",
+                    Payload=json.dumps({})
+                )
+
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+            self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 202)
+            self.assertEqual(span.service, "aws.lambda")
+            self.assertEqual(span.resource, "lambda.invoke")
+            self.assertEqual(span.get_tag("params.ClientContext"), None)
+
+            with aiobotocore_client("lambda", self.tracer) as lambda_client:
+                yield from lambda_client.delete_function(FunctionName="ironmaiden")
+
+    @mark_asyncio
+    def test_lambda_invoke_with_context_client(self):
+        with aiobotocore_client("lambda", self.tracer) as lambda_client:
+            yield from lambda_client.create_function(
+                FunctionName="megadeth",
+                Runtime="python3.7",
+                Role="test-iam-role",
+                Handler="lambda_function.lambda_handler",
+                Code={
+                    "ZipFile": get_zip_lambda(),
+                },
+                Publish=True,
+                Timeout=30,
+                MemorySize=128,
+            )
+            client_context = base64.b64encode(json.dumps({"custom": {"foo": "bar"}}).encode()).decode()
+
+            # we are not interested in the traces of the previous call
+            self.reset()
+
+            yield from lambda_client.invoke(
+                FunctionName="megadeth",
+                ClientContext=client_context,
+                Payload=json.dumps({})
+            )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 202)
+        self.assertEqual(span.service, "aws.lambda")
+        self.assertEqual(span.resource, "lambda.invoke")
+        context_b64 = span.get_tag("params.ClientContext")
+        context_json = base64.b64decode(context_b64.encode()).decode()
+        context_obj = json.loads(context_json)
+
+        self.assertEqual(context_obj["custom"]["foo"], "bar")
+        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        with aiobotocore_client("lambda", self.tracer) as lambda_client:
+            yield from lambda_client.delete_function(FunctionName="megadeth")
+
+    @mark_asyncio
+    def test_lambda_invoke_bad_context_client(self):
+        with aiobotocore_client("lambda", self.tracer) as lambda_client:
+            yield from lambda_client.create_function(
+                FunctionName="black-sabbath",
+                Runtime="python3.7",
+                Role="test-iam-role",
+                Handler="lambda_function.lambda_handler",
+                Code={
+                    "ZipFile": get_zip_lambda(),
+                },
+                Publish=True,
+                Timeout=30,
+                MemorySize=128,
+            )
+
+            # we are not interested in the traces of the previous call
+            self.reset()
+
+            yield from lambda_client.invoke(
+                FunctionName="black-sabbath",
+                ClientContext="bad_client_context",
+                Payload=json.dumps({}),
+            )
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+        self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+        assert_is_measured(span)
+
+        with aiobotocore_client("lambda", self.tracer) as lambda_client:
+            yield from lambda_client.delete_function(FunctionName="black-sabbath")
 
     @mark_asyncio
     def test_kms_client(self):

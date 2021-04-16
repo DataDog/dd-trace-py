@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import json
 
 import aiobotocore.client
 
@@ -18,13 +20,28 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.logger import get_logger
 from ...pin import Pin
+from ...propagation.http import HTTPPropagator
 from ...utils.formats import deep_getattr
+from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
 
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+
+
+log = get_logger(__name__)
+
+
+# aiobotocore default settings
+config._add(
+    "aiobotocore",
+    {
+        "distributed_tracing": get_env("aiobotocore", "distributed_tracing", default=True),
+    },
+)
 
 
 def patch():
@@ -96,6 +113,10 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         if len(args) > 0:
             operation = args[0]
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
+
+            if config.aiobotocore["distributed_tracing"]:
+                if endpoint_name == "lambda" and operation == "Invoke":
+                    inject_trace_to_client_context(args, span)
         else:
             operation = None
             span.resource = endpoint_name
@@ -138,3 +159,33 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
 
         return result
+
+
+def modify_client_context(client_context_base64, trace_headers):
+    try:
+        client_context_json = base64.b64decode(client_context_base64).decode("utf-8")
+        client_context_object = json.loads(client_context_json)
+
+        if "custom" in client_context_object:
+            client_context_object["custom"]["_datadog"] = trace_headers
+        else:
+            client_context_object["custom"] = {"_datadog": trace_headers}
+
+        new_context = base64.b64encode(json.dumps(client_context_object).encode("utf-8")).decode("utf-8")
+        return new_context
+    except Exception:
+        log.warning("malformed client_context=%s", client_context_base64, exc_info=True)
+        return client_context_base64
+
+
+def inject_trace_to_client_context(args, span):
+    trace_headers = {}
+    HTTPPropagator.inject(span.context, trace_headers)
+
+    params = args[1]
+    if "ClientContext" in params:
+        params["ClientContext"] = modify_client_context(params["ClientContext"], trace_headers)
+    else:
+        client_context_object = {"custom": {"_datadog": trace_headers}}
+        json_context = json.dumps(client_context_object).encode("utf-8")
+        params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")

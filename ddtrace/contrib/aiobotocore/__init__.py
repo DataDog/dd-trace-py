@@ -17,6 +17,26 @@ To enable it, you must run ``patch_all(aiobotocore=True)``
 
     # This query generates a trace
     lambda_client.list_functions()
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.aiobotocore['distributed_tracing']
+
+   Whether to inject distributed tracing data to requests in Lambda.
+
+   Can also be enabled with the ``DD_AIOBOTOCORE_DISTRIBUTED_TRACING`` environment variable.
+
+   Default: ``True``
+
+
+Example::
+
+    from ddtrace import config
+
+    # Enable distributed tracing
+    config.aiobotocore['distributed_tracing'] = True
+
 """
 from ...utils.importlib import require_modules
 
