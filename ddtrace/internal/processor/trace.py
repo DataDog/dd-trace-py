@@ -59,7 +59,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
 
 @attr.s
-class SpansToTraceProcessor(SpanProcessor):
+class SpanAggregator(SpanProcessor):
     """Processor that aggregates spans together by trace_id and submits the
     finalized trace if the trace is assumed to be complete[0] or if a partial
     flushing threshold has been met[1].
@@ -83,7 +83,7 @@ class SpansToTraceProcessor(SpanProcessor):
     _trace_processors = attr.ib(type=Iterable[TraceProcessor])
     _writer = attr.ib(type=TraceWriter)
     _traces = attr.ib(
-        factory=lambda: defaultdict(lambda: SpansToTraceProcessor._Trace()),
+        factory=lambda: defaultdict(lambda: SpanAggregator._Trace()),
         init=False,
         type=DefaultDict[int, "_Trace"],
         repr=False,

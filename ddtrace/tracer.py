@@ -37,7 +37,7 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
-from .internal.processor.trace import SpansToTraceProcessor
+from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.runtime import RuntimeWorker
@@ -144,7 +144,7 @@ class Tracer(object):
             get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
         )
         self._span_processors = [
-            SpansToTraceProcessor(
+            SpanAggregator(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=cast("List[TraceProcessor]", [TraceSamplingProcessor()])
@@ -342,7 +342,7 @@ class Tracer(object):
         if isinstance(self.writer, AgentWriter):
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
         self._span_processors = [
-            SpansToTraceProcessor(
+            SpanAggregator(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=cast("List[TraceProcessor]", [TraceSamplingProcessor()])
