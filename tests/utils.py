@@ -3,7 +3,11 @@ from contextlib import contextmanager
 import inspect
 import os
 import sys
+import time
+from typing import Any
+from typing import Callable
 from typing import List
+from typing import TypeVar
 
 import pytest
 
@@ -17,6 +21,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -910,3 +915,34 @@ class AnyInt(object):
 class AnyFloat(object):
     def __eq__(self, other):
         return isinstance(other, float)
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def try_until_timeout(exception, tries=100, delay=0.2):
+    # type: (Exception, int, float) -> Callable[[F], F]
+    def wrap(fn):
+        # type: (F) -> F
+        def wrapper(*args, **kwargs):
+            err = None
+            for i in range(tries):
+                try:
+                    return fn(*args, **kwargs)
+                except exception as e:
+                    err = e
+                    time.sleep(delay)
+            else:
+                if err:
+                    raise err
+
+        return wrapper
+
+    return wrap
+
+
+def query_test_agent():
+    parsed = parse.urlparse(get_trace_url())
+    conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+    conn.request("GET", "/")
+    assert conn.getresponse().status == 404

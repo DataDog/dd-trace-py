@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import os
+
+import pytest
 import redis
 
 import ddtrace
@@ -12,8 +15,27 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
+from tests.utils import try_until_timeout
 
-from ..config import REDIS_CONFIG
+
+REDIS_CONFIG = {
+    "port": int(os.getenv("TEST_REDIS_PORT", 6379)),
+}
+
+
+@pytest.fixture(scope="module")
+def docker_services():
+    return ["redis", "testagent"]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def wait_for_services(docker_compose, wait_for_testagent):
+    @try_until_timeout(redis.exceptions.ConnectionError)
+    def wait():
+        r = redis.Redis(port=REDIS_CONFIG["port"])
+        r.get("a")
+
+    wait()
 
 
 def test_redis_legacy():
@@ -28,13 +50,10 @@ def test_redis_legacy():
 
 
 class TestRedisPatch(TracerTestCase):
-
-    TEST_PORT = REDIS_CONFIG["port"]
-
     def setUp(self):
         super(TestRedisPatch, self).setUp()
         patch()
-        r = redis.Redis(port=self.TEST_PORT)
+        r = redis.Redis(port=REDIS_CONFIG["port"])
         r.flushall()
         Pin.override(r, tracer=self.tracer)
         self.r = r
@@ -59,7 +78,7 @@ class TestRedisPatch(TracerTestCase):
             "out.host": u"localhost",
         }
         metrics = {
-            "out.port": self.TEST_PORT,
+            "out.port": REDIS_CONFIG["port"],
             "out.redis_db": 0,
         }
         for k, v in meta.items():
@@ -282,7 +301,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
     def setUp(self):
         super(TestRedisPatchSnapshot, self).setUp()
         patch()
-        r = redis.Redis(port=self.TEST_PORT)
+        r = redis.Redis(port=REDIS_CONFIG["port"])
         self.r = r
 
     def tearDown(self):

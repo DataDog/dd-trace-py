@@ -9,7 +9,13 @@ import os
 import re
 import sys
 
+from compose.cli.main import TopLevelCommand
+from compose.cli.main import project_from_options
 import pytest
+
+from tests.utils import query_test_agent
+from tests.utils import try_until_timeout
+
 
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
 pytest_plugins = ("pytester",)
@@ -71,3 +77,42 @@ def pytest_ignore_collect(path, config):
             # If the current Python version does not meet the minimum required, skip this directory
             if sys.version_info[0:2] < min_required:
                 outcome.force_result(True)
+
+
+@pytest.fixture(scope="module")
+def docker_compose(docker_services):
+    options = {
+        "--no-deps": False,
+        "--abort-on-container-exit": False,
+        "SERVICE": docker_services,
+        "--remove-orphans": False,
+        "--no-recreate": True,
+        "--force-recreate": False,
+        "--build": False,
+        "--no-build": False,
+        "--no-color": False,
+        "--rmi": "none",
+        "--volumes": "",
+        "--follow": False,
+        "--timestamps": False,
+        "--always-recreate-deps": False,
+        "--scale": [],
+        "--tail": "all",
+        "--detach": True,
+        "--no-log-prefix": True,
+    }
+
+    project = project_from_options(os.path.dirname(__file__), options)
+    cmd = TopLevelCommand(project)
+    cmd.up(options)
+
+    yield
+
+    cmd.logs(options)
+    cmd.down(options)
+
+
+@pytest.fixture(scope="module")
+def wait_for_testagent(docker_compose):
+    os.environ.setdefault("DD_TRACE_AGENT_URL", "http://localhost:9126")
+    try_until_timeout(Exception)(query_test_agent)()
