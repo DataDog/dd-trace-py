@@ -235,16 +235,13 @@ class AIOBotocoreTest(AsyncioTestCase):
                 },
                 Publish=True,
                 Timeout=30,
-                MemorySize=128
+                MemorySize=128,
             )
 
             # we are not interested in the traces of the previous call
             self.reset()
 
-            yield from lambda_client.invoke(
-                FunctionName="ironmaiden",
-                Payload=json.dumps({})
-            )
+            yield from lambda_client.invoke(FunctionName="ironmaiden", Payload=json.dumps({}))
 
         spans = self.get_spans()
         assert spans
@@ -281,16 +278,13 @@ class AIOBotocoreTest(AsyncioTestCase):
                     },
                     Publish=True,
                     Timeout=30,
-                    MemorySize=128
+                    MemorySize=128,
                 )
 
                 # we are not interested in the traces of the previous call
                 self.reset()
 
-                yield from lambda_client.invoke(
-                    FunctionName="ironmaiden",
-                    Payload=json.dumps({})
-                )
+                yield from lambda_client.invoke(FunctionName="ironmaiden", Payload=json.dumps({}))
 
             spans = self.get_spans()
             assert spans
@@ -329,9 +323,7 @@ class AIOBotocoreTest(AsyncioTestCase):
             self.reset()
 
             yield from lambda_client.invoke(
-                FunctionName="megadeth",
-                ClientContext=client_context,
-                Payload=json.dumps({})
+                FunctionName="megadeth", ClientContext=client_context, Payload=json.dumps({})
             )
 
         spans = self.get_spans()
