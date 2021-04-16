@@ -170,7 +170,9 @@ class Context(object):
             # affected clear out the context and set the current span to
             # ``None``.
             else:
-                log.debug("span %r closing after its parent %r, this is possibly an error", span, span._parent)
+                log.debug(
+                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                )
                 self._set_current_span(None)
                 self._local_root_span = None
                 self._parent_trace_id = None
