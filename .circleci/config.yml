@@ -936,6 +936,17 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
+  build_wheels:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - *pyenv-set-global
+      - run: pip install cython
+      - run: scripts/build-dist-cp27
+      - run: scripts/build-dist
+      - store_artifacts:
+          path: dist
+
 requires_pre_test: &requires_pre_test
   requires:
     - black
@@ -1016,6 +1027,14 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
+  build_wheels_workflow:
+    jobs:
+      - request_build:
+          type: approval
+      - build_wheels:
+          requires:
+            - request_build
+      
   test:
     jobs:
       # Jobs that should run before individual integration test suites
