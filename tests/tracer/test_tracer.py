@@ -1148,7 +1148,7 @@ def test_early_exit(tracer, test_spans):
     with mock.patch("ddtrace.context.log") as log:
         s2.finish()
     calls = [
-        mock.call("span %r closing after its parent %r, this is possibly an error", s2, s1),
+        mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),
     ]
     log.debug.assert_has_calls(calls)
     assert s1.parent_id is None
