@@ -1,0 +1,25 @@
+[[{"name" "parent"
+   "service" nil
+   "resource" "parent"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1618357801277945181
+   "duration" 107575512
+   "meta" {"runtime-id" "cb4a438bb8364fa5ac0fec9f7df34c89"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 8786
+              "_dd.tracer_kr" 1.0}}
+      {"name" "child"
+       "service" nil
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1618357801293690837
+       "duration" 76002
+       "metrics" {"_sampling_priority_v1" 1
+                  "_dd.tracer_kr" 1.0}}]]
