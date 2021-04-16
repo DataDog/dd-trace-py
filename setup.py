@@ -169,7 +169,7 @@ setup(
             "protobuf>=3",
             "tenacity>=5",
             "attrs>=19.2.0",
-            "six>=1.7.0",
+            "six>=1.12.0",
         ],
         extras_require={
             # users can include opentracing by having:
