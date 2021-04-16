@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    aiobocotore integration: propagate tracing context through Lambda Invoke API calls.
