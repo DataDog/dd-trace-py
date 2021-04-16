@@ -5,6 +5,7 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
 
 jobs:
   build_wheels_x86_64:
@@ -143,7 +144,7 @@ jobs:
   upload_pypi:
     needs: [build_wheels_x86_64, build_wheels_i686, build_wheels_aarch64, build_sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event.action == 'workflow_dispatch')
     steps:
       - uses: actions/download-artifact@v2
         with:
