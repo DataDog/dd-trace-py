@@ -773,14 +773,6 @@ jobs:
             tox -e 'benchmarks-{py27,py35,py36,py37,py38}'
       - save_tox_cache
 
-  build_wheels:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - run: pip install cython
-      - run: scripts/build-dist
-
   deploy_master:
     # build the master branch releasing development docs and wheels
     <<: *machine_executor
@@ -830,13 +822,16 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  deploy_docs:
-    # deploy official documentation
-    executor: python38
+  build_wheels:
+    <<: *machine_executor
     steps:
       - checkout
-      - deploy_docs:
-          s3_dir: *s3_dir_prod
+      - *pyenv-set-global
+      - run: pip install cython
+      - run: scripts/build-dist-cp27
+      - run: scripts/build-dist
+      - store_artifacts:
+          path: dist
 
 requires_pre_test: &requires_pre_test
   requires:
@@ -913,20 +908,14 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-
-  deploy_docs:
+  build_wheels_workflow:
     jobs:
-      - build_docs:
-          <<: *deploy_docs_filters
-      - approve_docs_deployment:
-          <<: *deploy_docs_filters
+      - request_build:
           type: approval
+      - build_wheels:
           requires:
-            - build_docs
-      - deploy_docs:
-          <<: *deploy_docs_filters
-          requires:
-            - approve_docs_deployment
+            - request_build
+      
   test:
     jobs:
       # Jobs that should run before individual integration test suites
