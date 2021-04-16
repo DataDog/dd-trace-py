@@ -16,7 +16,7 @@ def ddtrace_after_in_child():
     # type: () -> None
     global _registry
 
-    for hook in _registry:
+    for hook in list(_registry):
         try:
             hook()
         except Exception:

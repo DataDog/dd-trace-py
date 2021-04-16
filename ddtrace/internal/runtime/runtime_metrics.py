@@ -1,5 +1,4 @@
 import itertools
-import os
 from threading import RLock
 from typing import Optional
 from typing import Set
@@ -7,6 +6,7 @@ from typing import Set
 import attr
 
 import ddtrace
+from ddtrace.internal import forksafe
 
 from .. import periodic
 from ...utils.formats import get_env
@@ -112,8 +112,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 RuntimeWorker.disable()
                 RuntimeWorker.enable()
 
-            if hasattr(os, "register_at_fork"):
-                os.register_at_fork(after_in_child=_restart)
+            forksafe.register(_restart)
 
             RuntimeWorker._instance = runtime_worker
 

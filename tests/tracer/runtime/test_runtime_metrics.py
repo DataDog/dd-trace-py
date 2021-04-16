@@ -1,6 +1,5 @@
 import contextlib
 import os
-import sys
 import time
 import warnings
 
@@ -180,6 +179,5 @@ class TestRuntimeWorker(TracerTestCase):
 
 
 def test_fork():
-    if sys.version_info >= (3, 7, 0):
-        _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork.py"))
-        assert exitcode == 0
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork.py"))
+    assert exitcode == 0
