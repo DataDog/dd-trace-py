@@ -121,40 +121,6 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
-def get_error_ranges(error_range_str):
-    error_ranges = []
-    error_range_str = error_range_str.strip()
-    error_ranges_str = error_range_str.split(",")
-    for error_range in error_ranges_str:
-        values = error_range.split("-")
-        try:
-            values = [int(v) for v in values]
-        except ValueError:
-            log.exception("Error status codes was not a number %s", values)
-            continue
-        error_range = [min(values), max(values)]
-        error_ranges.append(error_range)
-    return error_ranges
-
-
-def is_error_code(status_code):
-    # type: (int) -> bool
-    """Returns a boolean representing whether or not a status code is an error code.
-    Error status codes by default are 500-599.
-    You may also enable custom error codes::
-
-        from ddtrace import config
-        config.http_server.error_statuses = '401-404,419'
-
-    Ranges and singular error codes are permitted and can be separated using commas.
-    """
-    error_ranges = get_error_ranges(config.http_server.error_statuses)
-    for error_range in error_ranges:
-        if error_range[0] <= status_code <= error_range[1]:
-            return True
-    return False
-
-
 def set_http_meta(
     span,
     integration_config,
@@ -180,7 +146,7 @@ def set_http_meta(
             log.debug("failed to convert http status code %r to int", status_code)
         else:
             span._set_str_tag(http.STATUS_CODE, str(status_code))
-            if is_error_code(int_status_code):
+            if config.http_server.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
