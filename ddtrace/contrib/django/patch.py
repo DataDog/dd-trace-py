@@ -32,6 +32,7 @@ from ddtrace.vendor import wrapt
 from . import conf
 from . import utils
 from .. import trace_utils
+from .compat import get_resolver
 from .compat import user_is_authenticated
 
 
@@ -340,11 +341,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         response = func(*args, **kwargs)
 
         try:
-            if response.status_code == 404:
-                raise Resolver404()
-
             # Get resolver match result and build resource name pieces
             resolver_match = request.resolver_match
+            if not resolver_match:
+                # The request quite likely failed (e.g. 404) so we do the resolution anyway.
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                resolver_match = resolver.resolve(request.path_info)
             handler = func_name(resolver_match[0])
 
             if config.django.use_handler_resource_format:
