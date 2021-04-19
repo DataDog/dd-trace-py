@@ -10,8 +10,9 @@ import os
 import statistics
 import sys
 import typing
-from xml.etree import ElementTree as ET
 
+import lxml.html
+from lxml.html import builder as E
 import matplotlib.pyplot
 import numpy
 
@@ -46,7 +47,7 @@ def build_multi_bar_figure(categories, data, ylabel, title):
     ax.set_title(title)
 
     with io.BytesIO() as out:
-        fig.savefig(out, bbox_inches="tight")
+        fig.savefig(out, bbox_inches="tight", dpi=300)
         return base64.b64encode(out.getvalue())
 
 
@@ -62,6 +63,187 @@ def print_spacer(n):
     spacer = "-" * 26
     spacers = ["|{}".format(spacer)] * n
     print("".join(spacers) + "|")
+
+
+def print_results(data):
+    # type: (typing.Dict[str, typing.Any]) -> None
+    cli_headings = (
+        "Python",
+        "Variant",
+        "Iterations",
+        "Instructions",
+        "max.res mean",
+        "wall.time mean",
+    )
+    for suite, pythons in data.items():
+        print("\r\nSuite: {}".format(suite))
+        print_row(cli_headings, centered=True)
+        for python_version, variants in sorted(pythons.items()):
+            print_spacer(len(cli_headings))
+            for i, (variant, results) in enumerate(sorted(variants.items())):
+                py = python_version if i == 0 else ""
+                print_row(
+                    (
+                        py,
+                        variant,
+                        results["iterations"],
+                        results["instructions"],
+                        "{:>10} ±{:<10}".format(
+                            round(results["max.res.size"]["mean"], 2),
+                            round(results["max.res.size"]["stdev"], 2),
+                        ),
+                        "{:>10} ±{:<10}".format(
+                            round(results["wall.time"]["mean"], 2),
+                            round(results["wall.time"]["stdev"], 2),
+                        ),
+                    ),
+                )
+
+
+def write_json(base_dir, data):
+    # type: (str, typing.Dict[str, typing.Any]) -> str
+    out_json = os.path.join(base_dir, "combined.json")
+    with open(out_json, "w") as fp:
+        json.dump(data, fp)
+    return out_json
+
+
+def write_html(base_dir, data):
+    # type: (str, typing.Dict[str, typing.Any]) -> str
+    # Build an html element
+    html = E.HTML(
+        E.HEAD(
+            E.META(charset="UTF-8"),
+            E.LINK(
+                rel="stylesheet",
+                href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.2/css/bulma.min.css",
+                integrity="sha512-byErQdWdTqREz6DLAA9pCnLbdoGGhXfU6gm1c8bkf7F51JVmUBlayGe2A31VpXWQP+eiJ3ilTAZHCR3vmMyybA==",
+                crossorigin="anonymous",
+            ),
+            E.LINK(
+                rel="stylesheet",
+                href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/default.min.css",
+                integrity="sha512-kZqGbhf9JTB4bVJ0G8HCkqmaPcRgo88F0dneK30yku5Y/dep7CZfCnNml2Je/sY4lBoqoksXz4PtVXS4GHSUzQ==",
+                crossorigin="anonymous",
+            ),
+            E.SCRIPT(
+                src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js",
+                integrity="sha512-s+tOYYcC3Jybgr9mVsdAxsRYlGNq4mlAurOrfNuGMQ/SCofNPu92tjE7YRZCsdEtWL1yGkqk15fU/ark206YTg==",
+                crossorigin="anonymous",
+            ),
+        ),
+        E.BODY(),
+        E.SCRIPT("hljs.highlightAll();"),
+        lang="en",
+    )
+
+    # Generate figures
+    matplotlib.pyplot.rcdefaults()
+    for suite, pythons in data.items():
+
+        python_names = sorted(pythons.keys())
+        instructions = []
+        max_res_size = []
+        wall_time = []
+        for python in python_names:
+            variants = pythons[python]
+            instructions.append(dict((variant, data["instructions"]) for variant, data in variants.items()))
+            max_res_size.append(dict((variant, data["max.res.size"]["mean"]) for variant, data in variants.items()))
+            wall_time.append(dict((variant, data["wall.time"]["mean"]) for variant, data in variants.items()))
+
+        instructions_img = build_multi_bar_figure(
+            python_names, instructions, "Instructions", "{} - Instructions".format(suite)
+        )
+        max_res_size_img = build_multi_bar_figure(
+            python_names, max_res_size, "max.res.size", "{} - max.res.size".format(suite)
+        )
+        wall_time_img = build_multi_bar_figure(python_names, max_res_size, "wall.time", "{} - wall.time".format(suite))
+
+        html.body.append(
+            E.E.section(
+                E.CLASS("section"),
+                E.H1(E.CLASS("title"), "Suite: {}".format(suite)),
+                E.DIV(
+                    E.CLASS("columns is-multiline"),
+                    E.DIV(
+                        E.CLASS("column"),
+                        E.IMG(src="data:image/png;base64,{}".format(instructions_img.decode())),
+                    ),
+                    E.DIV(
+                        E.CLASS("column"),
+                        E.IMG(src="data:image/png;base64,{}".format(max_res_size_img.decode())),
+                    ),
+                    E.DIV(
+                        E.CLASS("column"),
+                        E.IMG(src="data:image/png;base64,{}".format(wall_time_img.decode())),
+                    ),
+                ),
+                E.E.details(
+                    E.E.summary("Raw JSON results"),
+                    E.DIV(
+                        E.CLASS("box"),
+                        E.PRE(
+                            E.CODE(
+                                E.CLASS("language-json"),
+                                json.dumps(pythons, indent=4),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        )
+
+    out_html = os.path.join(base_dir, "index.html")
+    with open(out_html, "wb") as fp:
+        fp.write(lxml.html.tostring(html))
+    return out_html
+
+
+def write_csv(base_dir, data):
+    # type: (str, typing.Dict[str, typing.Any]) -> str
+
+    csv_headings = (
+        "Timestamp",
+        "Suite",
+        "Implementation",
+        "Python",
+        "Variant",
+        "Iterations",
+        "Instructions",
+        "max.res.size min",
+        "max.res.size mean",
+        "max.res.size max",
+        "max.res.size stdev",
+        "System",
+        "Node",
+    )
+    out_csv = os.path.join(base_dir, "combined.csv")
+    with open(out_csv, "w") as fp:
+        w = csv.writer(fp)
+        w.writerow(csv_headings)
+
+        for suite, pythons in data.items():
+            for python_version, variants in sorted(pythons.items()):
+                for i, (variant, results) in enumerate(sorted(variants.items())):
+                    py = python_version if i == 0 else ""
+
+                    w.writerow(
+                        (
+                            datetime.datetime.fromtimestamp(results["timestamp"]).isoformat(),
+                            suite,
+                            results["python_implementation"],
+                            python_version,
+                            results["iterations"],
+                            results["instructions"],
+                            results["max.res.size"]["min"],
+                            results["max.res.size"]["mean"],
+                            results["max.res.size"]["max"],
+                            results["max.res.size"]["stdev"],
+                            results["system"],
+                            results["node"],
+                        )
+                    )
+    return out_csv
 
 
 def main(base_dir):
@@ -122,106 +304,10 @@ def main(base_dir):
 
                 results_by_suite_python_variant[suite][python_version][variant] = results
 
-    out_json = os.path.join(base_dir, "combined.json")
-    with open(out_json, "w") as fp:
-        json.dump(results_by_suite_python_variant, fp)
-    print("Results JSON: {}".format(out_json))
-
-    # Build an html element
-    html = ET.Element("html")
-    body = ET.SubElement(html, "body")
-
-    # Generate figures
-    matplotlib.pyplot.rcdefaults()
-    for suite, pythons in results_by_suite_python_variant.items():
-        section = ET.SubElement(body, "section")
-        title = ET.SubElement(section, "h1")
-        title.text = "Suite: {}".format(suite)
-
-        python_names = sorted(pythons.keys())
-        instructions = []
-        for python in python_names:
-            variants = pythons[python]
-            instructions.append(dict((variant, data["instructions"]) for variant, data in variants.items()))
-
-        fig_img = build_multi_bar_figure(python_names, instructions, "Instructions", "{} - Instructions".format(suite))
-
-        ET.SubElement(section, "img", src="data:image/png;base64,{}".format(fig_img.decode()))
-
-    out_html = os.path.join(base_dir, "index.html")
-    with open(out_html, "wb") as fp:
-        fp.write(ET.tostring(html))
-    print("Results HTML: {}".format(out_html))
-
-    csv_headings = (
-        "Timestamp",
-        "Suite",
-        "Implementation",
-        "Python",
-        "Variant",
-        "Iterations",
-        "Instructions",
-        "max.res.size min",
-        "max.res.size mean",
-        "max.res.size max",
-        "max.res.size stdev",
-        "System",
-        "Node",
-    )
-    cli_headings = (
-        "Python",
-        "Variant",
-        "Iterations",
-        "Instructions",
-        "max.res mean",
-        "wall.time mean",
-    )
-    out_csv = os.path.join(base_dir, "combined.csv")
-    print("Results CSV: {}".format(out_csv))
-    with open(out_csv, "w") as fp:
-        w = csv.writer(fp)
-        w.writerow(csv_headings)
-
-        for suite, pythons in results_by_suite_python_variant.items():
-            print("\r\nSuite: {}".format(suite))
-            print_row(cli_headings, centered=True)
-            for python_version, variants in sorted(pythons.items()):
-                print_spacer(len(cli_headings))
-                for i, (variant, results) in enumerate(sorted(variants.items())):
-                    py = python_version if i == 0 else ""
-                    print_row(
-                        (
-                            py,
-                            variant,
-                            results["iterations"],
-                            results["instructions"],
-                            "{:>10} ±{:<10}".format(
-                                round(results["max.res.size"]["mean"], 2),
-                                round(results["max.res.size"]["stdev"], 2),
-                            ),
-                            "{:>10} ±{:<10}".format(
-                                round(results["wall.time"]["mean"], 2),
-                                round(results["wall.time"]["stdev"], 2),
-                            ),
-                        ),
-                    )
-
-                    w.writerow(
-                        (
-                            datetime.datetime.fromtimestamp(results["timestamp"]).isoformat(),
-                            suite,
-                            results["python_implementation"],
-                            python_version,
-                            results["iterations"],
-                            results["instructions"],
-                            results["max.res.size"]["min"],
-                            results["max.res.size"]["mean"],
-                            results["max.res.size"]["max"],
-                            results["max.res.size"]["stdev"],
-                            results["system"],
-                            results["node"],
-                        )
-                    )
+    print("Results JSON: {}".format(write_json(base_dir, results_by_suite_python_variant)))
+    print("Results CSV: {}".format(write_csv(base_dir, results_by_suite_python_variant)))
+    print("Results HTML: {}".format(write_html(base_dir, results_by_suite_python_variant)))
+    print_results(results_by_suite_python_variant)
 
 
 if __name__ == "__main__":
