@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    Added distributed tracing setting to integration config for tornado.
+    Added environment variable `DD_TORNADO_DISTRIBUTED_TRACING` to enable distributed tracing for tornado.
