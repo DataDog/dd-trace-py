@@ -43,7 +43,6 @@ exclude = '''
     (
       aiopg
       | boto
-      | cassandra
       | jinja2
       | psycopg
       | pylibmc
@@ -58,7 +57,6 @@ exclude = '''
     contrib/
     (
       aiopg
-      | cassandra
       | config.py
       | jinja2
       | psycopg
