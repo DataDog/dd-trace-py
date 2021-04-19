@@ -618,24 +618,19 @@ def test_span_pprint():
     root.set_metric("m", 1.0)
     root.finish()
     actual = json.loads(root.pprint())
-    expected = {
-        "name": "test.span",
-        "service": "s",
-        "resource": "r",
-        "type": "web",
-        "error": 0,
-        "tags": "t:v",
-        "metrics": "m:1.0",
-    }
-    assert set(expected.items()) < set(actual.items())
+    assert actual["name"] == "test.span"
+    assert actual["service"] == "s"
+    assert actual["resource"] == "r"
+    assert actual["type"] == "web"
+    assert actual["error"] == 0
+    assert actual["tags"] == {"t": "v"}
+    assert actual["metrics"] == {"m": 1.0}
+    assert set(["id", "trace_id", "parent_id", "duration", "start", "end"]) < set(actual.keys())
     assert isinstance(actual["trace_id"], six.integer_types)
     assert isinstance(actual["id"], six.integer_types)
     assert actual["parent_id"] is None
     assert isinstance(actual["duration"], float)
     assert actual["start"] < actual["end"]
-    assert set(actual.keys()) == set(
-        list(expected.keys()) + ["id", "trace_id", "parent_id", "duration", "start", "end"]
-    )
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     actual = json.loads(root.pprint())
@@ -650,7 +645,8 @@ def test_span_pprint():
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag(u"😌", u"😌")
     actual = json.loads(root.pprint())
-    assert actual["tags"] == u"😌:😌"
+    assert len(actual["tags"]) == 1
+    assert actual["tags"][u"😌"] == u"😌"
 
     root = Span(None, "test.span", service=object())
     actual = json.loads(root.pprint())
