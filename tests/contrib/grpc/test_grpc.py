@@ -71,7 +71,7 @@ class GrpcTestCase(TracerTestCase):
         self._server_pool.shutdown(wait=True)
 
     def _check_client_span(self, span, service, method_name, method_kind):
-        self.assert_is_not_measured(span)
+        self.assert_is_measured(span)
         assert span.name == "grpc"
         assert span.resource == "/helloworld.Hello/{}".format(method_name)
         assert span.service == service

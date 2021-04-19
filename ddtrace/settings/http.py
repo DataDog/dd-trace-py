@@ -1,4 +1,5 @@
 from ..internal.logger import get_logger
+from ..utils.cache import cachedmethod
 from ..utils.http import normalize_header_name
 
 
@@ -37,8 +38,11 @@ class HttpConfig(object):
                 continue
             self._whitelist_headers.add(normalized_header_name)
 
+        self.header_is_traced.invalidate()
+
         return self
 
+    @cachedmethod()
     def header_is_traced(self, header_name):
         """
         Returns whether or not the current header should be traced.
@@ -46,6 +50,9 @@ class HttpConfig(object):
         :type header_name: str
         :rtype: bool
         """
+        if not self._whitelist_headers:
+            return False
+
         normalized_header_name = normalize_header_name(header_name)
         log.debug("Checking header '%s' tracing in whitelist %s", normalized_header_name, self._whitelist_headers)
         return normalized_header_name in self._whitelist_headers
