@@ -137,21 +137,11 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: TraceWriter
+        self._partial_flush_enabled = False
+        self._partial_flush_min_spans = 500
+        self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
-        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
-        self._partial_flush_min_spans = int(
-            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
-        )
-        self._span_processors = [
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=cast("List[TraceProcessor]", [TraceSamplingProcessor()])
-                + cast("List[TraceProcessor]", self._filters),
-                writer=self.writer,
-            ),
-        ]  # type: List[SpanProcessor]
 
     def _atexit(self):
         # type: () -> None
@@ -341,15 +331,7 @@ class Tracer(object):
             pass
         if isinstance(self.writer, AgentWriter):
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self._span_processors = [
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=cast("List[TraceProcessor]", [TraceSamplingProcessor()])
-                + cast("List[TraceProcessor]", self._filters),
-                writer=self.writer,
-            ),
-        ]
+        self._initialize_span_processors()
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -571,6 +553,27 @@ class Tracer(object):
 
         self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
 
+    def _initialize_span_processors(self):
+        # type: () -> None
+        self._partial_flush_enabled = asbool(
+            get_env("tracer", "partial_flush_enabled", default=self._partial_flush_enabled)
+        )
+        self._partial_flush_min_spans = int(
+            get_env("tracer", "partial_flush_min_spans", default=self._partial_flush_min_spans)  # type: ignore[arg-type]
+        )
+        trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceSamplingProcessor()]
+        trace_processors += self._filters
+
+        self._span_processors = [
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self.writer,
+            ),
+        ]  # type: List[SpanProcessor]
+
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
         the necessary updates if it is a new process
@@ -607,7 +610,7 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
-
+        self._initialize_span_processors()
         return new_ctx
 
     def _log_compat(self, level, msg):
