@@ -4,6 +4,7 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
 import ddtrace
+from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
@@ -170,7 +171,7 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
         assert traces[0][0].trace_id == traces[0][1].trace_id
 
 
-@pytest.mark.skipif(ddtrace.compat.CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
+@pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
 class TestUtilsAsyncio(object):
     """Test the util routines of the opentracer with asyncio specific
     configuration.

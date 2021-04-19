@@ -6,7 +6,7 @@ import tempfile
 import six
 
 import ddtrace
-from ddtrace.compat import PY3
+from ddtrace.internal.compat import PY3
 
 from ..utils import BaseTestCase
 

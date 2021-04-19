@@ -10,13 +10,13 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace.compat import httplib
-from ddtrace.compat import parse
-from ddtrace.compat import to_unicode
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal.compat import httplib
+from ddtrace.internal.compat import parse
+from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase

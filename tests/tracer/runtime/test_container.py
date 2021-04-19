@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.runtime.container import get_container_info
 

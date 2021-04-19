@@ -3,7 +3,7 @@ from __future__ import division
 import mock
 import pytest
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.internal.rate_limiter import RateLimiter
 
 

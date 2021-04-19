@@ -3,7 +3,7 @@ import contextlib
 
 # Project
 from ddtrace import config
-from ddtrace.compat import httplib
+from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
