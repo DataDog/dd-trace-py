@@ -111,6 +111,7 @@ class Response(object):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
+                # This also happens when DATADOG_PRIORITY_SAMPLING=false is set
                 log.debug("Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date")
                 return
 
