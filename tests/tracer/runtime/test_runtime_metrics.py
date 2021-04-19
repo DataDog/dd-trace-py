@@ -179,5 +179,8 @@ class TestRuntimeWorker(TracerTestCase):
 
 
 def test_fork():
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork.py"))
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
+    assert exitcode == 0
+
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_disable.py"))
     assert exitcode == 0

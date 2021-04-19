@@ -92,9 +92,16 @@ class RuntimeWorker(periodic.PeriodicService):
             if RuntimeWorker._instance is None:
                 return
 
+            forksafe.unregister(RuntimeWorker._restart)
+
             RuntimeWorker._instance.stop()
             RuntimeWorker._instance.join()
             RuntimeWorker._instance = None
+
+    @staticmethod
+    def _restart():
+        RuntimeWorker.disable()
+        RuntimeWorker.enable()
 
     @staticmethod
     def enable(flush_interval=None, tracer=None, dogstatsd_url=None):
@@ -108,11 +115,7 @@ class RuntimeWorker(periodic.PeriodicService):
             # force an immediate update constant tags
             runtime_worker.update_runtime_tags()
 
-            def _restart():
-                RuntimeWorker.disable()
-                RuntimeWorker.enable()
-
-            forksafe.register(_restart)
+            forksafe.register(RuntimeWorker._restart)
 
             RuntimeWorker._instance = runtime_worker
 
