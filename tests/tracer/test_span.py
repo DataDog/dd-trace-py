@@ -6,6 +6,7 @@ from unittest.case import SkipTest
 
 import mock
 import pytest
+import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -627,8 +628,8 @@ def test_span_pprint():
         "metrics": "m:1.0",
     }
     assert set(expected.items()) < set(actual.items())
-    assert isinstance(actual["trace_id"], int)
-    assert isinstance(actual["id"], int)
+    assert isinstance(actual["trace_id"], six.integer_types)
+    assert isinstance(actual["id"], six.integer_types)
     assert actual["parent_id"] is None
     assert isinstance(actual["duration"], float)
     assert actual["start"] < actual["end"]
