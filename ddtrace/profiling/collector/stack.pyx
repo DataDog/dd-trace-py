@@ -9,7 +9,7 @@ import weakref
 import attr
 import six
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event

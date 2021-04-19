@@ -1,9 +1,9 @@
 from django.utils.functional import SimpleLazyObject
 
-from ...compat import PY3
-from ...compat import binary_type
-from ...compat import parse
-from ...compat import to_unicode
+from ...internal.compat import PY3
+from ...internal.compat import binary_type
+from ...internal.compat import parse
+from ...internal.compat import to_unicode
 from ...internal.logger import get_logger
 
 

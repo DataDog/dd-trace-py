@@ -92,7 +92,7 @@ except ImportError:
 try:
     from time import monotonic
 except ImportError:
-    from .vendor.monotonic import monotonic
+    from .vendor.monotonic import monotonic  # type: ignore
 
 
 try:

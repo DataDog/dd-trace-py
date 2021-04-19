@@ -6,9 +6,9 @@ from ddtrace.ext import http as httpx
 from ddtrace.propagation.http import HTTPPropagator
 
 from .. import trace_utils
-from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
+from ...internal.compat import iteritems
 
 
 class TraceMiddleware(object):
