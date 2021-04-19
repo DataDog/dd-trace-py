@@ -10,7 +10,6 @@ from ddtrace.contrib.logging import unpatch
 from ddtrace.contrib.logging.patch import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
 from ddtrace.internal.compat import StringIO
-
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
 
