@@ -1,6 +1,8 @@
 """
 Generic dbapi tracing code.
 """
+import six
+
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -11,7 +13,6 @@ from ...internal.logger import get_logger
 from ...pin import Pin
 from ...utils.formats import asbool
 from ...utils.formats import get_env
-from ...vendor import six
 from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped

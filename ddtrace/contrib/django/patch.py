@@ -11,6 +11,8 @@ from inspect import isclass
 from inspect import isfunction
 import sys
 
+import six
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -25,7 +27,6 @@ from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 from ddtrace.vendor import debtcollector
-from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
 from . import conf

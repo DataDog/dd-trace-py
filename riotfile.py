@@ -126,6 +126,18 @@ venv = Venv(
             pkgs={"riot": latest},
         ),
         Venv(
+            name="docs",
+            pys=["3"],
+            pkgs={
+                "cython": latest,
+                "reno[sphinx]": latest,
+                "sphinx": latest,
+                "sphinxcontrib-spelling": latest,
+                "PyEnchant": latest,
+            },
+            command="scripts/build-docs",
+        ),
+        Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
@@ -134,7 +146,15 @@ venv = Venv(
         Venv(
             name="tracer",
             command="pytest {cmdargs} tests/tracer/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "attrs": ["==19.2.0", latest],
+                    },
+                )
+            ],
         ),
         Venv(
             name="ddtracerun",
