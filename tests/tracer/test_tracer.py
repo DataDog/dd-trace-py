@@ -1235,6 +1235,13 @@ class TestPartialFlush(TracerTestCase):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=6)
         self.test_partial_flush_too_few()
 
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="false", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+    )
+    def test_partial_flush_configure_precedence(self):
+        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
+        self.test_partial_flush()
+
 
 def test_unicode_config_vals():
     t = ddtrace.Tracer()

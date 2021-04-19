@@ -13,7 +13,6 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
-from typing import cast
 
 from ddtrace import config
 
@@ -137,8 +136,10 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = False
-        self._partial_flush_min_spans = 500
+        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        self._partial_flush_min_spans = int(
+            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
+        )
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -555,12 +556,6 @@ class Tracer(object):
 
     def _initialize_span_processors(self):
         # type: () -> None
-        self._partial_flush_enabled = asbool(
-            get_env("tracer", "partial_flush_enabled", default=self._partial_flush_enabled)
-        )
-        self._partial_flush_min_spans = int(
-            get_env("tracer", "partial_flush_min_spans", default=self._partial_flush_min_spans)  # type: ignore[arg-type]
-        )
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceSamplingProcessor()]
         trace_processors += self._filters
