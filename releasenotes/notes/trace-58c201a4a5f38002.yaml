@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+    Traces are now collected per tracer instance. Formerly traces were stored
+    per execution context so async fragments of a trace would be collected
+    independently. Hence trace sampling decisions and applying trace filters
+    only applied to the fragments of a trace. Now traces are collected per
+    tracer instance and so sampling and trace filters will be provided the
+    entire trace.
