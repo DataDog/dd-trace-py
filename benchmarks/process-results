@@ -1,25 +1,65 @@
 #!/usr/bin/env python
+import base64
 import collections
 import csv
 import datetime
 import glob
+import io
 import json
 import os
 import statistics
 import sys
 import typing
+from xml.etree import ElementTree as ET
+
+import matplotlib.pyplot
+import numpy
 
 
-def print_row(fields):
+def build_multi_bar_figure(categories, data, ylabel, title):
+    # categories: [27, 35, 36, 37, 38, 39]
+    # data: [{variant: x, variant: y}, ... ]
+    fig, ax = matplotlib.pyplot.subplots()
+
+    cat_names = sorted(categories)
+    sub_cat_names = sorted(data[0].keys())
+
+    x = numpy.arange(len(sub_cat_names))
+    width = 0.5 / len(cat_names)
+
+    for i, sub_cats in enumerate(data):
+        points = []
+        for cat in sub_cat_names:
+            points.append(sub_cats[cat])
+
+        ax.bar(
+            x + (width * (i + 1)),
+            points,
+            width,
+            label=cat_names[i],
+        )
+
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(x + (width * (len(cat_names) / 2)))
+    ax.set_xticklabels(sub_cat_names)
+    ax.legend()
+    ax.set_title(title)
+
+    with io.BytesIO() as out:
+        fig.savefig(out, bbox_inches="tight")
+        return base64.b64encode(out.getvalue())
+
+
+def print_row(fields, centered=False):
     # type: (typing.List[str]) -> None
-    placeholders = ["|{:>20}"] * len(fields)
+    placeholders = ["|{:^25} " if centered else "|{:>25} "] * len(fields)
     format_str = "".join(placeholders) + "|"
     print(format_str.format(*fields))
 
 
 def print_spacer(n):
     # type: (int) -> None
-    spacer = "-" * 20
+    spacer = "-" * 26
     spacers = ["|{}".format(spacer)] * n
     print("".join(spacers) + "|")
 
@@ -66,7 +106,7 @@ def main(base_dir):
 
                 for metric, values in metrics.items():
                     if len(values) > 1:
-                        mean = statistics.mean(values)
+                        mean = statistics.fmean(values)
                         stdev = statistics.stdev(values)
                     else:
                         mean = values[0]
@@ -77,6 +117,7 @@ def main(base_dir):
                         max=max(values),
                         mean=mean,
                         stdev=stdev,
+                        raw=values,
                     )
 
                 results_by_suite_python_variant[suite][python_version][variant] = results
@@ -85,6 +126,32 @@ def main(base_dir):
     with open(out_json, "w") as fp:
         json.dump(results_by_suite_python_variant, fp)
     print("Results JSON: {}".format(out_json))
+
+    # Build an html element
+    html = ET.Element("html")
+    body = ET.SubElement(html, "body")
+
+    # Generate figures
+    matplotlib.pyplot.rcdefaults()
+    for suite, pythons in results_by_suite_python_variant.items():
+        section = ET.SubElement(body, "section")
+        title = ET.SubElement(section, "h1")
+        title.text = "Suite: {}".format(suite)
+
+        python_names = sorted(pythons.keys())
+        instructions = []
+        for python in python_names:
+            variants = pythons[python]
+            instructions.append(dict((variant, data["instructions"]) for variant, data in variants.items()))
+
+        fig_img = build_multi_bar_figure(python_names, instructions, "Instructions", "{} - Instructions".format(suite))
+
+        ET.SubElement(section, "img", src="data:image/png;base64,{}".format(fig_img.decode()))
+
+    out_html = os.path.join(base_dir, "index.html")
+    with open(out_html, "wb") as fp:
+        fp.write(ET.tostring(html))
+    print("Results HTML: {}".format(out_html))
 
     csv_headings = (
         "Timestamp",
@@ -107,9 +174,7 @@ def main(base_dir):
         "Iterations",
         "Instructions",
         "max.res mean",
-        "max.res stdev",
         "wall.time mean",
-        "wall.time stdev",
     )
     out_csv = os.path.join(base_dir, "combined.csv")
     print("Results CSV: {}".format(out_csv))
@@ -119,10 +184,10 @@ def main(base_dir):
 
         for suite, pythons in results_by_suite_python_variant.items():
             print("\r\nSuite: {}".format(suite))
-            print_row(cli_headings)
-            for python_version, variants in sorted(pythons.items(), key=lambda e: e[0]):
+            print_row(cli_headings, centered=True)
+            for python_version, variants in sorted(pythons.items()):
                 print_spacer(len(cli_headings))
-                for i, (variant, results) in enumerate(sorted(variants.items(), key=lambda e: e[0])):
+                for i, (variant, results) in enumerate(sorted(variants.items())):
                     py = python_version if i == 0 else ""
                     print_row(
                         (
@@ -130,15 +195,15 @@ def main(base_dir):
                             variant,
                             results["iterations"],
                             results["instructions"],
-                            round(results["max.res.size"]["mean"], 2),
-                            round(
-                                results["max.res.size"]["stdev"],
+                            "{:>10} ±{:<10}".format(
+                                round(results["max.res.size"]["mean"], 2),
+                                round(results["max.res.size"]["stdev"], 2),
                             ),
-                            round(results["wall.time"]["mean"], 2),
-                            round(
-                                results["wall.time"]["stdev"],
+                            "{:>10} ±{:<10}".format(
+                                round(results["wall.time"]["mean"], 2),
+                                round(results["wall.time"]["stdev"], 2),
                             ),
-                        )
+                        ),
                     )
 
                     w.writerow(
