@@ -156,7 +156,7 @@ jobs:
           path: dist
 
       - uses: actions/checkout@v2
-        if: github.event.action == "workflow_dispatch"
+        if: github.event.action == 'workflow_dispatch'
         # Include all history and tags
         with:
           fetch-depth: 0
