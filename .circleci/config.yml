@@ -910,7 +910,7 @@ jobs:
           paths:
             - "benchmarks/results/*.json"
 
-  benchmark_report:
+  benchmarks_report:
     executor: python38
     steps:
       - checkout
@@ -1141,6 +1141,6 @@ workflows:
       - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
-      - benchmark_report:
+      - benchmarks_report:
           requires:
             - benchmarks
