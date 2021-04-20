@@ -10,8 +10,8 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
-from .utils import TracerTestCase
 from .utils import TornadoTestCase
+from .utils import TracerTestCase
 from .web.app import CustomDefaultHandler
 
 
