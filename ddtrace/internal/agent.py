@@ -71,10 +71,9 @@ def verify_url(url):
     return parsed
 
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
+def get_connection(parsed, timeout=DEFAULT_TIMEOUT):
     # type: (str, float) -> ConnectionType
     """Return an HTTP connection to the given URL."""
-    parsed = verify_url(url)
     hostname = parsed.hostname or ""
 
     if parsed.scheme == "https":

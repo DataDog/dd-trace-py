@@ -25,7 +25,7 @@ from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.time import StopWatch
-from .agent import get_connection
+from .agent import get_connection, verify_url
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
@@ -209,6 +209,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # type: (...) -> None
         super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
+        self.parsed_agent_url = verify_url(agent_url)
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
@@ -285,11 +286,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         return writer
 
     def _put(self, data, headers):
-        conn = get_connection(self.agent_url, self._timeout)
+        conn = get_connection(self.parsed_agent_url, self._timeout)
 
         with StopWatch() as sw:
             try:
-                conn.request("PUT", self._endpoint, data, headers)
+                conn.request("PUT", self.parsed_agent_url.path + self._endpoint, data, headers)
                 resp = compat.get_connection_response(conn)
                 t = sw.elapsed()
                 if t >= self.interval:
