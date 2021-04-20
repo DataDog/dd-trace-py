@@ -60,17 +60,14 @@ class TraceSamplingProcessor(TraceProcessor):
 
 @attr.s
 class SpanAggregator(SpanProcessor):
-    """Processor that aggregates spans together by trace_id and submits the
-    finalized trace if the trace is assumed to be complete[0] or if a partial
-    flushing threshold has been met[1].
-
-    [0] A trace is assumed to be complete if all the spans that have been
-    created with the trace_id have finished. When this condition is met the
-    completed spans are returned.
-
-    [1] A minimum threshold of spans can be specified with the
-    ``partial_flush_min_spans`` argument. When this threshold of spans has been
-    finished the finished spans of the trace are returned.
+    """Processor that aggregates spans together by trace_id and writes the
+    spans to the provided writer when:
+        - The collection is assumed to be complete. A collection of spans is
+          assumed to be complete if all the spans that have been created with
+          the trace_id have finished.
+    or
+        - A minimum threshold of spans (``partial_flush_min_spans``) have been
+          finished in the collection and ``partial_flush_enabled`` is True.
     """
 
     @attr.s
