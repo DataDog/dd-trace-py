@@ -910,6 +910,26 @@ jobs:
           paths:
             - "benchmarks/results/*.json"
 
+  benchmark_report:
+    executor: python38
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: pip install matplotlib lxml
+      - run: ls -hal benchmarks/results/
+      # Combine all all results into report
+      - run: benchmarks/process-results
+      - store_artifacts:
+          path: benchmarks/results/index.html
+          destination: index.html
+      - store_artifacts:
+          path: benchmarks/results/combined.json
+          destination: results.json
+      - store_artifacts:
+          path: benchmarks/results/combined.csv
+          destination: results.csv
+
   jinja2:
     <<: *contrib_job
     steps:
@@ -1121,3 +1141,6 @@ workflows:
       - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
+      - benchmark_report:
+          requires:
+            - benchmarks

@@ -17,6 +17,11 @@ import matplotlib.pyplot
 import numpy
 
 
+def float_to_str(f):
+    # type: (float) -> str
+    return str(round(f, 2))
+
+
 def build_multi_bar_figure(categories, data, ylabel, title):
     # categories: [27, 35, 36, 37, 38, 39]
     # data: [{variant: x, variant: y}, ... ]
@@ -33,16 +38,16 @@ def build_multi_bar_figure(categories, data, ylabel, title):
         for cat in sub_cat_names:
             points.append(sub_cats[cat])
 
-        ax.bar(
+        ax.barh(
             x + (width * (i + 1)),
             points,
             width,
             label=cat_names[i],
         )
 
-    ax.set_ylabel(ylabel)
-    ax.set_xticks(x + (width * (len(cat_names) / 2)))
-    ax.set_xticklabels(sub_cat_names)
+    ax.set_xlabel(ylabel)
+    ax.set_yticks(x + (width * (len(cat_names) / 2)))
+    ax.set_yticklabels(sub_cat_names)
     ax.legend()
     ax.set_title(title)
 
@@ -145,19 +150,65 @@ def write_html(base_dir, data):
         instructions = []
         max_res_size = []
         wall_time = []
+
+        results_tables = []
         for python in python_names:
             variants = pythons[python]
             instructions.append(dict((variant, data["instructions"]) for variant, data in variants.items()))
             max_res_size.append(dict((variant, data["max.res.size"]["mean"]) for variant, data in variants.items()))
             wall_time.append(dict((variant, data["wall.time"]["mean"]) for variant, data in variants.items()))
 
+            results_tables.append(E.H2(python))
+            results_table = E.TABLE(
+                E.CLASS("table is-hoverable"),
+                E.THEAD(
+                    E.TH("Variant"),
+                    E.TH("Iterations"),
+                    E.TH("Instructions"),
+                    E.TH("max.res.size min"),
+                    E.TH("max.res.size mean"),
+                    E.TH("max.res.size max"),
+                    E.TH("max.res.size stdev"),
+                    E.TH("wall.time min"),
+                    E.TH("wall.time mean"),
+                    E.TH("wall.time max"),
+                    E.TH("wall.time stdev"),
+                    E.TH("Python implementation"),
+                    E.TH("System"),
+                    E.TH("Node"),
+                ),
+                E.TBODY(),
+            )
+            for variant, data in variants.items():
+                results_table.find("tbody").append(
+                    E.TR(
+                        E.TD(variant),
+                        E.TD(float_to_str(data["iterations"])),
+                        E.TD(float_to_str(data["instructions"])),
+                        E.TD(float_to_str(data["max.res.size"]["min"])),
+                        E.TD(float_to_str(data["max.res.size"]["mean"])),
+                        E.TD(float_to_str(data["max.res.size"]["max"])),
+                        E.TD(float_to_str(data["max.res.size"]["stdev"])),
+                        E.TD(float_to_str(data["wall.time"]["min"])),
+                        E.TD(float_to_str(data["wall.time"]["mean"])),
+                        E.TD(float_to_str(data["wall.time"]["max"])),
+                        E.TD(float_to_str(data["wall.time"]["stdev"])),
+                        E.TD(data["python_implementation"]),
+                        E.TD(data["system"]),
+                        E.TD(data["node"]),
+                    )
+                )
+            results_tables.append(results_table)
+
         instructions_img = build_multi_bar_figure(
-            python_names, instructions, "Instructions", "{} - Instructions".format(suite)
+            python_names, instructions, "Instructions", "{} - Instructions (mean)".format(suite)
         )
         max_res_size_img = build_multi_bar_figure(
-            python_names, max_res_size, "max.res.size", "{} - max.res.size".format(suite)
+            python_names, max_res_size, "max.res.size", "{} - max.res.size (mean)".format(suite)
         )
-        wall_time_img = build_multi_bar_figure(python_names, max_res_size, "wall.time", "{} - wall.time".format(suite))
+        wall_time_img = build_multi_bar_figure(
+            python_names, max_res_size, "wall.time", "{} - wall.time (mean)".format(suite)
+        )
 
         html.body.append(
             E.E.section(
@@ -179,7 +230,11 @@ def write_html(base_dir, data):
                     ),
                 ),
                 E.E.details(
-                    E.E.summary("Raw JSON results"),
+                    E.E.summary("Results table"),
+                    *results_tables,
+                ),
+                E.E.details(
+                    E.E.summary("Results JSON"),
                     E.DIV(
                         E.CLASS("box"),
                         E.PRE(
