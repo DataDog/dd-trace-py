@@ -64,8 +64,7 @@ class SpanAggregator(SpanProcessor):
     spans to the provided writer when:
         - The collection is assumed to be complete. A collection of spans is
           assumed to be complete if all the spans that have been created with
-          the trace_id have finished.
-    or
+          the trace_id have finished; or
         - A minimum threshold of spans (``partial_flush_min_spans``) have been
           finished in the collection and ``partial_flush_enabled`` is True.
     """
