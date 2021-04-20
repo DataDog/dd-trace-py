@@ -1195,6 +1195,8 @@ class TestPartialFlush(TracerTestCase):
         for t in traces:
             assert len(t) == 1
         assert [t[0].name for t in traces] == ["child0", "child1", "child2", "child3", "child4"]
+        for t in traces:
+            assert t[0].parent_id == root.span_id
 
         root.finish()
         traces = self.pop_traces()
@@ -1489,3 +1491,53 @@ def test_bad_agent_url(monkeypatch):
     with pytest.raises(ValueError) as e:
         Tracer()
     assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+
+
+def test_context_priority(tracer, test_spans):
+    """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
+    for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
+        with tracer.trace("span_%s" % p) as span:
+            span.context.sampling_priority = p
+
+        # Spans should always be written regardless of sampling priority since
+        # the agent needs to know the sampling decision.
+        spans = test_spans.pop()
+        assert len(spans) == 1, "trace should be sampled"
+        if p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP]:
+            assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
+
+
+def test_spans_sampled_out(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+
+    spans = test_spans.pop()
+    assert len(spans) == 0
+
+
+def test_spans_sampled_one(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = True
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
+
+
+def test_spans_sampled_all(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = True
+        with tracer.trace("child") as span:
+            span.sampled = True
+        with tracer.trace("child") as span:
+            span.sampled = True
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
