@@ -1,9 +1,10 @@
 ---
 upgrade:
   - |
-    Traces are now collected per tracer instance. Formerly traces were stored
-    per execution context so asynchronous fragments of a trace would be
-    collected independently. Hence trace sampling decisions and applying trace
-    filters only applied to the fragments of a trace. Now traces are collected
-    per tracer instance and so sampling and trace filters will be provided the
-    entire trace.
+    Spans are now processed per tracer instance. Formerly spans were stored
+    per-Context which could be shared between tracer instances. Note that
+    context management is not affected. Tracers will still share active spans.
+
+  - |
+    Spans from asynchronous executions (asyncio, gevent, tornado) will now be
+    processed and flushed together. Formerly the spans were handled per-task.
