@@ -457,14 +457,6 @@ jobs:
             DD_TRACE_AGENT_URL: http://localhost:9126
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
-  vendor:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_test:
-          pattern: 'vendor'
-
   futures:
     <<: *contrib_job
     steps:
@@ -489,12 +481,6 @@ jobs:
       - run_test:
           store_coverage: false
           pattern: 'ddtracerun'
-
-  test_logging:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'test_logging'
 
   asyncio:
     <<: *contrib_job
@@ -988,7 +974,6 @@ requires_tests: &requires_tests
     - integration_agent5
     - integration_agent
     - integration_testagent
-    - vendor
     - profile
     - jinja2
     - kombu
@@ -1017,7 +1002,6 @@ requires_tests: &requires_tests
     - sqlite3
     - starlette
     - test_build_alpine
-    - test_logging
     - tracer
     - tornado
     - urllib3
@@ -1079,7 +1063,6 @@ workflows:
       - integration_agent5: *requires_pre_test
       - integration_agent: *requires_pre_test
       - integration_testagent: *requires_pre_test
-      - vendor: *requires_pre_test
       - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
@@ -1107,7 +1090,6 @@ workflows:
       - starlette: *requires_pre_test
       - sqlalchemy: *requires_pre_test
       - sqlite3: *requires_pre_test
-      - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
       - urllib3: *requires_pre_test

@@ -145,7 +145,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            command="pytest {cmdargs} tests/tracer/ tests/vendor tests/contrib/logging",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -164,16 +164,6 @@ venv = Venv(
                 "redis": latest,
                 "gevent": latest,
             },
-        ),
-        Venv(
-            name="vendor",
-            command="pytest {cmdargs} tests/vendor/",
-            pys=select_pys(),
-        ),
-        Venv(
-            name="test_logging",
-            command="pytest {cmdargs} tests/contrib/logging",
-            pys=select_pys(),
         ),
         Venv(
             name="cherrypy",
