@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import json
+import re
 import sys
 import time
 from unittest.case import SkipTest
@@ -617,37 +617,36 @@ def test_span_pprint():
     root.set_tag("t", "v")
     root.set_metric("m", 1.0)
     root.finish()
-    actual = json.loads(root.pprint())
-    assert actual["name"] == "test.span"
-    assert actual["service"] == "s"
-    assert actual["resource"] == "r"
-    assert actual["type"] == "web"
-    assert actual["error"] == 0
-    assert actual["tags"] == {"t": "v"}
-    assert actual["metrics"] == {"m": 1.0}
-    assert set(["id", "trace_id", "parent_id", "duration", "start", "end"]) < set(actual.keys())
-    assert isinstance(actual["trace_id"], six.integer_types)
-    assert isinstance(actual["id"], six.integer_types)
-    assert actual["parent_id"] is None
-    assert isinstance(actual["duration"], float)
-    assert actual["start"] < actual["end"]
+    actual = root.pprint()
+    assert "name='test.span'" in actual
+    assert "service='s'" in actual
+    assert "resource='r'" in actual
+    assert "type='web'" in actual
+    assert "error=0" in actual
+    assert ("tags={'t': 'v'}" if six.PY3 else "tags={'t': u'v'}") in actual
+    assert "metrics={'m': 1.0}" in actual
+    assert re.search("id=[0-9]+", actual) is not None
+    assert re.search("trace_id=[0-9]+", actual) is not None
+    assert "parent_id=None" in actual
+    assert re.search("duration=[0-9.]+", actual) is not None
+    assert re.search("start=[0-9.]+", actual) is not None
+    assert re.search("end=[0-9.]+", actual) is not None
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    actual = json.loads(root.pprint())
-    assert actual["end"] is None
-    assert actual["duration"] is None
+    actual = root.pprint()
+    assert "duration=None" in actual
+    assert "end=None" in actual
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.error = 1
-    actual = json.loads(root.pprint())
-    assert actual["error"] == 1
+    actual = root.pprint()
+    assert "error=1" in actual
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag(u"😌", u"😌")
-    actual = json.loads(root.pprint())
-    assert len(actual["tags"]) == 1
-    assert actual["tags"][u"😌"] == u"😌"
+    actual = root.pprint()
+    assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
 
     root = Span(None, "test.span", service=object())
-    actual = json.loads(root.pprint())
-    assert actual["service"].startswith("<object object at")
+    actual = root.pprint()
+    assert "service=<object object at" in actual

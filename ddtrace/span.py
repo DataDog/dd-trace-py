@@ -1,6 +1,5 @@
-import collections
-import json
 import math
+import pprint
 import sys
 import traceback
 from typing import Any
@@ -494,16 +493,10 @@ class Span(object):
             ("tags", dict(sorted(self.meta.items()))),
             ("metrics", dict(sorted(self.metrics.items()))),
         ]
-        return json.dumps(
-            collections.OrderedDict(
-                (
-                    k,
-                    v
-                    if isinstance(v, six.integer_types) or isinstance(v, float) or isinstance(v, dict) or v is None
-                    else six.text_type(v),
-                )
-                for (k, v) in data
-            )
+        return " ".join(
+            # use a large column width to keep pprint output on one line
+            "%s=%s" % (k, pprint.pformat(v, width=1024 ** 2).strip())
+            for (k, v) in data
         )
 
     @property
