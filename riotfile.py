@@ -583,7 +583,7 @@ venv = Venv(
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": latest,
+                        "mysql-connector-python": [">=8,<8.0.24"],
                     },
                 ),
             ],
