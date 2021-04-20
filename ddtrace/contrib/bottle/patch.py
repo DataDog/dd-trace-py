@@ -3,7 +3,18 @@ import bottle
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from .trace import TracePlugin
+
+
+# Configure default configuration
+config._add(
+    "bottle",
+    dict(
+        distributed_tracing=asbool(get_env("bottle", "distributed_tracing", default=True)),
+    ),
+)
 
 
 def patch():
