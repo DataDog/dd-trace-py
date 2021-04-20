@@ -5,10 +5,6 @@ import mock
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.ext.priority import AUTO_KEEP
-from ddtrace.ext.priority import AUTO_REJECT
-from ddtrace.ext.priority import USER_KEEP
-from ddtrace.ext.priority import USER_REJECT
 from ddtrace.span import Span
 from tests.utils import BaseTestCase
 from tests.utils import DummyTracer
@@ -40,33 +36,6 @@ class TestTracingContext(BaseTestCase):
         assert 1 == len(ctx._trace)
         assert "fake_span" == ctx._trace[0].name
         assert ctx == span.context
-
-    def test_context_sampled(self):
-        # a context is sampled if the spans are sampled
-        ctx = Context()
-        span = Span(tracer=None, name="fake_span")
-        ctx.add_span(span)
-        span.finished = True
-        trace, sampled = ctx.close_span(span)
-
-        assert sampled is True
-        assert ctx.sampling_priority is None
-
-    def test_context_priority(self):
-        # a context is sampled if the spans are sampled
-        ctx = Context()
-        for priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
-            ctx.sampling_priority = priority
-            span = Span(tracer=None, name=("fake_span_%s" % repr(priority)))
-            ctx.add_span(span)
-            span.finished = True
-            # It's "normal" to have sampled be true even when priority sampling is
-            # set to 0 or -1. It would stay false even even with priority set to 2.
-            # The only criteria to send (or not) the spans to the agent should be
-            # this "sampled" attribute, as it's tightly related to the trace weight.
-            assert priority == ctx.sampling_priority
-            trace, sampled = ctx.close_span(span)
-            assert sampled is True, "priority has no impact on sampled status"
 
     def test_current_span(self):
         # it should return the current active span
