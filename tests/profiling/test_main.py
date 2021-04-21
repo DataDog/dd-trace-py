@@ -1,19 +1,10 @@
 import os
-import subprocess
 
 import pytest
 
+from tests.utils import call_program
+
 from . import utils
-
-
-def call_program(*args):
-    subp = subprocess.Popen(
-        args,
-        stdout=subprocess.PIPE,
-        close_fds=True,
-    )
-    stdout, stderr = subp.communicate()
-    return stdout, stderr, subp.wait(), subp.pid
 
 
 def test_call_script(monkeypatch):
