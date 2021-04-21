@@ -4,10 +4,6 @@ resource_class: &resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
-python37_image: &python37_image circleci/python:3.7
-python36_image: &python36_image circleci/python:3.6
-python35_image: &python35_image circleci/python:3.5
-python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
@@ -44,6 +40,10 @@ machine_executor: &machine_executor
 contrib_job: &contrib_job
   executor: ddtrace_dev
   parallelism: 4
+
+contrib_job_small: &contrib_job_small
+  executor: ddtrace_dev_small
+  parallelism: 1
 
 commands:
   save_coverage:
@@ -238,7 +238,6 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: *resource_class
   python38-alpine:
     docker:
       - image: *python38-alpine_image
@@ -247,26 +246,14 @@ executors:
     docker:
       - image: *python38_image
     resource_class: *resource_class
-  python37:
-    docker:
-      - image: *python37_image
-    resource_class: *resource_class
-  python36:
-    docker:
-      - image: *python36_image
-    resource_class: *resource_class
-  python35:
-    docker:
-      - image: *python35_image
-    resource_class: *resource_class
-  python27:
-    docker:
-      - image: *python27_image
-    resource_class: *resource_class
   ddtrace_dev:
     docker:
       - image: *ddtrace_dev_image
     resource_class: *resource_class
+  ddtrace_dev_small:
+    docker:
+      - image: *ddtrace_dev_image
+    resource_class: small
 
 # Common configuration blocks as YAML anchors
 # See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
@@ -448,7 +435,7 @@ jobs:
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
     steps:
@@ -456,7 +443,7 @@ jobs:
           pattern: 'vendor'
 
   futures:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_tox_scenario:
           pattern: '^futures_contrib-'
@@ -481,13 +468,13 @@ jobs:
           pattern: 'ddtracerun'
 
   test_logging:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'test_logging'
 
   asyncio:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_tox_scenario:
           pattern: '^asyncio_contrib-'
@@ -505,7 +492,7 @@ jobs:
           pattern: '^aiohttp_contrib-'
 
   asgi:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'asgi$'
@@ -901,7 +888,7 @@ jobs:
           pattern: '^jinja2_contrib-'
 
   mako:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'mako'
