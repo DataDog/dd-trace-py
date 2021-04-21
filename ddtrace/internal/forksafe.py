@@ -16,7 +16,9 @@ def ddtrace_after_in_child():
     # type: () -> None
     global _registry
 
-    for hook in _registry:
+    # DEV: we make a copy of the registry to prevent hook execution from
+    # introducing new hooks, potentially causing an infinite loop.
+    for hook in list(_registry):
         try:
             hook()
         except Exception:
