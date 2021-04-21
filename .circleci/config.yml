@@ -306,7 +306,7 @@ jobs:
       - setup_riot
       - run: riot run -s black --check .
       - run: riot run -s flake8
-      - run: riot run -s mypy
+      - run: riot run mypy
 
   ccheck:
     executor: cimg_base
@@ -1004,7 +1004,6 @@ requires_tests: &requires_tests
     - sqlalchemy
     - sqlite3
     - starlette
-    - test_build_alpine
     - test_logging
     - tracer
     - tornado
