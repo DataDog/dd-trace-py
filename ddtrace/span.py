@@ -1,4 +1,5 @@
 import math
+import pprint
 import sys
 import traceback
 from typing import Any
@@ -477,7 +478,7 @@ class Span(object):
     def pprint(self):
         # type: () -> str
         """ Return a human readable version of the span. """
-        lines = [
+        data = [
             ("name", self.name),
             ("id", self.span_id),
             ("trace_id", self.trace_id),
@@ -486,14 +487,17 @@ class Span(object):
             ("resource", self.resource),
             ("type", self.span_type),
             ("start", self.start),
-            ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", "%fs" % (self.duration or 0)),
+            ("end", None if not self.duration else self.start + self.duration),
+            ("duration", self.duration),
             ("error", self.error),
-            ("tags", ""),
+            ("tags", dict(sorted(self.meta.items()))),
+            ("metrics", dict(sorted(self.metrics.items()))),
         ]
-
-        lines.extend((" ", "%r:%s" % kv) for kv in sorted(self.meta.items()))
-        return "\n".join("%10s %s" % line for line in lines)
+        return " ".join(
+            # use a large column width to keep pprint output on one line
+            "%s=%s" % (k, pprint.pformat(v, width=1024 ** 2).strip())
+            for (k, v) in data
+        )
 
     @property
     def context(self):
