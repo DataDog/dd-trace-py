@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import inspect
 import os
+import subprocess
 import sys
 from typing import List
 
@@ -910,3 +911,13 @@ class AnyInt(object):
 class AnyFloat(object):
     def __eq__(self, other):
         return isinstance(other, float)
+
+
+def call_program(*args):
+    subp = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        close_fds=True,
+    )
+    stdout, stderr = subp.communicate()
+    return stdout, stderr, subp.wait(), subp.pid

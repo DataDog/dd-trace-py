@@ -157,6 +157,11 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="runtime",
+            command="pytest {cmdargs} tests/runtime/",
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+        ),
+        Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
