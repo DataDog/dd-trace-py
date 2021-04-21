@@ -96,8 +96,9 @@ The available settings are:
 * ``tags`` (default: `{}`): set global tags that should be applied to all spans.
 * ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
-* ``distributed_tracing`` (default: `True`): enable distributed tracing if this is called
-  remotely from an instrumented application.
+* ``distributed_tracing`` (default: `None`): enable distributed tracing if this is called
+  remotely from an instrumented application. Overrides the integration config which is configured via the
+  ``DD_TORNADO_DISTRIBUTED_TRACING`` environment variable.
   We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
