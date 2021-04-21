@@ -462,14 +462,6 @@ class TracerTestCases(TracerTestCase):
                 pass
         assert self.tracer._services == set(["one", "two"])
 
-    def test_configure_runtime_worker(self):
-        # by default runtime worker not started though runtime id is set
-        self.assertIsNone(self.tracer._runtime_worker)
-
-        # configure tracer with runtime metrics collection
-        self.tracer.configure(collect_metrics=True)
-        self.assertIsNotNone(self.tracer._runtime_worker)
-
     def test_configure_dogstatsd_url_host_port(self):
         tracer = Tracer()
         tracer.configure(dogstatsd_url="foo:1234")
@@ -495,49 +487,6 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.host is None
         assert tracer.writer.dogstatsd.port is None
         assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
-
-    def test_span_no_runtime_tags(self):
-        self.tracer.configure(collect_metrics=False)
-
-        with self.start_span("root") as root:
-            with self.start_span("child", child_of=root.context) as child:
-                pass
-
-        self.assertIsNone(root.get_tag("language"))
-        self.assertIsNone(child.get_tag("language"))
-
-    def test_only_root_span_runtime_internal_span_types(self):
-        self.tracer.configure(collect_metrics=True)
-
-        for span_type in ("custom", "template", "web", "worker"):
-            with self.start_span("root", span_type=span_type) as root:
-                with self.start_span("child", child_of=root) as child:
-                    pass
-            assert root.get_tag("language") == "python"
-            assert child.get_tag("language") is None
-
-    def test_only_root_span_runtime_external_span_types(self):
-        self.tracer.configure(collect_metrics=True)
-
-        for span_type in (
-            "algoliasearch.search",
-            "boto",
-            "cache",
-            "cassandra",
-            "elasticsearch",
-            "grpc",
-            "kombu",
-            "http",
-            "memcached",
-            "redis",
-            "sql",
-            "vertica",
-        ):
-            with self.start_span("root", span_type=span_type) as root:
-                with self.start_span("child", child_of=root) as child:
-                    pass
-            assert root.get_tag("language") is None
-            assert child.get_tag("language") is None
 
 
 def test_tracer_url():
@@ -1195,6 +1144,8 @@ class TestPartialFlush(TracerTestCase):
         for t in traces:
             assert len(t) == 1
         assert [t[0].name for t in traces] == ["child0", "child1", "child2", "child3", "child4"]
+        for t in traces:
+            assert t[0].parent_id == root.span_id
 
         root.finish()
         traces = self.pop_traces()
@@ -1489,3 +1440,53 @@ def test_bad_agent_url(monkeypatch):
     with pytest.raises(ValueError) as e:
         Tracer()
     assert str(e.value) == "Invalid hostname in Agent URL 'http://'"
+
+
+def test_context_priority(tracer, test_spans):
+    """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
+    for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
+        with tracer.trace("span_%s" % p) as span:
+            span.context.sampling_priority = p
+
+        # Spans should always be written regardless of sampling priority since
+        # the agent needs to know the sampling decision.
+        spans = test_spans.pop()
+        assert len(spans) == 1, "trace should be sampled"
+        if p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP]:
+            assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
+
+
+def test_spans_sampled_out(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+
+    spans = test_spans.pop()
+    assert len(spans) == 0
+
+
+def test_spans_sampled_one(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = False
+        with tracer.trace("child") as span:
+            span.sampled = True
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
+
+
+def test_spans_sampled_all(tracer, test_spans):
+    with tracer.trace("root") as span:
+        span.sampled = True
+        with tracer.trace("child") as span:
+            span.sampled = True
+        with tracer.trace("child") as span:
+            span.sampled = True
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
