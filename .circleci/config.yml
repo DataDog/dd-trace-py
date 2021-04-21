@@ -304,9 +304,15 @@ jobs:
     steps:
       - checkout
       - setup_riot
-      - run: riot run -s black --check .
-      - run: riot run -s flake8
-      - run: riot run mypy
+      - run:
+          name: "Black check"
+          command: riot run -s black --check .
+      - run:
+          name: "Flake8 check"
+          command: riot run -s flake8
+      - run:
+          name: "Mypy check"
+          command: riot run mypy
 
   ccheck:
     executor: cimg_base
@@ -316,13 +322,6 @@ jobs:
       - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
       - run: scripts/cformat.sh
       - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
-
-  riot-helpers:
-    executor: python38
-    steps:
-      - checkout
-      - setup_riot
-      - run: riot run -s riot-helpers
 
   coverage_report:
     executor: python38
@@ -367,6 +366,9 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - run:
+          name: "Run riotfile.py tests"
+          command: riot run -s riot-helpers
       - run:
           name: "Generate base virtual environments."
           command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
@@ -935,11 +937,10 @@ jobs:
       - store_artifacts:
           path: dist
 
-requires_pre_test: &requires_pre_test
+requires_pre_check: &requires_pre_check
   requires:
     - pre_check
     - ccheck
-    - riot-helpers
 
 requires_base_venvs: &requires_base_venvs
   requires:
@@ -1025,20 +1026,19 @@ workflows:
     jobs:
       # Pre-checking before running all jobs
       - pre_check
-      - riot-helpers
       - ccheck
 
       # Docs
-      - build_docs
+      - build_docs: *requires_pre_check
 
       # Build necessary base venvs for integration tests
-      - build_base_venvs: *requires_pre_test
+      - build_base_venvs: *requires_pre_check
 
       # Building CI docker image
-      - build-docker-ci-image: *requires_pre_test
+      - build-docker-ci-image: *requires_pre_check
 
       # Test building the package
-      - test_build_alpine: *requires_pre_test
+      - test_build_alpine: *requires_pre_check
 
       # Integration test suites
       - aiobotocore: *requires_base_venvs
