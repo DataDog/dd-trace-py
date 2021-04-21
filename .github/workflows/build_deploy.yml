@@ -28,7 +28,9 @@ jobs:
 
       - name: Install Visual C++ for Python 2.7
         if: runner.os == 'Windows'
-        run: choco install vcpython27 -f -y
+        run: |
+          md5sum -c .github/workflows/VCForPython27.sum
+          msiexec .github/workflows/VCForPython27.msi
 
       - name: Install cibuildwheel
         run: |
