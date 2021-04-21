@@ -299,12 +299,14 @@ postgres_server: &postgres_server
     - POSTGRES_DB=postgres
 
 jobs:
-  black:
+  pre_check:
     executor: python38
     steps:
       - checkout
       - setup_riot
       - run: riot run -s black --check .
+      - run: riot run -s flake8
+      - run: riot run -s mypy
 
   ccheck:
     executor: cimg_base
@@ -314,20 +316,6 @@ jobs:
       - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
       - run: scripts/cformat.sh
       - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
-
-  flake8:
-    executor: python38
-    steps:
-      - checkout
-      - setup_riot
-      - run: riot run -s flake8
-
-  mypy:
-    executor: python38
-    steps:
-      - checkout
-      - setup_riot
-      - run: riot run mypy
 
   riot-helpers:
     executor: python38
@@ -949,16 +937,16 @@ jobs:
 
 requires_pre_test: &requires_pre_test
   requires:
-    - black
-    - flake8
+    - pre_check
     - ccheck
-    - mypy
     - riot-helpers
+
+requires_base_venvs: &requires_base_venvs
+  requires:
     - build_base_venvs
 
 requires_tests: &requires_tests
   requires:
-    - build_docs
     - aiobotocore
     - aiohttp
     - aiopg
@@ -1023,7 +1011,6 @@ requires_tests: &requires_tests
     - urllib3
     - vertica
     - wsgi
-    - build-docker-ci-image
 
 workflows:
   version: 2
@@ -1037,81 +1024,87 @@ workflows:
       
   test:
     jobs:
-      # Jobs that should run before individual integration test suites
-      - build_docs
-      - black
-      - flake8
-      - mypy
+      # Pre-checking before running all jobs
+      - pre_check
       - riot-helpers
       - ccheck
-      - build_base_venvs
+
+      # Docs
+      - build_docs
+
+      # Build necessary base venvs for integration tests
+      - build_base_venvs: *requires_pre_test
+
+      # Building CI docker image
+      - build-docker-ci-image: *requires_pre_test
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
 
       # Integration test suites
-      - aiobotocore: *requires_pre_test
-      - aiohttp: *requires_pre_test
-      - aiopg: *requires_pre_test
-      - asyncio: *requires_pre_test
-      - algoliasearch: *requires_pre_test
-      - asgi: *requires_pre_test
-      - benchmarks: *requires_pre_test
-      - boto: *requires_pre_test
-      - bottle: *requires_pre_test
-      - cassandra: *requires_pre_test
-      - celery: *requires_pre_test
-      - cherrypy: *requires_pre_test
-      - consul: *requires_pre_test
-      - dbapi: *requires_pre_test
-      - ddtracerun: *requires_pre_test
-      - django: *requires_pre_test
-      - djangorestframework: *requires_pre_test
-      - dogpile_cache: *requires_pre_test
-      - elasticsearch: *requires_pre_test
-      - falcon: *requires_pre_test
-      - fastapi: *requires_pre_test
-      - flask: *requires_pre_test
-      - futures: *requires_pre_test
-      - gevent: *requires_pre_test
-      - grpc: *requires_pre_test
-      - httplib: *requires_pre_test
-      - integration_agent5: *requires_pre_test
-      - integration_agent: *requires_pre_test
-      - integration_testagent: *requires_pre_test
-      - vendor: *requires_pre_test
-      - profile: *requires_pre_test
-      - jinja2: *requires_pre_test
-      - kombu: *requires_pre_test
-      - mako: *requires_pre_test
-      - molten: *requires_pre_test
-      - mongoengine: *requires_pre_test
-      - mysqlconnector: *requires_pre_test
-      - mysqldb: *requires_pre_test
-      - mysqlpython: *requires_pre_test
-      - opentracer: *requires_pre_test
-      - psycopg: *requires_pre_test
-      - pylibmc: *requires_pre_test
-      - pylons: *requires_pre_test
-      - pymemcache: *requires_pre_test
-      - pymongo: *requires_pre_test
-      - pymysql: *requires_pre_test
-      - pynamodb: *requires_pre_test
-      - pyodbc: *requires_pre_test
-      - pyramid: *requires_pre_test
-      - pytest: *requires_pre_test
-      - redis: *requires_pre_test
-      - rediscluster: *requires_pre_test
-      - requests: *requires_pre_test
-      - sanic: *requires_pre_test
-      - starlette: *requires_pre_test
-      - sqlalchemy: *requires_pre_test
-      - sqlite3: *requires_pre_test
-      - test_logging: *requires_pre_test
-      - tornado: *requires_pre_test
-      - tracer: *requires_pre_test
-      - urllib3: *requires_pre_test
-      - vertica: *requires_pre_test
-      - wsgi: *requires_pre_test
-      - build-docker-ci-image: *requires_pre_test
+      - aiobotocore: *requires_base_venvs
+      - aiohttp: *requires_base_venvs
+      - aiopg: *requires_base_venvs
+      - asyncio: *requires_base_venvs
+      - algoliasearch: *requires_base_venvs
+      - asgi: *requires_base_venvs
+      - benchmarks: *requires_base_venvs
+      - boto: *requires_base_venvs
+      - bottle: *requires_base_venvs
+      - cassandra: *requires_base_venvs
+      - celery: *requires_base_venvs
+      - cherrypy: *requires_base_venvs
+      - consul: *requires_base_venvs
+      - dbapi: *requires_base_venvs
+      - ddtracerun: *requires_base_venvs
+      - django: *requires_base_venvs
+      - djangorestframework: *requires_base_venvs
+      - dogpile_cache: *requires_base_venvs
+      - elasticsearch: *requires_base_venvs
+      - falcon: *requires_base_venvs
+      - fastapi: *requires_base_venvs
+      - flask: *requires_base_venvs
+      - futures: *requires_base_venvs
+      - gevent: *requires_base_venvs
+      - grpc: *requires_base_venvs
+      - httplib: *requires_base_venvs
+      - integration_agent5: *requires_base_venvs
+      - integration_agent: *requires_base_venvs
+      - integration_testagent: *requires_base_venvs
+      - vendor: *requires_base_venvs
+      - profile: *requires_base_venvs
+      - jinja2: *requires_base_venvs
+      - kombu: *requires_base_venvs
+      - mako: *requires_base_venvs
+      - molten: *requires_base_venvs
+      - mongoengine: *requires_base_venvs
+      - mysqlconnector: *requires_base_venvs
+      - mysqldb: *requires_base_venvs
+      - mysqlpython: *requires_base_venvs
+      - opentracer: *requires_base_venvs
+      - psycopg: *requires_base_venvs
+      - pylibmc: *requires_base_venvs
+      - pylons: *requires_base_venvs
+      - pymemcache: *requires_base_venvs
+      - pymongo: *requires_base_venvs
+      - pymysql: *requires_base_venvs
+      - pynamodb: *requires_base_venvs
+      - pyodbc: *requires_base_venvs
+      - pyramid: *requires_base_venvs
+      - pytest: *requires_base_venvs
+      - redis: *requires_base_venvs
+      - rediscluster: *requires_base_venvs
+      - requests: *requires_base_venvs
+      - sanic: *requires_base_venvs
+      - starlette: *requires_base_venvs
+      - sqlalchemy: *requires_base_venvs
+      - sqlite3: *requires_base_venvs
+      - test_logging: *requires_base_venvs
+      - tornado: *requires_base_venvs
+      - tracer: *requires_base_venvs
+      - urllib3: *requires_base_venvs
+      - vertica: *requires_base_venvs
+      - wsgi: *requires_base_venvs
+
+      # Final reports
       - coverage_report: *requires_tests
