@@ -96,7 +96,7 @@ class Tracer(object):
         for common usage, so there is no need to initialize your own ``Tracer``.
 
         :param url: The Datadog agent URL.
-        :param url: The DogStatsD URL.
+        :param dogstatsd_url: The DogStatsD URL.
         """
         self.log = log
         self._filters = []  # type: List[TraceFilter]
