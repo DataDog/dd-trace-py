@@ -14,8 +14,10 @@ from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
-# socket name comes from https://english.stackexchange.com/a/44048
-SOCKET = "httpbin.org"
+# host:port of httpbin_local container
+HOST = "localhost"
+PORT = 8001
+SOCKET = "{}:{}".format(HOST, PORT)
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
 
@@ -38,7 +40,7 @@ class BaseUrllib3TestCase(TracerTestCase):
 class TestUrllib3(BaseUrllib3TestCase):
     def test_HTTPConnectionPool_traced(self):
         """Tests that requests made from the HTTPConnectionPool are traced"""
-        pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+        pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
         # Test a relative URL
         r = pool.request("GET", "/status/200")
         assert r.status == 200
@@ -101,7 +103,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
             with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
                 config.urllib3.http.trace_headers(["accept"])
-                pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+                pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
                 out = pool.urlopen(*args, **kwargs)
             assert out.status == 200
             spans = self.pop_spans()
@@ -125,7 +127,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_double_patch(self):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
-        connpool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+        connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
         setattr(connpool, "datadog_tracer", self.tracer)
 
         out = connpool.urlopen("GET", URL_200)
@@ -403,5 +405,5 @@ def test_urllib3_poolmanager_snapshot(patch_urllib3):
 
 @snapshot()
 def test_urllib3_connectionpool_snapshot(patch_urllib3):
-    pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+    pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
     pool.request("GET", "/status/200")
