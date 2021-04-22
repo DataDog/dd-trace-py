@@ -6,6 +6,10 @@ on:
     types:
       - published
   workflow_dispatch:
+    inputs:
+      expectedVersion:
+        description: 'Expected version string'
+        required: true
 
 jobs:
   build_wheels_x86_64:
@@ -142,6 +146,16 @@ jobs:
         with:
           name: artifact
           path: dist
+
+      - uses: actions/checkout@v2
+        if: github.event.action == 'workflow_dispatch'
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+      - name: Validate deploy version
+        if: github.event.action == 'workflow_dispatch'
+        run: |
+          ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
 
       - uses: pypa/gh-action-pypi-publish@master
         with:
