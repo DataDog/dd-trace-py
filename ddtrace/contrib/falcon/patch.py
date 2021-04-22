@@ -9,6 +9,14 @@ from ...utils.formats import get_env
 from .middleware import TraceMiddleware
 
 
+config._add(
+    "falcon",
+    dict(
+        distributed_tracing=asbool(get_env("falcon", "distributed_tracing", default=True)),
+    ),
+)
+
+
 def patch():
     """
     Patch falcon.API to include contrib.falcon.TraceMiddleware
@@ -24,9 +32,8 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     service = config._get_service(default="falcon")
-    distributed_tracing = asbool(get_env("falcon", "distributed_tracing", default=True))
 
-    mw.insert(0, TraceMiddleware(tracer, service, distributed_tracing))
+    mw.insert(0, TraceMiddleware(tracer, service))
     kwargs["middleware"] = mw
 
     wrapped(*args, **kwargs)
