@@ -83,11 +83,6 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            name="autohook",
-            command="hooks/autohook.sh install",
-        ),
-        Venv(
-            pys=["3"],
             pkgs={"black": "==20.8b1"},
             venvs=[
                 Venv(
