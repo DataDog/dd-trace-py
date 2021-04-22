@@ -851,14 +851,14 @@ jobs:
           pattern: '^rediscluster_contrib-'
 
   urllib3:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *httpbin_local
-    resource_class: *resource_class
+    <<: *machine_executor
     steps:
+      - checkout
+      # `snapshot: true` will run `docker-compose logs -f` for us
+      - run: docker-compose up -d httpbin_local
       - run_test:
           pattern: 'urllib3'
+          snapshot: true
 
   vertica:
     <<: *contrib_job
