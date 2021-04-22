@@ -83,11 +83,8 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            name="pre-commit",
-            command="pre-commit install",
-            pkgs={
-                "pre-commit": latest,
-            },
+            name="autohook",
+            command="hooks/autohook.sh install",
         ),
         Venv(
             pys=["3"],
