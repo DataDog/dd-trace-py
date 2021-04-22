@@ -293,10 +293,6 @@ class PropagationTestCase(TracerTestCase):
                 future = executor.submit(fn)
                 time.sleep(0.01)
 
-        # assert main thread span is finished first
-        self.assert_span_count(1)
-        self.assert_structure(dict(name="main.thread"))
-
         # then wait for the second thread and send the trace
         result = future.result()
         self.assertEqual(result, 42)

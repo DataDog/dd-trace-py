@@ -1094,7 +1094,12 @@ def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
     s1.finish()
-    s2.finish()
+    with mock.patch("ddtrace.context.log") as log:
+        s2.finish()
+    calls = [
+        mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),
+    ]
+    log.debug.assert_has_calls(calls)
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
@@ -1166,6 +1171,25 @@ class TestPartialFlush(TracerTestCase):
         traces = self.pop_traces()
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
+
+    def test_partial_flush_configure(self):
+        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
+        self.test_partial_flush()
+
+    def test_partial_flush_too_many_configure(self):
+        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
+        self.test_partial_flush_too_many()
+
+    def test_partial_flush_too_few_configure(self):
+        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=6)
+        self.test_partial_flush_too_few()
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="false", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+    )
+    def test_partial_flush_configure_precedence(self):
+        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
+        self.test_partial_flush()
 
 
 def test_unicode_config_vals():
