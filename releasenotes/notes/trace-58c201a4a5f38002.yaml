@@ -8,3 +8,7 @@ upgrade:
   - |
     Spans from asynchronous executions (asyncio, gevent, tornado) will now be
     processed and flushed together. Formerly the spans were handled per-task.
+
+  - |
+    ``tracer.write()`` will no longer have filters applied to the spans passed
+    to it.

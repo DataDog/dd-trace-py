@@ -40,13 +40,22 @@ class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
         # type: (List[Span]) -> Optional[List[Span]]
         """Processes a trace.
 
-        None can be returned to prevent the trace from being exported.
+        ``None`` can be returned to prevent the trace from being further
+        processed.
         """
         pass
 
 
 @attr.s
 class TraceSamplingProcessor(TraceProcessor):
+    """Processor that keeps traces that have sampled spans. If all spans
+    are unsampled then ``None`` is returned.
+
+    Note that this processor is only effective if complete traces are sent. If
+    the spans of a trace are divided in separate lists then it's possible that
+    parts of the trace are unsampled when the whole trace should be sampled.
+    """
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         sampled_spans = [s for s in trace if s.sampled]
