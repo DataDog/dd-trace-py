@@ -9,8 +9,10 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.pin import Pin
+from ddtrace.settings.http import HttpConfig
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
@@ -98,7 +100,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         for args, kwargs in inputs:
 
-            with self.override_config("urllib3", {}):
+            with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
                 config.urllib3.http.trace_headers(["accept"])
                 pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
                 out = pool.urlopen(*args, **kwargs)
@@ -209,8 +211,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
     def test_user_set_service_name(self):
         """Test the user-set service name is set on the span"""
-        with self.override_config("urllib3", dict(split_by_domain=False)):
-            config.urllib3["service_name"] = "clients"
+        with self.override_config("urllib3", dict(split_by_domain=False, service_name="clients")):
             out = self.http.request("GET", URL_200)
         assert out.status == 200
         spans = self.pop_spans()
@@ -312,7 +313,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.response.headers.access-control-allow-origin") is None
 
         # Enabled when explicitly configured
-        with self.override_config("urllib3", {}):
+        with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
             config.urllib3.http.trace_headers(["my-header", "access-control-allow-origin"])
             self.http.request("GET", URL_200, headers={"my-header": "my_value"})
             spans = self.pop_spans()
@@ -384,3 +385,24 @@ class TestUrllib3(BaseUrllib3TestCase):
             m_make_request.assert_called_with(
                 mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers={}, timeout=mock.ANY
             )
+
+
+@pytest.fixture()
+def patch_urllib3():
+    patch()
+    try:
+        yield
+    finally:
+        unpatch()
+
+
+@snapshot()
+def test_urllib3_poolmanager_snapshot(patch_urllib3):
+    pool = urllib3.PoolManager()
+    pool.request("GET", URL_200)
+
+
+@snapshot()
+def test_urllib3_connectionpool_snapshot(patch_urllib3):
+    pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+    pool.request("GET", "/status/200")
