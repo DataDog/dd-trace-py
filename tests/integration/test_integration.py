@@ -9,7 +9,6 @@ import six
 
 import ddtrace
 from ddtrace import Tracer
-from ddtrace import tracer
 from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
@@ -218,7 +217,7 @@ def test_single_trace_too_large():
     with mock.patch("ddtrace.internal.writer.log") as log:
         with t.trace("huge"):
             for i in range(100000):
-                with tracer.trace("operation") as s:
+                with t.trace("operation") as s:
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 

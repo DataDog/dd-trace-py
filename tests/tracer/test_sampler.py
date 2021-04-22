@@ -136,7 +136,6 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
             assert writer is not tracer.writer, "writer should have been updated by configure"
-            tracer.writer = writer
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
@@ -145,7 +144,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(i)
                 span.finish()
 
-            samples = tracer.pop()
+            samples = tracer.writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
