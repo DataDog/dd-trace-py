@@ -4,6 +4,7 @@ import django
 import pytest
 
 from ddtrace import Pin
+from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.contrib.django.conf import configure_from_settings
 from tests.utils import override_config
@@ -18,8 +19,8 @@ migration tests
 """
 
 
-def test_configure_from_settings(tracer):
-    pin = Pin.get_from(django)
+def test_configure_from_settings():
+    pin = Pin(tracer=Tracer())
 
     with override_config("django", dict()):
         assert "ddtrace.contrib.django" in django.conf.settings.INSTALLED_APPS

@@ -36,7 +36,10 @@ from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.processor import TraceProcessor
+from .internal.processor import SpanProcessor
+from .internal.processor.trace import SpanAggregator
+from .internal.processor.trace import TraceProcessor
+from .internal.processor.trace import TraceSamplingProcessor
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -132,7 +135,11 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: TraceWriter
-        self._processor = TraceProcessor([])
+        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        self._partial_flush_min_spans = int(
+            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
+        )
+        self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
 
@@ -224,6 +231,8 @@ class Tracer(object):
         collect_metrics=None,  # type: Optional[bool]
         dogstatsd_url=None,  # type: Optional[str]
         writer=None,  # type: Optional[TraceWriter]
+        partial_flush_enabled=None,  # type: Optional[bool]
+        partial_flush_min_spans=None,  # type: Optional[int]
     ):
         # type: (...) -> None
         """
@@ -255,6 +264,12 @@ class Tracer(object):
             filters = settings.get(FILTERS_KEY)
             if filters is not None:
                 self._filters = filters
+
+        if partial_flush_enabled is not None:
+            self._partial_flush_enabled = partial_flush_enabled
+
+        if partial_flush_min_spans is not None:
+            self._partial_flush_min_spans = partial_flush_min_spans
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
@@ -317,7 +332,7 @@ class Tracer(object):
             pass
         if isinstance(self.writer, AgentWriter):
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self._processor = TraceProcessor(filters=self._filters)
+        self._initialize_span_processors()
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -434,6 +449,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
 
             # Extra attributes when from a local parent
@@ -450,6 +466,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
@@ -508,9 +525,36 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        self._hooks.emit(self.__class__.start_span, span)
+        for p in self._span_processors:
+            p.on_span_start(span)
 
+        self._hooks.emit(self.__class__.start_span, span)
         return span
+
+    def _on_span_finish(self, span):
+        if not self.enabled:
+            return  # nothing to do
+
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("finishing span %r", span)
+
+        for p in self._span_processors:
+            p.on_span_finish(span)
+
+    def _initialize_span_processors(self):
+        # type: () -> None
+        trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceSamplingProcessor()]
+        trace_processors += self._filters
+
+        self._span_processors = [
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self.writer,
+            ),
+        ]  # type: List[SpanProcessor]
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -545,7 +589,7 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
-
+        self._initialize_span_processors()
         return new_ctx
 
     def _log_compat(self, level, msg):
@@ -661,7 +705,6 @@ class Tracer(object):
         if not self.enabled:
             return
 
-        spans = self._processor.process(spans)
         if spans is not None:
             self.writer.write(spans=spans)
 
