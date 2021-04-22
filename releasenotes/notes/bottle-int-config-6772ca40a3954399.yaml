@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Added environment variable `DD_BOTTLE_DISTRIBUTED_TRACING` to enable distributed tracing for bottle.
