@@ -267,7 +267,9 @@ class FalconTestCase(object):
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
+        writer = self.tracer.writer
         ot_tracer = init_tracer("my_svc", self.tracer)
+        ot_tracer._dd_tracer.configure(writer=writer)
 
         if self.version[0] == "1":
             with ot_tracer.start_active_span("ot_span"):
