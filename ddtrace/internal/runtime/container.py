@@ -29,7 +29,7 @@ class CGroupInfo(object):
     LINE_RE = re.compile(r"^(\d+):([^:]*):(.+)$")
     POD_RE = re.compile(r"pod({0})(?:\.slice)?$".format(UUID_SOURCE_PATTERN))
     CONTAINER_RE = re.compile(
-        r"({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN, TASK_PATTERN)
+        r"(?:.+)?({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN, TASK_PATTERN)
     )
 
     @classmethod

@@ -21,6 +21,7 @@ backend
 bikeshedding
 boto
 botocore
+CGroup
 cgroups
 cherrypy
 config
