@@ -2,8 +2,8 @@ import msgpack
 from msgpack.fallback import Packer
 import pytest
 
-from ddtrace.encoding import MsgpackEncoder
-from ddtrace.encoding import _EncoderBase
+from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import _EncoderBase
 from tests.tracer.test_encoders import RefMsgpackEncoder
 from tests.tracer.test_encoders import gen_trace
 

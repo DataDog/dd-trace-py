@@ -10,10 +10,10 @@ import pytest
 
 from ddtrace.compat import msgpack_type
 from ddtrace.compat import string_type
-from ddtrace.encoding import JSONEncoder
-from ddtrace.encoding import JSONEncoderV2
-from ddtrace.encoding import MsgpackEncoder
-from ddtrace.encoding import _EncoderBase
+from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.internal.encoding import JSONEncoderV2
+from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
