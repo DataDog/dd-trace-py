@@ -20,8 +20,6 @@ from . import service
 from .. import compat
 from ..compat import httplib
 from ..constants import KEEP_SPANS_RATE_KEY
-from ..encoding import Encoder
-from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.time import StopWatch
@@ -29,6 +27,8 @@ from .agent import get_connection
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
+from .encoding import Encoder
+from .encoding import JSONEncoderV2
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage

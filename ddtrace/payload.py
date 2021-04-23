@@ -3,7 +3,9 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Union
 
-from .encoding import Encoder
+from .internal.encoding import Encoder
+from .utils.deprecation import RemovedInDDTrace10Warning
+from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
@@ -27,7 +29,7 @@ class Payload(object):
          the payload easily so we can flush based on the payload size.
     """
 
-    __slots__ = ("traces", "size", "encoder", "max_payload_size")
+    __slots__ = ("traces", "size", "_encoder", "max_payload_size")
 
     # Trace agent limit payload size of 10 MB
     # 5 MB should be a good average efficient size
@@ -43,12 +45,12 @@ class Payload(object):
         Constructor for Payload
 
         :param encoder: The encoded to use, default is the default encoder
-        :type encoder: ``ddtrace.encoding.Encoder``
+        :type encoder: ``ddtrace.internal.encoding.Encoder``
         :param max_payload_size: The max number of bytes a payload should be before
             being considered full (default: 5mb)
         """
         self.max_payload_size = max_payload_size
-        self.encoder = encoder or Encoder()
+        self._encoder = encoder or Encoder()
         self.traces = []  # type: List[bytes]
         self.size = 0
 
@@ -65,11 +67,21 @@ class Payload(object):
             return
 
         # Encode the trace, append, and add it's length to the size
-        encoded = self.encoder.encode_trace(trace)
+        encoded = self._encoder.encode_trace(trace)
         if len(encoded) + self.size > self.max_payload_size:
             raise PayloadFull()
         self.traces.append(encoded)
         self.size += len(encoded)
+
+    @removed_property(category=RemovedInDDTrace10Warning)
+    def encoder(self):
+        # type: () -> Encoder
+        return self._encoder
+
+    @encoder.setter  # type: ignore[no-redef]
+    def encoder(self, encoder):
+        # type: (Encoder) -> None
+        self._encoder = encoder
 
     @property
     def length(self):
@@ -102,7 +114,7 @@ class Payload(object):
         :rtype: str | bytes
         """
         # DEV: `self.traces` is an array of encoded traces, `join_encoded` joins them together
-        return self.encoder.join_encoded(self.traces)
+        return self._encoder.join_encoded(self.traces)
 
     def __repr__(self):
         # type: () -> str
