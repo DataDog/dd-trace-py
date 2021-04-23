@@ -2,6 +2,20 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Type
+
+from ..vendor import debtcollector
+
+
+# Based on: https://stackoverflow.com/a/7864317
+class removed_classproperty(property):
+    def __get__(self, cls, owner):  # type: ignore[override]
+        # type: (Type, Type) -> Any
+        debtcollector.deprecate(
+            "Usage of ddtrace.ext.AppTypes is not longer supported and will be removed in 1.0.0, "
+            "please use ddtrace.ext.SpanTypes"
+        )
+        return classmethod(self.fget).__get__(None, owner)()
 
 
 class ArgumentError(Exception):
