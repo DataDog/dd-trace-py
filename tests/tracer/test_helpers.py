@@ -9,7 +9,7 @@ from tests.utils import override_global_tracer
 @removed_class(
     "HelpersTestCase",
     message="ddtrace.helpers has been deprecated and will no longer require HelpersTestCase",
-    version="1.0.0"
+    version="1.0.0",
 )
 class HelpersTestCase(TracerTestCase):
     """Test suite for ``ddtrace`` helpers"""
