@@ -3,10 +3,12 @@ import subprocess
 import sys
 import tempfile
 
+import six
+
 import ddtrace
 from ddtrace.compat import PY3
-from ddtrace.vendor import six
-from .. import BaseTestCase
+
+from ..utils import BaseTestCase
 
 
 def inject_sitecustomize(path):
@@ -175,7 +177,8 @@ class DdtraceRunTest(BaseTestCase):
         """
         DATADOG_PATCH_MODULES overrides the defaults for patch_all()
         """
-        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES, update_patched_modules
+        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES
+        from ddtrace.bootstrap.sitecustomize import update_patched_modules
 
         orig = EXTRA_PATCHED_MODULES.copy()
 

@@ -1,9 +1,10 @@
 import asyncio
 
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w, ObjectProxy
+from ddtrace.vendor.wrapt import ObjectProxy
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .wrappers import wrapped_create_task
 from ...utils.wrappers import unwrap as _u
+from .wrappers import wrapped_create_task
 
 
 def patch():

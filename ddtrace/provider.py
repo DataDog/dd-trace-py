@@ -1,14 +1,17 @@
 import abc
-from typing import Optional, Union
+from typing import Optional
+from typing import Union
 
-from ddtrace.vendor import six
+import six
 
 from ddtrace import Span
-from ddtrace.context import Context
 from ddtrace.compat import contextvars
+from ddtrace.context import Context
 
 
-_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
+_DD_CONTEXTVAR = contextvars.ContextVar(
+    "datadog_contextvar", default=None
+)  # type: contextvars.ContextVar[Optional[Union[Context, Span]]]
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -27,10 +30,12 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
 
     @abc.abstractmethod
     def activate(self, context):
+        # type: (Optional[Union[Context, Span]]) -> None
         pass
 
     @abc.abstractmethod
     def active(self):
+        # type: () -> Optional[Union[Context, Span]]
         pass
 
     def __call__(self, *args, **kwargs):
@@ -49,6 +54,7 @@ class DefaultContextProvider(BaseContextProvider):
     """
 
     def __init__(self):
+        # type: () -> None
         _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
@@ -58,11 +64,14 @@ class DefaultContextProvider(BaseContextProvider):
         return ctx is not None
 
     def activate(self, context):
-        # type: (Optional[Span, Context]) -> None
+        # type: (Optional[Union[Span, Context]]) -> None
         """Makes the given context active in the current execution."""
         _DD_CONTEXTVAR.set(context)
 
     def active(self):
-        # type: () -> Optional[Union[Context, Span]]
+        # type: () -> Union[Context, Span]
         """Returns the active context for the current execution."""
-        return _DD_CONTEXTVAR.get()
+        ctx = _DD_CONTEXTVAR.get()
+        if not ctx:
+            ctx = Context()
+        return ctx

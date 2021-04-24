@@ -1,13 +1,13 @@
-import mock
 from unittest import TestCase
 
+import mock
 import pytest
 
 from ddtrace import config as global_config
 from ddtrace.settings import Config
 
-from .. import override_env
-from .test_tracer import get_dummy_tracer
+from ..utils import DummyTracer
+from ..utils import override_env
 
 
 class GlobalConfigTestCase(TestCase):
@@ -15,7 +15,7 @@ class GlobalConfigTestCase(TestCase):
 
     def setUp(self):
         self.config = Config()
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings
@@ -274,3 +274,11 @@ class GlobalConfigTestCase(TestCase):
         with override_env(dict(DATADOG_ENV="prod", DD_ENV="prod-staging")):
             c = Config()
             assert c.env == "prod-staging"
+
+    def test_dd_service_mapping(self):
+        c = Config()
+        assert c.service_mapping == {}
+
+        with override_env(dict(DD_SERVICE_MAPPING="foobar:bar,snafu:foo")):
+            c = Config()
+            assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}

@@ -2,18 +2,17 @@ import subprocess
 
 import gevent
 import gevent.pool
+from opentracing.scope_managers.gevent import GeventScopeManager
+
 import ddtrace
 from ddtrace.compat import PY3
-
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.context import Context
-from ddtrace.contrib.gevent import patch, unpatch
+from ddtrace.contrib.gevent import patch
+from ddtrace.contrib.gevent import unpatch
 from ddtrace.ext.priority import USER_KEEP
-
-from opentracing.scope_managers.gevent import GeventScopeManager
 from tests.opentracer.utils import init_tracer
-from tests.tracer.test_tracer import get_dummy_tracer
-from tests import TracerTestCase
+from tests.utils import TracerTestCase
 
 from .utils import silence_errors
 
@@ -25,8 +24,7 @@ class TestGeventTracer(TracerTestCase):
     """
 
     def setUp(self):
-        # use a dummy tracer
-        self.tracer = get_dummy_tracer()
+        super(TestGeventTracer, self).setUp()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # trace gevent
@@ -47,7 +45,7 @@ class TestGeventTracer(TracerTestCase):
                 span.resource = "base"
 
         gevent.spawn(greenlet).join()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
@@ -63,7 +61,7 @@ class TestGeventTracer(TracerTestCase):
                 span.resource = "base2"
 
         gevent.spawn(greenlet).join()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0]) == len(traces[1])
         assert "greenlet" == traces[0][0].name
@@ -89,11 +87,12 @@ class TestGeventTracer(TracerTestCase):
             with self.tracer.trace("outer", resource="base"):
                 # Use a list to force evaluation
                 list(func(greenlet, [0, 1, 2]))
-            traces = self.tracer.writer.pop_traces()
-            assert 1 == len(traces)
+            traces = self.pop_traces()
+
+            assert len(traces) == 1
             spans = traces[0]
-            assert len(spans) == 4
-            outer_span = spans[0]
+            outer_span = [s for s in spans if s.name == "outer"][0]
+
             assert "base" == outer_span.resource
             inner_spans = [s for s in spans if s is not outer_span]
             for s in inner_spans:
@@ -109,7 +108,7 @@ class TestGeventTracer(TracerTestCase):
                 span.resource = "base"
 
         gevent.spawn_later(0.01, greenlet).join()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
@@ -119,7 +118,7 @@ class TestGeventTracer(TracerTestCase):
         # multiple greenlets must be part of the same trace
         def entrypoint():
             with self.tracer.trace("greenlet.main") as span:
-                span.context.sampling_priority = USER_KEEP
+                span.sampling_priority = USER_KEEP
                 span.resource = "base"
                 jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
                 gevent.joinall(jobs)
@@ -135,8 +134,9 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
+        assert 3 == len(traces[0])
         spans = traces[0]
         assert 3 == len(spans)
         parent_span = spans[0]
@@ -166,13 +166,12 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
-        spans = traces[0]
-        assert 3 == len(spans)
-        parent_span = spans[0]
-        worker_1 = spans[1]
-        worker_2 = spans[2]
+        assert 3 == len(traces[0])
+        parent_span = traces[0][0]
+        worker_1 = traces[0][1]
+        worker_2 = traces[0][2]
         # check spans data and hierarchy
         assert parent_span.name == "greenlet.main"
         assert parent_span.resource == "base"
@@ -204,13 +203,12 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
-        spans = traces[0]
-        assert 3 == len(spans)
-        parent_span = spans[0]
-        worker_1 = spans[1]
-        worker_2 = spans[2]
+        assert 3 == len(traces[0])
+        parent_span = traces[0][0]
+        worker_1 = traces[0][1]
+        worker_2 = traces[0][2]
         # check spans data and hierarchy
         assert parent_span.name == "greenlet.main"
         assert parent_span.resource == "base"
@@ -233,7 +231,7 @@ class TestGeventTracer(TracerTestCase):
         jobs = [gevent.spawn(greenlet) for x in range(100)]
         gevent.joinall(jobs)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 100 == len(traces)
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
@@ -251,7 +249,7 @@ class TestGeventTracer(TracerTestCase):
         jobs = [gevent.spawn(greenlet) for x in range(1)]
         gevent.joinall(jobs)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         assert traces[0][0].trace_id == 100
@@ -268,7 +266,7 @@ class TestGeventTracer(TracerTestCase):
         jobs = [gevent.spawn_later(0.01, greenlet) for x in range(100)]
         gevent.joinall(jobs)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 100 == len(traces)
         assert 1 == len(traces[0])
         assert "greenlet" == traces[0][0].name
@@ -284,7 +282,7 @@ class TestGeventTracer(TracerTestCase):
         g.join()
         assert isinstance(g.exception, Exception)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -355,7 +353,7 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self._assert_spawn_multiple_greenlets(spans)
 
     def test_trace_spawn_multiple_greenlets_multiple_traces_ot(self):
@@ -383,7 +381,7 @@ class TestGeventTracer(TracerTestCase):
 
         gevent.spawn(entrypoint).join()
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self._assert_spawn_multiple_greenlets(spans)
 
     def test_ddtracerun(self):
@@ -401,9 +399,9 @@ class TestGeventTracer(TracerTestCase):
             import aiohttp  # noqa
             import aiobotocore  # noqa
         import botocore  # noqa
-        import requests  # noqa
         import elasticsearch  # noqa
         import pynamodb  # noqa
+        import requests  # noqa
 
         p = subprocess.Popen(
             ["ddtrace-run", "python", "tests/contrib/gevent/monkeypatch.py"],

@@ -1,13 +1,11 @@
 import pytest
 
-from ddtrace import Tracer
-from tests import DummyWriter
+from tests.utils import DummyTracer
 
 
 @pytest.fixture
 def tracer():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
+    tracer = DummyTracer()
     return tracer
 
 

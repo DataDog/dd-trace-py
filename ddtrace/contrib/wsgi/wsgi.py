@@ -2,6 +2,7 @@ import sys
 
 from ddtrace.compat import PY2
 
+
 if PY2:
     import exceptions
 
@@ -12,7 +13,8 @@ else:
     generatorExit = builtins.GeneratorExit
 
 
-from ddtrace.vendor import six
+import six
+from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
@@ -21,14 +23,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
 
-from six.moves.urllib.parse import quote
-
 from .. import trace_utils
 
 
 log = get_logger(__name__)
 
-propagator = HTTPPropagator()
+propagator = HTTPPropagator
 
 config._add(
     "wsgi",

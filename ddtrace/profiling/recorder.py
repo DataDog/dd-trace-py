@@ -2,8 +2,9 @@
 import collections
 import os
 
-from ddtrace.profiling import _nogevent
-from ddtrace.vendor import attr
+import attr
+
+from ddtrace.internal import nogevent
 
 
 class _defaultdictkey(dict):
@@ -32,7 +33,7 @@ class Recorder(object):
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
     events = attr.ib(init=False, repr=False, eq=False)
-    _events_lock = attr.ib(init=False, repr=False, factory=_nogevent.DoubleLock, eq=False)
+    _events_lock = attr.ib(init=False, repr=False, factory=nogevent.DoubleLock, eq=False)
     _pid = attr.ib(init=False, repr=False, factory=os.getpid)
 
     def __attrs_post_init__(self):

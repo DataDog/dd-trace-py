@@ -2,8 +2,9 @@ import asyncio
 
 from aiohttp.test_utils import AioHTTPTestCase
 
+from tests.utils import TracerTestCase
+
 from .app.web import setup_app
-from ... import TracerTestCase
 
 
 class TraceTestCase(TracerTestCase, AioHTTPTestCase):

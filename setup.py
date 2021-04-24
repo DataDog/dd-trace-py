@@ -167,8 +167,9 @@ setup(
             "funcsigs>=1.0.0; python_version=='2.7'",
             "typing; python_version<'3.5'",
             "protobuf>=3",
-            "intervaltree",
             "tenacity>=5",
+            "attrs>=19.2.0",
+            "six>=1.12.0",
         ],
         extras_require={
             # users can include opentracing by having:
@@ -181,7 +182,6 @@ setup(
         entry_points={
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-                "pyddprofile = ddtrace.profiling.__main__:main",
             ],
             "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
             "gevent.plugins.monkey.did_patch_all": [

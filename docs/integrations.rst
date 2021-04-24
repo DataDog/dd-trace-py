@@ -100,6 +100,13 @@ Django
 .. automodule:: ddtrace.contrib.django
 
 
+.. _dogpile.cache:
+
+dogpile.cache
+^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.dogpile_cache
+
+
 .. _elasticsearch:
 
 Elasticsearch
@@ -340,8 +347,22 @@ Tornado
 .. automodule:: ddtrace.contrib.tornado
 
 
+.. _urllib3:
+
+urllib3
+^^^^^^^
+.. automodule:: ddtrace.contrib.urllib3
+
+
 .. _vertica:
 
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib.vertica
+
+
+.. _wsgi:
+
+WSGI
+^^^^
+.. automodule:: ddtrace.contrib.wsgi

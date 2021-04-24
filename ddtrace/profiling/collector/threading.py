@@ -4,16 +4,15 @@ import os.path
 import sys
 import threading
 
-from ddtrace.vendor.six.moves import _thread
-
-from ddtrace.vendor import wrapt
+import attr
+from six.moves import _thread
 
 from ddtrace import compat
-from ddtrace.profiling import _attr
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
-from ddtrace.vendor import attr
 from ddtrace.profiling.collector import _traceback
+from ddtrace.utils import attr as attr_utils
+from ddtrace.vendor import wrapt
 
 
 @event.event_class
@@ -57,7 +56,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
+        import ddtrace.vendor.wrapt._wrappers as _w  # type: ignore[import] # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:
@@ -160,7 +159,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     tracer = attr.ib(default=None)
 
     def start(self):

@@ -1,9 +1,5 @@
 version: 2.1
 
-s3_dir_dev: &s3_dir_dev trace-dev
-s3_dir_prod: &s3_dir_prod trace
-s3_bucket: &s3_bucket pypi.datadoghq.com
-
 resource_class: &resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
@@ -15,12 +11,11 @@ python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
-rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
+rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
-localstack_image: &localstack_image localstack/localstack:0.12.1
 elasticsearch_image: &elasticsearch_image elasticsearch:2.3
 mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
@@ -51,39 +46,6 @@ contrib_job: &contrib_job
   parallelism: 4
 
 commands:
-  deploy_docs:
-    description: "Deploy docs"
-    parameters:
-      s3_dir:
-        type: string
-      s3_bucket:
-        type: string
-        default: *s3_bucket
-    steps:
-      - build_docs
-      - run: pip install awscli
-      - run:
-          name: Release docs
-          command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
-
-  deploy_wheels:
-    description: "Deploy wheels"
-    parameters:
-      s3_dir:
-        type: string
-        default: *s3_dir_dev
-      s3_bucket:
-        type: string
-        default: *s3_bucket
-    steps:
-      - run: pip install awscli cython mkwheelhouse
-      - run:
-          name: Release wheels to dev site
-          command: scripts/mkwheelhouse
-          environment:
-            S3_DIR: << parameters.s3_dir >>
-            S3_BUCKET: << parameters.s3_bucket >>
-
   save_coverage:
     description: "Save coverage.py results to workspace"
     steps:
@@ -163,7 +125,9 @@ commands:
                 command: docker-compose logs -f
                 background: true
             - run:
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run -s '<< parameters.pattern >>'"
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
+                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --pass-env -s '<< parameters.pattern >>'"
       - unless:
           condition:
               << parameters.snapshot >>
@@ -188,6 +152,35 @@ commands:
           path: test-results
       - store_artifacts:
           path: test-results
+
+  run_tox_scenario_with_testagent:
+    description: Run scripts/run-tox-scenario with setup, caching persistence and the testagent
+    parameters:
+      pattern:
+        type: string
+      wait:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - restore_tox_cache
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
+      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
+      - run:
+          command: docker-compose logs -f
+          background: true
+      - run:
+          name: "Run scripts/run-tox-scenario"
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
+          command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
+      - save_tox_cache
 
   run_tox_scenario:
     description: "Run scripts/run-tox-scenario with setup, caching and persistence"
@@ -235,11 +228,11 @@ commands:
 
   build_docs:
     steps:
-      - setup_tox
+      - setup_riot
       - run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: tox -e docs
+      - run: riot run docs
 
 executors:
   cimg_base:
@@ -280,13 +273,6 @@ executors:
 httpbin_local: &httpbin_local
   image: *httpbin_image
   name: httpbin.org
-
-deploy_docs_filters: &deploy_docs_filters
-  filters:
-    tags:
-      only: /(^docs$)|(^v[0-9]+(\.[0-9]+)*$)/
-    branches:
-      ignore: /.*/
 
 datadog_agent: &datadog_agent
   image: *datadog_agent_image
@@ -336,18 +322,33 @@ jobs:
       - setup_riot
       - run: riot run -s flake8
 
+  mypy:
+    executor: python38
+    steps:
+      - checkout
+      - setup_riot
+      - run: riot run mypy
+
+  riot-helpers:
+    executor: python38
+    steps:
+      - checkout
+      - setup_riot
+      - run: riot run -s riot-helpers
+
   coverage_report:
     executor: python38
     steps:
       - checkout
       - attach_workspace:
           at: .
-      - run: pip install coverage diff_cover
+      - run: pip install coverage codecov diff_cover
       - run: ls -hal *.coverage
       # Combine all job coverage reports into one
       - run: coverage combine *.coverage
       # Upload coverage report to Codecov
-      - run: bash <(curl -s https://codecov.io/bash)
+      # DEV: Do not use the bash uploader, it cannot be trusted
+      - run: codecov
       # Generate and save xml report
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage xml --ignore-errors
@@ -395,54 +396,12 @@ jobs:
       - run: |
           docker build .
 
+  # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
     executor: python38-alpine
     steps:
       - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
       - test_build
-  test_build_py38:
-    executor: python38
-    steps:
-      - test_build
-  test_build_py37:
-    executor: python37
-    steps:
-      - test_build
-  test_build_py36:
-    executor: python36
-    steps:
-      - test_build
-  test_build_py35:
-    executor: python35
-    steps:
-      - test_build
-  test_build_py27:
-    executor: python27
-    steps:
-      - test_build
-  test_build_win_py38: &test_build_win
-    executor:
-      name: win/default
-      size: *resource_class
-      shell: bash.exe
-    environment:
-      PYTHON_VERSION: 3.8.3
-    working_directory: ~/repo
-    steps:
-      - checkout
-      - test_build
-  test_build_win_py37:
-    <<: *test_build_win
-    environment:
-      PYTHON_VERSION: 3.7.7
-  test_build_win_py36:
-    <<: *test_build_win
-    environment:
-      PYTHON_VERSION: 3.6.8
-  test_build_win_py35:
-    <<: *test_build_win
-    environment:
-      PYTHON_VERSION: 3.5.4
 
   tracer:
     <<: *contrib_job
@@ -494,6 +453,8 @@ jobs:
           command: docker-compose logs -f
           background: true
       - run:
+          environment:
+            DD_TRACE_AGENT_URL: http://localhost:9126
           command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
 
   vendor:
@@ -501,8 +462,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-vendor'
+      - run_test:
+          pattern: 'vendor'
 
   futures:
     <<: *contrib_job
@@ -525,15 +486,15 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *redis_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py..-ddtracerun$'
+          pattern: 'ddtracerun'
 
   test_logging:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-test_logging$'
+      - run_test:
+          pattern: 'test_logging'
 
   asyncio:
     <<: *contrib_job
@@ -597,10 +558,12 @@ jobs:
           pattern: '^celery_contrib-'
 
   cherrypy:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 6
     steps:
-      - run_tox_scenario:
-          pattern: '^cherrypy_contrib-'
+      - run_test:
+          pattern: 'cherrypy'
+          snapshot: true
 
   consul:
     <<: *contrib_job
@@ -618,13 +581,13 @@ jobs:
           pattern: '^dogpile_contrib-'
 
   elasticsearch:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *elasticsearch_image
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'elasticsearch'
+          snapshot: true
+          docker_services: 'elasticsearch'
 
   falcon:
     <<: *contrib_job
@@ -664,8 +627,9 @@ jobs:
       - image: *redis_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
+      - run_test:
+          # Run both flask and flask_cache test suites
+          pattern: 'flask(_cache)?'
 
   gevent:
     <<: *contrib_job
@@ -681,6 +645,7 @@ jobs:
 
   grpc:
     <<: *contrib_job
+    parallelism: 6
     steps:
       - run_test:
           pattern: "grpc"
@@ -828,9 +793,9 @@ jobs:
       - *postgres_server
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres mysql
-          pattern: '^sqlalchemy_contrib-'
+          pattern: "sqlalchemy"
 
   dbapi:
     <<: *contrib_job
@@ -839,14 +804,13 @@ jobs:
           pattern: '^dbapi_contrib-'
 
   psycopg:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
+    <<: *machine_executor
+    parallelism: 4
     steps:
-      - run_tox_scenario:
-          wait: postgres
-          pattern: '^psycopg_contrib-'
+      - run_test:
+          pattern: "psycopg"
+          snapshot: true
+          docker_services: "postgres"
 
   aiobotocore:
     <<: *contrib_job
@@ -871,13 +835,8 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^redis_contrib-'
+      - run_tox_scenario_with_testagent:
+          pattern: '^redis_contrib-'
 
   rediscluster:
     <<: *contrib_job
@@ -890,6 +849,16 @@ jobs:
       - run_tox_scenario:
           wait: rediscluster
           pattern: '^rediscluster_contrib-'
+
+  urllib3:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *httpbin_local
+    resource_class: *resource_class
+    steps:
+      - run_test:
+          pattern: 'urllib3'
 
   vertica:
     <<: *contrib_job
@@ -935,23 +904,6 @@ jobs:
           store_coverage: false
           pattern: '^benchmarks'
 
-  deploy_master:
-    # build the master branch releasing development docs and wheels
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - deploy_docs:
-          s3_dir: *s3_dir_dev
-      - deploy_wheels
-
-  deploy_staging:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - deploy_wheels
-
   jinja2:
     <<: *contrib_job
     steps:
@@ -961,8 +913,8 @@ jobs:
   mako:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^mako_contrib-'
+      - run_test:
+          pattern: 'mako'
 
   algoliasearch:
     <<: *contrib_job
@@ -971,7 +923,7 @@ jobs:
           pattern: '^algoliasearch_contrib-'
 
   build_docs:
-    # deploy official documentation
+    # build documentation and store as an artifact
     <<: *machine_executor
     steps:
       - checkout
@@ -984,19 +936,24 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  deploy_docs:
-    # deploy official documentation
-    executor: python38
+  build_wheels:
+    <<: *machine_executor
     steps:
       - checkout
-      - deploy_docs:
-          s3_dir: *s3_dir_prod
+      - *pyenv-set-global
+      - run: pip install cython
+      - run: scripts/build-dist-cp27
+      - run: scripts/build-dist
+      - store_artifacts:
+          path: dist
 
 requires_pre_test: &requires_pre_test
   requires:
     - black
     - flake8
     - ccheck
+    - mypy
+    - riot-helpers
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -1060,54 +1017,37 @@ requires_tests: &requires_tests
     - sqlite3
     - starlette
     - test_build_alpine
-    - test_build_py38
-    - test_build_py37
-    - test_build_py36
-    - test_build_py35
-    - test_build_py27
     - test_logging
     - tracer
     - tornado
+    - urllib3
     - vertica
     - wsgi
     - build-docker-ci-image
 
 workflows:
   version: 2
-
-  deploy_docs:
+  build_wheels_workflow:
     jobs:
-      - build_docs:
-          <<: *deploy_docs_filters
-      - approve_docs_deployment:
-          <<: *deploy_docs_filters
+      - request_build:
           type: approval
+      - build_wheels:
           requires:
-            - build_docs
-      - deploy_docs:
-          <<: *deploy_docs_filters
-          requires:
-            - approve_docs_deployment
+            - request_build
+      
   test:
     jobs:
       # Jobs that should run before individual integration test suites
       - build_docs
       - black
       - flake8
+      - mypy
+      - riot-helpers
       - ccheck
       - build_base_venvs
 
       # Test building the package
       - test_build_alpine: *requires_pre_test
-      - test_build_py38: *requires_pre_test
-      - test_build_py37: *requires_pre_test
-      - test_build_py36: *requires_pre_test
-      - test_build_py35: *requires_pre_test
-      - test_build_py27: *requires_pre_test
-      - test_build_win_py38: *requires_pre_test
-      - test_build_win_py37: *requires_pre_test
-      - test_build_win_py36: *requires_pre_test
-      - test_build_win_py35: *requires_pre_test
 
       # Integration test suites
       - aiobotocore: *requires_pre_test
@@ -1170,15 +1110,8 @@ workflows:
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       - tracer: *requires_pre_test
+      - urllib3: *requires_pre_test
       - vertica: *requires_pre_test
       - wsgi: *requires_pre_test
       - build-docker-ci-image: *requires_pre_test
       - coverage_report: *requires_tests
-      - deploy_master:
-          filters:
-            branches:
-              only: master
-      - deploy_staging:
-          filters:
-            branches:
-              only: staging

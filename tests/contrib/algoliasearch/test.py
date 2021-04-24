@@ -1,7 +1,11 @@
-from ddtrace import config, patch_all
-from ddtrace.contrib.algoliasearch.patch import patch, unpatch, algoliasearch_version
+from ddtrace import config
+from ddtrace import patch_all
+from ddtrace.contrib.algoliasearch.patch import algoliasearch_version
+from ddtrace.contrib.algoliasearch.patch import patch
+from ddtrace.contrib.algoliasearch.patch import unpatch
 from ddtrace.pin import Pin
-from ... import TracerTestCase, assert_is_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
 class AlgoliasearchTest(TracerTestCase):
@@ -32,8 +36,8 @@ class AlgoliasearchTest(TracerTestCase):
             index_module.Index.search = search
             client = algoliasearch.algoliasearch.Client("X", "X")
         else:
-            import algoliasearch.search_index as index_module
             from algoliasearch.search_client import SearchClient
+            import algoliasearch.search_index as index_module
 
             index_module.SearchIndex.search = search
             client = SearchClient.create("X", "X")

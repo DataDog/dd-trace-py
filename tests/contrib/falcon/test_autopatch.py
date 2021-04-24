@@ -1,9 +1,9 @@
-from falcon import testing
 import falcon as falcon
+from falcon import testing
 
 import ddtrace
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from .app import get_app
 from .test_suite import FalconTestCase
 
@@ -23,7 +23,7 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
 
         # Since most integrations do `from ddtrace import tracer` we cannot update do `ddtrace.tracer = self.tracer`
         self.original_writer = ddtrace.tracer.writer
-        ddtrace.tracer.writer = self.tracer.writer
+        ddtrace.tracer.configure(writer=self.tracer.writer)
         self.tracer = ddtrace.tracer
 
         # build a test app without adding a tracer middleware;

@@ -1,6 +1,8 @@
 Advanced Usage
 ==============
 
+.. _agentconfiguration:
+
 Agent Configuration
 -------------------
 
@@ -160,17 +162,18 @@ It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
-    Tracer.configure(settings={
+    from ddtrace import tracer
+
+    tracer.configure(settings={
         'FILTERS': [
             FilterRequestsOnUrl(r'http://test\.example\.com'),
         ],
     })
 
-All the filters in the filters list will be evaluated sequentially
-for each trace and the resulting trace will either be sent to the Agent or
-discarded depending on the output.
+The filters in the filters list will be applied sequentially to each trace
+and the resulting trace will either be sent to the Agent or discarded.
 
-**Use the standard filters**
+**Built-in filters**
 
 The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
 filter out incoming requests to specific urls:
@@ -178,22 +181,23 @@ filter out incoming requests to specific urls:
 .. autoclass:: ddtrace.filters.FilterRequestsOnUrl
     :members:
 
-**Write a custom filter**
+**Writing a custom filter**
 
-Creating your own filters is as simple as implementing a class with a
-``process_trace`` method and adding it to the filters parameter of
-Tracer.configure. process_trace should either return a trace to be fed to the
-next step of the pipeline or ``None`` if the trace should be discarded::
+Create a filter by implementing a class with a ``process_trace`` method and
+providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+``process_trace`` should either return a trace to be fed to the next step of
+the pipeline or ``None`` if the trace should be discarded::
 
-    class FilterExample(object):
+    from ddtrace import Span, tracer
+    from ddtrace.filters import TraceFilter
+
+    class FilterExample(TraceFilter):
         def process_trace(self, trace):
-            # write here your logic to return the `trace` or None;
-            # `trace` instance is owned by the thread and you can alter
-            # each single span or the whole trace if needed
+            # type: (List[Span]) -> Optional[List[Span]]
+            ...
 
-    # And then instantiate it with
-    filters = [FilterExample()]
-    Tracer.configure(settings={'FILTERS': filters})
+    # And then configure it with
+    tracer.configure(settings={'FILTERS': [FilterExample()]})
 
 (see filters.py for other example implementations)
 
@@ -461,7 +465,6 @@ detailed in :ref:`Configuration`.
 - ``ddtrace-run python my_app.py``
 - ``ddtrace-run python manage.py runserver``
 - ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
 
 
 Pass along command-line arguments as your program would normally expect them::
@@ -480,19 +483,55 @@ traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
 
+.. _uwsgi:
+
 uWSGI
 -----
 
-The default configuration of uWSGI applications does not include the
-``--enable-threads`` setting which must be set to ``true`` for the
-tracing library to run.  This is noted in their best practices doc_.
+The tracer and profiler support uWSGI when configured with the following:
 
-  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+- Threads must be enabled with `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`_ or with `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`_ if running uWSGI in multithreaded mode.
+- If manual instrumentation and configuration is used, `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`_ must be used.
 
-Example run command:
+To enable tracing with automatic instrumentation and configuration with environment variables, use `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`_ option with the setting ``ddtrace.bootstrap.customize``. For example, add the following to the uWSGI configuration file::
 
-``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+  import=ddtrace.bootstrap.sitecustomize
 
+**Note:** Automatic instrumentation and configuration using ``ddtrace-run`` is not supported with uWSGI.
+
+To enable tracing with manual instrumentation and configuration, configure uWSGI with the ``lazy-apps`` option and use :ref:`patch_all()<patch_all>` and :ref:`agent configuration<agentconfiguration>` to a WSGI app::
+
+  from ddtrace import patch_all
+  from ddtrace import tracer
+
+
+  patch_all()
+  tracer.configure(collect_metrics=True)
+
+  def application(env, start_response):
+      with tracer.trace("uwsgi-app"):
+          start_response('200 OK', [('Content-Type','text/html')])
+          return [b"Hello World"]
+
+Gunicorn
+--------
+
+``ddtrace`` supports `Gunicorn <https://gunicorn.org>`_.
+
+However, if you are using the ``gevent`` worker class, you have to make sure
+``gevent`` monkey patching is done before loading the ``ddtrace`` library.
+
+There are different options to make that happen:
+
+- If you rely on ``ddtrace-run``, you must set ``DD_GEVENT_PATCH_ALL=1`` in
+  your environment to have gevent patched first-thing.
+
+- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
+  as the first import of your application.
+
+- Use a ```post_fork`` hook
+  <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`_ to import
+  ``ddtrace.bootstrap.sitecustomize``.
 
 API
 ---

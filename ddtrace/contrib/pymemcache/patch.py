@@ -1,8 +1,12 @@
 import pymemcache
 
 from ddtrace.ext import memcached as memcachedx
-from ddtrace.pin import Pin, _DD_PIN_NAME, _DD_PIN_PROXY_NAME
+from ddtrace.pin import Pin
+from ddtrace.pin import _DD_PIN_NAME
+from ddtrace.pin import _DD_PIN_PROXY_NAME
+
 from .client import WrappedClient
+
 
 _Client = pymemcache.client.base.Client
 

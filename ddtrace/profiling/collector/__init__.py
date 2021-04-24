@@ -1,12 +1,21 @@
 # -*- encoding: utf-8 -*-
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
-from ddtrace.profiling import _service
-from ddtrace.vendor import attr
+import attr
+
+from ddtrace.internal import periodic
+from ddtrace.internal import service
+from ddtrace.utils import attr as attr_utils
+
+
+class CollectorError(Exception):
+    pass
+
+
+class CollectorUnavailable(CollectorError):
+    pass
 
 
 @attr.s
-class Collector(_service.Service):
+class Collector(service.Service):
     """A profile collector."""
 
     recorder = attr.ib()
@@ -20,7 +29,7 @@ class Collector(_service.Service):
 
 
 @attr.s(slots=True)
-class PeriodicCollector(Collector, _periodic.PeriodicService):
+class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def periodic(self):
@@ -63,5 +72,5 @@ def _create_capture_sampler(collector):
 
 @attr.s
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
+    capture_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_CAPTURE_PCT", 2.0, float))
     _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)

@@ -26,10 +26,14 @@ below:
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
        :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
+   * - ``DD_SERVICE_MAPPING``
+     - String
+     -
+     - Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
    * - ``DD_TAGS``
      - String
      -
-     - Set global tags to be attached to every span. e.g. ``key1:value1,key2,value2``. Added in ``v0.38.0``.
+     - Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2,value2`` or ``key1:value key2:value2``. Comma separated support added in ``v0.38.0`` and space separated support added in ``v0.48.0``.
    * - ``DD_VERSION``
      - String
      -

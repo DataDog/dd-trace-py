@@ -1,12 +1,10 @@
 import gc
 
-from ddtrace.contrib.celery.utils import (
-    tags_from_context,
-    retrieve_task_id,
-    attach_span,
-    detach_span,
-    retrieve_span,
-)
+from ddtrace.contrib.celery.utils import attach_span
+from ddtrace.contrib.celery.utils import detach_span
+from ddtrace.contrib.celery.utils import retrieve_span
+from ddtrace.contrib.celery.utils import retrieve_task_id
+from ddtrace.contrib.celery.utils import tags_from_context
 
 from .base import CeleryBaseTestCase
 
@@ -122,8 +120,8 @@ class CeleryTagsTest(CeleryBaseTestCase):
         assert weak_dict.get(key)
         # flush data and force the GC
         weak_dict.get(key).finish()
-        self.tracer.writer.pop()
-        self.tracer.writer.pop_traces()
+        self.pop_spans()
+        self.pop_traces()
         gc.collect()
         assert weak_dict.get(key) is None
 

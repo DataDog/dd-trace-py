@@ -1,19 +1,22 @@
 import flask
 import werkzeug
-from ddtrace.vendor import debtcollector
+
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ddtrace import compat
-from ddtrace import config, Pin
-
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
-from .. import trace_utils
-from .helpers import get_current_app, simple_tracer, with_instance_pin
-from .wrappers import wrap_function, wrap_signal
+from .helpers import get_current_app
+from .helpers import simple_tracer
+from .helpers import with_instance_pin
+from .wrappers import wrap_function
+from .wrappers import wrap_signal
+
 
 log = get_logger(__name__)
 
@@ -33,9 +36,6 @@ config._add(
         distributed_tracing_enabled=True,
         template_default_name="<memory>",
         trace_signals=True,
-        # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
-        # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
-        extra_error_codes=set(),
     ),
 )
 
@@ -260,12 +260,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     request = werkzeug.Request(environ)
 
     # Configure distributed tracing
-    if config.flask.get("distributed_tracing_enabled", False):
-        propagator = HTTPPropagator()
-        context = propagator.extract(request.headers)
-        # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
 
     # Default resource is method and path:
     #   GET /
@@ -309,19 +304,6 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                     s.resource = u"{} {}".format(request.method, code)
 
                 trace_utils.set_http_meta(s, config.flask, status_code=code, response_headers=headers)
-
-                extra_error_codes = config.flask.get("extra_error_codes")
-                if extra_error_codes:
-                    debtcollector.deprecate(
-                        (
-                            "ddtrace.config.flask['extra_error_codes'] is now deprecated, "
-                            "use ddtrace.config.http_server.error_statuses"
-                        ),
-                        removal_version="0.47.0",
-                    )
-                    if code in extra_error_codes:
-                        s.error = 1
-
                 return func(status_code, headers)
 
             return traced_start_response
@@ -335,7 +317,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             config.flask,
             method=request.method,
             url=request.base_url,
-            query=compat.to_unicode(request.query_string),
+            query=request.query_string,
             request_headers=request.headers,
         )
 

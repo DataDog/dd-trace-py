@@ -1,38 +1,31 @@
 # -*- encoding: utf-8 -*-
 import os
-import subprocess
-import tempfile
-import signal
-import time
 import re
+import signal
 import sys
+import tempfile
+import time
 
 import pytest
+
+from tests.contrib.uwsgi import run_uwsgi
+
+from . import utils
+
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture
-def uwsgi():
+def uwsgi(monkeypatch):
+    # Do not ignore profiler so we have samples in the output pprof
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = tempfile.mktemp()
     cmd = ["uwsgi", "--need-app", "--die-on-term", "--socket", socket_name, "--wsgi-file", uwsgi_app]
 
-    def _run_uwsgi(*args):
-        env = os.environ.copy()
-        if sys.version_info[0] == 2:
-            # On Python 2, it's impossible to import uwsgidecorators without this hack
-            env["PYTHONPATH"] = os.path.join(
-                os.environ.get("VIRTUAL_ENV", ""),
-                "lib",
-                "python%s.%s" % (sys.version_info[0], sys.version_info[1]),
-                "site-packages",
-            )
-
-        return subprocess.Popen(cmd + list(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-
     try:
-        yield _run_uwsgi
+        yield run_uwsgi(cmd)
     finally:
         os.unlink(socket_name)
 
@@ -54,7 +47,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 30
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
 def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
@@ -96,7 +89,7 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
@@ -109,7 +102,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
 # For whatever reason this crashes easily on Python 2.7 with a segfault, and hangs on Python before 3.7.
@@ -165,4 +158,4 @@ def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatc
             except OSError:
                 break
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))

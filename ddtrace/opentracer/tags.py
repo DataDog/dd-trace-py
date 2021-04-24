@@ -1,5 +1,6 @@
 from collections import namedtuple
 
+
 TAG_NAMES = [
     "RESOURCE_NAME",
     "SAMPLING_PRIORITY",

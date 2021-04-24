@@ -38,6 +38,7 @@ Global Configuration
 """
 from .wsgi import DDWSGIMiddleware
 
+
 __all__ = [
     "DDWSGIMiddleware",
 ]

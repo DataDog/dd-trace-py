@@ -57,6 +57,7 @@ https://mysqlclient.readthedocs.io/
 """
 from ...utils.importlib import require_modules
 
+
 required_modules = ["MySQLdb"]
 
 with require_modules(required_modules) as missing_modules:

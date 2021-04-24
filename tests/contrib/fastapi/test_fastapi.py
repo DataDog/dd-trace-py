@@ -1,17 +1,19 @@
 import asyncio
 import sys
 
+from fastapi.testclient import TestClient
 import httpx
 import pytest
 
 import ddtrace
-from ddtrace.contrib.fastapi import patch as fastapi_patch, unpatch as fastapi_unpatch
+from ddtrace.contrib.fastapi import patch as fastapi_patch
+from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.propagation import http as http_propagation
-
-from fastapi.testclient import TestClient
-from tests import override_http_config, snapshot, override_config
-from tests.tracer.test_tracer import get_dummy_tracer
-
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
+from tests.utils import override_config
+from tests.utils import override_http_config
+from tests.utils import snapshot
 
 from . import app
 
@@ -19,7 +21,7 @@ from . import app
 @pytest.fixture
 def tracer():
     original_tracer = ddtrace.tracer
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     if sys.version_info < (3, 7):
         # enable legacy asyncio support
         from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
@@ -31,6 +33,13 @@ def tracer():
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     fastapi_unpatch()
+
+
+@pytest.fixture
+def test_spans(tracer):
+    container = TracerSpanContainer(tracer)
+    yield container
+    container.reset()
 
 
 @pytest.fixture
@@ -59,12 +68,12 @@ def snapshot_client(snapshot_app):
         yield test_client
 
 
-def test_read_homepage(client, tracer):
+def test_read_homepage(client, tracer, test_spans):
     response = client.get("/", headers={"sleep": "False"})
     assert response.status_code == 200
     assert response.json() == {"Homepage Read": "Success"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -78,12 +87,12 @@ def test_read_homepage(client, tracer):
     assert request_span.get_tag("http.query.string") is None
 
 
-def test_read_item_success(client, tracer):
+def test_read_item_success(client, tracer, test_spans):
     response = client.get("/items/foo", headers={"X-Token": "DataDog"})
     assert response.status_code == 200
     assert response.json() == {"id": "foo", "name": "Foo", "description": "This item's description is foo."}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -96,12 +105,12 @@ def test_read_item_success(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-def test_read_item_bad_token(client, tracer):
+def test_read_item_bad_token(client, tracer, test_spans):
     response = client.get("/items/bar", headers={"X-Token": "DataDoge"})
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid X-Token header"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -114,12 +123,12 @@ def test_read_item_bad_token(client, tracer):
     assert request_span.get_tag("http.status_code") == "401"
 
 
-def test_read_item_nonexistent_item(client, tracer):
+def test_read_item_nonexistent_item(client, tracer, test_spans):
     response = client.get("/items/foobar", headers={"X-Token": "DataDog"})
     assert response.status_code == 404
     assert response.json() == {"detail": "Item not found"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -132,14 +141,14 @@ def test_read_item_nonexistent_item(client, tracer):
     assert request_span.get_tag("http.status_code") == "404"
 
 
-def test_read_item_query_string(client, tracer):
+def test_read_item_query_string(client, tracer, test_spans):
     with override_http_config("fastapi", dict(trace_query_string=True)):
         response = client.get("/items/foo?q=query", headers={"X-Token": "DataDog"})
 
     assert response.status_code == 200
     assert response.json() == {"id": "foo", "name": "Foo", "description": "This item's description is foo."}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -153,14 +162,14 @@ def test_read_item_query_string(client, tracer):
     assert request_span.get_tag("http.query.string") == "q=query"
 
 
-def test_200_multi_query_string(client, tracer):
+def test_200_multi_query_string(client, tracer, test_spans):
     with override_http_config("fastapi", dict(trace_query_string=True)):
         r = client.get("/items/foo?name=Foo&q=query", headers={"X-Token": "DataDog"})
 
     assert r.status_code == 200
     assert r.json() == {"id": "foo", "name": "Foo", "description": "This item's description is foo."}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -174,7 +183,7 @@ def test_200_multi_query_string(client, tracer):
     assert request_span.get_tag("http.query.string") == "name=Foo&q=query"
 
 
-def test_create_item_success(client, tracer):
+def test_create_item_success(client, tracer, test_spans):
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDog"},
@@ -183,7 +192,7 @@ def test_create_item_success(client, tracer):
     assert response.status_code == 200
     assert response.json() == {"id": "foobar", "name": "Foo Bar", "description": "The Foo Bartenders"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -198,7 +207,7 @@ def test_create_item_success(client, tracer):
     assert request_span.get_tag("http.query.string") is None
 
 
-def test_create_item_bad_token(client, tracer):
+def test_create_item_bad_token(client, tracer, test_spans):
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDoged"},
@@ -207,7 +216,7 @@ def test_create_item_bad_token(client, tracer):
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid X-Token header"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -222,7 +231,7 @@ def test_create_item_bad_token(client, tracer):
     assert request_span.get_tag("http.query.string") is None
 
 
-def test_create_item_duplicate_item(client, tracer):
+def test_create_item_duplicate_item(client, tracer, test_spans):
     response = client.post(
         "/items/",
         headers={"X-Token": "DataDog"},
@@ -231,7 +240,7 @@ def test_create_item_duplicate_item(client, tracer):
     assert response.status_code == 400
     assert response.json() == {"detail": "Item already exists"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -246,12 +255,12 @@ def test_create_item_duplicate_item(client, tracer):
     assert request_span.get_tag("http.query.string") is None
 
 
-def test_invalid_path(client, tracer):
+def test_invalid_path(client, tracer, test_spans):
     response = client.get("/invalid_path")
     assert response.status_code == 404
     assert response.json() == {"detail": "Not Found"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -264,10 +273,10 @@ def test_invalid_path(client, tracer):
     assert request_span.get_tag("http.status_code") == "404"
 
 
-def test_500_error_raised(client, tracer):
+def test_500_error_raised(client, tracer, test_spans):
     with pytest.raises(RuntimeError):
         client.get("/500", headers={"X-Token": "DataDog"})
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
 
@@ -284,12 +293,12 @@ def test_500_error_raised(client, tracer):
     assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
 
 
-def test_streaming_response(client, tracer):
+def test_streaming_response(client, tracer, test_spans):
     response = client.get("/stream")
     assert response.status_code == 200
     assert response.text.endswith("streaming")
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -303,12 +312,12 @@ def test_streaming_response(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-def test_file_response(client, tracer):
+def test_file_response(client, tracer, test_spans):
     response = client.get("/file", headers={"X-Token": "DataDog"})
     assert response.status_code == 200
     assert response.text == "Datadog says hello!"
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -322,12 +331,12 @@ def test_file_response(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-def test_path_param_aggregate(client, tracer):
+def test_path_param_aggregate(client, tracer, test_spans):
     response = client.get("/users/testUserID", headers={"X-Token": "DataDog"})
     assert response.status_code == 200
     assert response.json() == {"userid": "testUserID", "name": "Test User"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -340,13 +349,13 @@ def test_path_param_aggregate(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-def test_mid_path_param_aggregate(client, tracer):
+def test_mid_path_param_aggregate(client, tracer, test_spans):
     r = client.get("/users/testUserID/info", headers={"X-Token": "DataDog"})
 
     assert r.status_code == 200
     assert r.json() == {"User Info": "Here"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -359,13 +368,13 @@ def test_mid_path_param_aggregate(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-def test_multi_path_param_aggregate(client, tracer):
+def test_multi_path_param_aggregate(client, tracer, test_spans):
     response = client.get("/users/testUserID/name", headers={"X-Token": "DataDog"})
 
     assert response.status_code == 200
     assert response.json() == {"User Attribute": "Test User"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -378,7 +387,7 @@ def test_multi_path_param_aggregate(client, tracer):
     assert request_span.get_tag("http.status_code") == "200"
 
 
-def test_distributed_tracing(client, tracer):
+def test_distributed_tracing(client, tracer, test_spans):
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID, "5555"),
         (http_propagation.HTTP_HEADER_TRACE_ID, "9999"),
@@ -389,7 +398,7 @@ def test_distributed_tracing(client, tracer):
     assert response.status_code == 200
     assert response.json() == {"Homepage Read": "Success"}
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 1
     assert len(spans[0]) == 1
     request_span = spans[0][0]
@@ -405,7 +414,7 @@ def test_distributed_tracing(client, tracer):
 
 
 @pytest.mark.asyncio
-async def test_multiple_requests(application, tracer):
+async def test_multiple_requests(application, tracer, test_spans):
     with override_http_config("fastapi", dict(trace_query_string=True)):
         async with httpx.AsyncClient(app=application) as client:
             responses = await asyncio.gather(
@@ -417,7 +426,7 @@ async def test_multiple_requests(application, tracer):
     assert [r.status_code for r in responses] == [200] * 2
     assert [r.json() for r in responses] == [{"Homepage Read": "Sleep"}, {"Homepage Read": "Success"}]
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) == 2
     assert len(spans[0]) == 1
     assert len(spans[1]) == 1
@@ -438,12 +447,12 @@ async def test_multiple_requests(application, tracer):
     assert r1_span.trace_id != r2_span.trace_id
 
 
-def test_service_can_be_overridden(client, tracer):
+def test_service_can_be_overridden(client, tracer, test_spans):
     with override_config("fastapi", dict(service_name="test-override-service")):
         response = client.get("/", headers={"sleep": "False"})
         assert response.status_code == 200
 
-    spans = tracer.writer.pop_traces()
+    spans = test_spans.pop_traces()
     assert len(spans) > 0
 
     span = spans[0][0]
@@ -452,7 +461,6 @@ def test_service_can_be_overridden(client, tracer):
 
 @snapshot()
 def test_table_query_snapshot(snapshot_client):
-
     r_post = snapshot_client.post(
         "/items/",
         headers={"X-Token": "DataDog"},

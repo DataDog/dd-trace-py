@@ -1,7 +1,9 @@
 import asyncio
 
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
-from .utils import AsyncioTestCase, mark_asyncio
+
+from .utils import AsyncioTestCase
+from .utils import mark_asyncio
 
 
 class TestAsyncioTracer(AsyncioTestCase):
@@ -20,7 +22,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         with self.tracer.trace("coroutine") as span:
             span.resource = "base"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         assert "coroutine" == traces[0][0].name
@@ -42,7 +44,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         # the coroutine has been called correctly
         assert 42 == value
         # a single trace has been properly reported
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         assert "coroutine_1" == traces[0][0].name
@@ -78,7 +80,7 @@ class TestAsyncioTracer(AsyncioTestCase):
 
         with self.assertRaises(Exception):
             yield from f1()
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 1 == len(spans)
@@ -102,7 +104,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         with self.assertRaises(Exception):
             yield from f2()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 2 == len(spans)
@@ -134,7 +136,7 @@ class TestAsyncioTracer(AsyncioTestCase):
 
         yield from f2()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 2 == len(spans)
@@ -161,7 +163,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         for future in futures:
             yield from future
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 10 == len(traces)
         assert 1 == len(traces[0])
         assert "coroutine" == traces[0][0].name
@@ -175,7 +177,7 @@ class TestAsyncioTracer(AsyncioTestCase):
 
         yield from f1()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 1 == len(spans)

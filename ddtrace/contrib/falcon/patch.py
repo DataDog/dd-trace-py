@@ -1,10 +1,20 @@
 import falcon
 
-from ddtrace import config, tracer
+from ddtrace import config
+from ddtrace import tracer
 from ddtrace.vendor import wrapt
 
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from .middleware import TraceMiddleware
-from ...utils.formats import asbool, get_env
+
+
+config._add(
+    "falcon",
+    dict(
+        distributed_tracing=asbool(get_env("falcon", "distributed_tracing", default=True)),
+    ),
+)
 
 
 def patch():
@@ -22,9 +32,8 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     service = config._get_service(default="falcon")
-    distributed_tracing = asbool(get_env("falcon", "distributed_tracing", default=True))
 
-    mw.insert(0, TraceMiddleware(tracer, service, distributed_tracing))
+    mw.insert(0, TraceMiddleware(tracer, service))
     kwargs["middleware"] = mw
 
     wrapped(*args, **kwargs)

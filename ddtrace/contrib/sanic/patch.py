@@ -1,16 +1,18 @@
 import asyncio
-import ddtrace
+
 import sanic
+
+import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
@@ -93,11 +95,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
     headers = request.headers.copy()
 
-    if config.sanic.distributed_tracing:
-        propagator = HTTPPropagator()
-        context = propagator.extract(headers)
-        if context.trace_id:
-            ddtrace.tracer.context_provider.activate(context)
+    trace_utils.activate_distributed_headers(ddtrace.tracer, int_config=config.sanic, request_headers=headers)
 
     span = ddtrace.tracer.trace(
         "sanic.request",

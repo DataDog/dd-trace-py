@@ -5,17 +5,20 @@ Datadog trace code for cherrypy.
 # stdlib
 import logging
 
-# project
-from ddtrace import config
-from .. import trace_utils
-from ... import compat
-from ...ext import errors, SpanTypes
-from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool, get_env
-
 # 3p
 import cherrypy
 from cherrypy.lib.httputil import valid_status
+
+# project
+from ddtrace import config
+
+from .. import trace_utils
+from ... import compat
+from ...ext import SpanTypes
+from ...ext import errors
+from ...utils.formats import asbool
+from ...utils.formats import get_env
+
 
 log = logging.getLogger(__name__)
 
@@ -32,11 +35,12 @@ SPAN_NAME = "cherrypy.request"
 
 
 class TraceTool(cherrypy.Tool):
-    def __init__(self, app, tracer, service, use_distributed_tracing):
+    def __init__(self, app, tracer, service, use_distributed_tracing=None):
         self.app = app
         self._tracer = tracer
         self.service = service
-        self.use_distributed_tracing = use_distributed_tracing
+        if use_distributed_tracing is not None:
+            self.use_distributed_tracing = use_distributed_tracing
 
         # CherryPy uses priority to determine which tools act first on each event. The lower the number, the higher
         # the priority. See: https://docs.cherrypy.org/en/latest/extend.html#tools-ordering
@@ -44,7 +48,7 @@ class TraceTool(cherrypy.Tool):
 
     @property
     def use_distributed_tracing(self):
-        return config.cherrypy.get("distributed_tracing", True)
+        return config.cherrypy.distributed_tracing
 
     @use_distributed_tracing.setter
     def use_distributed_tracing(self, use_distributed_tracing):
@@ -64,12 +68,9 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        if self.use_distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(cherrypy.request.headers)
-            # Only need to activate the new context if something was propagated
-            if context.trace_id:
-                self._tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self._tracer, int_config=config.cherrypy, request_headers=cherrypy.request.headers
+        )
 
         cherrypy.request._datadog_span = self._tracer.trace(
             SPAN_NAME,
@@ -84,9 +85,6 @@ class TraceTool(cherrypy.Tool):
             log.warning("cherrypy: tracing tool after_error_response hook called, but no active span found")
             return
 
-        if not span.sampled:
-            return
-
         span.error = 1
         span.set_tag(errors.ERROR_TYPE, cherrypy._cperror._exc_info()[0])
         span.set_tag(errors.ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
@@ -99,9 +97,6 @@ class TraceTool(cherrypy.Tool):
 
         if not span:
             log.warning("cherrypy: tracing tool on_end_request hook called, but no active span found")
-            return
-
-        if not span.sampled:
             return
 
         self._close_span(span)
@@ -143,7 +138,7 @@ class TraceTool(cherrypy.Tool):
 
 
 class TraceMiddleware(object):
-    def __init__(self, app, tracer, service="cherrypy", distributed_tracing=True):
+    def __init__(self, app, tracer, service="cherrypy", distributed_tracing=None):
         self.app = app
 
         self.app.tools.tracer = TraceTool(app, tracer, service, distributed_tracing)

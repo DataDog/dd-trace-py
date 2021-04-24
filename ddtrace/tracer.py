@@ -1,46 +1,63 @@
+import atexit
 import functools
-import logging
 import json
-from os import environ, getpid
+import logging
+import os
+from os import environ
+from os import getpid
 import sys
-import threading
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Union
 
-from ddtrace.vendor import attr
+from ddtrace import config
+from ddtrace.filters import TraceFilter
 from ddtrace.vendor import debtcollector
 
-from .constants import (
-    FILTERS_KEY,
-    SAMPLING_PRIORITY_KEY,
-    SAMPLE_RATE_METRIC_KEY,
-    VERSION_KEY,
-    ENV_KEY,
-    ORIGIN_KEY,
-    HOSTNAME_KEY,
-)
-from .context import Context
-from .ext import system, SpanTypes
-from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .internal import debug, hostname
-from .internal.logger import get_logger, hasHandlers
-from .internal.runtime import RuntimeTags, RuntimeWorker, get_runtime_id
-from .internal.writer import AgentWriter, LogWriter
-from .internal import _rand
-from .provider import DefaultContextProvider
-from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
-from .settings import config
-from .span import Span
-from .utils.formats import asbool, get_env
-from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
-from .vendor.dogstatsd import DogStatsd
-from . import compat
 from . import _hooks
+from . import compat
+from .constants import ENV_KEY
+from .constants import FILTERS_KEY
+from .constants import HOSTNAME_KEY
+from .constants import SAMPLE_RATE_METRIC_KEY
+from .constants import VERSION_KEY
+from .context import Context
+from .ext import system
+from .ext.priority import AUTO_KEEP
+from .ext.priority import AUTO_REJECT
+from .internal import _rand
+from .internal import agent
+from .internal import debug
+from .internal import hostname
+from .internal.dogstatsd import get_dogstatsd_client
+from .internal.logger import get_logger
+from .internal.logger import hasHandlers
+from .internal.processor import SpanProcessor
+from .internal.processor.trace import SpanAggregator
+from .internal.processor.trace import TraceProcessor
+from .internal.processor.trace import TraceSamplingProcessor
+from .internal.runtime import get_runtime_id
+from .internal.writer import AgentWriter
+from .internal.writer import LogWriter
+from .internal.writer import TraceWriter
+from .provider import DefaultContextProvider
+from .sampler import BasePrioritySampler
+from .sampler import BaseSampler
+from .sampler import DatadogSampler
+from .sampler import RateByServiceSampler
+from .sampler import RateSampler
+from .span import Span
+from .utils.deprecation import deprecated
+from .utils.formats import asbool
+from .utils.formats import get_env
 
 
 log = get_logger(__name__)
 debug_mode = asbool(get_env("trace", "debug", default=False))
-partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=True))
-partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
@@ -53,103 +70,7 @@ if debug_mode and not hasHandlers(log):
         logging.basicConfig(level=logging.DEBUG)
 
 
-@attr.s()
-class _Trace(object):
-    """Maintains the state of a trace (a collection of spans).
-
-    This data structure is required since there are data that exist on the meta
-    level of a trace. Currently this data is passed to the Datadog backend
-    through trace chunk roots (first span of a trace payload to the agent).
-
-    Unfortunately due to this design, trace state has to be maintained within
-    the client and hence this data structure.
-    """
-
-    trace_id = attr.ib(type=int)  # type: int
-    """
-    The sampling decision made for the trace. This should only be set by the
-    library initially when the root span is created but for legacy reasons
-    can be set with the `span.sampled` property for any span in the trace.
-    """
-    sampled = attr.ib(type=bool, default=True)  # type: bool
-    """
-    The sampling priority decision for the trace. This is calculated by the library
-    when the root span of a trace is created but for legacy reasons can be set
-    with the `span.context.sampling_priority` attribute.
-    """
-    sampling_priority = attr.ib(default=None)  # type: Optional[int]
-    """
-    The origin of the trace. This is used in distributed tracing to indicate
-    the source of a request (eg. synthetics).
-    """
-    dd_origin = attr.ib(default=None)  # type: Optional[str]
-    """Number of spans finished in the trace."""
-    _num_finished = attr.ib(type=int, default=0)  # type: int
-    _spans = attr.ib(default=attr.Factory(list))  # type: List[Span]
-    _lock = attr.ib(type=threading.Lock, default=attr.Factory(threading.Lock))  # type: threading.Lock
-
-    def __len__(self):
-        with self._lock:
-            return len(self._spans)
-
-    @property
-    def root_span(self):
-        # type: () -> Optional[Span]
-        """Returns the first span created in a trace."""
-        with self._lock:
-            return self._spans[0] if len(self._spans) else None
-
-    def add_span(self, span):
-        # type: (Span) -> None
-        with self._lock:
-            self._spans.append(span)
-
-    def finish_span(self):
-        # type: () -> Tuple[List[Span], bool, bool]
-        with self._lock:
-            self._num_finished += 1
-
-            if self._num_finished == len(self._spans) or (
-                partial_flush_enabled and self._num_finished >= partial_flush_min_spans
-            ):
-                finished_spans = [s for s in self._spans if s.finished]
-
-                chunk_root = finished_spans[0]
-                if chunk_root:
-                    if self.sampling_priority is not None and self.sampled:
-                        chunk_root.set_metric(SAMPLING_PRIORITY_KEY, self.sampling_priority)
-                    if self.dd_origin:
-                        chunk_root.meta[ORIGIN_KEY] = str(self.dd_origin)
-
-                self._spans = [s for s in self._spans if not s.finished]
-                self._num_finished -= len(finished_spans)
-                return finished_spans, self.sampled, len(self._spans) == 0
-
-            return [], False, False
-
-
-def _parse_dogstatsd_url(url):
-    if url is None:
-        return
-
-    # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
-    # also support without url scheme included
-    if url.startswith("/"):
-        url = "unix://" + url
-    elif "://" not in url:
-        url = "udp://" + url
-
-    parsed = compat.parse.urlparse(url)
-
-    if parsed.scheme == "unix":
-        return dict(socket_path=parsed.path)
-    elif parsed.scheme == "udp":
-        return dict(host=parsed.hostname, port=parsed.port)
-    else:
-        raise ValueError("Unknown scheme `%s` for DogStatsD URL `{}`".format(parsed.scheme))
-
-
-_INTERNAL_APPLICATION_SPAN_TYPES = ["custom", "template", "web", "worker"]
+_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 
 
 class Tracer(object):
@@ -164,108 +85,75 @@ class Tracer(object):
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
-    _RUNTIME_METRICS_INTERVAL = 10
+    SHUTDOWN_TIMEOUT = 5
 
-    DEFAULT_HOSTNAME = environ.get("DD_AGENT_HOST", environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
-    DEFAULT_PORT = int(environ.get("DD_TRACE_AGENT_PORT", 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
-    DEFAULT_DOGSTATSD_URL = get_env(
-        "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
-    )
-    DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
-
-    def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
+    def __init__(
+        self,
+        url=None,  # type: Optional[str]
+        dogstatsd_url=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
 
         :param url: The Datadog agent URL.
-        :param url: The DogStatsD URL.
+        :param dogstatsd_url: The DogStatsD URL.
         """
         self.log = log
-        self.sampler = None
-        self.priority_sampler = None
-        self._runtime_worker = None
-        self._filters = []
-        self._traces = {}  # type: Dict[int, _Trace]
-        self._traces_lock = threading.Lock()
-
-        uds_path = None
-        https = None
-        hostname = self.DEFAULT_HOSTNAME
-        port = self.DEFAULT_PORT
-        writer = None
-
-        if self._is_agentless_environment() and url is None:
-            writer = LogWriter()
-        else:
-            if url is None:
-                url = self.DEFAULT_AGENT_URL
-            url_parsed = compat.parse.urlparse(url)
-            if url_parsed.scheme in ("http", "https"):
-                hostname = url_parsed.hostname
-                port = url_parsed.port
-                https = url_parsed.scheme == "https"
-                # FIXME This is needed because of the way of configure() works right now, where it considers `port=None`
-                # to be "no port set so let's use the default".
-                # It should go away when we remove configure()
-                if port is None:
-                    if https:
-                        port = 443
-                    else:
-                        port = 80
-            elif url_parsed.scheme == "unix":
-                uds_path = url_parsed.path
-            else:
-                raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
+        self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
         self.tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
-        self._services = set()
+        self._services = set()  # type: Set[str]
 
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
+        self.context_provider = DefaultContextProvider()
+        self.sampler = DatadogSampler()  # type: BaseSampler
+        self.priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
+        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
 
-        # Apply the default configuration
-        self.configure(
-            hostname=hostname,
-            port=port,
-            https=https,
-            uds_path=uds_path,
-            sampler=DatadogSampler(),
-            context_provider=DefaultContextProvider(),
-            dogstatsd_url=dogstatsd_url,
-            writer=writer,
+        if self._use_log_writer() and url is None:
+            writer = LogWriter()  # type: TraceWriter
+        else:
+            url = url or agent.get_trace_url()
+            agent.verify_url(url)
+
+            writer = AgentWriter(
+                agent_url=url,
+                sampler=self.sampler,
+                priority_sampler=self.priority_sampler,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
+                report_metrics=config.health_metrics_enabled,
+                sync_mode=self._use_sync_mode(),
+            )
+        self.writer = writer  # type: TraceWriter
+        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        self._partial_flush_min_spans = int(
+            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
         )
-
+        self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
+        atexit.register(self._atexit)
 
-    def _get_trace(self, trace_id):
-        # type: (int) -> Optional[_Trace]
-        with self._traces_lock:
-            return self._traces.get(trace_id, None)
-
-    def _get_or_create_trace(self, trace_id):
-        # type: (int) -> _Trace
-        with self._traces_lock:
-            if trace_id in self._traces:
-                return self._traces[trace_id]
-            else:
-                trace = _Trace(trace_id=trace_id)
-                self._traces[trace_id] = trace
-                return trace
-
-    def _is_sampled(self, span):
-        # type: (Span) -> bool
-        trace = self._get_trace(span.trace_id)
-        return trace.sampled if trace else True
+    def _atexit(self):
+        # type: () -> None
+        key = "ctrl-break" if os.name == "nt" else "ctrl-c"
+        log.debug(
+            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+            self.SHUTDOWN_TIMEOUT,
+            key,
+        )
+        self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def on_start_span(self, func):
+        # type: (Callable) -> Callable
         """Register a function to execute when a span start.
 
         Can be used as a decorator.
@@ -277,6 +165,7 @@ class Tracer(object):
         return func
 
     def deregister_on_start_span(self, func):
+        # type: (Callable) -> Callable
         """Unregister a function registered to execute when a span starts.
 
         Can be used as a decorator.
@@ -291,9 +180,10 @@ class Tracer(object):
     def debug_logging(self):
         return self.log.isEnabledFor(logging.DEBUG)
 
-    @debug_logging.setter
+    @debug_logging.setter  # type: ignore[misc]
     @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
+        # type: (bool) -> None
         self.log.setLevel(logging.DEBUG if value else logging.WARN)
 
     @deprecated("Use .tracer, not .tracer()", "1.0.0")
@@ -304,24 +194,9 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
-    def _active_trace(self):
-        # type: () -> Optional[_Trace]
-        active = self.active()
-        if active and active.trace_id:
-            return self._get_trace(active.trace_id)
-        return None
-
     def activate(self, span_or_ctx):
         # type: (Union[Context, Span]) -> None
         """Activate a span or context for the current execution context."""
-        if isinstance(span_or_ctx, Context):
-            trace = _Trace(
-                trace_id=span_or_ctx.trace_id,
-                sampling_priority=span_or_ctx.sampling_priority,
-                dd_origin=span_or_ctx.dd_origin,
-            )
-            with self._traces_lock:
-                self._traces[trace.trace_id] = trace
         self.context_provider.activate(span_or_ctx)
 
     def active(self):
@@ -348,41 +223,31 @@ class Tracer(object):
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
-            trace = self._get_trace(active.trace_id)
-            return Context(
-                span_id=active.span_id,
-                trace_id=active.trace_id,
-                sampling_priority=trace.sampling_priority if trace else None,
-                dd_origin=trace.dd_origin if trace else None,
-            )
+            return active.context
         else:
             return Context()
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
-    @debtcollector.removals.removed_kwarg(
-        "dogstatsd_host", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
-    )
-    @debtcollector.removals.removed_kwarg(
-        "dogstatsd_port", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
-    )
+    @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
     def configure(
         self,
-        enabled=None,
-        hostname=None,
-        port=None,
-        uds_path=None,
-        https=None,
-        sampler=None,
-        context_provider=None,
-        wrap_executor=None,
-        priority_sampling=None,
-        settings=None,
-        collect_metrics=None,
-        dogstatsd_host=None,
-        dogstatsd_port=None,
-        dogstatsd_url=None,
-        writer=None,
+        enabled=None,  # type: Optional[bool]
+        hostname=None,  # type: Optional[str]
+        port=None,  # type: Optional[int]
+        uds_path=None,  # type: Optional[str]
+        https=None,  # type: Optional[bool]
+        sampler=None,  # type: Optional[BaseSampler]
+        context_provider=None,  # type: Optional[DefaultContextProvider]
+        wrap_executor=None,  # type: Optional[Callable]
+        priority_sampling=None,  # type: Optional[bool]
+        settings=None,  # type: Optional[Dict[str, Any]]
+        collect_metrics=None,  # type: Optional[bool]
+        dogstatsd_url=None,  # type: Optional[str]
+        writer=None,  # type: Optional[TraceWriter]
+        partial_flush_enabled=None,  # type: Optional[bool]
+        partial_flush_min_spans=None,  # type: Optional[int]
     ):
+        # type: (...) -> None
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -403,8 +268,6 @@ class Tracer(object):
         :param priority_sampling: enable priority sampling, this is required for
             complete distributed tracing support. Enabled by default.
         :param collect_metrics: Whether to enable runtime metrics collection.
-        :param str dogstatsd_host: Host for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
-        :param int dogstatsd_port: Port for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
@@ -414,6 +277,12 @@ class Tracer(object):
             filters = settings.get(FILTERS_KEY)
             if filters is not None:
                 self._filters = filters
+
+        if partial_flush_enabled is not None:
+            self._partial_flush_enabled = partial_flush_enabled
+
+        if partial_flush_min_spans is not None:
+            self._partial_flush_min_spans = partial_flush_min_spans
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
@@ -425,49 +294,58 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+        self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
-        if dogstatsd_url is not None:
-            dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug("Connecting to DogStatsd(%s)", dogstatsd_url)
-            self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
-
-        if writer:
-            self.writer = writer
-            self.writer.dogstatsd = self._dogstatsd_client
-        elif (
-            hostname is not None
-            or port is not None
-            or uds_path is not None
-            or https is not None
-            or priority_sampling is not None
-            or sampler is not None
-        ):
-            # Preserve hostname and port when overriding priority sampling
-            # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, "writer") and isinstance(self.writer, AgentWriter):
-                default_hostname = self.writer._hostname
-                default_port = self.writer._port
-                if https is None:
-                    https = self.writer._https
+        if any(x is not None for x in [hostname, port, uds_path, https]):
+            # If any of the parts of the URL have updated, merge them with
+            # the previous writer values.
+            if isinstance(self.writer, AgentWriter):
+                prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
             else:
-                default_hostname = self.DEFAULT_HOSTNAME
-                default_port = self.DEFAULT_PORT
+                prev_url_parsed = compat.parse.urlparse("")
 
-            if hasattr(self, "writer") and self.writer.is_alive():
-                self.writer.stop()
+            if uds_path is not None:
+                if hostname is None and prev_url_parsed.scheme == "unix":
+                    hostname = prev_url_parsed.hostname
+                url = "unix://%s%s" % (hostname or "", uds_path)
+            else:
+                if https is None:
+                    https = prev_url_parsed.scheme == "https"
+                if hostname is None:
+                    hostname = prev_url_parsed.hostname or ""
+                if port is None:
+                    port = prev_url_parsed.port
+                scheme = "https" if https else "http"
+                url = "%s://%s:%s" % (scheme, hostname, port)
+        elif isinstance(self.writer, AgentWriter):
+            # Reuse the URL from the previous writer if there was one.
+            url = self.writer.agent_url
+        else:
+            # No URL parts have updated and there's no previous writer to
+            # get the URL from.
+            url = None  # type: ignore
 
+        self.writer.stop()
+
+        if writer is not None:
+            self.writer = writer
+        elif url:
+            # Verify the URL and create a new AgentWriter with it.
+            agent.verify_url(url)
             self.writer = AgentWriter(
-                hostname or default_hostname,
-                port or default_port,
-                uds_path=uds_path,
-                https=https,
+                url,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
-                dogstatsd=self._dogstatsd_client,
+                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
+                sync_mode=self._use_sync_mode(),
             )
+        elif writer is None and isinstance(self.writer, LogWriter):
+            # No need to do anything for the LogWriter.
+            pass
+        if isinstance(self.writer, AgentWriter):
+            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+        self._initialize_span_processors()
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -475,17 +353,17 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        # Since we've recreated our dogstatsd agent, we need to restart metric collection with that new agent
-        if self._runtime_worker:
+        runtime_metrics_was_running = False
+        # FIXME: Import RuntimeWorker here to avoid circular imports. This will
+        # be gone together with the collect_metrics attribute soon.
+        from .internal.runtime.runtime_metrics import RuntimeWorker
+
+        if RuntimeWorker._instance is not None:
             runtime_metrics_was_running = True
-            self._runtime_worker.stop()
-            self._runtime_worker.join()
-            self._runtime_worker = None
-        else:
-            runtime_metrics_was_running = False
+            RuntimeWorker.disable()
 
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
-            self._start_runtime_worker()
+            RuntimeWorker.enable(tracer=self, dogstatsd_url=self._dogstatsd_url)
 
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
@@ -505,9 +383,20 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
-    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None, activate=True):
-        # type: (str, Optional[Union[Context, Span]], Optional[str], Optional[str], Optional[SpanTypes], bool) -> Span
-        """Return a span that represents a unit of work designated by `name`.
+    def start_span(
+        self,
+        name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, Context]]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+        activate=False,  # type: bool
+    ):
+        # type: (...) -> Span
+        """
+        Return a span that will trace an operation called `name`. This method allows
+        parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
+        root span.
 
         :param str name: the name of the operation being traced.
         :param object child_of: a ``Span`` or a ``Context`` instance representing the parent for this span.
@@ -532,12 +421,15 @@ class Tracer(object):
         """
         self._check_new_process()
 
-        if child_of is None:
-            trace_id = parent_id = parent = None
-        else:
+        context = child_of if isinstance(child_of, Context) else None
+        trace_id = None
+        parent_id = None
+        parent = None
+        if child_of is not None:
             trace_id = child_of.trace_id
             parent_id = child_of.span_id
-            parent = child_of if isinstance(child_of, Span) else None  # type: Optional[Span]
+            if isinstance(child_of, Span):
+                parent = child_of
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -551,6 +443,8 @@ class Tracer(object):
             else:
                 service = config.service
 
+        mapped_service = config.service_mapping.get(service, service)
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -558,44 +452,33 @@ class Tracer(object):
                 name,
                 trace_id=trace_id,
                 parent_id=parent_id,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
 
             # Extra attributes when from a local parent
             if parent:
+                span.sampled = parent.sampled
                 span._parent = parent
 
-            trace = self._get_or_create_trace(span.trace_id)
-            trace.add_span(span)
-            # If the parent object has a sampling priority or origin defined
-            # then update the trace accordingly.
-            sampling_priority = getattr(child_of, "sampling_priority", None)
-            if sampling_priority is not None:
-                trace.sampling_priority = sampling_priority
-            dd_origin = getattr(child_of, "dd_origin", None)
-            if dd_origin is not None:
-                trace.dd_origin = dd_origin
         else:
             # this is the root span of a new trace
             span = Span(
                 self,
                 name,
-                service=service,
+                service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
-            # add tags to root span to correlate trace with runtime metrics
-            # only applied to spans with types that are internal to applications
-            if self._runtime_worker and self._is_span_internal(span):
-                span.meta["language"] = "python"
 
             sampled = self.sampler.sample(span)
             sampling_priority = None
@@ -625,13 +508,15 @@ class Tracer(object):
                 # The trace must be marked as sampled so it is forwarded to the agent.
                 sampled = True
 
-            trace = self._get_or_create_trace(span.trace_id)
-            trace.sampled = sampled
-            trace.sampling_priority = sampling_priority
-            trace.add_span(span)
+            span.sampled = sampled
+            if sampling_priority is not None:
+                span.sampling_priority = sampling_priority
 
-        if activate:
-            self.context_provider.activate(span)
+        if context:
+            if context.sampling_priority is not None:
+                span.sampling_priority = context.sampling_priority
+            if context.dd_origin is not None:
+                span.dd_origin = context.dd_origin
 
         # Apply default global tags.
         if self.tags:
@@ -656,49 +541,58 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-            # The constant tags for the dogstatsd client needs to updated with any new
-            # service(s) that may have been added.
-            self._update_dogstatsd_constant_tags()
+        if activate:
+            self.context_provider.activate(span)
+
+        for p in self._span_processors:
+            p.on_span_start(span)
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
-    def _finish_span(self, span):
-        # type: (Span) -> None
+    def _on_span_finish(self, span):
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("finishing span %r", span)
 
+        active = self.active()
         # Only set the next active span to the parent if the span is active
         # and the parent is not finished.
-        active = self.active()
-        if active is span and span._parent and not span._parent.finished:
-            self.context_provider.activate(span._parent)
-        # Else if the span is the active span and there is no suitable parent,
-        # activate nothing so future spans do not inherit from it.
-        elif active is span:
-            self.context_provider.activate(None)
+        # FIXME we use == checks here because our test utils return span wrappers
+        # that fail this check but we probably want to use `is`.
+        if active == span:
+            if span._parent:
+                if span._parent.finished:
+                    self.log.debug(
+                        "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                    )
+                    self.context_provider.activate(None)
+                else:
+                    self.context_provider.activate(span._parent)
+            else:
+                # the span is the active span and there is no suitable parent,
+                # activate nothing so future spans do not inherit from it.
+                self.context_provider.activate(None)
 
-        # It's possible that a span can be created from a trace that has already
-        # been finished and deleted. So _get_or_create_trace has to be used instead
-        # of _get_trace.
-        trace = self._get_or_create_trace(span.trace_id)
-        spans, sampled, trace_done = trace.finish_span()
+        if not self.enabled:
+            return  # nothing to do
 
-        if trace_done:
-            with self._traces_lock:
-                del self._traces[trace.trace_id]
+        for p in self._span_processors:
+            p.on_span_finish(span)
 
-        if spans and sampled:
-            self.write(spans)
+    def _initialize_span_processors(self):
+        # type: () -> None
+        trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceSamplingProcessor()]
+        trace_processors += self._filters
 
-    def _update_dogstatsd_constant_tags(self):
-        """Prepare runtime tags for ddstatsd."""
-        # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        tags = ["{}:{}".format(k, v) for k, v in RuntimeTags()]
-        self.log.debug("Updating constant tags %s", tags)
-        self._dogstatsd_client.constant_tags = tags
-
-    def _start_runtime_worker(self):
-        self._runtime_worker = RuntimeWorker(self._dogstatsd_client, self._RUNTIME_METRICS_INTERVAL)
-        self._runtime_worker.start()
+        self._span_processors = [
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self.writer,
+            ),
+        ]  # type: List[SpanProcessor]
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -714,25 +608,13 @@ class Tracer(object):
         # they will share the seed and generate the same random numbers.
         _rand.seed()
 
-        # The previous process is responsible for flushing the spans it created.
-        for trace_id, trace in self._traces:
-            # Note that the remaining metadata is left in place so that
-            # sampling decisions are not affected.
-            trace.spans = []
-
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
 
-        if self._runtime_worker is not None:
-            self._start_runtime_worker()
-
-        # force an immediate update constant tags since we have reset services
-        # and generated a new runtime id
-        self._update_dogstatsd_constant_tags()
-
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
+        self._initialize_span_processors()
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -752,7 +634,7 @@ class Tracer(object):
             self.log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None):
-        # type: (str, Optional[str], Optional[str], Optional[SpanTypes], bool) -> Span
+        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
         """Return an active span that inherits from the active span.
 
         The returned span will automatically be activated in the current
@@ -810,12 +692,18 @@ class Tracer(object):
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        trace = self._active_trace()
-        return trace.root_span if trace else None
+        parent = self.active_span()
+        if not parent:
+            return None
+
+        while parent._parent:
+            parent = parent._parent
+        return parent
 
     current_root_span = active_root_span
 
     def write(self, spans):
+        # type: (Optional[List[Span]]) -> None
         """
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
@@ -828,16 +716,10 @@ class Tracer(object):
             for span in spans:
                 self.log.debug("\n%s", span.pprint())
 
-        if self.enabled and self.writer:
-            for filtr in self._filters:
-                try:
-                    spans = filtr.process_trace(spans)
-                except Exception:
-                    log.error("error while applying filter %s to traces", filtr, exc_info=True)
-                else:
-                    if not spans:
-                        return
+        if not self.enabled:
+            return
 
+        if spans is not None:
             self.writer.write(spans=spans)
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
@@ -845,7 +727,14 @@ class Tracer(object):
         """Set the information about the given service."""
         return
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None):
+    def wrap(
+        self,
+        name=None,  # type: Optional[str]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Callable[[Callable[..., Any]], Callable[..., Any]]
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
@@ -935,6 +824,7 @@ class Tracer(object):
         return wrap_decorator
 
     def set_tags(self, tags):
+        # type: (Dict[str, str]) -> None
         """Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
@@ -943,6 +833,7 @@ class Tracer(object):
         self.tags.update(tags)
 
     def shutdown(self, timeout=None):
+        # type: (Optional[float]) -> None
         """Shutdown the tracer.
 
         This will stop the background writer/worker and flush any finished traces in the buffer.
@@ -951,14 +842,17 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        if not self.writer.is_alive():
-            return
-
-        self.writer.stop()
-        self.writer.join(timeout=timeout)
+        self.writer.stop(timeout=timeout)
 
     @staticmethod
-    def _is_agentless_environment():
+    def _use_log_writer():
+        # type: () -> bool
+        """Returns whether the LogWriter should be used in the environment by
+        default.
+
+        The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
+        is not available in the Lambda.
+        """
         if (
             environ.get("DD_AGENT_HOST")
             or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
@@ -966,11 +860,43 @@ class Tracer(object):
         ):
             # If one of these variables are set, we definitely have an agent
             return False
-        if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-            # We are in an AWS Lambda environment
-            return True
-        return False
+        elif _in_aws_lambda() and _has_aws_lambda_agent_extension():
+            # If the Agent Lambda extension is available then an AgentWriter is used.
+            return False
+        else:
+            return _in_aws_lambda()
+
+    @staticmethod
+    def _use_sync_mode():
+        # type: () -> bool
+        """Returns, if an `AgentWriter` is to be used, whether it should be run
+         in synchronous mode by default.
+
+        There is only one case in which this is desirable:
+
+        - AWS Lambdas can have the Datadog agent installed via an extension.
+          When it's available traces must be sent synchronously to ensure all
+          are received before the Lambda terminates.
+        """
+        return _in_aws_lambda() and _has_aws_lambda_agent_extension()
 
     @staticmethod
     def _is_span_internal(span):
         return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+
+
+def _has_aws_lambda_agent_extension():
+    # type: () -> bool
+    """Returns whether the environment has the AWS Lambda Datadog Agent
+    extension available.
+    """
+    return os.path.exists("/opt/extensions/datadog-agent")
+
+
+def _in_aws_lambda():
+    # type: () -> bool
+    """Returns whether the environment is an AWS Lambda.
+    This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
+    variable is defined.
+    """
+    return bool(environ.get("AWS_LAMBDA_FUNCTION_NAME", False))

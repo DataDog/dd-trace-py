@@ -2,6 +2,7 @@ import asyncio
 
 from ...provider import DefaultContextProvider
 
+
 # Task attribute used to set/get the context
 CONTEXT_ATTR = "__datadog_context"
 

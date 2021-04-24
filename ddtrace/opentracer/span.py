@@ -2,11 +2,12 @@ import threading
 
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
-from ddtrace.span import Span as DatadogSpan
+
 from ddtrace.ext import errors
-from .tags import Tags
+from ddtrace.span import Span as DatadogSpan
 
 from .span_context import SpanContext
+from .tags import Tags
 
 
 class Span(OpenTracingSpan):
@@ -124,7 +125,7 @@ class Span(OpenTracingSpan):
         elif key == OTTags.PEER_PORT:
             self._dd_span.set_tag(Tags.TARGET_PORT, value)
         elif key == Tags.SAMPLING_PRIORITY:
-            self._dd_span.context.sampling_priority = value
+            self._dd_span.sampling_priority = value
         else:
             self._dd_span.set_tag(key, value)
 

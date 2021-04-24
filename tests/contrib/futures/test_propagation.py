@@ -1,10 +1,10 @@
-import time
 import concurrent
+import time
 
-from ddtrace.contrib.futures import patch, unpatch
-
+from ddtrace.contrib.futures import patch
+from ddtrace.contrib.futures import unpatch
 from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class PropagationTestCase(TracerTestCase):
@@ -286,11 +286,12 @@ class PropagationTestCase(TracerTestCase):
                 time.sleep(0.05)
                 return 42
 
-        with self.tracer.trace("main.thread"):
-            # don't wait for the execution
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-            future = executor.submit(fn)
-            time.sleep(0.01)
+        with self.override_global_tracer():
+            with self.tracer.trace("main.thread"):
+                # don't wait for the execution
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+                future = executor.submit(fn)
+                time.sleep(0.01)
 
         # then wait for the second thread and send the trace
         result = future.result()

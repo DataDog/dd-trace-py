@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
+import flask
+from flask import abort
+from flask import make_response
+
 from ddtrace.compat import PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-from flask import abort
-from flask import make_response
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
-from ... import assert_is_measured, assert_span_http_status_code
+
 
 base_exception_name = "builtins.Exception"
 if PY2:
@@ -90,6 +95,22 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Request tags
         assert spans[0].get_tag(http.QUERY_STRING) == "foo=bar&baz=biz"
+
+    def test_request_query_string_trace_encoding(self):
+        """Make sure when making a request that we create the expected spans and capture the query string with a non-UTF-8
+        encoding.
+        """
+
+        @self.app.route("/")
+        def index():
+            return "Hello Flask", 200
+
+        with self.override_http_config("flask", dict(trace_query_string=True)):
+            self.client.get(u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+        spans = self.get_spans()
+
+        # Request tags
+        assert spans[0].get_tag(http.QUERY_STRING) == u"foo=bar&baz=����ó��"
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -538,24 +559,27 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(res.status_code, 500)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 10)
+
+        span_names = [
+            "flask.request",
+            "flask.try_trigger_before_first_request_functions",
+            "flask.preprocess_request",
+            "flask.dispatch_request",
+            "tests.contrib.flask.test_request.fivehundred",
+            "flask.handle_user_exception",
+            "flask.handle_exception",
+        ]
+
+        if not (flask.__version__.startswith("0.") or flask.__version__.startswith("1.0")):
+            span_names.append("flask.process_response")
+
+        span_names += [
+            "flask.do_teardown_request",
+            "flask.do_teardown_appcontext",
+        ]
 
         # Assert the order of the spans created
-        self.assertListEqual(
-            [
-                "flask.request",
-                "flask.try_trigger_before_first_request_functions",
-                "flask.preprocess_request",
-                "flask.dispatch_request",
-                "tests.contrib.flask.test_request.fivehundred",
-                "flask.handle_user_exception",
-                "flask.handle_exception",
-                "flask.process_response",
-                "flask.do_teardown_request",
-                "flask.do_teardown_appcontext",
-            ],
-            [s.name for s in spans],
-        )
+        assert span_names == [s.name for s in spans]
 
         # Assert span services
         for span in spans:
@@ -810,7 +834,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 },
             )
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         span = traces[0][0]
         assert span.get_tag("http.request.headers.my-header") == "my_value"
@@ -826,17 +850,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         with self.override_http_config("flask", dict(trace_headers=["my-response-header"])):
             self.client.get("/response_headers")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
 
         span = traces[0][0]
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
-
-    def test_extra_error_codes(self):
-        with self.override_config("flask", dict(extra_error_codes=[404])):
-            res = self.client.get("/not-found")
-            self.assertEqual(res.status_code, 404)
-
-        spans = self.get_spans()
-        req_span = spans[0]
-        assert_span_http_status_code(req_span, 404)
-        self.assertEqual(req_span.error, 1)

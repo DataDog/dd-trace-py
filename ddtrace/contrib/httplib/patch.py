@@ -1,19 +1,23 @@
 import sys
 
-# Third party
-from ddtrace.vendor import wrapt, six
+import six
 
-# Project
-from ...compat import PY2, httplib, parse
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
+from .. import trace_utils
+from ...compat import PY2
+from ...compat import httplib
+from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...settings import config
-from ...utils.formats import asbool, get_env
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
-from .. import trace_utils
+
 
 span_name = "httplib.request" if PY2 else "http.client.request"
 
@@ -78,8 +82,7 @@ def _wrap_request(func, instance, args, kwargs):
                 headers = args[3]
             else:
                 headers = kwargs.setdefault("headers", {})
-            propagator = HTTPPropagator()
-            propagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers)
     except Exception:
         log.debug("error configuring request", exc_info=True)
         span = getattr(instance, "_datadog_span", None)
@@ -162,8 +165,10 @@ def should_skip_request(pin, request):
     if not pin or not pin.enabled():
         return True
 
-    writer = pin.tracer.writer
-    return request.host == writer._hostname and request.port == writer._port
+    if hasattr(pin.tracer.writer, "agent_url"):
+        parsed = parse.urlparse(pin.tracer.writer.agent_url)
+        return request.host == parsed.hostname and request.port == parsed.port
+    return False
 
 
 def patch():

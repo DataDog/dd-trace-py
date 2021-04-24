@@ -1,13 +1,16 @@
 import asyncio
-from ddtrace.vendor import wrapt
 
 from aiopg.utils import _ContextManager
 
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
 from .. import dbapi
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, sql
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import sql
 from ...pin import Pin
-from ...settings import config
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):

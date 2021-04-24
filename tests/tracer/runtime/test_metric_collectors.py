@@ -1,15 +1,10 @@
-from ddtrace.internal.runtime.metric_collectors import (
-    RuntimeMetricCollector,
-    GCRuntimeMetricCollector,
-    PSUtilRuntimeMetricCollector,
-)
-
-from ddtrace.internal.runtime.constants import (
-    GC_COUNT_GEN0,
-    GC_RUNTIME_METRICS,
-    PSUTIL_RUNTIME_METRICS,
-)
-from tests import BaseTestCase
+from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
+from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS
+from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
+from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
+from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
+from tests.utils import BaseTestCase
 
 
 class TestRuntimeMetricCollector(BaseTestCase):

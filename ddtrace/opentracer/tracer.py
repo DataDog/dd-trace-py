@@ -3,18 +3,20 @@ from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
-from ddtrace import Tracer as DatadogTracer, Span as DatadogSpan
+from ddtrace import Span as DatadogSpan
+from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
-from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
 
 from ..internal.logger import get_logger
 from .propagation import HTTPPropagator
+from .settings import ConfigKeys as keys
+from .settings import config_invalid_keys
 from .span import Span
 from .span_context import SpanContext
-from .settings import ConfigKeys as keys, config_invalid_keys
 from .utils import get_context_provider_for_scope_manager
+
 
 log = get_logger(__name__)
 
@@ -56,9 +58,9 @@ class Tracer(opentracing.Tracer):
             to the global ``ddtrace.tracer`` tracer.
         """
         # Merge the given config with the default into a new dict
-        config = config or {}
-        self._config = merge_dicts(DEFAULT_CONFIG, config)
-
+        self._config = DEFAULT_CONFIG.copy()
+        if config is not None:
+            self._config.update(config)
         # Pull out commonly used properties for performance
         self._service_name = service_name or get_application_name()
         self._enabled = self._config.get(keys.ENABLED)
@@ -96,8 +98,8 @@ class Tracer(opentracing.Tracer):
             context_provider=dd_context_provider,
         )
         self._propagators = {
-            Format.HTTP_HEADERS: HTTPPropagator(),
-            Format.TEXT_MAP: HTTPPropagator(),
+            Format.HTTP_HEADERS: HTTPPropagator,
+            Format.TEXT_MAP: HTTPPropagator,
         }
 
     @property

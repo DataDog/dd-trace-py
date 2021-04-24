@@ -1,17 +1,21 @@
 import asyncio
 
 from aiohttp.test_utils import unittest_run_loop
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
 
-from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware, CONFIG_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
+from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
-
-from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_span_http_status_code
+
+from .app.web import noop_middleware
+from .app.web import setup_app
 from .utils import TraceTestCase
-from .app.web import setup_app, noop_middleware
-from ... import assert_span_http_status_code
 
 
 class TestTraceMiddleware(TraceTestCase):
@@ -33,7 +37,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "What's tracing?" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -59,7 +63,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "Hello team" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -106,7 +110,7 @@ class TestTraceMiddleware(TraceTestCase):
         request = yield from self.client.request("GET", "/404/not_found")
         assert 404 == request.status
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -125,7 +129,7 @@ class TestTraceMiddleware(TraceTestCase):
         """
         request = yield from self.client.request("GET", "/uncaught_server_error")
         assert request.status == 500
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -142,7 +146,7 @@ class TestTraceMiddleware(TraceTestCase):
         """
         request = yield from self.client.request("GET", "/caught_server_error")
         assert request.status == 503
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -159,7 +163,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 3 == len(traces[0])
         root = traces[0][0]
@@ -189,7 +193,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "Static file\n" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -225,7 +229,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 500 == request.status
         yield from request.text()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 1 == len(spans)
@@ -242,7 +246,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 500 == request.status
         yield from request.text()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 1 == len(spans)
@@ -260,7 +264,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         spans = traces[0]
         assert 2 == len(spans)
@@ -284,7 +288,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "What's tracing?" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -309,7 +313,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "What's tracing?" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -334,7 +338,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "What's tracing?" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -358,7 +362,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "What's tracing?" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         span = traces[0][0]
@@ -383,7 +387,7 @@ class TestTraceMiddleware(TraceTestCase):
         text = yield from request.text()
         assert "OK" == text
         # the trace is created
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         span, sub_span = traces[0][0], traces[0][1]
@@ -435,7 +439,7 @@ class TestTraceMiddleware(TraceTestCase):
             text = yield from request.text()
 
         assert "What's tracing?" == text
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self._assert_200_parenting(traces)
 
     @unittest_run_loop
@@ -450,7 +454,7 @@ class TestTraceMiddleware(TraceTestCase):
             text = yield from request.text()
 
         assert "What's tracing?" == text
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         self._assert_200_parenting(traces)
 
     @unittest_run_loop

@@ -1,6 +1,8 @@
 import asyncio
+import sys
 
-from ddtrace.contrib.asyncio.patch import patch, unpatch
+from ddtrace.contrib.asyncio.patch import patch
+from ddtrace.contrib.asyncio.patch import unpatch
 from ddtrace.vendor import wrapt
 
 from .utils import AsyncioTestCase
@@ -35,7 +37,8 @@ class TestAsyncioPatch(AsyncioTestCase):
     def test_new_loop(self):
         patch()
         loop = asyncio.new_event_loop()
-        self.assertIsInstance(loop.create_task, wrapt.ObjectProxy)
+        if sys.version_info < (3, 7, 0):
+            self.assertIsInstance(loop.create_task, wrapt.ObjectProxy)
 
     def test_after_set_event_loop(self):
         loop = asyncio.new_event_loop()

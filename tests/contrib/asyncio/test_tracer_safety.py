@@ -5,7 +5,9 @@ import pytest
 from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
 from ddtrace.provider import DefaultContextProvider
-from .utils import AsyncioTestCase, mark_asyncio
+
+from .utils import AsyncioTestCase
+from .utils import mark_asyncio
 
 
 @pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="No configuration is necessary when contextvars available.")
@@ -42,7 +44,7 @@ class TestAsyncioSafety(AsyncioTestCase):
         with self.tracer.trace("coroutine") as span:
             span.resource = "base"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         assert "coroutine" == traces[0][0].name
@@ -60,10 +62,7 @@ class TestAsyncioSafety(AsyncioTestCase):
         for future in futures:
             yield from future
 
-        traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 2
-        assert len(traces[0]) == 500
-        assert len(traces[1]) == 500
-        for s in traces[0] + traces[1]:
-            assert s.name == "coroutine"
-            assert s.finished
+        # the trace is wrong but the Context is finished
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1000 == len(traces[0])

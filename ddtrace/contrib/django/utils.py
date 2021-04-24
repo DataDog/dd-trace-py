@@ -1,7 +1,8 @@
 from django.utils.functional import SimpleLazyObject
+from six import ensure_text
 
-from ...compat import PY3, binary_type, parse, to_unicode
 from ...internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
@@ -11,7 +12,7 @@ def resource_from_cache_prefix(resource, cache):
     Combine the resource name with the cache prefix (if any)
     """
     if getattr(cache, "key_prefix", None):
-        name = "{} {}".format(resource, cache.key_prefix)
+        name = " ".join((resource, cache.key_prefix))
     else:
         name = resource
 
@@ -55,10 +56,12 @@ def set_tag_array(span, prefix, value):
         return
 
     if len(value) == 1:
-        span.set_tag(prefix, value[0])
+        if value[0]:
+            span._set_str_tag(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
-            span.set_tag("{0}.{1}".format(prefix, i), v)
+            if v:
+                span._set_str_tag("".join((prefix, ".", str(i))), v)
 
 
 def get_request_uri(request):
@@ -81,7 +84,7 @@ def get_request_uri(request):
                 host = request.META["SERVER_NAME"]
                 port = str(request.META["SERVER_PORT"])
                 if port != ("443" if request.is_secure() else "80"):
-                    host = "{0}:{1}".format(host, port)
+                    host = "".join((host, ":", port))
         except Exception:
             # This really shouldn't ever happen, but lets guard here just in case
             log.debug("Failed to build Django request host", exc_info=True)
@@ -94,7 +97,7 @@ def get_request_uri(request):
 
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+    urlparts = {"scheme": request.scheme, "netloc": host, "path": request.path}
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
@@ -113,18 +116,6 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = v
+        urlparts[k] = ensure_text(v)
 
-    # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
-    # type of the scheme to check the type to expect from all url parts, raising
-    # a TypeError otherwise. If the scheme is not a str, the function returns
-    # the url parts bytes decoded along with a function to encode the result of
-    # combining the url parts. We returns a byte string when all url parts are
-    # byte strings.
-    # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
-    if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
-        for (key, value) in urlparts.items():
-            if value is not None and isinstance(value, binary_type):
-                urlparts[key] = to_unicode(value)
-
-    return parse.urlunparse(parse.ParseResult(**urlparts))
+    return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
