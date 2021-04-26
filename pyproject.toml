@@ -52,6 +52,7 @@ exclude = '''
     | profiling/exporter/pprof_pb2.py$
     | vendor/
   )
+  | public_api/
   | tests/
   (
     contrib/

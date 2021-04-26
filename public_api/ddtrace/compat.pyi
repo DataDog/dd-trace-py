@@ -1,5 +1,5 @@
 import random
-from typing import Any
+from typing import Any, Union
 
 PY2: Any
 StringIO: Any
@@ -10,4 +10,5 @@ Queue: Any
 iteritems: Any
 reraise: Any
 stringify: Any
+NumericType = Union[int, float]
 getrandbits = random.getrandbits
