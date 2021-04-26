@@ -640,9 +640,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^mysql_contrib-.*-mysqlconnector'
+          pattern: 'mysql'
 
   mysqlpython:
     <<: *contrib_job
