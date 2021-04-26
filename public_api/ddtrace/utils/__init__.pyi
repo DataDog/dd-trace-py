@@ -1,0 +1,9 @@
+import Any
+from typing import Optional
+
+class removed_classproperty(property):
+    def __get__(self, cls: Any, owner: Any): ...
+
+class ArgumentError(Exception): ...
+
+def get_argument_value(args: builtins.list[Any], kwargs: builtins.dict[builtins.str, Any], pos: builtins.int, kw: builtins.str) -> Optional[Any]: ...

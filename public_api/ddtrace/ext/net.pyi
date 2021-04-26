@@ -1,0 +1,3 @@
+TARGET_HOST: str
+TARGET_PORT: str
+BYTES_OUT: str

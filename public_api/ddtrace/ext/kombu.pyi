@@ -1,0 +1,10 @@
+from typing import Any
+
+TYPE: Any
+SERVICE: str
+VHOST: str
+EXCHANGE: str
+BODY_LEN: str
+ROUTING_KEY: str
+PUBLISH_NAME: str
+RECEIVE_NAME: str

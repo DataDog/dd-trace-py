@@ -1,0 +1,3 @@
+import typing
+
+def get_application_name() -> typing.Optional[str]: ...

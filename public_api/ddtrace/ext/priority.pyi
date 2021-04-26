@@ -1,0 +1,4 @@
+USER_REJECT: int
+AUTO_REJECT: int
+AUTO_KEEP: int
+USER_KEEP: int

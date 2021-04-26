@@ -1,0 +1,9 @@
+import Any
+
+class ExportError(Exception): ...
+
+class Exporter:
+    def export(self, events: Any, start_time_ns: Any, end_time_ns: Any) -> None: ...
+
+class NullExporter(Exporter):
+    def export(self, events: Any, start_time_ns: Any, end_time_ns: Any) -> None: ...

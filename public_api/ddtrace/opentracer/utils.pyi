@@ -1,0 +1,3 @@
+from typing import Any
+
+def get_context_provider_for_scope_manager(scope_manager: Any): ...

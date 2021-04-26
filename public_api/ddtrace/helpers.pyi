@@ -1,0 +1,3 @@
+from typing import Optional, Tuple
+
+def get_correlation_ids(tracer: Union[ddtrace.tracer.Tracer, None]=...) -> Tuple[Optional[int], Optional[int]]: ...

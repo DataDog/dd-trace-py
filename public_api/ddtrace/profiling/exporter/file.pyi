@@ -1,0 +1,6 @@
+import Any
+from ddtrace.profiling.exporter import pprof
+
+class PprofFileExporter(pprof.PprofExporter):
+    prefix: Any = ...
+    def export(self, events: Any, start_time_ns: Any, end_time_ns: Any) -> None: ...

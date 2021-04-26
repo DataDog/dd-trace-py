@@ -1,0 +1,3 @@
+from typing import Any
+
+def set_global_tracer(tracer: Any) -> None: ...

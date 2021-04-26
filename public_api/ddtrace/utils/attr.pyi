@@ -1,0 +1,3 @@
+from typing import Any
+
+def from_env(name: Any, default: Any, value_type: Any): ...

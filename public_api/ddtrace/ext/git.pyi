@@ -1,0 +1,4 @@
+BRANCH: str
+COMMIT_SHA: str
+REPOSITORY_URL: str
+TAG: str

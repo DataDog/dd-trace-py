@@ -1,0 +1,6 @@
+import Any
+
+class MsgpackEncoder:
+    content_type: str
+    def encode_trace(self, trace: builtins.list[Any]) -> bytes: ...
+    def join_encoded(self, objs: builtins.list[builtins.bytes]) -> bytes: ...
