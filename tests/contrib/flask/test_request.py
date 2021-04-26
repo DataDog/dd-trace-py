@@ -9,10 +9,10 @@ from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
 
 
 base_exception_name = "builtins.Exception"

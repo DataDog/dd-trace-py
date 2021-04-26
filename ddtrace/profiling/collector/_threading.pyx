@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import threading
 
 from ddtrace.internal import nogevent
-from ddtrace.profiling import _periodic
 
 
 cpdef get_thread_name(thread_id):

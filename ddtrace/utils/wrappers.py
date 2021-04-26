@@ -1,11 +1,24 @@
 import inspect
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import TypeVar
 
 from ddtrace.vendor import wrapt
 
 from .deprecation import deprecated
 
 
+if TYPE_CHECKING:
+    import ddtrace
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
 def iswrapped(obj, attr=None):
+    # type: (Any, Optional[str]) -> bool
     """Returns whether an attribute is wrapped or not."""
     if attr is not None:
         obj = getattr(obj, attr, None)
@@ -13,13 +26,22 @@ def iswrapped(obj, attr=None):
 
 
 def unwrap(obj, attr):
+    # type: (Any, str) -> None
     f = getattr(obj, attr, None)
     if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, "__wrapped__"):
         setattr(obj, attr, f.__wrapped__)
 
 
 @deprecated("`wrapt` library is used instead", version="1.0.0")
-def safe_patch(patchable, key, patch_func, service, meta, tracer):
+def safe_patch(
+    patchable,  # type: Any
+    key,  # type: str
+    patch_func,  # type: Callable[[F, str, dict, ddtrace.Tracer], F]
+    service,  # type: str
+    meta,  # type: dict
+    tracer,  # type: ddtrace.Tracer
+):
+    # type: (...) -> None
     """takes patch_func (signature: takes the orig_method that is
     wrapped in the monkey patch == UNBOUND + service and meta) and
     attach the patched result to patchable at patchable.key
@@ -67,4 +89,4 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
     if inspect.isclass(patchable) or inspect.ismodule(patchable):
         setattr(patchable, key, dest)
     elif hasattr(patchable, "__class__"):
-        setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
+        setattr(patchable, key, dest.__get__(patchable, patchable.__class__))  # type: ignore[attr-defined]

@@ -3,9 +3,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
-
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 
 class FalconTestCase(object):
@@ -268,7 +267,9 @@ class FalconTestCase(object):
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
+        writer = self.tracer.writer
         ot_tracer = init_tracer("my_svc", self.tracer)
+        ot_tracer._dd_tracer.configure(writer=writer)
 
         if self.version[0] == "1":
             with ot_tracer.start_active_span("ot_span"):

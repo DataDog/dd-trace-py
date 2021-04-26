@@ -8,9 +8,9 @@ from ddtrace.contrib.pymemcache.patch import patch
 from ddtrace.contrib.pymemcache.patch import unpatch
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
 
-from ... import DummyTracer
-from ... import TracerTestCase
 from .utils import MockSocket
 
 

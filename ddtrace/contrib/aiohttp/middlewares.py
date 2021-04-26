@@ -8,7 +8,6 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
-from ...propagation.http import HTTPPropagator
 from ..asyncio import context_provider
 
 
@@ -35,13 +34,13 @@ def trace_middleware(app, handler):
         tracer = app[CONFIG_KEY]["tracer"]
         service = app[CONFIG_KEY]["service"]
         distributed_tracing = app[CONFIG_KEY]["distributed_tracing_enabled"]
-
         # Create a new context based on the propagated information.
-        if distributed_tracing:
-            context = HTTPPropagator.extract(request.headers)
-            # Only need to active the new context if something was propagated
-            if context.trace_id:
-                tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            tracer,
+            int_config=config.aiohttp,
+            request_headers=request.headers,
+            override=distributed_tracing,
+        )
 
         # trace the handler
         request_span = tracer.trace(
@@ -141,7 +140,7 @@ def trace_app(app, tracer, service="aiohttp-web"):
     app[CONFIG_KEY] = {
         "tracer": tracer,
         "service": config._get_service(default=service),
-        "distributed_tracing_enabled": True,
+        "distributed_tracing_enabled": None,
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,
     }

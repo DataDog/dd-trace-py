@@ -6,9 +6,8 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.django import patch
-
-from ... import DummyTracer
-from ... import TracerSpanContainer
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 
 # We manually designate which settings we will be using in an environment variable

@@ -1,8 +1,8 @@
 from requests_mock import Adapter
 
 from ddtrace import config
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from .test_requests import BaseRequestTestCase
 
 

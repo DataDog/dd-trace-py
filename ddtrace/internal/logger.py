@@ -1,12 +1,16 @@
 import collections
 import logging
 import os
+from typing import Any
+from typing import DefaultDict
+from typing import Tuple
 
 from ..utils.deprecation import deprecation
 from ..utils.formats import get_env
 
 
 def get_logger(name):
+    # type: (str) -> DDLogger
     """
     Retrieve or create a ``DDLogger`` instance.
 
@@ -28,7 +32,7 @@ def get_logger(name):
     """
     # DEV: `logging.Logger.manager` refers to the single root `logging.Manager` instance
     #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1824-L1826  # noqa
-    manager = logging.Logger.manager
+    manager = logging.Logger.manager  # type: ignore[attr-defined]
 
     # If the logger does not exist yet, create it
     # DEV: `Manager.loggerDict` is a dict mapping logger name to logger
@@ -53,6 +57,7 @@ def get_logger(name):
 
 
 def hasHandlers(self):
+    # type: (DDLogger) -> bool
     """
     See if this logger has any handlers configured.
     Loop through all handlers for this logger and its parents in the
@@ -72,7 +77,7 @@ def hasHandlers(self):
         if not c.propagate:
             break
         else:
-            c = c.parent
+            c = c.parent  # type: ignore
     return rv
 
 
@@ -90,11 +95,14 @@ class DDLogger(logging.Logger):
     LoggingBucket = collections.namedtuple("LoggingBucket", ("bucket", "skipped"))
 
     def __init__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         """Constructor for ``DDLogger``"""
         super(DDLogger, self).__init__(*args, **kwargs)
 
         # Dict to keep track of the current time bucket per name/level/pathname/lineno
-        self.buckets = collections.defaultdict(lambda: DDLogger.LoggingBucket(0, 0))
+        self.buckets = collections.defaultdict(
+            lambda: DDLogger.LoggingBucket(0, 0)
+        )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
 
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
         # Allow configuring via `DD_TRACE_LOGGING_RATE`
@@ -102,7 +110,7 @@ class DDLogger(logging.Logger):
         rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
         if rate_limit is None:
             # DEV: If not set, look at the deprecated (DD/DATADOG)_LOGGING_RATE_LIMIT
-            rate_limit = get_env("logging", "rate_limit", default=None)
+            rate_limit = get_env("logging", "rate_limit")
             if rate_limit is not None:
                 deprecation(
                     name="DD_LOGGING_RATE_LIMIT",
@@ -116,6 +124,7 @@ class DDLogger(logging.Logger):
             self.rate_limit = 60
 
     def handle(self, record):
+        # type: (logging.LogRecord) -> None
         """
         Function used to call the handlers for a log line.
 
@@ -153,7 +162,7 @@ class DDLogger(logging.Logger):
             # Append count of skipped messages if we have skipped some since our last logging
             if logging_bucket.skipped:
                 record.msg = "{}, %s additional messages skipped".format(record.msg)
-                record.args = record.args + (logging_bucket.skipped,)
+                record.args = record.args + (logging_bucket.skipped,)  # type: ignore
 
             # Reset our bucket
             self.buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)

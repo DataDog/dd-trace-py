@@ -4,10 +4,9 @@ import flask
 from ddtrace import Pin
 from ddtrace.ext import http
 from ddtrace.vendor import wrapt
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 
 class FlaskAutopatchTestCase(TracerTestCase):

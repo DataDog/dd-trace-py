@@ -1,5 +1,7 @@
 import logging
 
+import six
+
 import ddtrace
 from ddtrace.compat import StringIO
 from ddtrace.constants import ENV_KEY
@@ -8,10 +10,8 @@ from ddtrace.contrib.logging import patch
 from ddtrace.contrib.logging import unpatch
 from ddtrace.contrib.logging.patch import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
-from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 logger = logging.getLogger()
@@ -101,8 +101,10 @@ class LoggingTestCase(TracerTestCase):
                 trace_id = span.trace_id
                 span_id = span.span_id
 
-            assert output == "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
-                service, version, env, trace_id, span_id
+            assert output.startswith(
+                "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
+                    service, version, env, trace_id, span_id
+                )
             )
 
             # without format string

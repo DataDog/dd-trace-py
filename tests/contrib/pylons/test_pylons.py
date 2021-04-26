@@ -12,10 +12,10 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from tests import TracerTestCase
-from tests import assert_is_measured
-from tests import assert_span_http_status_code
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 
 class PylonsTestCase(TracerTestCase):
@@ -372,7 +372,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag("error.msg") == "Ouch!"
 
     def test_distributed_tracing_default(self):
-        # ensure by default, distributed tracing is not enabled
+        # ensure by default, distributed tracing is enabled
         headers = {
             "x-datadog-trace-id": "100",
             "x-datadog-parent-id": "42",
@@ -390,10 +390,28 @@ class PylonsTestCase(TracerTestCase):
         assert span.parent_id == 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
-    def test_distributed_tracing_disabled(self):
-        # ensure distributed tracing propagator is working
-        middleware = self.app.app
-        middleware._distributed_tracing = False
+    def test_distributed_tracing_disabled_via_int_config(self):
+        config.pylons["distributed_tracing"] = False
+        headers = {
+            "x-datadog-trace-id": "100",
+            "x-datadog-parent-id": "42",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        res = self.app.get(url_for(controller="root", action="index"), headers=headers)
+        assert res.status == 200
+
+        spans = self.pop_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert span.trace_id != 100
+        assert span.parent_id != 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYLONS_DISTRIBUTED_TRACING="False"))
+    def test_distributed_tracing_disabled_via_env_var(self):
         headers = {
             "x-datadog-trace-id": "100",
             "x-datadog-parent-id": "42",

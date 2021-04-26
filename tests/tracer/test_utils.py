@@ -9,6 +9,8 @@ import pytest
 from ddtrace.utils import ArgumentError
 from ddtrace.utils import get_argument_value
 from ddtrace.utils import time
+from ddtrace.utils.cache import cached
+from ddtrace.utils.cache import cachedmethod
 from ddtrace.utils.deprecation import deprecated
 from ddtrace.utils.deprecation import deprecation
 from ddtrace.utils.deprecation import format_message
@@ -104,60 +106,111 @@ class TestUtils(unittest.TestCase):
             self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
             self.assertIn("decorator", str(w[-1].message))
 
-    def test_parse_env_tags(self):
-        tags = parse_tags_str("key:val")
-        assert tags == dict(key="val")
 
-        tags = parse_tags_str("key:val,key2:val2")
-        assert tags == dict(key="val", key2="val2")
+_LOG_ERROR_MALFORMED_TAG = "Malformed tag in tag pair '%s' from tag string '%s'."
+_LOG_ERROR_MALFORMED_TAG_STRING = "Malformed tag string with tags not separated by comma or space '%s'."
+_LOG_ERROR_FAIL_SEPARATOR = (
+    "Failed to find separator for tag string: '%s'.\n"
+    "Tag strings must be comma or space separated:\n"
+    "  key1:value1,key2:value2\n"
+    "  key1:value1 key2:value2"
+)
 
-        tags = parse_tags_str("key:val,key2:val2,key3:1234.23")
-        assert tags == dict(key="val", key2="val2", key3="1234.23")
 
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str("key:,key3:val1,")
-        assert tags == dict(key3="val1")
-        assert log.error.call_count == 2
-
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str("")
-        assert tags == dict()
-        assert log.error.call_count == 0
-
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str(",")
-        assert tags == dict()
-        assert log.error.call_count == 2
-
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str(":,:")
-        assert tags == dict()
-        assert log.error.call_count == 2
-
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str("key,key2:val1")
-        assert tags == dict(key2="val1")
-        log.error.assert_called_once_with(
-            "Malformed tag in tag pair '%s' from tag string '%s'.", "key", "key,key2:val1"
-        )
-
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str("key2:val1:")
-        assert tags == dict()
-        log.error.assert_called_once_with(
-            "Malformed tag in tag pair '%s' from tag string '%s'.", "key2:val1:", "key2:val1:"
-        )
-
-        with mock.patch("ddtrace.utils.formats.log") as log:
-            tags = parse_tags_str("key,key2,key3")
-        assert tags == dict()
-        log.error.assert_has_calls(
+@pytest.mark.parametrize(
+    "tag_str,expected_tags,error_calls",
+    [
+        ("", dict(), None),
+        ("key:val", dict(key="val"), None),
+        ("key:val,key2:val2", dict(key="val", key2="val2"), None),
+        ("key:val,key2:val2,key3:1234.23", dict(key="val", key2="val2", key3="1234.23"), None),
+        ("key:val key2:val2 key3:1234.23", dict(key="val", key2="val2", key3="1234.23"), None),
+        ("key: val", dict(key=" val"), None),
+        ("key key: val", {"key key": " val"}, None),
+        ("key: val,key2:val2", dict(key=" val", key2="val2"), None),
+        (" key: val,key2:val2", {" key": " val", "key2": "val2"}, None),
+        ("key key2:val1", {"key key2": "val1"}, None),
+        (
+            "key:val key2:val:2",
+            dict(),
+            [mock.call(_LOG_ERROR_MALFORMED_TAG_STRING, "key:val key2:val:2")],
+        ),
+        (
+            "key:val,key2:val2 key3:1234.23",
+            dict(),
+            [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "key:val,key2:val2 key3:1234.23")],
+        ),
+        (
+            "key:val key2:val2 key3: ",
+            dict(key="val", key2="val2"),
             [
-                mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key", "key,key2,key3"),
-                mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key2", "key,key2,key3"),
-                mock.call("Malformed tag in tag pair '%s' from tag string '%s'.", "key3", "key,key2,key3"),
-            ]
-        )
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "key3:", "key:val key2:val2 key3: "),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "", "key:val key2:val2 key3: "),
+            ],
+        ),
+        (
+            "key:val key2:val 2",
+            dict(key="val", key2="val"),
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "2", "key:val key2:val 2")],
+        ),
+        (
+            "key: val key2:val2 key3:val3",
+            {"key2": "val2", "key3": "val3"},
+            [
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key: val key2:val2 key3:val3"),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "val", "key: val key2:val2 key3:val3"),
+            ],
+        ),
+        (
+            "key:,key3:val1,",
+            dict(key3="val1"),
+            [
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key:,key3:val1,"),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "", "key:,key3:val1,"),
+            ],
+        ),
+        (
+            ",",
+            dict(),
+            [
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "", ","),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "", ","),
+            ],
+        ),
+        (
+            ":,:",
+            dict(),
+            [
+                mock.call(_LOG_ERROR_MALFORMED_TAG, ":", ":,:"),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, ":", ":,:"),
+            ],
+        ),
+        (
+            "key,key2:val1",
+            dict(key2="val1"),
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key", "key,key2:val1")],
+        ),
+        ("key2:val1:", dict(), [mock.call(_LOG_ERROR_MALFORMED_TAG_STRING, "key2:val1:")]),
+        (
+            "key,key2,key3",
+            dict(),
+            [
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "key", "key,key2,key3"),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "key2", "key,key2,key3"),
+                mock.call(_LOG_ERROR_MALFORMED_TAG, "key3", "key,key2,key3"),
+            ],
+        ),
+    ],
+)
+def test_parse_env_tags(tag_str, expected_tags, error_calls):
+    with mock.patch("ddtrace.utils.formats.log") as log:
+        tags = parse_tags_str(tag_str)
+        assert tags == expected_tags
+        if error_calls:
+            assert log.error.call_count == len(error_calls)
+            log.error.assert_has_calls(error_calls)
+        else:
+            assert log.error.call_count == 0
 
 
 def test_no_states():
@@ -292,3 +345,65 @@ def test_infer_arg_value_miss(args, kwargs, pos, kw):
     with pytest.raises(ArgumentError) as e:
         get_argument_value(args, kwargs, pos, kw)
         assert e.value == "%s (at position %d)" % (kw, pos)
+
+
+def cached_test_recipe(expensive, cheap, witness, cache_size):
+    assert cheap("Foo") == expensive("Foo")
+    assert cheap("Foo") == expensive("Foo")
+
+    witness.assert_called_with("Foo")
+    assert witness.call_count == 1
+
+    cheap.invalidate()
+
+    for i in range(cache_size >> 1):
+        cheap("Foo%d" % i)
+
+    assert witness.call_count == 1 + (cache_size >> 1)
+
+    for i in range(cache_size):
+        cheap("Foo%d" % i)
+
+    assert witness.call_count == 1 + cache_size
+
+    MAX_FOO = "Foo%d" % (cache_size - 1)
+
+    cheap("last drop")  # Forces least frequent elements out of the cache
+    assert witness.call_count == 2 + cache_size
+
+    cheap(MAX_FOO)  # Check MAX_FOO was dropped
+    assert witness.call_count == 3 + cache_size
+
+    cheap("last drop")  # Check last drop was retained
+    assert witness.call_count == 3 + cache_size
+
+
+def test_cached():
+    witness = mock.Mock()
+    cache_size = 128
+
+    def expensive(key):
+        return key[::-1].lower()
+
+    @cached(cache_size)
+    def cheap(key):
+        witness(key)
+        return expensive(key)
+
+    cached_test_recipe(expensive, cheap, witness, cache_size)
+
+
+def test_cachedmethod():
+    witness = mock.Mock()
+    cache_size = 128
+
+    def expensive(key):
+        return key[::-1].lower()
+
+    class Foo(object):
+        @cachedmethod(cache_size)
+        def cheap(self, key):
+            witness(key)
+            return expensive(key)
+
+    cached_test_recipe(expensive, Foo().cheap, witness, cache_size)

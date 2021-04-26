@@ -7,23 +7,28 @@ import threading
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import TextIO
+
+import six
 
 import ddtrace
-from ddtrace.vendor import six
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
-from .. import _worker
+from . import periodic
+from . import service
 from .. import compat
 from ..compat import httplib
 from ..constants import KEEP_SPANS_RATE_KEY
-from ..encoding import Encoder
-from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
+from ..sampler import BaseSampler
 from ..utils.time import StopWatch
 from .agent import get_connection
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
+from .encoding import Encoder
+from .encoding import JSONEncoderV2
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
@@ -135,13 +140,19 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def write(self, trace):
+    def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
         pass
 
 
 class LogWriter(TraceWriter):
-    def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
+    def __init__(
+        self,
+        out=sys.stdout,  # type: TextIO
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+    ):
+        # type: (...) -> None
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self.encoder = JSONEncoderV2()
@@ -161,7 +172,7 @@ class LogWriter(TraceWriter):
         # type: (Optional[float]) -> None
         return
 
-    def write(self, spans):
+    def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
         if not spans:
             return
@@ -171,7 +182,7 @@ class LogWriter(TraceWriter):
         self.out.flush()
 
 
-class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
+class AgentWriter(periodic.PeriodicService, TraceWriter):
     """Writer to the Datadog Agent.
 
     The Datadog Agent supports (at the time of writing this) receiving trace
@@ -182,19 +193,21 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
 
     def __init__(
         self,
-        agent_url,
-        sampler=None,
-        priority_sampler=None,
-        processing_interval=1,
+        agent_url,  # type: str
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+        processing_interval=1.0,  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=8 * 1000000,
-        max_payload_size=8 * 1000000,
-        timeout=agent.DEFAULT_TIMEOUT,
-        dogstatsd=None,
-        report_metrics=False,
+        buffer_size=8 * 1000000,  # type: int
+        max_payload_size=8 * 1000000,  # type: int
+        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        dogstatsd=None,  # type: Optional[DogStatsd]
+        report_metrics=False,  # type: bool
+        sync_mode=False,  # type: bool
     ):
-        super(AgentWriter, self).__init__(interval=processing_interval, name=self.__class__.__name__)
+        # type: (...) -> None
+        super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
@@ -230,6 +243,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         self._report_metrics = report_metrics
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._sync_mode = sync_mode
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -263,6 +277,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
         writer = self.__class__(
             agent_url=self.agent_url,
             priority_sampler=self._priority_sampler,
+            sync_mode=self._sync_mode,
         )
         writer._encoder = self._encoder
         writer._headers = self._headers
@@ -281,7 +296,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self.agent_url)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
@@ -311,9 +326,10 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 payload = self._downgrade(payload, response)
             except ValueError:
                 log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent",
+                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
                     self._endpoint,
                     response.status,
+                    self.agent_url,
                 )
             else:
                 return self._send_payload(payload, count)
@@ -341,15 +357,19 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
 
-    def write(self, spans):
-        # type: (List[Span]) -> None
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
         # Start the AgentWriter on first write.
         # Starting it earlier might be an issue with gevent, see:
         # https://github.com/DataDog/dd-trace-py/issues/1192
-        if self.started is False:
-            with self._started_lock:
-                if self.started is False:
-                    self.start()
+        if spans is None:
+            return
+
+        if self._sync_mode is False:
+            try:
+                self.start()
+            except service.ServiceAlreadyRunning:
+                pass
 
         self._metrics_dist("writer.accepted.traces")
         self._set_keep_rate(spans)
@@ -383,8 +403,11 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
             else:
                 self._metrics_dist("buffer.accepted.traces", 1)
                 self._metrics_dist("buffer.accepted.spans", len(spans))
+                if self._sync_mode:
+                    self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
+        # type: (bool) -> None
         enc_traces = self._buffer.get()
         try:
             if not enc_traces:
@@ -402,7 +425,7 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:
-                if self._report_metrics:
+                if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
@@ -415,13 +438,13 @@ class AgentWriter(_worker.PeriodicWorkerThread, TraceWriter):
             self._set_drop_rate()
             self._metrics_reset()
 
-    def run_periodic(self):
+    def periodic(self):
         self.flush_queue(raise_exc=False)
 
     def stop(self, timeout=None):
         # type: (Optional[float]) -> None
-        if self.is_alive():
-            super(AgentWriter, self).stop()
-            self.join(timeout=timeout)
+        # FIXME: don't join() on stop(), let the caller handle this
+        super(AgentWriter, self).stop()
+        self.join(timeout=timeout)
 
-    on_shutdown = run_periodic
+    on_shutdown = periodic

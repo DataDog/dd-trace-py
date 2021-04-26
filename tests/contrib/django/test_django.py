@@ -13,6 +13,7 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
+from six import ensure_text
 
 from ddtrace import config
 from ddtrace.compat import binary_type
@@ -29,12 +30,12 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.vendor import wrapt
-from tests import assert_dict_issuperset
-from tests import override_config
-from tests import override_env
-from tests import override_global_config
-from tests import override_http_config
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_dict_issuperset
+from tests.utils import override_config
+from tests.utils import override_env
+from tests.utils import override_global_config
+from tests.utils import override_http_config
 
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
@@ -1577,6 +1578,9 @@ class _HttpRequest(django.http.HttpRequest):
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
+    def eval_lazy(lo):
+        return str(lo) if issubclass(lo.__class__, str) else bytes(lo)
+
     request = request_cls()
     request.path = request_path
     request.META = {"HTTP_HOST": http_host}
@@ -1592,6 +1596,9 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
             and isinstance(http_host, binary_type)
             and isinstance(request_uri, binary_type)
         ) or isinstance(request_uri, string_type)
+
+        host = ensure_text(eval_lazy(http_host)) if isinstance(http_host, SimpleLazyObject) else http_host
+        assert request_uri == "".join(map(ensure_text, (request.scheme, "://", host, request_path)))
 
 
 @pytest.fixture()

@@ -18,6 +18,7 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
 from ddtrace.utils.formats import asbool  # noqa
@@ -79,6 +80,9 @@ try:
     if profiling:
         import ddtrace.profiling.auto  # noqa: F401
 
+    if asbool(get_env("runtime_metrics", "enabled")):
+        RuntimeWorker.enable()
+
     opts = {}
 
     if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
@@ -94,6 +98,7 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
+    # FIXME: Remove as part of the deprecation of collect_metrics
     opts["collect_metrics"] = asbool(get_env("runtime_metrics", "enabled"))
 
     if opts:

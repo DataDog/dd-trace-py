@@ -3,6 +3,7 @@ import collections
 import grpc
 
 from ddtrace import config
+from ddtrace.compat import stringify
 from ddtrace.compat import to_unicode
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
@@ -11,6 +12,7 @@ from ddtrace.vendor import wrapt
 from . import constants
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .utils import parse_method_path
@@ -68,7 +70,10 @@ def _future_done_callback(span):
 
 
 def _handle_response(span, response):
-    if isinstance(response, grpc.Future):
+    # use duck-typing to support future-like response as in the case of
+    # google-api-core which has its own future base class
+    # https://github.com/googleapis/python-api-core/blob/49c6755a21215bbb457b60db91bab098185b77da/google/api_core/future/base.py#L23
+    if hasattr(response, "add_done_callback"):
         response.add_done_callback(_future_done_callback(span))
 
 
@@ -102,7 +107,7 @@ def _handle_error(span, response_error, status_code):
             exc_val = to_unicode(response_error.details())
             span._set_str_tag(errors.ERROR_MSG, exc_val)
             span._set_str_tag(errors.ERROR_TYPE, status_code)
-            span._set_str_tag(errors.ERROR_STACK, traceback)
+            span._set_str_tag(errors.ERROR_STACK, stringify(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
@@ -170,6 +175,7 @@ class _ClientInterceptor(
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         # tags for method details
         method_path = client_call_details.method

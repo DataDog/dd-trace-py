@@ -22,8 +22,8 @@ from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from ddtrace.span import Span
 
-from .. import DummyTracer
-from .. import override_env
+from ..utils import DummyTracer
+from ..utils import override_env
 
 
 @pytest.fixture
@@ -135,8 +135,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer != tracer.writer, "writer should have been updated by configure"
-            tracer.writer = writer
+            assert writer is not tracer.writer, "writer should have been updated by configure"
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
@@ -145,7 +144,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(i)
                 span.finish()
 
-            samples = tracer.pop()
+            samples = tracer.writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:

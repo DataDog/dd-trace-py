@@ -6,7 +6,7 @@ from pytest import warns
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from ddtrace.utils.deprecation import RemovedInDDTrace10Warning
-from tests import BaseTestCase
+from tests.utils import BaseTestCase
 
 
 ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical", "fatal")

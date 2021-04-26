@@ -12,10 +12,9 @@ from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
 from ddtrace.ext import errors
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_is_not_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_is_not_measured
 
 
 class TestSQLite(TracerTestCase):
