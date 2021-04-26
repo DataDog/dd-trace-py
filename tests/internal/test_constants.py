@@ -9,6 +9,8 @@ def test_deprecated_public_constants():
         from ddtrace.constants import ENV_KEY
         from ddtrace.constants import MANUAL_DROP_KEY
 
+        assert ENV_KEY and MANUAL_DROP_KEY
+
         if sys.version_info >= (3, 7, 0):
             (w,) = ws
             assert issubclass(w.category, DeprecationWarning)
