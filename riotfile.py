@@ -530,11 +530,11 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys="2.7",
-                    pkgs={"mysql-connector": ["8.0", "<8.0.24"]},
+                    pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3"),
-                    pkgs={"mysql-connector": ["8.0", ">=8.0", latest]},
+                    pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
                 ),
             ],
         ),
