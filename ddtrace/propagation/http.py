@@ -1,3 +1,5 @@
+from typing import Dict
+from typing import FrozenSet
 from typing import Optional
 
 from ..context import Context
@@ -30,6 +32,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -59,7 +62,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def _extract_header_value(possible_header_names, headers, default=None):
-        # type: (frozenset[str], dict[str, str], Optional[str]) -> str
+        # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
         for header in possible_header_names:
             try:
                 return headers[header]
@@ -70,7 +73,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract(headers):
-        # type: (dict[str,str]) -> Context
+        # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
 
         Here is an example from a web endpoint::
@@ -94,47 +97,49 @@ class HTTPPropagator(object):
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
-            trace_id = HTTPPropagator._extract_header_value(
+            extracted_trace_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_TRACE_IDS,
                 normalized_headers,
             )
-            if trace_id is None:
+            if extracted_trace_id is None:
                 return Context()
 
-            parent_span_id = HTTPPropagator._extract_header_value(
+            extracted_parent_span_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_PARENT_IDS,
                 normalized_headers,
-                default=0,
+                default="0",
             )
-            sampling_priority = HTTPPropagator._extract_header_value(
+            extracted_sampling_priority = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
                 normalized_headers,
             )
-            origin = HTTPPropagator._extract_header_value(
+            extracted_origin = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_ORIGIN,
                 normalized_headers,
             )
 
             # Try to parse values into their expected types
             try:
-                if sampling_priority is not None:
-                    sampling_priority = int(sampling_priority)
+                if extracted_sampling_priority is not None:
+                    sampling_priority = int(extracted_sampling_priority)  # type: Optional[int]
+                else:
+                    sampling_priority = extracted_sampling_priority
 
                 return Context(
                     # DEV: Do not allow `0` for trace id or span id, use None instead
-                    trace_id=int(trace_id) or None,
-                    span_id=int(parent_span_id) or None,
+                    trace_id=int(extracted_trace_id) or None,
+                    span_id=int(extracted_parent_span_id) or None,  # type: ignore[arg-type]
                     sampling_priority=sampling_priority,
-                    dd_origin=origin,
+                    dd_origin=extracted_origin,
                 )
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
             except (TypeError, ValueError):
                 log.debug(
                     "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
-                    trace_id,
-                    parent_span_id,
-                    sampling_priority,
-                    origin,
+                    extracted_trace_id,
+                    extracted_parent_span_id,
+                    extracted_sampling_priority,
+                    extracted_origin,
                 )
                 return Context()
         except Exception:
