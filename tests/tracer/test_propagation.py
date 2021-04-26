@@ -82,7 +82,8 @@ class TestHttpPropagation(TestCase):
         # Trace id
         ["one", None, "123.4", "", NOT_SET],
         # Parent id
-        ["one", None, "123.4", "", NOT_SET],
+        # DEV: 10 is valid for parent id but is ignored if trace id is ever invalid
+        ["one", None, "123.4", "", NOT_SET, "10"],
         # Sampling priority
         ["one", None, "123.4", "", NOT_SET],
         # Origin
