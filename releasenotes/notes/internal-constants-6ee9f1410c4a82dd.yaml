@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Internal constants in ``ddtrace.constants`` have been deprecated and are set
+    to be removed in v1.0.
