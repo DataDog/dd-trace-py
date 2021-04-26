@@ -20,7 +20,7 @@ def tracer_config(__init__, app, args, kwargs):
     settings = {
         "tracer": ddtrace.tracer,
         "default_service": config._get_service("tornado-web"),
-        "distributed_tracing": True,
+        "distributed_tracing": None,
         "analytics_enabled": None,
     }
 

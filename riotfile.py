@@ -126,6 +126,18 @@ venv = Venv(
             pkgs={"riot": latest},
         ),
         Venv(
+            name="docs",
+            pys=["3"],
+            pkgs={
+                "cython": latest,
+                "reno[sphinx]": latest,
+                "sphinx": latest,
+                "sphinxcontrib-spelling": latest,
+                "PyEnchant": latest,
+            },
+            command="scripts/build-docs",
+        ),
+        Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
@@ -134,6 +146,19 @@ venv = Venv(
         Venv(
             name="tracer",
             command="pytest {cmdargs} tests/tracer/",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "attrs": ["==19.2.0", latest],
+                    },
+                )
+            ],
+        ),
+        Venv(
+            name="runtime",
+            command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
         ),
         Venv(
@@ -563,7 +588,7 @@ venv = Venv(
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": latest,
+                        "mysql-connector-python": [">=8,<8.0.24"],
                     },
                 ),
             ],

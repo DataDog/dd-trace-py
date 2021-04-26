@@ -10,12 +10,16 @@ import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
 
+from . import utils
+
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture
-def uwsgi():
+def uwsgi(monkeypatch):
+    # Do not ignore profiler so we have samples in the output pprof
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = tempfile.mktemp()
     cmd = ["uwsgi", "--need-app", "--die-on-term", "--socket", socket_name, "--wsgi-file", uwsgi_app]
@@ -43,7 +47,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 30
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
 def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
@@ -85,7 +89,7 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
@@ -98,7 +102,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
 
 # For whatever reason this crashes easily on Python 2.7 with a segfault, and hangs on Python before 3.7.
@@ -154,4 +158,4 @@ def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatc
             except OSError:
                 break
     for pid in worker_pids:
-        assert os.path.exists("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d.1" % (filename, pid))

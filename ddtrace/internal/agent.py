@@ -12,9 +12,9 @@ DEFAULT_HOSTNAME = "localhost"
 DEFAULT_TRACE_PORT = 8126
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
-DEFAULT_TIMEOUT = 2
+DEFAULT_TIMEOUT = 2.0
 
-ConnectionType = Union[compat.httplib.HTTPSConnection, compat.httplib.HTTPConnection, UDSHTTPConnection]  # type: ignore
+ConnectionType = Union[compat.httplib.HTTPSConnection, compat.httplib.HTTPConnection, UDSHTTPConnection]
 
 
 def get_hostname():
@@ -29,7 +29,7 @@ def get_trace_port():
 
 def get_stats_port():
     # type: () -> int
-    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))
+    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))  # type: ignore[arg-type]
 
 
 def get_trace_url():
@@ -44,7 +44,9 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    return get_env("dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port()))
+    return get_env(
+        "dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port())
+    )  # type: ignore[return-value]
 
 
 def verify_url(url):
@@ -76,12 +78,10 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
     hostname = parsed.hostname or ""
 
     if parsed.scheme == "https":
-        conn = compat.httplib.HTTPSConnection(hostname, parsed.port, timeout=timeout)
+        return compat.httplib.HTTPSConnection(hostname, parsed.port, timeout=timeout)
     elif parsed.scheme == "http":
-        conn = compat.httplib.HTTPConnection(hostname, parsed.port, timeout=timeout)
+        return compat.httplib.HTTPConnection(hostname, parsed.port, timeout=timeout)
     elif parsed.scheme == "unix":
-        conn = UDSHTTPConnection(parsed.path, parsed.scheme == "https", hostname, parsed.port, timeout=timeout)
-    else:
-        raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+        return UDSHTTPConnection(parsed.path, hostname, parsed.port, timeout=timeout)
 
-    return conn
+    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)

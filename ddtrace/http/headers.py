@@ -1,4 +1,9 @@
 import re
+from typing import Dict
+
+from ddtrace.settings import IntegrationConfig
+from ddtrace.span import Span
+from ddtrace.utils.cache import cached
 
 from ..internal.logger import get_logger
 from ..utils.http import normalize_header_name
@@ -16,6 +21,7 @@ NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 
 def store_request_headers(headers, span, integration_config):
+    # type: (Dict[str, str], Span, IntegrationConfig) -> None
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -29,6 +35,7 @@ def store_request_headers(headers, span, integration_config):
 
 
 def store_response_headers(headers, span, integration_config):
+    # type: (Dict[str, str], Span, IntegrationConfig) -> None
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -42,6 +49,7 @@ def store_response_headers(headers, span, integration_config):
 
 
 def _store_headers(headers, span, integration_config, request_or_response):
+    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
     """
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -67,7 +75,14 @@ def _store_headers(headers, span, integration_config, request_or_response):
         span.set_tag(tag_name, header_value)
 
 
+@cached()
+def _normalized_header_name(header_name):
+    # type: (str) -> str
+    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
 def _normalize_tag_name(request_or_response, header_name):
+    # type: (str, str) -> str
     """
     Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
     'http.request.headers.content_type'. Rules applied actual header name are:
@@ -87,5 +102,5 @@ def _normalize_tag_name(request_or_response, header_name):
     #   - any letter is converted to lowercase
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+    normalized_name = _normalized_header_name(header_name)
     return "http.{}.headers.{}".format(request_or_response, normalized_name)

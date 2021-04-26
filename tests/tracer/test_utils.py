@@ -9,6 +9,8 @@ import pytest
 from ddtrace.utils import ArgumentError
 from ddtrace.utils import get_argument_value
 from ddtrace.utils import time
+from ddtrace.utils.cache import cached
+from ddtrace.utils.cache import cachedmethod
 from ddtrace.utils.deprecation import deprecated
 from ddtrace.utils.deprecation import deprecation
 from ddtrace.utils.deprecation import format_message
@@ -343,3 +345,65 @@ def test_infer_arg_value_miss(args, kwargs, pos, kw):
     with pytest.raises(ArgumentError) as e:
         get_argument_value(args, kwargs, pos, kw)
         assert e.value == "%s (at position %d)" % (kw, pos)
+
+
+def cached_test_recipe(expensive, cheap, witness, cache_size):
+    assert cheap("Foo") == expensive("Foo")
+    assert cheap("Foo") == expensive("Foo")
+
+    witness.assert_called_with("Foo")
+    assert witness.call_count == 1
+
+    cheap.invalidate()
+
+    for i in range(cache_size >> 1):
+        cheap("Foo%d" % i)
+
+    assert witness.call_count == 1 + (cache_size >> 1)
+
+    for i in range(cache_size):
+        cheap("Foo%d" % i)
+
+    assert witness.call_count == 1 + cache_size
+
+    MAX_FOO = "Foo%d" % (cache_size - 1)
+
+    cheap("last drop")  # Forces least frequent elements out of the cache
+    assert witness.call_count == 2 + cache_size
+
+    cheap(MAX_FOO)  # Check MAX_FOO was dropped
+    assert witness.call_count == 3 + cache_size
+
+    cheap("last drop")  # Check last drop was retained
+    assert witness.call_count == 3 + cache_size
+
+
+def test_cached():
+    witness = mock.Mock()
+    cache_size = 128
+
+    def expensive(key):
+        return key[::-1].lower()
+
+    @cached(cache_size)
+    def cheap(key):
+        witness(key)
+        return expensive(key)
+
+    cached_test_recipe(expensive, cheap, witness, cache_size)
+
+
+def test_cachedmethod():
+    witness = mock.Mock()
+    cache_size = 128
+
+    def expensive(key):
+        return key[::-1].lower()
+
+    class Foo(object):
+        @cachedmethod(cache_size)
+        def cheap(self, key):
+            witness(key)
+            return expensive(key)
+
+    cached_test_recipe(expensive, Foo().cheap, witness, cache_size)

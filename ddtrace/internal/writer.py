@@ -9,8 +9,9 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TextIO
 
+import six
+
 import ddtrace
-from ddtrace.vendor import six
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -19,8 +20,6 @@ from . import service
 from .. import compat
 from ..compat import httplib
 from ..constants import KEEP_SPANS_RATE_KEY
-from ..encoding import Encoder
-from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.time import StopWatch
@@ -28,6 +27,8 @@ from .agent import get_connection
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
+from .encoding import Encoder
+from .encoding import JSONEncoderV2
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
@@ -127,7 +128,7 @@ class Response(object):
         )
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def recreate(self):
         # type: () -> TraceWriter
@@ -210,9 +211,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = TraceBuffer(
-            max_size=self._buffer_size, max_item_size=self._max_payload_size
-        )  # type: ignore[call-arg]
+        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {

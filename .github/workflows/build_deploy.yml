@@ -5,6 +5,11 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      expectedVersion:
+        description: 'Expected version string'
+        required: true
 
 jobs:
   build_wheels_x86_64:
@@ -135,12 +140,22 @@ jobs:
   upload_pypi:
     needs: [build_wheels_x86_64, build_wheels_i686, build_wheels_aarch64, build_sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event.action == 'workflow_dispatch')
     steps:
       - uses: actions/download-artifact@v2
         with:
           name: artifact
           path: dist
+
+      - uses: actions/checkout@v2
+        if: github.event.action == 'workflow_dispatch'
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+      - name: Validate deploy version
+        if: github.event.action == 'workflow_dispatch'
+        run: |
+          ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
 
       - uses: pypa/gh-action-pypi-publish@master
         with:

@@ -37,6 +37,7 @@ def patch():
     setattr(urllib3, "__datadog_patch", True)
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
+    Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
 
 def unpatch():

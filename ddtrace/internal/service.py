@@ -1,7 +1,7 @@
 import enum
 import threading
 
-from ddtrace.vendor import attr
+import attr
 
 
 class ServiceStatus(enum.Enum):
@@ -15,7 +15,7 @@ class ServiceAlreadyRunning(RuntimeError):
     pass
 
 
-@attr.s
+@attr.s(eq=False)
 class Service(object):
     """A service that can be started or stopped."""
 
