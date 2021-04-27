@@ -171,9 +171,9 @@ class _OverrideAttrDict(wrapt.ObjectProxy):
     sentinel = object()
 
     def __init__(self, override, base):
-        super(_OverrideAttrDict, self).__init__(override)
-        self.override = override
-        self.base = base
+        self.override = override or AttrDict()
+        self.base = base or AttrDict()
+        super(_OverrideAttrDict, self).__init__(self.override)
 
     def __getattr__(self, name):
         value = self.override.get(name, self.sentinel)
