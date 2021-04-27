@@ -184,6 +184,9 @@ class _OverrideAttrDict(wrapt.ObjectProxy):
         value = self.override.get(name, self.sentinel)
         return self.base.__getitem__(name) if value == self.sentinel else value
 
+    def __contains__(self, name):
+        return name in self.override or name in self.base
+
 
 def _override_dbapi2_config(new_cfg):
     # Need to backwards support the dbapi2 config entry
