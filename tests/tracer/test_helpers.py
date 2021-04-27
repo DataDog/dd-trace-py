@@ -1,10 +1,16 @@
 import mock
 
 from ddtrace import helpers
+from ddtrace.vendor.debtcollector.removals import removed_class
 from tests.utils import TracerTestCase
 from tests.utils import override_global_tracer
 
 
+@removed_class(
+    "HelpersTestCase",
+    message="ddtrace.helpers has been deprecated and will no longer require HelpersTestCase",
+    version="1.0.0",
+)
 class HelpersTestCase(TracerTestCase):
     """Test suite for ``ddtrace`` helpers"""
 
