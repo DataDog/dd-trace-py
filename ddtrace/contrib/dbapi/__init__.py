@@ -4,6 +4,7 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
+from ddtrace.vendor import debtcollector
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -38,7 +39,7 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or "sql"
         self._self_datadog_name = "{}.query".format(name)
         self._self_last_execute_operation = None
-        self._self_config = cfg
+        self._self_config = cfg or config.dbapi2
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -67,7 +68,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.dbapi2.get_analytics_sample_rate())
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, cfg.get_analytics_sample_rate())
 
             try:
                 return method(*args, **kwargs)
@@ -184,6 +185,12 @@ class TracedConnection(wrapt.ObjectProxy):
             cursor_cls = TracedCursor
             # Deprecation of config.dbapi2 requires we add a check
             if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
+                if config.dbapi2.trace_fetch_methods:
+                    debtcollector.deprecate(
+                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
+                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
+                        removal_version="0.50.0",
+                    )
                 cursor_cls = FetchTracedCursor
 
         super(TracedConnection, self).__init__(conn)
@@ -194,7 +201,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
-        self._self_config = cfg
+        self._self_config = cfg or config.dbapi2
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
