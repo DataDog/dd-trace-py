@@ -1,7 +1,7 @@
 import socket
 from typing import Any
 
-from ..compat import httplib
+from .compat import httplib
 
 
 class UDSHTTPConnection(httplib.HTTPConnection):

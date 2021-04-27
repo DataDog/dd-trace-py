@@ -6,7 +6,7 @@ import os
 import sys
 
 import ddtrace
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 

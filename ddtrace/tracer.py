@@ -19,7 +19,6 @@ from ddtrace.filters import TraceFilter
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
-from . import compat
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
@@ -31,6 +30,7 @@ from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .internal import _rand
 from .internal import agent
+from .internal import compat
 from .internal import debug
 from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client

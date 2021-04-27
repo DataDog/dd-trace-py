@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ddtrace.compat import parse
+from ddtrace.internal.compat import parse
 from ddtrace.vendor.dogstatsd import DogStatsd
 from ddtrace.vendor.dogstatsd import base
 

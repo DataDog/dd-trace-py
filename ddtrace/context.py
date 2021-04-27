@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from .internal.logger import get_logger
 
+
 if TYPE_CHECKING:
     from .span import Span
 

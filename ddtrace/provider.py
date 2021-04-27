@@ -4,9 +4,9 @@ from typing import Union
 
 import six
 
-from ddtrace import Span
-from ddtrace.compat import contextvars
-from ddtrace.context import Context
+from .context import Context
+from .internal.compat import contextvars
+from .span import Span
 
 
 _DD_CONTEXTVAR = contextvars.ContextVar(

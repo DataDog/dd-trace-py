@@ -11,10 +11,13 @@ from ddtrace.ext import http
 from ddtrace.pin import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
 
-# socket name comes from https://english.stackexchange.com/a/44048
-SOCKET = "httpbin.org"
+# host:port of httpbin_local container
+HOST = "localhost"
+PORT = 8001
+SOCKET = "{}:{}".format(HOST, PORT)
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
 
@@ -37,7 +40,7 @@ class BaseUrllib3TestCase(TracerTestCase):
 class TestUrllib3(BaseUrllib3TestCase):
     def test_HTTPConnectionPool_traced(self):
         """Tests that requests made from the HTTPConnectionPool are traced"""
-        pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+        pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
         # Test a relative URL
         r = pool.request("GET", "/status/200")
         assert r.status == 200
@@ -98,9 +101,9 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         for args, kwargs in inputs:
 
-            with self.override_config("urllib3", {}):
+            with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
                 config.urllib3.http.trace_headers(["accept"])
-                pool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+                pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
                 out = pool.urlopen(*args, **kwargs)
             assert out.status == 200
             spans = self.pop_spans()
@@ -124,7 +127,7 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_double_patch(self):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
-        connpool = urllib3.connectionpool.HTTPConnectionPool(SOCKET)
+        connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
         setattr(connpool, "datadog_tracer", self.tracer)
 
         out = connpool.urlopen("GET", URL_200)
@@ -209,8 +212,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
     def test_user_set_service_name(self):
         """Test the user-set service name is set on the span"""
-        with self.override_config("urllib3", dict(split_by_domain=False)):
-            config.urllib3["service_name"] = "clients"
+        with self.override_config("urllib3", dict(split_by_domain=False, service_name="clients")):
             out = self.http.request("GET", URL_200)
         assert out.status == 200
         spans = self.pop_spans()
@@ -312,7 +314,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.response.headers.access-control-allow-origin") is None
 
         # Enabled when explicitly configured
-        with self.override_config("urllib3", {}):
+        with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
             config.urllib3.http.trace_headers(["my-header", "access-control-allow-origin"])
             self.http.request("GET", URL_200, headers={"my-header": "my_value"})
             spans = self.pop_spans()
@@ -384,3 +386,24 @@ class TestUrllib3(BaseUrllib3TestCase):
             m_make_request.assert_called_with(
                 mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers={}, timeout=mock.ANY
             )
+
+
+@pytest.fixture()
+def patch_urllib3():
+    patch()
+    try:
+        yield
+    finally:
+        unpatch()
+
+
+@snapshot()
+def test_urllib3_poolmanager_snapshot(patch_urllib3):
+    pool = urllib3.PoolManager()
+    pool.request("GET", URL_200)
+
+
+@snapshot()
+def test_urllib3_connectionpool_snapshot(patch_urllib3):
+    pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
+    pool.request("GET", "/status/200")

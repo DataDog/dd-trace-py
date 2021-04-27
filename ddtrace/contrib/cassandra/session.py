@@ -9,13 +9,13 @@ import cassandra.cluster
 # project
 from ddtrace import config
 
-from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
 from ...ext import errors
 from ...ext import net
+from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...utils.deprecation import deprecated

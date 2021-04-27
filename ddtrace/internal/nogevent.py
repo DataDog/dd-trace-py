@@ -5,7 +5,7 @@ import threading
 import attr
 import six
 
-from ddtrace import compat
+from ddtrace.internal import compat
 
 
 try:
