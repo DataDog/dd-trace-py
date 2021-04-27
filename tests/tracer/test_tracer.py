@@ -1203,20 +1203,20 @@ def test_unicode_config_vals():
 
 def test_ctx(tracer, test_spans):
     with tracer.trace("test") as s1:
-        assert tracer.active_span() == s1
-        assert tracer.active_root_span() == s1
+        assert tracer.current_span() == s1
+        assert tracer.current_root_span() == s1
         assert tracer.get_call_context().trace_id == s1.trace_id
         assert tracer.get_call_context().span_id == s1.span_id
 
         with tracer.trace("test2") as s2:
-            assert tracer.active_span() == s2
-            assert tracer.active_root_span() == s1
+            assert tracer.current_span() == s2
+            assert tracer.current_root_span() == s1
             assert tracer.get_call_context().trace_id == s1.trace_id
             assert tracer.get_call_context().span_id == s2.span_id
 
             with tracer.trace("test3") as s3:
-                assert tracer.active_span() == s3
-                assert tracer.active_root_span() == s1
+                assert tracer.current_span() == s3
+                assert tracer.current_root_span() == s1
                 assert tracer.get_call_context().trace_id == s1.trace_id
                 assert tracer.get_call_context().span_id == s3.span_id
 
@@ -1224,16 +1224,16 @@ def test_ctx(tracer, test_spans):
             assert tracer.get_call_context().span_id == s2.span_id
 
         with tracer.trace("test4") as s4:
-            assert tracer.active_span() == s4
-            assert tracer.active_root_span() == s1
+            assert tracer.current_span() == s4
+            assert tracer.current_root_span() == s1
             assert tracer.get_call_context().trace_id == s1.trace_id
             assert tracer.get_call_context().span_id == s4.span_id
 
-        assert tracer.active_span() == s1
-        assert tracer.active_root_span() == s1
+        assert tracer.current_span() == s1
+        assert tracer.current_root_span() == s1
 
-    assert tracer.active_span() is None
-    assert tracer.active_root_span() is None
+    assert tracer.current_span() is None
+    assert tracer.current_root_span() is None
     assert s1.parent_id is None
     assert s2.parent_id == s1.span_id
     assert s3.parent_id == s2.span_id
@@ -1284,11 +1284,11 @@ def test_ctx_distributed(tracer, test_spans):
     # Test activating an invalid context.
     ctx = Context(span_id=None, trace_id=None)
     tracer.activate(ctx)
-    assert tracer.active_span() is None
+    assert tracer.current_span() is None
 
     with tracer.trace("test") as s1:
-        assert tracer.active_span() == s1
-        assert tracer.active_root_span() == s1
+        assert tracer.current_span() == s1
+        assert tracer.current_root_span() == s1
         assert tracer.get_call_context().trace_id == s1.trace_id
         assert tracer.get_call_context().span_id == s1.span_id
         assert s1.parent_id is None
@@ -1299,7 +1299,7 @@ def test_ctx_distributed(tracer, test_spans):
     # Test activating a valid context.
     ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     tracer.activate(ctx)
-    assert tracer.active_span() is None
+    assert tracer.current_span() is None
     assert (
         tracer.get_call_context()
         == tracer.active()
@@ -1307,8 +1307,8 @@ def test_ctx_distributed(tracer, test_spans):
     )
 
     with tracer.trace("test2") as s2:
-        assert tracer.active_span() == s2
-        assert tracer.active_root_span() is s2
+        assert tracer.current_span() == s2
+        assert tracer.current_root_span() is s2
         assert tracer.get_call_context().trace_id == s2.trace_id == 4321
         assert tracer.get_call_context().span_id == s2.span_id
         assert s2.parent_id == 1234
@@ -1405,31 +1405,30 @@ def test_get_report_hostname_default(get_hostname, tracer, test_spans):
 
 
 def test_non_active_span(tracer, test_spans):
-
     with tracer.start_span("test", activate=False):
-        assert tracer.active_span() is None
-        assert tracer.active_root_span() is None
-    assert tracer.active_span() is None
-    assert tracer.active_root_span() is None
+        assert tracer.current_span() is None
+        assert tracer.current_root_span() is None
+    assert tracer.current_span() is None
+    assert tracer.current_root_span() is None
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
     with tracer.start_span("test1", activate=False):
         with tracer.start_span("test2", activate=False):
-            assert tracer.active_span() is None
-            assert tracer.active_root_span() is None
-    assert tracer.active_span() is None
-    assert tracer.active_root_span() is None
+            assert tracer.current_span() is None
+            assert tracer.current_root_span() is None
+    assert tracer.current_span() is None
+    assert tracer.current_root_span() is None
     traces = test_spans.pop_traces()
     assert len(traces) == 2
 
     with tracer.start_span("active", activate=True) as active:
         with tracer.start_span("non active", child_of=active, activate=False):
             assert tracer.active() is active
-            assert tracer.active_root_span() is active
+            assert tracer.current_root_span() is active
         assert tracer.active() is active
-        assert tracer.active_root_span() is active
+        assert tracer.current_root_span() is active
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 2
@@ -1506,7 +1505,7 @@ def test_context_priority(tracer, test_spans):
     """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
     for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
         with tracer.trace("span_%s" % p) as span:
-            span.sampling_priority = p
+            span.context.sampling_priority = p
 
         # Spans should always be written regardless of sampling priority since
         # the agent needs to know the sampling decision.

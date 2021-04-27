@@ -55,7 +55,6 @@ import os
 
 from ddtrace import compat
 
-
 cdef extern from "_stdint.h" nogil:
     ctypedef unsigned long long uint64_t
 

@@ -57,6 +57,7 @@ from .utils.formats import get_env
 
 
 log = get_logger(__name__)
+
 debug_mode = asbool(get_env("trace", "debug", default=False))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
@@ -194,24 +195,6 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
-    def activate(self, span_or_ctx):
-        # type: (Union[Context, Span]) -> None
-        """Activate a span or context for the current execution context."""
-        self.context_provider.activate(span_or_ctx)
-
-    def active(self):
-        # type: () -> Optional[Union[Context, Span]]
-        """Return the active span or context for the current execution context."""
-        return self.context_provider.active()
-
-    def active_span(self):
-        # type: () -> Optional[Span]
-        """Return the active span in the current execution context."""
-        active = self.context_provider.active()
-        return active if isinstance(active, Span) else None
-
-    current_span = active_span
-
     def get_call_context(self, *args, **kwargs):
         # type (...) -> Context
         """Return the active ``Context`` for the current execution.
@@ -226,6 +209,22 @@ class Tracer(object):
             return active.context
         else:
             return Context()
+
+    def activate(self, span_or_ctx):
+        # type: (Union[Context, Span]) -> None
+        """Activate a span or context for the current execution context."""
+        self.context_provider.activate(span_or_ctx)
+
+    def active(self):
+        # type: () -> Optional[Union[Context, Span]]
+        """Return the active span or context for the current execution context."""
+        return self.context_provider.active()
+
+    def current_span(self):
+        # type: () -> Optional[Span]
+        """Return the active span in the current execution context."""
+        active = self.context_provider.active()
+        return active if isinstance(active, Span) else None
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
@@ -403,7 +402,7 @@ class Tracer(object):
         :param str service: the name of the service being traced.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
-        :param activate: Whether or not to activate the span once it is created.
+        :param activate: activate the span once it is created.
 
         To start a new root span, simply::
 
@@ -527,7 +526,7 @@ class Tracer(object):
 
         # Only set the version tag on internal spans.
         if config.version:
-            root_span = self.active_root_span()
+            root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
@@ -677,7 +676,7 @@ class Tracer(object):
             activate=True,
         )
 
-    def active_root_span(self):
+    def current_root_span(self):
         # type: () -> Optional[Span]
         """Returns the root span of the current execution.
 
@@ -692,15 +691,13 @@ class Tracer(object):
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        parent = self.active_span()
+        parent = self.current_span()
         if not parent:
             return None
 
         while parent._parent:
             parent = parent._parent
         return parent
-
-    current_root_span = active_root_span
 
     def write(self, spans):
         # type: (Optional[List[Span]]) -> None

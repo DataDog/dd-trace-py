@@ -68,10 +68,10 @@ class Span(object):
         "start_ns",
         "duration_ns",
         "tracer",
+        # Sampler attributes
         "sampled",
         # Internal attributes
         "_parent",
-        "_context",
         "_ignored_exceptions",
         "_on_finish_callbacks",
         "__weakref__",
@@ -146,21 +146,11 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
-
-    @property
-    def context(self):
-        # type: () -> Context
-        if self._context is None:
-            return Context(
-                trace_id=self.trace_id,
-                span_id=self.span_id,
-                sampling_priority=self.sampling_priority,
-                dd_origin=self.dd_origin,
-            )
-        return self._context
+        if context:
+            self.sampling_priority = context.sampling_priority
+            self.dd_origin = context.dd_origin
 
     @property
     def dd_origin(self):
@@ -415,7 +405,7 @@ class Span(object):
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
 
-        # Enforce a specific constant for `_dd.measured`
+        # Enforce a specific connstant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
@@ -557,13 +547,28 @@ class Span(object):
             for (k, v) in data
         )
 
+    @property
+    def context(self):
+        # type: () -> Context
+        ctx = Context(
+            trace_id=self.trace_id,
+            span_id=self.span_id,
+            sampling_priority=self.sampling_priority,
+            dd_origin=self.dd_origin,
+        )
+        ctx._span = self
+        return ctx
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self.set_exc_info(exc_type, exc_val, exc_tb)
-        self.finish()
+        try:
+            if exc_type:
+                self.set_exc_info(exc_type, exc_val, exc_tb)
+            self.finish()
+        except Exception:
+            log.exception("error closing trace")
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (

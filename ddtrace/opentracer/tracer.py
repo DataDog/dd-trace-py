@@ -269,7 +269,7 @@ class Tracer(opentracing.Tracer):
             name=operation_name,
             child_of=dd_parent,
             service=self._service_name,
-            activate=False,  # activation is done only in start_active_span
+            activate=False,
         )
 
         # set the start time if one is specified

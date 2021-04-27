@@ -118,7 +118,7 @@ class TestGeventTracer(TracerTestCase):
         # multiple greenlets must be part of the same trace
         def entrypoint():
             with self.tracer.trace("greenlet.main") as span:
-                span.sampling_priority = USER_KEEP
+                span.context.sampling_priority = USER_KEEP
                 span.resource = "base"
                 jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
                 gevent.joinall(jobs)
