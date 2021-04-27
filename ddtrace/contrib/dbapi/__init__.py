@@ -185,12 +185,20 @@ class _OverrideAttrDict(wrapt.ObjectProxy):
         return self.base.__getitem__(name) if value == self.sentinel else value
 
     def __contains__(self, name):
-        return name in self.override or name in self.base
+        return (name in self.override and self.override[name] is not None) or (
+            name in self.base and self.base[name] is not None
+        )
 
 
 def _override_dbapi2_config(new_cfg):
     # Need to backwards support the dbapi2 config entry
     # but give precedence to the given config.
+    if new_cfg is None:
+        return config.dbapi2
+
+    # Avoid wrapping again
+    if isinstance(new_cfg, _OverrideAttrDict):
+        return new_cfg
 
     return _OverrideAttrDict(new_cfg, config.dbapi2)
 
