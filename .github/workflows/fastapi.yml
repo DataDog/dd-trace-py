@@ -32,6 +32,8 @@ jobs:
         run: pip install flit
       - name: Install Pydantic
         run: pip install pydantic
+      - name: Install Typing
+        run: pip install typing
       - name: Inject ddtrace
         run: pip install ddtrace
       - name: Install Dependencies
