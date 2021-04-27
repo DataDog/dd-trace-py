@@ -3,9 +3,9 @@ import six
 from webtest import TestApp
 
 from ddtrace import config
-from ddtrace.compat import PY2
-from ddtrace.compat import PY3
 from ddtrace.contrib.wsgi import wsgi
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
 
 
 if PY2:

@@ -1,9 +1,8 @@
 from django.utils.functional import SimpleLazyObject
+from six import ensure_text
 
-from ...compat import PY3
-from ...compat import binary_type
-from ...compat import to_unicode
 from ...internal.logger import get_logger
+from .compat import get_resolver
 
 
 log = get_logger(__name__)
@@ -37,19 +36,21 @@ def quantize_key_values(key):
     return key
 
 
-def get_django_2_route(resolver, resolver_match):
+def get_django_2_route(request, resolver_match):
     # Try to use `resolver_match.route` if available
     # Otherwise, look for `resolver.pattern.regex.pattern`
     route = resolver_match.route
-    if not route:
-        # DEV: Use all these `getattr`s to protect against changes between versions
-        pattern = getattr(resolver, "pattern", None)
-        if pattern:
-            regex = getattr(pattern, "regex", None)
-            if regex:
-                route = getattr(regex, "pattern", "")
+    if route:
+        return route
 
-    return route
+    resolver = get_resolver(getattr(request, "urlconf", None))
+    if resolver:
+        try:
+            return resolver.pattern.regex.pattern
+        except AttributeError:
+            pass
+
+    return None
 
 
 def set_tag_array(span, prefix, value):
@@ -99,7 +100,7 @@ def get_request_uri(request):
 
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path)
+    urlparts = {"scheme": request.scheme, "netloc": host, "path": request.path}
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
@@ -118,11 +119,6 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = v
-
-    if PY3:
-        for (key, value) in urlparts.items():
-            if value is not None and isinstance(value, binary_type):
-                urlparts[key] = to_unicode(value)
+        urlparts[k] = ensure_text(v)
 
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))

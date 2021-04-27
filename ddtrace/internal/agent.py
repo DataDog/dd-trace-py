@@ -1,8 +1,7 @@
 import os
-from typing import Any
 from typing import Union
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.utils.formats import get_env
 
 from .uds import UDSHTTPConnection
@@ -50,12 +49,11 @@ def get_stats_url():
 
 
 def verify_url(url):
-    # type: (str) -> Any
+    # type: (str) -> compat.parse.ParseResult
     """Verify that a URL can be used to communicate with the Datadog Agent.
     Returns a compat.parse.ParseResult.
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    # FIXME: correctly type hint verify_url with output: compat.parse.ParseResult, currently incompatible with mypy
     parsed = compat.parse.urlparse(url)
 
     schemes = ("http", "https", "unix")

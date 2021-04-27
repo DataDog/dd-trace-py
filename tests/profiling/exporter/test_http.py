@@ -12,7 +12,7 @@ from six.moves import BaseHTTPServer
 from six.moves import http_client
 
 import ddtrace
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 

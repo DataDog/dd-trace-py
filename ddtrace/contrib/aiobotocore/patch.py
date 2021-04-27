@@ -12,12 +12,12 @@ except ImportError:
     # aiobotocore>=0.11.0
     from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
-from ...compat import PYTHON_VERSION_INFO
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...internal.compat import PYTHON_VERSION_INFO
 from ...pin import Pin
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
