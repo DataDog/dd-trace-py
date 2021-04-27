@@ -6,11 +6,11 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...compat import PY2
-from ...compat import httplib
-from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
+from ...internal.compat import PY2
+from ...internal.compat import httplib
+from ...internal.compat import parse
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
