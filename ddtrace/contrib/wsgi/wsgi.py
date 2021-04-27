@@ -1,6 +1,6 @@
 import sys
 
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 
 
 if PY2:

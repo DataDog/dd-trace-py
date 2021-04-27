@@ -2,8 +2,8 @@ import abc
 
 import six
 
-from .compat import contextvars
 from .context import Context
+from .internal.compat import contextvars
 
 
 _DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
