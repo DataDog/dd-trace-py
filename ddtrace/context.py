@@ -34,9 +34,9 @@ class Context(object):
         self._dd_origin = dd_origin
         self._sampling_priority = sampling_priority
 
-        # Unfortunately we need to keep a reference back to the span to
-        # maintain backwards compatibility with setting sampling priority
-        # and origin on the context
+        # TODO[v1.0]: we need to keep a reference back to the span to maintain
+        # backwards compatibility with setting sampling priority and origin on
+        # the context
         # eg: span.context.sampling_priority = ...
         self._span = None  # type: Optional[Span]
 

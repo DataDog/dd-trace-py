@@ -295,6 +295,20 @@ class TracerTestCases(TracerTestCase):
             span.metrics["as"] = np.int64(1)  # circumvent the data checks
             span.finish()
 
+    def test_tracer_disabled_mem_leak(self):
+        # ensure that if the tracer is disabled, we still remove things from the
+        # span buffer upon finishing.
+        self.tracer.enabled = False
+        s1 = self.trace("foo")
+        s1.finish()
+
+        p1 = self.tracer.current_span()
+        s2 = self.trace("bar")
+
+        self.assertIsNone(s2._parent)
+        s2.finish()
+        self.assertIsNone(p1)
+
     def test_tracer_global_tags(self):
         s1 = self.trace("brie")
         s1.finish()
@@ -334,12 +348,6 @@ class TracerTestCases(TracerTestCase):
 
     def test_tracer_current_root_span_missing_context(self):
         self.assertIsNone(self.tracer.current_root_span())
-
-    def test_default_provider_get(self):
-        # Tracer Context Provider must return a Context object
-        # even if empty
-        ctx = self.tracer.context_provider.active()
-        assert isinstance(ctx, Context)
 
     def test_default_provider_set(self):
         # The Context Provider can set the current active Context;
@@ -427,6 +435,19 @@ class TracerTestCases(TracerTestCase):
             with self.start_span("web.worker", child_of=parent) as child:
                 child.assert_matches(name="web.worker", service="web")
 
+    def test_start_child_from_context(self):
+        # it should create a child span with a populated Context
+        with self.start_span("web.request") as root:
+            with self.start_span("web.worker", child_of=root.context) as child:
+                pass
+        child.assert_matches(
+            name="web.worker",
+            parent_id=root.span_id,
+            trace_id=root.trace_id,
+            _parent=root,
+            tracer=self.tracer,
+        )
+
     def test_adding_services(self):
         assert self.tracer._services == set()
         with self.start_span("root", service="one") as root:
@@ -460,33 +481,6 @@ class TracerTestCases(TracerTestCase):
         assert tracer.writer.dogstatsd.host is None
         assert tracer.writer.dogstatsd.port is None
         assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
-
-
-def test_tracer_disabled_mem_leak(tracer):
-    # ensure that if the tracer is disabled, we still remove things from the
-    # span buffer upon finishing.
-    tracer.enabled = False
-    s1 = tracer.trace("foo")
-    s1.finish()
-
-    p1 = tracer.current_span()
-    assert p1 is None
-    s2 = tracer.trace("bar")
-
-    assert s2._parent is None
-    s2.finish()
-
-
-def test_start_child_from_context(tracer, test_spans):
-    # it should create a child span with a populated Context
-    with tracer.start_span("web.request") as root:
-        with tracer.start_span("web.worker", child_of=root.context) as child:
-            pass
-
-    parent, child = test_spans.pop()
-    assert child.name == "web.worker"
-    assert child.parent_id == parent.span_id
-    assert child.trace_id == parent.trace_id
 
 
 def test_tracer_url():

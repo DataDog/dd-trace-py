@@ -197,11 +197,7 @@ class Tracer(object):
 
     def get_call_context(self, *args, **kwargs):
         # type (...) -> Context
-        """Return the active ``Context`` for the current execution.
-
-        This method makes use of a ``ContextProvider`` that is automatically set during the tracer
-        initialization, or while using a library instrumentation.
-        """
+        """Return the active ``Context`` for the current execution."""
         active = self.context_provider.active(*args, **kwargs)
         if isinstance(active, Context):
             return active
@@ -421,14 +417,18 @@ class Tracer(object):
         self._check_new_process()
 
         context = child_of if isinstance(child_of, Context) else None
-        trace_id = None
-        parent_id = None
-        parent = None
+        trace_id = None  # type: Optional[int]
+        parent_id = None  # type: Optional[int]
+        parent = None  # type: Optional[Span]
         if child_of is not None:
             trace_id = child_of.trace_id
             parent_id = child_of.span_id
             if isinstance(child_of, Span):
                 parent = child_of
+            elif isinstance(child_of, Context) and child_of._span:
+                # TODO[v1.0]
+                # Backwards support for
+                parent = child_of._span
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -478,13 +478,11 @@ class Tracer(object):
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
-
-            sampled = self.sampler.sample(span)
-            sampling_priority = None
+            span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
             if not isinstance(self.sampler, DatadogSampler):
-                if sampled:
+                if span.sampled:
                     # When doing client sampling in the client, keep the sample rate so that we can
                     # scale up statistics in the next steps of the pipeline.
                     if isinstance(self.sampler, RateSampler):
@@ -495,21 +493,17 @@ class Tracer(object):
                         # priority sampler will use the default sampling rate, which might
                         # lead to oversampling (that is, dropping too many traces).
                         if self.priority_sampler.sample(span):
-                            sampling_priority = AUTO_KEEP
+                            span.sampling_priority = AUTO_KEEP
                         else:
-                            sampling_priority = AUTO_REJECT
+                            span.sampling_priority = AUTO_REJECT
                 else:
                     if self.priority_sampler:
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        sampling_priority = AUTO_REJECT
+                        span.sampling_priority = AUTO_REJECT
             else:
-                sampling_priority = AUTO_KEEP if sampled else AUTO_REJECT
+                span.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
                 # The trace must be marked as sampled so it is forwarded to the agent.
-                sampled = True
-
-            span.sampled = sampled
-            if sampling_priority is not None:
-                span.sampling_priority = sampling_priority
+                span.sampled = True
 
         if context:
             if context.sampling_priority is not None:
@@ -550,15 +544,14 @@ class Tracer(object):
         return span
 
     def _on_span_finish(self, span):
+        # type: (Span) -> None
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %r", span)
 
-        active = self.active()
+        active = self.current_span()
         # Only set the next active span to the parent if the span is active
         # and the parent is not finished.
-        # FIXME we use == checks here because our test utils return span wrappers
-        # that fail this check but we probably want to use `is`.
-        if active == span:
+        if active and active.span_id == span.span_id:
             if span._parent:
                 if span._parent.finished:
                     self.log.debug(
@@ -686,7 +679,7 @@ class Tracer(object):
         For example::
 
             # get the root span
-            root_span = tracer.active_root_span()
+            root_span = tracer.current_root_span()
             # set the host just once on the root span
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
