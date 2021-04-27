@@ -1,10 +1,10 @@
 import aiobotocore
 from botocore.errorfactory import ClientError
 
-from ddtrace.compat import stringify
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
+from ddtrace.internal.compat import stringify
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

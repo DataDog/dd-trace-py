@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from ddtrace.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
+from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.provider import DefaultContextProvider
 
 from .utils import AsyncioTestCase

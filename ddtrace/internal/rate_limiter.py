@@ -3,7 +3,7 @@ from __future__ import division
 import threading
 from typing import Optional
 
-from .. import compat
+from ..internal import compat
 
 
 class RateLimiter(object):

@@ -5,11 +5,11 @@ from mako.runtime import Context
 from mako.template import Template
 
 from ddtrace import Pin
-from ddtrace.compat import StringIO
-from ddtrace.compat import to_unicode
 from ddtrace.contrib.mako import patch
 from ddtrace.contrib.mako import unpatch
 from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
+from ddtrace.internal.compat import StringIO
+from ddtrace.internal.compat import to_unicode
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

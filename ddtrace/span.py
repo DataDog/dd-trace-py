@@ -13,14 +13,6 @@ from typing import Union
 
 import six
 
-from .compat import NumericType
-from .compat import StringIO
-from .compat import ensure_text
-from .compat import is_integer
-from .compat import iteritems
-from .compat import numeric_types
-from .compat import stringify
-from .compat import time_ns
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
@@ -34,6 +26,14 @@ from .ext import http
 from .ext import net
 from .ext import priority
 from .internal import _rand
+from .internal.compat import NumericType
+from .internal.compat import StringIO
+from .internal.compat import ensure_text
+from .internal.compat import is_integer
+from .internal.compat import iteritems
+from .internal.compat import numeric_types
+from .internal.compat import stringify
+from .internal.compat import time_ns
 from .internal.logger import get_logger
 
 

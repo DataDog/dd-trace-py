@@ -53,7 +53,7 @@ test_rand64bits_pid_check     121.8156 (2.03)     168.9837 (1.71)     130.3854 (
 """
 import os
 
-from ddtrace import compat
+from ddtrace.internal import compat
 
 cdef extern from "_stdint.h" nogil:
     ctypedef unsigned long long uint64_t
