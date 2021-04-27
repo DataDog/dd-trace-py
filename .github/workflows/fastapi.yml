@@ -30,6 +30,8 @@ jobs:
           path: fastapi
       - name: Install Flit
         run: pip install flit
+      - name: Install Pydantic
+        run: pip install pydantic
       - name: Inject ddtrace
         run: pip install ddtrace
       - name: Install Dependencies
