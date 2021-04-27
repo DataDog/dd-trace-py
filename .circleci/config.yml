@@ -393,13 +393,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
-  profile:
-    <<: *contrib_job
-    parallelism: 6
-    steps:
-      - run_tox_scenario:
-          pattern: '^py..-profile'
-
   integration_agent5:
     <<: *machine_executor
     steps:
@@ -966,7 +959,6 @@ requires_tests: &requires_tests
     - integration_agent
     - integration_testagent
     - vendor
-    - profile
     - jinja2
     - kombu
     - mako
@@ -1059,7 +1051,6 @@ workflows:
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
       - vendor: *requires_base_venvs
-      - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
       - kombu: *requires_base_venvs
       - mako: *requires_base_venvs

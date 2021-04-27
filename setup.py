@@ -132,20 +132,7 @@ else:
         debug_compile_args = []
 
 
-if sys.version_info[:2] >= (3, 4):
-    ext_modules = [
-        Extension(
-            "ddtrace.profiling.collector._memalloc",
-            sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-            ],
-            extra_compile_args=debug_compile_args,
-        ),
-    ]
-else:
-    ext_modules = []
+ext_modules = []
 
 # Base `setup()` kwargs without any C-extension registering
 setup(
@@ -166,8 +153,6 @@ setup(
             "enum34; python_version<'3.4'",
             "funcsigs>=1.0.0; python_version=='2.7'",
             "typing; python_version<'3.5'",
-            "protobuf>=3",
-            "tenacity>=5",
             "attrs>=19.2.0",
             "six>=1.12.0",
         ],
@@ -184,9 +169,6 @@ setup(
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
             ],
             "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
-            "gevent.plugins.monkey.did_patch_all": [
-                "ddtrace.profiling.profiler = ddtrace.profiling.profiler:gevent_patch_all",
-            ],
         },
         classifiers=[
             "Programming Language :: Python",
@@ -213,32 +195,6 @@ setup(
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector.stack",
-                    sources=["ddtrace/profiling/collector/stack.pyx"],
-                    language="c",
-                    extra_compile_args=extra_compile_args,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._traceback",
-                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._threading",
-                    sources=["ddtrace/profiling/collector/_threading.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.exporter.pprof",
-                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling._build",
-                    sources=["ddtrace/profiling/_build.pyx"],
-                    language="c",
                 ),
             ],
             compile_time_env={
