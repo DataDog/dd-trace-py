@@ -157,6 +157,11 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="runtime",
+            command="pytest {cmdargs} tests/runtime/",
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+        ),
+        Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
@@ -520,6 +525,20 @@ venv = Venv(
             pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
         ),
         Venv(
+            name="mysql",
+            command="pytest {cmdargs} tests/contrib/mysql",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
@@ -583,7 +602,7 @@ venv = Venv(
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": latest,
+                        "mysql-connector-python": [">=8,<8.0.24"],
                     },
                 ),
             ],

@@ -6,11 +6,11 @@ import sys
 import pytest
 
 # Project
-from ddtrace.compat import PY3
-from ddtrace.compat import get_connection_response
-from ddtrace.compat import is_integer
-from ddtrace.compat import reraise
-from ddtrace.compat import to_unicode
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import get_connection_response
+from ddtrace.internal.compat import is_integer
+from ddtrace.internal.compat import reraise
+from ddtrace.internal.compat import to_unicode
 
 
 if PY3:

@@ -6,10 +6,10 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .. import trace_utils
 from ... import Pin
 from ... import config
-from ...compat import urlencode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.compat import urlencode
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...utils.importlib import func_name

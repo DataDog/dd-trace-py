@@ -15,10 +15,10 @@ from moto import mock_s3
 from moto import mock_sqs
 
 from ddtrace import Pin
-from ddtrace.compat import stringify
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
+from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer

@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import inspect
 import os
+import subprocess
 import sys
 from typing import List
 
@@ -10,13 +11,13 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace.compat import httplib
-from ddtrace.compat import parse
-from ddtrace.compat import to_unicode
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal.compat import httplib
+from ddtrace.internal.compat import parse
+from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -434,10 +435,7 @@ class DummyTracer(Tracer):
 
     def __init__(self):
         super(DummyTracer, self).__init__()
-        self._update_writer(getattr(self.writer, "agent_url", None))
-
-    def _update_writer(self, agent_url):
-        self.writer = DummyWriter(agent_url)
+        self.configure()
 
     def pop(self):
         # type: () -> List[Span]
@@ -448,9 +446,11 @@ class DummyTracer(Tracer):
         return self.writer.pop_traces()
 
     def configure(self, *args, **kwargs):
+        assert "writer" not in kwargs or isinstance(
+            kwargs["writer"], DummyWriter
+        ), "cannot configure writer of DummyTracer"
+        kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
-        # `.configure()` may reset the writer
-        self._update_writer(self.writer.agent_url)
 
 
 class TestSpan(Span):
@@ -910,3 +910,13 @@ class AnyInt(object):
 class AnyFloat(object):
     def __eq__(self, other):
         return isinstance(other, float)
+
+
+def call_program(*args):
+    subp = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        close_fds=True,
+    )
+    stdout, stderr = subp.communicate()
+    return stdout, stderr, subp.wait(), subp.pid

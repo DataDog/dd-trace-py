@@ -15,9 +15,10 @@ from typing import Set
 from typing import Union
 
 from ddtrace import config
+from ddtrace.filters import TraceFilter
+from ddtrace.vendor import debtcollector
 
 from . import _hooks
-from . import compat
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
@@ -27,16 +28,18 @@ from .context import Context
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
-from .filters import TraceFilter
 from .internal import _rand
 from .internal import agent
+from .internal import compat
 from .internal import debug
 from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
-from .internal.processor import TraceProcessor
-from .internal.runtime import RuntimeWorker
+from .internal.processor import SpanProcessor
+from .internal.processor.trace import SpanAggregator
+from .internal.processor.trace import TraceProcessor
+from .internal.processor.trace import TraceSamplingProcessor
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -96,10 +99,9 @@ class Tracer(object):
         for common usage, so there is no need to initialize your own ``Tracer``.
 
         :param url: The Datadog agent URL.
-        :param url: The DogStatsD URL.
+        :param dogstatsd_url: The DogStatsD URL.
         """
         self.log = log
-        self._runtime_worker = None
         self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
@@ -133,7 +135,11 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: TraceWriter
-        self._processor = TraceProcessor([])
+        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        self._partial_flush_min_spans = int(
+            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
+        )
+        self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
 
@@ -209,6 +215,7 @@ class Tracer(object):
         return self.context_provider.active(*args, **kwargs)  # type: ignore
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
+    @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
     def configure(
         self,
         enabled=None,  # type: Optional[bool]
@@ -224,6 +231,8 @@ class Tracer(object):
         collect_metrics=None,  # type: Optional[bool]
         dogstatsd_url=None,  # type: Optional[str]
         writer=None,  # type: Optional[TraceWriter]
+        partial_flush_enabled=None,  # type: Optional[bool]
+        partial_flush_min_spans=None,  # type: Optional[int]
     ):
         # type: (...) -> None
         """
@@ -255,6 +264,12 @@ class Tracer(object):
             filters = settings.get(FILTERS_KEY)
             if filters is not None:
                 self._filters = filters
+
+        if partial_flush_enabled is not None:
+            self._partial_flush_enabled = partial_flush_enabled
+
+        if partial_flush_min_spans is not None:
+            self._partial_flush_min_spans = partial_flush_min_spans
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
@@ -317,7 +332,7 @@ class Tracer(object):
             pass
         if isinstance(self.writer, AgentWriter):
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
-        self._processor = TraceProcessor(filters=self._filters)
+        self._initialize_span_processors()
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -325,16 +340,17 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        # Since we've recreated our dogstatsd agent, we need to restart metric collection with that new agent
-        if self._runtime_worker:
+        runtime_metrics_was_running = False
+        # FIXME: Import RuntimeWorker here to avoid circular imports. This will
+        # be gone together with the collect_metrics attribute soon.
+        from .internal.runtime.runtime_metrics import RuntimeWorker
+
+        if RuntimeWorker._instance is not None:
             runtime_metrics_was_running = True
-            self._shutdown_runtime_worker()
-            self._runtime_worker = None
-        else:
-            runtime_metrics_was_running = False
+            RuntimeWorker.disable()
 
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
-            self._start_runtime_worker()
+            RuntimeWorker.enable(tracer=self, dogstatsd_url=self._dogstatsd_url)
 
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:
@@ -433,6 +449,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
 
             # Extra attributes when from a local parent
@@ -449,15 +466,12 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
+                on_finish=[self._on_span_finish],
             )
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
-            # add tags to root span to correlate trace with runtime metrics
-            # only applied to spans with types that are internal to applications
-            if self._runtime_worker and self._is_span_internal(span):
-                span.meta["language"] = "python"
             span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
@@ -511,20 +525,36 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-            # The constant tags for the dogstatsd client needs to updated with any new
-            # service(s) that may have been added.
-            if self._runtime_worker:
-                self._runtime_worker.update_runtime_tags()
+        for p in self._span_processors:
+            p.on_span_start(span)
 
         self._hooks.emit(self.__class__.start_span, span)
-
         return span
 
-    def _start_runtime_worker(self):
-        if not self._dogstatsd_url:
-            return
+    def _on_span_finish(self, span):
+        if not self.enabled:
+            return  # nothing to do
 
-        self._runtime_worker = RuntimeWorker(self._dogstatsd_url)
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("finishing span %r", span)
+
+        for p in self._span_processors:
+            p.on_span_finish(span)
+
+    def _initialize_span_processors(self):
+        # type: () -> None
+        trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceSamplingProcessor()]
+        trace_processors += self._filters
+
+        self._span_processors = [
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self.writer,
+            ),
+        ]  # type: List[SpanProcessor]
 
     def _check_new_process(self):
         """Checks if the tracer is in a new process (was forked) and performs
@@ -557,12 +587,9 @@ class Tracer(object):
         # of the parent.
         self._services = set()
 
-        if self._runtime_worker is not None:
-            self._start_runtime_worker()
-
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
-
+        self._initialize_span_processors()
         return new_ctx
 
     def _log_compat(self, level, msg):
@@ -678,7 +705,6 @@ class Tracer(object):
         if not self.enabled:
             return
 
-        spans = self._processor.process(spans)
         if spans is not None:
             self.writer.write(spans=spans)
 
@@ -803,12 +829,6 @@ class Tracer(object):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         self.writer.stop(timeout=timeout)
-        if self._runtime_worker:
-            self._shutdown_runtime_worker(timeout)
-
-    def _shutdown_runtime_worker(self, timeout=None):
-        self._runtime_worker.stop()
-        self._runtime_worker.join(timeout=timeout)
 
     @staticmethod
     def _use_log_writer():
