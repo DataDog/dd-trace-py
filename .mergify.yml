@@ -8,13 +8,6 @@ pull_request_rules:
       merge:
         strict: smart
         method: squash
-  - name: prepare for merge
-    conditions:
-      - label!=manual merge
-      - check-success=test
-      - "#approved-reviews-by>=2"
-    actions:
-      update: {}
   - name: warn on conflicts
     conditions:
       - conflict
