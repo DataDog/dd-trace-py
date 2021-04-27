@@ -12,9 +12,9 @@ import pytest
 from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace import config
-from ddtrace.compat import stringify
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config

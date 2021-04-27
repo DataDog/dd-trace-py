@@ -3,10 +3,10 @@ import flask
 from flask import abort
 from flask import make_response
 
-from ddtrace.compat import PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.utils import assert_is_measured

@@ -12,9 +12,9 @@ import threading
 
 from ddtrace import Span
 from ddtrace import tracer
-from ddtrace.compat import PYTHON_VERSION_INFO
-from ddtrace.compat import Queue
 from ddtrace.internal import _rand
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import Queue
 
 
 def test_random():
