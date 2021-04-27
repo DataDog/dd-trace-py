@@ -28,15 +28,26 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.63.0
           path: fastapi
-      - name: Install Flit
-        run: pip install flit
+      #- name: Install Flit
+      #  run: pip install flit
       - name: Install Pydantic
         run: pip install pydantic
       - name: Install Typing
         run: pip install typing
+      #- name: Inject ddtrace
+      #  run: pip install ddtrace
+      #- name: Install Dependencies
+      #  run: flit install --symlink
+      #- name: Test
+      #  run: ddtrace-run bash scripts/test.sh
+      - name: Install tox
+        run: pip install tox
+      - name: Create tox env
+        run: tox -e py38 --notest
       - name: Inject ddtrace
-        run: pip install ddtrace
-      - name: Install Dependencies
-        run: flit install --symlink
-      - name: Test
-        run: ddtrace-run bash scripts/test.sh
+        run: .tox/py38/bin/pip install ../ddtrace
+      - name: Add pytest configuration for ddtrace
+        run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
+      - name: Run tests
+      # test_exception_propagation is broken upstream
+        run: tox -e py38 -- -k 'not test_exception_propagation'
