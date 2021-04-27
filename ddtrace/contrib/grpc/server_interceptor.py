@@ -1,8 +1,8 @@
 import grpc
 
 from ddtrace import config
-from ddtrace.compat import to_unicode
 from ddtrace.ext import errors
+from ddtrace.internal.compat import to_unicode
 from ddtrace.vendor import wrapt
 
 from . import constants

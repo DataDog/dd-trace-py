@@ -1,8 +1,8 @@
 from flask.views import MethodView
 from flask.views import View
 
-from ddtrace.compat import PY2
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase

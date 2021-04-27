@@ -8,8 +8,8 @@ from unittest import TestCase
 import msgpack
 import pytest
 
-from ddtrace.compat import msgpack_type
-from ddtrace.compat import string_type
+from ddtrace.internal.compat import msgpack_type
+from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoder

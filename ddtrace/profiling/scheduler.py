@@ -3,7 +3,7 @@ import logging
 
 import attr
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
