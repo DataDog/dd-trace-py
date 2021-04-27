@@ -15,13 +15,13 @@ jobs:
         python-version: [3.6, 3.7, 3.8, 3.9]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v2
-        with:
-          path: ddtrace
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
       - uses: actions/checkout@v2
         with:
           repository: tiangolo/fastapi
@@ -29,14 +29,14 @@ jobs:
           path: fastapi
       - name: Install Flit
         run: pip install flit
+      - name: Install Dependencies
+        run: flit install --symlink
       - name: Install Pydantic
         run: pip install pydantic
       - name: Install Typing
         run: pip install typing
       - name: Inject ddtrace
         run: pip install ddtrace
-      - name: Install Dependencies
-        run: flit install --symlink
       - name: Test
         run: ddtrace-run scripts/test.sh
       
