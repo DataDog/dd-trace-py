@@ -32,9 +32,7 @@ jobs:
       - name: Install Dependencies
         run: flit install --symlink
       - name: update mypy
-        run: pip install mypy
-      - name: Install Pydantic
-        run: pip install pydantic
+        run: pip install --upgrade --force-reinstall mypy
       - name: Install Typing
         run: pip install typing
       - name: Inject ddtrace
