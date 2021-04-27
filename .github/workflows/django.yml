@@ -20,7 +20,7 @@ jobs:
           path: django
       - uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - name: Install pylibmc's libmemcached package
         # Django-specific: pylibmc in Ubuntu requires libmemcached package
         run: sudo apt install libmemcached-dev zlib1g
