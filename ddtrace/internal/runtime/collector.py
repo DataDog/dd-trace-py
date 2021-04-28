@@ -1,7 +1,7 @@
 import importlib
-from typing import Collection
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 from ..logger import get_logger
@@ -56,7 +56,7 @@ class ValueCollector(object):
         return modules
 
     def collect(self, keys=None):
-        # type: (Optional[Collection[str]]) -> Optional[List[Tuple[str, str]]]
+        # type: (Optional[Set[str]]) -> Optional[List[Tuple[str, str]]]
         """Returns metrics as collected by `collect_fn`.
 
         :param keys: The keys of the metrics to collect.
