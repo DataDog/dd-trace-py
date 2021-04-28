@@ -1,7 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:stretch-slim
+FROM debian:buster-slim
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -36,7 +36,7 @@ RUN \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
-      libssl1.0-dev \
+      libssl-dev \
       patch \
       python-openssl\
       unixodbc-dev \
