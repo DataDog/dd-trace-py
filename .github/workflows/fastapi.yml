@@ -38,5 +38,5 @@ jobs:
       - name: Inject ddtrace
         run: pip install ddtrace
       - name: Test
-        run: ddtrace-run scripts/test.sh
+        run: ddtrace-run pytest tests
       
