@@ -44,7 +44,6 @@ exclude = '''
       aiopg
       | boto
       | jinja2
-      | psycopg
       | pylibmc
       | pymemcache
       | rediscluster
@@ -59,7 +58,6 @@ exclude = '''
       aiopg
       | config.py
       | jinja2
-      | psycopg
       | pylibmc
       | pymemcache
       | rediscluster

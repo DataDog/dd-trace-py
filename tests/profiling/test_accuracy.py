@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack
 

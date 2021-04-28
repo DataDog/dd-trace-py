@@ -6,10 +6,10 @@ import flask.templating
 from ddtrace import config
 
 from .. import trace_utils
-from ... import compat
 from ...ext import SpanTypes
 from ...ext import errors
 from ...ext import http
+from ...internal import compat
 from ...internal.logger import get_logger
 from ...utils.deprecation import deprecated
 

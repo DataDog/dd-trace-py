@@ -11,14 +11,14 @@ from typing import TYPE_CHECKING
 
 import six
 
-from .compat import iteritems
-from .compat import pattern_type
 from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
+from .internal.compat import iteritems
+from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .utils.formats import get_env

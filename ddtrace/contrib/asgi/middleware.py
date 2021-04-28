@@ -7,7 +7,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 
 from .. import trace_utils
-from ...compat import reraise
+from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
 

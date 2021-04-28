@@ -1,11 +1,11 @@
 import pymysql
 
 from ddtrace import Pin
-from ddtrace.compat import PY2
-from ddtrace.compat import stringify
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymysql.patch import patch
 from ddtrace.contrib.pymysql.patch import unpatch
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import stringify
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset

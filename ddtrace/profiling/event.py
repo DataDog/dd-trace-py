@@ -1,6 +1,6 @@
 import attr
 
-from ddtrace import compat
+from ddtrace.internal import compat
 
 
 def event_class(klass):
