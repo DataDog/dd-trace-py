@@ -1,7 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:buster-slim
+FROM debian:stretch-slim
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -36,7 +36,7 @@ RUN \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
-      libssl-dev \
+      libssl1.0-dev \
       patch \
       python-openssl\
       unixodbc-dev \
@@ -63,9 +63,8 @@ RUN \
   && pyenv install 3.7.9 \
   && pyenv install 3.8.7 \
   && pyenv install 3.9.1 \
-  && pyenv install 3.10-dev \
   # Order matters: first version is the global one
-  && pyenv global 3.9.1 2.7.18 3.5.10 3.6.12 3.7.9 3.8.7 3.10-dev \
+  && pyenv global 3.9.1 2.7.18 3.5.10 3.6.12 3.7.9 3.8.7 \
   && pip install --upgrade pip
 
 
