@@ -36,7 +36,7 @@ jobs:
       - name: Install Typing
         run: pip install typing
       - name: Inject ddtrace
-        run: pip install ddtrace
+        run: pip install ../ddtrace
       - name: Test
         run: ddtrace-run pytest tests
       
