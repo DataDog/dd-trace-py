@@ -2,7 +2,7 @@ from types import TracebackType
 from typing import Optional
 from typing import Type
 
-from .. import compat
+from ..internal import compat
 
 
 class StopWatch(object):

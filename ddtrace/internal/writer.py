@@ -15,10 +15,9 @@ import ddtrace
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
+from . import compat
 from . import periodic
 from . import service
-from .. import compat
-from ..compat import httplib
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
@@ -416,7 +415,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             encoded = self._encoder.join_encoded(enc_traces)
             try:
                 self._send_payload(encoded, len(enc_traces))
-            except (httplib.HTTPException, OSError, IOError):
+            except (compat.httplib.HTTPException, OSError, IOError):
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))

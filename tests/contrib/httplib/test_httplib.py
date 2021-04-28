@@ -4,14 +4,14 @@ import sys
 import pytest
 
 from ddtrace import config
-from ddtrace.compat import PY2
-from ddtrace.compat import httplib
-from ddtrace.compat import parse
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch
 from ddtrace.contrib.httplib import unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import httplib
+from ddtrace.internal.compat import parse
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer

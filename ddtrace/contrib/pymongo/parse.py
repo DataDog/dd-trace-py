@@ -7,8 +7,8 @@ from bson.codec_options import CodecOptions
 from bson.son import SON
 
 # project
-from ...compat import to_unicode
 from ...ext import net as netx
+from ...internal.compat import to_unicode
 from ...internal.logger import get_logger
 
 

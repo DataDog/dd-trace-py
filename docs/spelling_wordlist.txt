@@ -24,6 +24,7 @@ botocore
 CGroup
 cgroups
 cherrypy
+compat
 config
 coroutine
 coroutines
