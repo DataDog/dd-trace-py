@@ -4,6 +4,7 @@ from ddtrace import Pin
 from ddtrace import config
 
 from . import constants as c
+from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -36,10 +37,8 @@ def trace_prerun(*args, **kwargs):
         log.debug("no pin found on task or task.app task_id=%s", task_id)
         return
 
-    if config.celery["distributed_tracing"]:
-        context = propagator.extract(task.request.get("headers", {}))
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+    request_headers = task.request.get("headers", {})
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.celery, request_headers=request_headers)
 
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]

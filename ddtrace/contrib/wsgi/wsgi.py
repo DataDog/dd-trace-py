@@ -108,10 +108,7 @@ class DDWSGIMiddleware(object):
                 write = start_response(status, response_headers, exc_info)
             return write
 
-        if config.wsgi.distributed_tracing:
-            ctx = propagator.extract(environ)
-            if ctx.trace_id:
-                self.tracer.context_provider.activate(ctx)
+        trace_utils.activate_distributed_headers(self.tracer, int_config=config.wsgi, request_headers=environ)
 
         with self.tracer.trace(
             "wsgi.request",
