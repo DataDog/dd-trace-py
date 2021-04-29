@@ -178,7 +178,7 @@ class _ClientInterceptor(
         span.set_tag(SPAN_MEASURED_KEY)
 
         set_grpc_method_meta(span, client_call_details.method, method_kind)
-        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
         span._set_str_tag(constants.GRPC_HOST_KEY, self._host)
         span._set_str_tag(constants.GRPC_PORT_KEY, self._port)
 
