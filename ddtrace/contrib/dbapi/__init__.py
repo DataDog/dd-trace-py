@@ -70,7 +70,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, cfg.get_analytics_sample_rate())
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             try:
                 return method(*args, **kwargs)
