@@ -15,7 +15,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from .utils import parse_method_path
+from .utils import set_grpc_method_meta
 
 
 log = get_logger(__name__)
@@ -177,17 +177,10 @@ class _ClientInterceptor(
         )
         span.set_tag(SPAN_MEASURED_KEY)
 
-        # tags for method details
-        method_path = client_call_details.method
-        method_package, method_service, method_name = parse_method_path(method_path)
-        span._set_str_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
-        span._set_str_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
-        span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
-        span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
-        span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+        set_grpc_method_meta(span, client_call_details.method, method_kind)
+        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
         span._set_str_tag(constants.GRPC_HOST_KEY, self._host)
         span._set_str_tag(constants.GRPC_PORT_KEY, self._port)
-        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         sample_rate = config.grpc.get_analytics_sample_rate()
         if sample_rate is not None:
