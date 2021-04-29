@@ -1,5 +1,6 @@
 import asyncio
 
+from ...context import Context
 from ...provider import DefaultContextProvider
 
 
@@ -66,6 +67,6 @@ class AsyncioContextProvider(DefaultContextProvider):
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
         if task is None:
-            return None
+            return Context()
 
-        return getattr(task, CONTEXT_ATTR, None)
+        return getattr(task, CONTEXT_ATTR, Context())

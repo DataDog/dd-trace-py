@@ -69,9 +69,9 @@ class DefaultContextProvider(BaseContextProvider):
         _DD_CONTEXTVAR.set(context)
 
     def active(self):
-        # type: () -> Optional[Union[Context, Span]]
+        # type: () -> Union[Context, Span]
         """Returns the active context for the current execution."""
         ctx = _DD_CONTEXTVAR.get()
         if ctx is None:
-            return None
+            return Context()
         return ctx
