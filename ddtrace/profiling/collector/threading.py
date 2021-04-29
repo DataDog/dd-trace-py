@@ -7,7 +7,7 @@ import threading
 import attr
 from six.moves import _thread
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback

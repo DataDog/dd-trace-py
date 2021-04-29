@@ -16,8 +16,6 @@ import pytest
 from six import ensure_text
 
 from ddtrace import config
-from ddtrace.compat import binary_type
-from ddtrace.compat import string_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
@@ -25,6 +23,8 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
+from ddtrace.internal.compat import binary_type
+from ddtrace.internal.compat import string_type
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID

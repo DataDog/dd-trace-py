@@ -3,10 +3,10 @@ import collections
 import grpc
 
 from ddtrace import config
-from ddtrace.compat import stringify
-from ddtrace.compat import to_unicode
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
+from ddtrace.internal.compat import stringify
+from ddtrace.internal.compat import to_unicode
 from ddtrace.vendor import wrapt
 
 from . import constants

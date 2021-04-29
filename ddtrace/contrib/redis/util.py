@@ -1,9 +1,9 @@
 """
 Some utils used by the dogtrace redis integration
 """
-from ...compat import stringify
 from ...ext import net
 from ...ext import redis as redisx
+from ...internal.compat import stringify
 
 
 VALUE_PLACEHOLDER = "?"
