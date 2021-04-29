@@ -13,7 +13,7 @@ your environment is ready to receive traces.
 Installation
 ------------
 
-Install with :code:`bash`::
+Install with :code:`pip`::
 
     pip install ddtrace
 
@@ -29,7 +29,7 @@ Installation on Alpine
 
 Binary distributions are not available for Alpine so build dependencies must be installed first.
 
-:code:`bash`::
+.. code-block:: bash
 
     apk add gcc musl-dev linux-headers
     pip install ddtrace
