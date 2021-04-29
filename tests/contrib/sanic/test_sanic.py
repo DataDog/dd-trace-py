@@ -4,6 +4,7 @@ import re
 
 import pytest
 from sanic import Sanic
+from sanic.config import DEFAULT_CONFIG
 from sanic.exceptions import ServerError
 from sanic.response import json
 from sanic.response import stream
@@ -38,8 +39,11 @@ async def _response_text(response):
     return resp_text
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def app(tracer):
+    # Sanic 20.12 and newer prevent loading multiple applications
+    # with the same name if register is True.
+    DEFAULT_CONFIG["REGISTER"] = False
     app = Sanic(__name__)
 
     @tracer.wrap()
@@ -283,7 +287,7 @@ async def test_multiple_requests(tracer, client, test_spans):
 async def test_invalid_response_type_str(tracer, client, test_spans):
     response = await client.get("/invalid")
     assert _response_status(response) == 500
-    assert await _response_text(response) == "Invalid response type"
+    assert (await _response_text(response)).startswith("Invalid response type")
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -301,7 +305,7 @@ async def test_invalid_response_type_str(tracer, client, test_spans):
 async def test_invalid_response_type_empty(tracer, client, test_spans):
     response = await client.get("/empty")
     assert _response_status(response) == 500
-    assert await _response_text(response) == "Invalid response type"
+    assert (await _response_text(response)).startswith("Invalid response type")
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
