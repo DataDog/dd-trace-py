@@ -1,7 +1,13 @@
 import itertools
 from threading import RLock
+from typing import ClassVar
 from typing import Optional
 from typing import Set
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 import attr
 
@@ -67,9 +73,9 @@ class RuntimeWorker(periodic.PeriodicService):
     dogstatsd_url = attr.ib(type=Optional[str], default=None)
     _dogstatsd_client = attr.ib(init=False, repr=False)
     _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
-    _services = attr.ib(type=Set[str], init=False)
+    _services = attr.ib(type=Set[str], init=False, factory=set)
 
-    _instance = None  # type: Optional[RuntimeWorker]
+    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = RLock()
 
     def __attrs_post_init__(self):
@@ -77,47 +83,50 @@ class RuntimeWorker(periodic.PeriodicService):
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
         self.tracer.on_start_span(self._set_language_on_span)
-        self._services = set()
 
-    def _set_language_on_span(self, span):
+    def _set_language_on_span(
+        self,
+        span,  # type: Span
+    ):
+        # type: (...) -> None
         # add tags to root span to correlate trace with runtime metrics
         # only applied to spans with types that are internal to applications
         if span.parent_id is None and self.tracer._is_span_internal(span):
             span.meta["language"] = "python"
 
-    @staticmethod
-    def disable():
+    @classmethod
+    def disable(cls):
         # type: () -> None
-        with RuntimeWorker._lock:
-            if RuntimeWorker._instance is None:
+        with cls._lock:
+            if cls._instance is None:
                 return
 
-            forksafe.unregister(RuntimeWorker._restart)
+            forksafe.unregister(cls._restart)
 
-            RuntimeWorker._instance.stop()
-            RuntimeWorker._instance.join()
-            RuntimeWorker._instance = None
+            cls._instance.stop()
+            cls._instance.join()
+            cls._instance = None
 
-    @staticmethod
-    def _restart():
-        RuntimeWorker.disable()
-        RuntimeWorker.enable()
+    @classmethod
+    def _restart(cls):
+        cls.disable()
+        cls.enable()
 
-    @staticmethod
-    def enable(flush_interval=None, tracer=None, dogstatsd_url=None):
+    @classmethod
+    def enable(cls, flush_interval=None, tracer=None, dogstatsd_url=None):
         # type: (Optional[float], Optional[ddtrace.Tracer], Optional[str]) -> None
-        with RuntimeWorker._lock:
-            if RuntimeWorker._instance is not None:
+        with cls._lock:
+            if cls._instance is not None:
                 return
 
-            runtime_worker = RuntimeWorker(flush_interval, tracer, dogstatsd_url)
+            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)
             runtime_worker.start()
             # force an immediate update constant tags
             runtime_worker.update_runtime_tags()
 
-            forksafe.register(RuntimeWorker._restart)
+            forksafe.register(cls._restart)
 
-            RuntimeWorker._instance = runtime_worker
+            cls._instance = runtime_worker
 
     def flush(self):
         # type: () -> None
