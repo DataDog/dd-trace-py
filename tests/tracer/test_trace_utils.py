@@ -206,7 +206,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "Content-Type": "some;value",
             },
