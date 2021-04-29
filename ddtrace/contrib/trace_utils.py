@@ -100,7 +100,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         span.set_tag(tag_name, header_value)
 
 
-def store_request_headers(headers, span, integration_config):
+def _store_request_headers(headers, span, integration_config):
     # type: (Dict[str, str], Span, IntegrationConfig) -> None
     """
     Store request headers as a span's tags
@@ -114,7 +114,7 @@ def store_request_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, REQUEST)
 
 
-def store_response_headers(headers, span, integration_config):
+def _store_response_headers(headers, span, integration_config):
     # type: (Dict[str, str], Span, IntegrationConfig) -> None
     """
     Store response headers as a span's tags
@@ -251,10 +251,10 @@ def set_http_meta(
         span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers is not None:
-        store_request_headers(dict(request_headers), span, integration_config)
+        _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None:
-        store_response_headers(dict(response_headers), span, integration_config)
+        _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))

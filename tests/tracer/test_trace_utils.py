@@ -52,12 +52,12 @@ class TestHeaders(object):
         yield IntegrationConfig(config, "test")
 
     def test_it_does_not_break_if_no_headers(self, span, integration_config):
-        trace_utils.store_request_headers(None, span, integration_config)
-        trace_utils.store_response_headers(None, span, integration_config)
+        trace_utils._store_request_headers(None, span, integration_config)
+        trace_utils._store_response_headers(None, span, integration_config)
 
     def test_it_does_not_break_if_headers_are_not_a_dict(self, span, integration_config):
-        trace_utils.store_request_headers(list(), span, integration_config)
-        trace_utils.store_response_headers(list(), span, integration_config)
+        trace_utils._store_request_headers(list(), span, integration_config)
+        trace_utils._store_response_headers(list(), span, integration_config)
 
     def test_it_accept_headers_as_list_of_tuples(self, span, integration_config):
         """
@@ -65,7 +65,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers(["Content-Type", "Max-Age"])
-        trace_utils.store_request_headers([("Content-Type", "some;value;content-type")], span, integration_config)
+        trace_utils._store_request_headers([("Content-Type", "some;value;content-type")], span, integration_config)
         assert span.get_tag("http.request.headers.content-type") == "some;value;content-type"
         assert None is span.get_tag("http.request.headers.other")
 
@@ -75,7 +75,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers(["Content-Type", "Max-Age"])
-        trace_utils.store_request_headers(
+        trace_utils._store_request_headers(
             {
                 "Content-Type": "some;value;content-type",
                 "Max-Age": "some;value;max_age",
@@ -94,7 +94,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers(["Content-Type", "Max-Age"])
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "Content-Type": "some;value;content-type",
                 "Max-Age": "some;value;max_age",
@@ -113,7 +113,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers("Content-Type123")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "Content-Type123": "some;value",
             },
@@ -129,7 +129,7 @@ class TestHeaders(object):
         """
         # See: https://docs.datadoghq.com/tagging/#defining-tags
         integration_config.http.trace_headers("C0n_t:e/nt-Type")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "C0n_t:e/nt-Type": "some;value",
             },
@@ -146,7 +146,7 @@ class TestHeaders(object):
         # Deviation from https://docs.datadoghq.com/tagging/#defining-tags in order to allow
         # consistent representation of headers having the period in the name.
         integration_config.http.trace_headers("api.token")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "api.token": "some;value",
             },
@@ -162,7 +162,7 @@ class TestHeaders(object):
         """
         # See: https://docs.datadoghq.com/tagging/#defining-tags
         integration_config.http.trace_headers("C!#ontent-Type")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "C!#ontent-Type": "some;value",
             },
@@ -177,7 +177,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers("Content-Type")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "   Content-Type   ": "some;value",
             },
@@ -192,7 +192,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers("Content-Type")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "Content-Type": "   some;value   ",
             },
@@ -221,7 +221,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers("content-type")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "Content-Type": "some;value",
             },
@@ -236,7 +236,7 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers("CoNtEnT-tYpE")
-        trace_utils.store_response_headers(
+        trace_utils._store_response_headers(
             {
                 "cOnTeNt-TyPe": "some;value",
             },
