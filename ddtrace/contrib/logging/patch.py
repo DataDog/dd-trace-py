@@ -77,25 +77,18 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
     # has a "service" property
     # PercentStyle, and StringTemplateStyle both look for
     # a "dd.service" property on the record
-    try:
-        record = kwargs.get("record", args[0])
+    record = kwargs.get("record", args[0])
 
-        dd = DDLogRecord(
-            trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
-            span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
-            service=getattr(record, RECORD_ATTR_SERVICE, ""),
-            version=getattr(record, RECORD_ATTR_VERSION, ""),
-            env=getattr(record, RECORD_ATTR_ENV, ""),
-        )
-        setattr(record, "dd", dd)
+    dd = DDLogRecord(
+        trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
+        span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
+        service=getattr(record, RECORD_ATTR_SERVICE, ""),
+        version=getattr(record, RECORD_ATTR_VERSION, ""),
+        env=getattr(record, RECORD_ATTR_ENV, ""),
+    )
+    setattr(record, "dd", dd)
 
-    except Exception as e:
-        import pdb
-
-        pdb.set_trace()
-        pass
-    finally:
-        return func(*args, **kwargs)
+    return func(*args, **kwargs)
 
 
 def patch():
