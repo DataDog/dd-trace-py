@@ -9,7 +9,7 @@ GEVENT_VERSION = gevent.version_info[0:3]
 
 class TracingMixin(object):
     def __init__(self, *args, **kwargs):
-        # Get the active context/span if available.
+        # Get the active context/span if available
         current_g = gevent.getcurrent()
         ctx = getattr(current_g, CONTEXT_ATTR, None)
 

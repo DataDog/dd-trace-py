@@ -125,7 +125,7 @@ class Span(OpenTracingSpan):
         elif key == OTTags.PEER_PORT:
             self._dd_span.set_tag(Tags.TARGET_PORT, value)
         elif key == Tags.SAMPLING_PRIORITY:
-            self._dd_span.sampling_priority = value
+            self._dd_span.context.sampling_priority = value
         else:
             self._dd_span.set_tag(key, value)
 

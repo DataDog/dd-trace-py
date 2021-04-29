@@ -1277,7 +1277,7 @@ def test_multithreaded(tracer, test_spans):
 def test_ctx_distributed(tracer, test_spans):
     # Test activating an invalid context.
     ctx = Context(span_id=None, trace_id=None)
-    tracer.activate(ctx)
+    tracer.context_provider.activate(ctx)
     assert tracer.current_span() is None
 
     with tracer.trace("test") as s1:
@@ -1292,7 +1292,7 @@ def test_ctx_distributed(tracer, test_spans):
 
     # Test activating a valid context.
     ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
-    tracer.activate(ctx)
+    tracer.context_provider.activate(ctx)
     assert tracer.current_span() is None
     assert (
         tracer.get_call_context()
@@ -1302,7 +1302,7 @@ def test_ctx_distributed(tracer, test_spans):
 
     with tracer.trace("test2") as s2:
         assert tracer.current_span() == s2
-        assert tracer.current_root_span() is s2
+        assert tracer.current_root_span() == s2
         assert tracer.get_call_context().trace_id == s2.trace_id == 4321
         assert tracer.get_call_context().span_id == s2.span_id
         assert s2.parent_id == 1234

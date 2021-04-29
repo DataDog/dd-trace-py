@@ -45,20 +45,10 @@ class Context(object):
         # type: () -> Optional[int]
         return self._trace_id
 
-    @trace_id.setter
-    def trace_id(self, value):
-        # type: (int) -> None
-        self._trace_id = value
-
     @property
     def span_id(self):
         # type: () -> Optional[int]
         return self._span_id
-
-    @span_id.setter
-    def span_id(self, value):
-        # type: (int) -> None
-        self._span_id = value
 
     @property
     def sampling_priority(self):

@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 import six
 
-from ddtrace import config
-
+from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
@@ -125,7 +124,9 @@ class RateByServiceSampler(BasePrioritySampler):
 
     def sample(self, span):
         # type: (Span) -> bool
-        key = self._key(span.service, config.env)
+        tags = span.tracer.tags if span.tracer else {}
+        env = tags[ENV_KEY] if ENV_KEY in tags else None
+        key = self._key(span.service, env)
 
         sampler = self._by_service_samplers.get(key, self._by_service_samplers[self._default_key])
         span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)

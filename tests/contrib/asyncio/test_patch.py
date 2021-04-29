@@ -1,6 +1,8 @@
 import asyncio
 import sys
 
+import pytest
+
 from ddtrace.contrib.asyncio.patch import patch
 from ddtrace.contrib.asyncio.patch import unpatch
 from ddtrace.vendor import wrapt
@@ -13,6 +15,7 @@ class CustomEventLoop(asyncio.BaseEventLoop):
         pass
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 7, 0), reason="Not relevant when contextvars are available")
 class TestAsyncioPatch(AsyncioTestCase):
     """Ensure that asyncio patching works for event loops"""
 
@@ -37,8 +40,7 @@ class TestAsyncioPatch(AsyncioTestCase):
     def test_new_loop(self):
         patch()
         loop = asyncio.new_event_loop()
-        if sys.version_info < (3, 7, 0):
-            self.assertIsInstance(loop.create_task, wrapt.ObjectProxy)
+        self.assertIsInstance(loop.create_task, wrapt.ObjectProxy)
 
     def test_after_set_event_loop(self):
         loop = asyncio.new_event_loop()

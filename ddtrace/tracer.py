@@ -426,8 +426,7 @@ class Tracer(object):
             if isinstance(child_of, Span):
                 parent = child_of
             elif isinstance(child_of, Context) and child_of._span:
-                # TODO[v1.0]
-                # Backwards support for
+                # TODO[v1.0]: backwards support for parent span references.
                 parent = child_of._span
 
         # The following precedence is used for a new span's service:
@@ -530,12 +529,12 @@ class Tracer(object):
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
 
+        if activate:
+            self.context_provider.activate(span)
+
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
-
-        if activate:
-            self.context_provider.activate(span)
 
         for p in self._span_processors:
             p.on_span_start(span)
