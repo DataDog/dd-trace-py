@@ -1,5 +1,7 @@
 import logging
+import sys
 
+import pytest
 import six
 
 import ddtrace
@@ -40,7 +42,7 @@ class AssertFilter(logging.Filter):
         return True
 
 
-def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
+def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_style=None):
     if logger_override is not None:
         logger_to_capture = logger_override
     else:
@@ -51,7 +53,10 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
     sh = logging.StreamHandler(out)
 
     try:
-        formatter = logging.Formatter(fmt)
+        if fmt_style:
+            formatter = logging.Formatter(fmt, style=fmt_style)
+        else:
+            formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
         logger_to_capture.addHandler(sh)
         assert_filter = AssertFilter()
@@ -182,3 +187,34 @@ class LoggingTestCase(TracerTestCase):
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
+
+    @pytest.skip(sys.version_info[0] == 2, "logging.StrFormatStyle does not exist on Python 2.7")
+    def test_log_strformat_style(self):
+        def func():
+            with self.tracer.trace("test.logging") as span:
+                logger.info("Hello!")
+                return span
+
+        fmt = "{message} [dd.service={dd.service} dd.env={dd.env} dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
+
+        with self.override_config("logging", dict(tracer=self.tracer)):
+            output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
+
+            lines = output.splitlines()
+            assert (
+                "Hello! [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
+                    span.trace_id, span.span_id
+                )
+                == lines[0]
+            )
+
+            with self.override_global_config(dict(service="my.service", version="my.version", env="my.env")):
+                output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
+
+                lines = output.splitlines()
+                assert (
+                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]".format(
+                        span.trace_id, span.span_id
+                    )
+                    == lines[0]
+                )
