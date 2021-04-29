@@ -10,15 +10,10 @@ jobs:
     defaults:
       run:
         working-directory: fastapi
-    strategy:
-      matrix:
-        python-version: [3.9]
-      fail-fast: false
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.9'
       - uses: actions/checkout@v2
         with:
           path: ddtrace
