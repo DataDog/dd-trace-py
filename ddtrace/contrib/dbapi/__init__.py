@@ -11,6 +11,7 @@ from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...utils.attrdict import AttrDict
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...vendor import wrapt
@@ -38,7 +39,7 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or "sql"
         self._self_datadog_name = "{}.query".format(name)
         self._self_last_execute_operation = None
-        self._self_config = cfg or config.dbapi2
+        self._self_config = _override_dbapi2_config(cfg)
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -55,9 +56,10 @@ class TracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
-        cfg = _get_config(self._self_config)
 
-        with pin.tracer.trace(name, service=ext_service(pin, cfg), resource=resource, span_type=SpanTypes.SQL) as s:
+        with pin.tracer.trace(
+            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
+        ) as s:
             if measured:
                 s.set_tag(SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
@@ -164,12 +166,41 @@ class FetchTracedCursor(TracedCursor):
         )
 
 
-def _get_config(new_cfg):
+# TODO: Remove once config.dbapi2 has been removed
+class _OverrideAttrDict(wrapt.ObjectProxy):
+    __slots__ = ("override", "base")
+    sentinel = object()
+
+    def __init__(self, override, base):
+        self.override = override or AttrDict()
+        self.base = base or AttrDict()
+        super(_OverrideAttrDict, self).__init__(self.override)
+
+    def __getattr__(self, name):
+        value = self.override.get(name, self.sentinel)
+        return getattr(self.base, name) if value == self.sentinel else value
+
+    def __getitem__(self, name):
+        value = self.override.get(name, self.sentinel)
+        return self.base.__getitem__(name) if value == self.sentinel else value
+
+    def __contains__(self, name):
+        return (name in self.override and self.override[name] is not None) or (
+            name in self.base and self.base[name] is not None
+        )
+
+
+def _override_dbapi2_config(new_cfg):
     # Need to backwards support the dbapi2 config entry
     # but give precedence to the given config.
-    cfg = config.dbapi2.copy()
-    cfg.update(new_cfg)
-    return cfg
+    if new_cfg is None:
+        return config.dbapi2
+
+    # Avoid wrapping again
+    if isinstance(new_cfg, _OverrideAttrDict):
+        return new_cfg
+
+    return _OverrideAttrDict(new_cfg, config.dbapi2)
 
 
 class TracedConnection(wrapt.ObjectProxy):
@@ -191,7 +222,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
-        self._self_config = cfg or config.dbapi2
+        self._self_config = _override_dbapi2_config(cfg)
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
@@ -227,10 +258,9 @@ class TracedConnection(wrapt.ObjectProxy):
                 return r
             else:
                 pin = Pin.get_from(self)
-                cfg = _get_config(self._self_config)
                 if not pin:
                     return r
-                return self._self_cursor_cls(r, pin, cfg)
+                return self._self_cursor_cls(r, pin, self._self_config)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -240,9 +270,8 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
-        cfg = _get_config(self._self_config)
 
-        with pin.tracer.trace(name, service=ext_service(pin, cfg)) as s:
+        with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -251,10 +280,9 @@ class TracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
         pin = Pin.get_from(self)
-        cfg = _get_config(self._self_config)
         if not pin:
             return cursor
-        return self._self_cursor_cls(cursor, pin, cfg)
+        return self._self_cursor_cls(cursor, pin, self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
