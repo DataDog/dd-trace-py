@@ -3,6 +3,7 @@
 tests for Tracer and utilities.
 """
 import contextlib
+import logging
 import multiprocessing
 import os
 from os import getpid
@@ -1514,3 +1515,16 @@ def test_spans_sampled_all(tracer, test_spans):
 
     spans = test_spans.pop()
     assert len(spans) == 3
+
+
+def test_span_debug_log(tracer):
+    tracer.log.setLevel(logging.DEBUG)
+    tracer.log = mock.MagicMock(wraps=tracer.log)
+    with tracer.trace("test") as span:
+        pass
+
+    tracer.log.debug.assert_has_calls(
+        [
+            mock.call("finishing span %s (enabled:%s)", span.pprint(), True),
+        ]
+    )
