@@ -96,50 +96,50 @@ class HTTPPropagator(object):
 
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-
-            extracted_trace_id = HTTPPropagator._extract_header_value(
+            # TODO: Fix variable type changing (mypy)
+            trace_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_TRACE_IDS,
                 normalized_headers,
             )
-            if extracted_trace_id is None:
+            if trace_id is None:
                 return Context()
 
-            extracted_parent_span_id = HTTPPropagator._extract_header_value(
+            parent_span_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_PARENT_IDS,
                 normalized_headers,
                 default="0",
             )
-            extracted_sampling_priority = HTTPPropagator._extract_header_value(
+            sampling_priority = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
                 normalized_headers,
             )
-            extracted_origin = HTTPPropagator._extract_header_value(
+            origin = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_ORIGIN,
                 normalized_headers,
             )
 
             # Try to parse values into their expected types
             try:
-                if extracted_sampling_priority is not None:
-                    sampling_priority = int(extracted_sampling_priority)  # type: Optional[int]
+                if sampling_priority is not None:
+                    sampling_priority = int(sampling_priority)  # type: ignore[assignment]
                 else:
-                    sampling_priority = extracted_sampling_priority
+                    sampling_priority = sampling_priority
 
                 return Context(
                     # DEV: Do not allow `0` for trace id or span id, use None instead
-                    trace_id=int(extracted_trace_id) or None,
-                    span_id=int(extracted_parent_span_id) or None,  # type: ignore[arg-type]
-                    sampling_priority=sampling_priority,
-                    dd_origin=extracted_origin,
+                    trace_id=int(trace_id) or None,
+                    span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
+                    sampling_priority=sampling_priority,  # type: ignore[arg-type]
+                    dd_origin=origin,
                 )
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
             except (TypeError, ValueError):
                 log.debug(
                     "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
-                    extracted_trace_id,
-                    extracted_parent_span_id,
-                    extracted_sampling_priority,
-                    extracted_origin,
+                    trace_id,
+                    parent_span_id,
+                    sampling_priority,
+                    origin,
                 )
                 return Context()
         except Exception:
