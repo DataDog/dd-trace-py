@@ -178,8 +178,10 @@ class _OverrideAttrDict(wrapt.ObjectProxy):
         super(_OverrideAttrDict, self).__init__(self.override)
 
     def __getattr__(self, name):
-        value = self.override.get(name, self.sentinel)
-        return getattr(self.base, name) if value == self.sentinel else value
+        try:
+            return getattr(self.override, name)
+        except AttributeError:
+            return getattr(self.base, name)
 
     def __getitem__(self, name):
         value = self.override.get(name, self.sentinel)
