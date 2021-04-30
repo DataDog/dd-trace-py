@@ -230,3 +230,26 @@ class LoggingTestCase(TracerTestCase):
                     "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]"
                 ).format(span.trace_id, span.span_id)
                 assert expected == lines[0]
+
+    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
+    def test_log_strformat_style_format(self):
+        # DEV: We have to use `{msg}` instead of `{message}` because we are manually creating
+        # records which does not properly configure `record.message` attribute
+        fmt = (
+            "{msg} [dd.service={dd.service} dd.env={dd.env} "
+            "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
+        )
+        formatter = logging.StrFormatStyle(fmt)
+
+        with self.override_config("logging", dict(tracer=self.tracer)):
+            with self.tracer.trace("test.logging") as span:
+                record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
+                log = formatter.format(record)
+                expected = "Manual log record [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
+                    span.trace_id, span.span_id
+                )
+                assert log == expected
+
+                assert not hasattr(record, "dd")
+                assert getattr(record, RECORD_ATTR_TRACE_ID) == str(span.trace_id)
+                assert getattr(record, RECORD_ATTR_SPAN_ID) == str(span.span_id)

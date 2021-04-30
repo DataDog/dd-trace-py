@@ -86,7 +86,14 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
         env=getattr(record, RECORD_ATTR_ENV, ""),
     )
 
-    return func(*args, **kwargs)
+    try:
+        return func(*args, **kwargs)
+    finally:
+        # We need to remove this extra attribute so it does not pollute other formatters
+        # For example: if we format with StrFormatStyle and then  a JSON logger
+        # then the JSON logger will have `dd.{service,version,env,trace_id,span_id}` as
+        # well as the `record.dd` `DDLogRecord` instance
+        delattr(record, "dd")
 
 
 def patch():
