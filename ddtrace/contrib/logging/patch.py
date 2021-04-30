@@ -79,14 +79,13 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
     # a "dd.service" property on the record
     record = kwargs.get("record", args[0])
 
-    dd = DDLogRecord(
+    record.dd = DDLogRecord(
         trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
         span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
         service=getattr(record, RECORD_ATTR_SERVICE, ""),
         version=getattr(record, RECORD_ATTR_VERSION, ""),
         env=getattr(record, RECORD_ATTR_ENV, ""),
     )
-    setattr(record, "dd", dd)
 
     return func(*args, **kwargs)
 
