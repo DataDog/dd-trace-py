@@ -1,4 +1,4 @@
-name: Starlette_test_suite
+name: Starlette_test_suite_0_14.2
 on:
   push:
     branches: ["master"]
@@ -28,4 +28,4 @@ jobs:
       - name: "Install dependencies"
         run: "scripts/install"
       - name: Run tests
-        run: ddtrace-run pytest --ddtrace-patch-all tests
+        run: ddtrace-run pytest -p no:warnings --ddtrace-patch-all tests
