@@ -1,6 +1,4 @@
----
-name: Starlette_test_suite
-
+name: Starlette_test_suite\
 on:
   push:
     branches: ["master"]
@@ -8,19 +6,15 @@ on:
     branches: ["master"]
 
 jobs:
-  tests:
-    name: "Python ${{ matrix.python-version }}"
+  starlette-tests:
     runs-on: "ubuntu-latest"
-
-    strategy:
-      matrix:
-        python-version: ["3.6", "3.7", "3.8", "3.9"]
-
+    defaults:
+      run:
+        working-directory: starlette
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "actions/setup-python@v2"
+      - uses: actions/setup-python@v2
         with:
-          python-version: "${{ matrix.python-version }}"
+          python-version: '3.9'
       - uses: actions/checkout@v2
         with:
           path: ddtrace
@@ -41,4 +35,3 @@ jobs:
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
       - name: Run tests
         run: tox -e py38 -- -k 
-      
