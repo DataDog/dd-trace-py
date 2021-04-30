@@ -83,10 +83,22 @@ class LoggingTestCase(TracerTestCase):
         """
         log = logging.getLogger()
         self.assertTrue(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
+        # For Python 3
+        if hasattr(logging, "StrFormatStyle"):
+            if hasattr(logging.StrFormatStyle, "_format"):
+                assert isinstance(logging.StrFormatStyle._format, wrapt.BoundFunctionWrapper)
+            else:
+                assert isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
         unpatch()
         log = logging.getLogger()
         self.assertFalse(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
+        # For Python 3
+        if hasattr(logging, "StrFormatStyle"):
+            if hasattr(logging.StrFormatStyle, "_format"):
+                assert not isinstance(logging.StrFormatStyle._format, wrapt.BoundFunctionWrapper)
+            else:
+                assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
     def _test_logging(self, create_span, service="", version="", env=""):
         def func():

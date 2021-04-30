@@ -112,3 +112,8 @@ def unpatch():
         setattr(logging, "_datadog_patch", False)
 
         _u(logging.Logger, "makeRecord")
+        if hasattr(logging, "StrFormatStyle"):
+            if hasattr(logging.StrFormatStyle, "_format"):
+                _u(logging.StrFormatStyle, "_format")
+            else:
+                _u(logging.StrFormatStyle, "format")
