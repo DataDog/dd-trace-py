@@ -1,5 +1,6 @@
 import unittest
 
+from pymemcacahe.client import hash as pymemcache_hash
 import pymemcache
 
 from ddtrace.vendor import wrapt
@@ -23,3 +24,6 @@ class AutoPatchTestCase(unittest.TestCase):
 
     def test_patch(self):
         assert issubclass(pymemcache.client.base.Client, wrapt.ObjectProxy)
+        assert issubclass(pymemcache_hash.Client, wrapt.ObjectProxy)
+        if hasattr(pymemcache_hash.HashClient, "client_class"):
+            assert issubclass(pymemcache_hash.HashClient.client_class, wrapt.ObjectProxy)
