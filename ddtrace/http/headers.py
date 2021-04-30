@@ -78,7 +78,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
 @cached()
 def _normalized_header_name(header_name):
     # type: (str) -> str
-    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))  # type: ignore[arg-type]
 
 
 def _normalize_tag_name(request_or_response, header_name):

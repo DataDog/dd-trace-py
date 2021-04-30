@@ -40,7 +40,7 @@ when you call `git commit` as pre-commit hooks to catch any formatting errors be
 you commit. To initialize the pre-commit hook script to run in your development 
 branch, run the following command:
 
-    $ hooks/scripts/autohook.sh install
+    $ hooks/autohook.sh install
 
 ### Testing
 
