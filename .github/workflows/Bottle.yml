@@ -1,0 +1,31 @@
+name: Bottle_test_suite
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+jobs:
+  bottle-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bottle
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: bottlepy/bottle
+          ref: 0.63.0
+          path: fastapi
+      - name: Install dependencies
+        run: .github/workflows/install-deps.sh
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+      - name: Run tests
+        run: ddtrace-run pytest tests
