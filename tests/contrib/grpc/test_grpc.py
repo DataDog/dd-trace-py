@@ -593,7 +593,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
         return grpc.unary_unary_rpc_method_handler(self._handler)
 
 
-@snapshot(ignores=["meta.grpc.port"], async_mode=False)
+@snapshot(ignores=["meta.grpc.port"])
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""
