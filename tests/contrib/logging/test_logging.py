@@ -195,7 +195,10 @@ class LoggingTestCase(TracerTestCase):
                 logger.info("Hello!")
                 return span
 
-        fmt = "{message} [dd.service={dd.service} dd.env={dd.env} dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
+        fmt = (
+            "{message} [dd.service={dd.service} dd.env={dd.env} "
+            "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
+        )
 
         with self.override_config("logging", dict(tracer=self.tracer)):
             output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
@@ -212,9 +215,7 @@ class LoggingTestCase(TracerTestCase):
                 output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
 
                 lines = output.splitlines()
-                assert (
-                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]".format(
-                        span.trace_id, span.span_id
-                    )
-                    == lines[0]
-                )
+                expected = (
+                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]"
+                ).format(span.trace_id, span.span_id)
+                assert expected == lines[0]
