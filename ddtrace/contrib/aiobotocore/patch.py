@@ -1,5 +1,3 @@
-import asyncio
-
 import aiobotocore.client
 
 from ddtrace import config
@@ -48,8 +46,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         self._self_pin = pin
         self._self_parent_span = parent_span
 
-    @asyncio.coroutine
-    def read(self, *args, **kwargs):
+    async def read(self, *args, **kwargs):
         # async read that must be child of the parent span operation
         operation_name = "{}.read".format(self._self_parent_span.name)
 
@@ -60,7 +57,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             span.meta = dict(self._self_parent_span.meta)
             span.metrics = dict(self._self_parent_span.metrics)
 
-            result = yield from self.__wrapped__.read(*args, **kwargs)
+            result = await self.__wrapped__.read(*args, **kwargs)
             span.set_tag("Length", len(result))
 
         return result
@@ -68,23 +65,20 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     # wrapt doesn't proxy `async with` context managers
     if PYTHON_VERSION_INFO >= (3, 5, 0):
 
-        @asyncio.coroutine
-        def __aenter__(self):
+        async def __aenter__(self):
             # call the wrapped method but return the object proxy
-            yield from self.__wrapped__.__aenter__()
+            await self.__wrapped__.__aenter__()
             return self
 
-        @asyncio.coroutine
-        def __aexit__(self, *args, **kwargs):
-            response = yield from self.__wrapped__.__aexit__(*args, **kwargs)
+        async def __aexit__(self, *args, **kwargs):
+            response = await self.__wrapped__.__aexit__(*args, **kwargs)
             return response
 
 
-@asyncio.coroutine
-def _wrapped_api_call(original_func, instance, args, kwargs):
+async def _wrapped_api_call(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        result = yield from original_func(*args, **kwargs)
+        result = await original_func(*args, **kwargs)
         return result
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
@@ -111,7 +105,7 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         }
         span.set_tags(meta)
 
-        result = yield from original_func(*args, **kwargs)
+        result = await original_func(*args, **kwargs)
 
         body = result.get("Body")
         if isinstance(body, ClientResponseContentProxy):
