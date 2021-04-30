@@ -1,5 +1,6 @@
 import errno
 import re
+from typing import Optional
 
 import attr
 
@@ -34,6 +35,7 @@ class CGroupInfo(object):
 
     @classmethod
     def from_line(cls, line):
+        # type: (str) -> Optional[CGroupInfo]
         """
         Parse a new :class:`CGroupInfo` from the provided line
 
@@ -79,6 +81,7 @@ class CGroupInfo(object):
 
 
 def get_container_info(pid="self"):
+    # type: (str) -> Optional[CGroupInfo]
     """
     Helper to fetch the current container id, if we are running in a container
 
@@ -105,3 +108,4 @@ def get_container_info(pid="self"):
             log.debug("Failed to open cgroup file for pid %r", pid, exc_info=True)
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)
+    return None
