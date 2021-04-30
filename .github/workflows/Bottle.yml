@@ -29,6 +29,8 @@ jobs:
         run: sudo apt-get install -y libev-dev
       - name: Install further dependencies
         run: pip install mako jinja2
+      - name: Install bottle module
+        run: pip install bottle
       - name: Test dependencies (Server back-ends and template engines)
         run: |
           for name in waitress "cherrypy<9" cheroot paste tornado twisted diesel meinheld\
