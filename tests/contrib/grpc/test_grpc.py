@@ -3,6 +3,7 @@ import time
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
+import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -12,6 +13,7 @@ from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
 from .hello_pb2 import HelloReply
 from .hello_pb2 import HelloRequest
@@ -572,3 +574,40 @@ def test_handle_response_future_like():
     assert span.duration is None
     _handle_response(span, FutureLike())
     assert span.duration is not None
+
+
+@pytest.fixture()
+def patch_grpc():
+    patch()
+    try:
+        yield
+    finally:
+        unpatch()
+
+
+class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
+    def __init__(self, handler):
+        self._handler = handler
+
+    def service(self, handler_call_details):
+        return grpc.unary_unary_rpc_method_handler(self._handler)
+
+
+@snapshot(ignores=["meta.grpc.port"])
+def test_method_service(patch_grpc):
+    def handler(request, context):
+        return b""
+
+    server = grpc.server(
+        logging_pool.pool(1),
+        options=(("grpc.so_reuseport", 0),),
+    )
+    port = server.add_insecure_port("[::]:0")
+    channel = grpc.insecure_channel("localhost:{}".format(port))
+    server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
+    try:
+        server.start()
+        channel.unary_unary("/Servicer/Handler")(b"request")
+        channel.unary_unary("/pkg.Servicer/Handler")(b"request")
+    finally:
+        server.stop(None)
