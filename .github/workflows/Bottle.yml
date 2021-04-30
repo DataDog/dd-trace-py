@@ -22,7 +22,7 @@ jobs:
         with:
           repository: bottlepy/bottle
           ref: 0.63.0
-          path: fastapi
+          path: bottle
       - name: Install dependencies
         run: .github/workflows/install-deps.sh
       - name: Inject ddtrace
