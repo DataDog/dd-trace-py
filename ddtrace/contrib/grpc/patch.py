@@ -126,6 +126,8 @@ def _parse_target_from_arguments(args, kwargs):
     else:
         target = args[0]
 
-    split = target.rsplit(":", 2)
+    split = target.rsplit(":", 1)
+    host = split[0] if len(split) >= 1 else None
+    port = split[1] if len(split) == 2 else None
 
-    return (split[0], split[1] if len(split) > 1 else None)
+    return host, port

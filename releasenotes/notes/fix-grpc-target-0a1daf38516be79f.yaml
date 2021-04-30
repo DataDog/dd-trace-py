@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: handle IPv6 wildcard address (`[::]`) in target server.
