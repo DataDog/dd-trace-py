@@ -1,4 +1,6 @@
 import os
+from typing import List
+from typing import Tuple
 
 from .collector import ValueCollector
 from .constants import CPU_PERCENT
@@ -14,7 +16,7 @@ from .constants import THREAD_COUNT
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []
+    value = []  # type: List[Tuple[str, str]]
     periodic = True
 
 

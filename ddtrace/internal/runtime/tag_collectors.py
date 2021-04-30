@@ -1,3 +1,6 @@
+from typing import List
+from typing import Tuple
+
 from ...constants import ENV_KEY
 from .collector import ValueCollector
 from .constants import LANG
@@ -9,7 +12,7 @@ from .constants import TRACER_VERSION
 
 class RuntimeTagCollector(ValueCollector):
     periodic = False
-    value = []
+    value = []  # type: List[Tuple[str, str]]
 
 
 class TracerTagCollector(RuntimeTagCollector):
@@ -42,7 +45,7 @@ class PlatformTagCollector(RuntimeTagCollector):
 
     """
 
-    required_modules = ("platform", "ddtrace")
+    required_modules = ["platform", "ddtrace"]
 
     def collect_fn(self, keys):
         platform = self.modules.get("platform")
