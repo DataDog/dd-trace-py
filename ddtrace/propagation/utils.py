@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ddtrace.utils.cache import cached
 
 
@@ -13,7 +15,7 @@ def get_wsgi_header(header):
 
 @cached()
 def from_wsgi_header(header):
-    # type: (str) -> str
+    # type: (str) -> Optional[str]
     """Convert a WSGI compliant HTTP header into the original header.
     See https://www.python.org/dev/peps/pep-3333/#environ-variables for
     information from the spec.
