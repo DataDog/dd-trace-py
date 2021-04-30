@@ -1,4 +1,4 @@
-name: Bottle_test_suite
+name: bottle_test_suite
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - master
   pull_request:
 jobs:
-  bottle-test:
+  bottle-testsuite-0_12_19:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,8 +30,10 @@ jobs:
       - name: Install further dependencies
         run: pip install mako jinja2
       - name: Install bottle module
+      #Bottle module is not isntalled as a dependency
         run: pip install bottle
       - name: Test dependencies (Server back-ends and template engines)
+      #Taken from install script inside of .github/workflows of test suite
         run: |
           for name in waitress "cherrypy<9" cheroot paste tornado twisted diesel meinheld\
             gunicorn eventlet flup bjoern gevent aiohttp-wsgi uvloop; do

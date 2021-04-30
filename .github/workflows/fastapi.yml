@@ -5,7 +5,7 @@ on:
       - master
   pull_request:
 jobs:
-  fastapi-test:
+  fastapi-testsuite-0_63_0:
     runs-on: ubuntu-latest
     defaults:
       run:
