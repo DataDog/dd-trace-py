@@ -68,8 +68,10 @@ class RuntimeWorker(periodic.PeriodicService):
     client.
     """
 
-    _interval = attr.ib(type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10)))
-    tracer = attr.ib(type=Optional[ddtrace.Tracer], default=None)
+    _interval = attr.ib(
+        type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10))  # type: ignore[arg-type]
+    )
+    tracer = attr.ib(type=ddtrace.Tracer, default=None)
     dogstatsd_url = attr.ib(type=Optional[str], default=None)
     _dogstatsd_client = attr.ib(init=False, repr=False)
     _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
@@ -118,8 +120,7 @@ class RuntimeWorker(periodic.PeriodicService):
         with cls._lock:
             if cls._instance is not None:
                 return
-
-            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)
+            runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
             runtime_worker.start()
             # force an immediate update constant tags
             runtime_worker.update_runtime_tags()
