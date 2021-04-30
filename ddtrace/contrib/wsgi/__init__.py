@@ -8,10 +8,10 @@ Usage
 The middleware can be used manually via the following command::
 
 
-    from ddtrace.contrib.wsgi import DDTraceMiddleware
+    from ddtrace.contrib.wsgi import DDWSGIMiddleware
 
     # application is a WSGI application
-    application = DDTraceMiddleware(application)
+    application = DDWSGIMiddleware(application)
 
 
 Global Configuration
