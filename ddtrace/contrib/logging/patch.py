@@ -71,7 +71,6 @@ def _w_makeRecord(func, instance, args, kwargs):
 
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
-
     # The format string "dd.service={dd.service}" expects
     # the record to have a "dd" property which is an object that
     # has a "service" property
