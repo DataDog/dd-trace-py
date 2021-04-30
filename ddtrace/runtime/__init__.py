@@ -18,6 +18,7 @@ class RuntimeMetrics(object):
 
     @staticmethod
     def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
+        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
         """
         Enable the runtime metrics collection service.
 
@@ -29,7 +30,6 @@ class RuntimeMetrics(object):
         :param dogstatsd_url: The DogStatsD URL.
         :param flush_interval: The flush interval.
         """
-        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
 
         ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(
             tracer=tracer, dogstatsd_url=dogstatsd_url, flush_interval=flush_interval
@@ -37,13 +37,13 @@ class RuntimeMetrics(object):
 
     @staticmethod
     def disable():
+        # type: () -> None
         """
         Disable the runtime metrics collection service.
 
         Once disabled, runtime metrics can be re-enabled by calling ``enable``
         again.
         """
-        # type: () -> None
         ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()
 
 
