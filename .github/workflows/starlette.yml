@@ -23,9 +23,10 @@ jobs:
           repository: encode/starlette
           ref: 0.14.2
           path: starlette
-      - name: "Install dependencies"
-        run: "scripts/install"
       - name: Install ddtrace
         run: pip install ../ddtrace
+      - name: "Install dependencies"
+        run: "scripts/install"
       - name: Run tests
         run: ddtrace-run pytest tests
+        
