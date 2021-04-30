@@ -187,7 +187,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @pytest.mark.skip(six.PY2, "logging.StrFormatStyle does not exist on Python 2.7")
+    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
     def test_log_strformat_style(self):
         def func():
             with self.tracer.trace("test.logging") as span:
