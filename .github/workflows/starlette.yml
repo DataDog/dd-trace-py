@@ -1,4 +1,4 @@
-name: Starlette_test_suite\
+name: Starlette_test_suite
 on:
   push:
     branches: ["master"]
