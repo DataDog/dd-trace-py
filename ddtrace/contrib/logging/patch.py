@@ -24,8 +24,8 @@ ddtrace.config._add(
 )  # by default, override here for custom tracer
 
 
-@attr.s
-class DDLogRecord:
+@attr.s(slots=True)
+class DDLogRecord(object):
     trace_id = attr.ib(type=int)
     span_id = attr.ib(type=int)
     service = attr.ib(type=str)
