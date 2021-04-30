@@ -28,4 +28,4 @@ jobs:
       - name: "Install dependencies"
         run: "scripts/install"
       - name: Run tests
-        run: ddtrace-run pytest 
+        run: ddtrace-run pytest starlette/tests
