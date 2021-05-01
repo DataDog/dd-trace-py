@@ -346,14 +346,14 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_current_span_missing_context(self):
         self.assertIsNone(self.tracer.current_span())
 
+    def test_tracer_current_root_span_missing_context(self):
+        self.assertIsNone(self.tracer.current_root_span())
+
     def test_default_provider_get(self):
         # Tracer Context Provider must return a Context object
         # even if empty
         ctx = self.tracer.context_provider.active()
         assert isinstance(ctx, Context)
-
-    def test_tracer_current_root_span_missing_context(self):
-        self.assertIsNone(self.tracer.current_root_span())
 
     def test_default_provider_set(self):
         # The Context Provider can set the current active Context;

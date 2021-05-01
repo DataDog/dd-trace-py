@@ -1,12 +1,16 @@
+from typing import Dict
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Text
 
+from .constants import ORIGIN_KEY
+from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:
+    from .internal.compat import NumericType
     from .span import Span
-
 
 log = get_logger(__name__)
 
@@ -19,7 +23,7 @@ class Context(object):
     is created.
     """
 
-    __slots__ = ["_trace_id", "_span_id", "_dd_origin", "_sampling_priority", "_span"]
+    __slots__ = ["_trace_id", "_span_id", "_span", "_meta", "_metrics"]
 
     def __init__(
         self,
@@ -31,14 +35,17 @@ class Context(object):
         # type: (...) -> None
         self._trace_id = trace_id
         self._span_id = span_id
-        self._dd_origin = dd_origin
-        self._sampling_priority = sampling_priority
 
         # TODO[v1.0]: we need to keep a reference back to the span to maintain
-        # backwards compatibility with setting sampling priority and origin on
-        # the context
-        # eg: span.context.sampling_priority = ...
+        # backwards compatibility when using context as a parent.
+        # eg:
+        #    ctx = span.context
+        #    tracer.start_span(child_of=ctx)
         self._span = None  # type: Optional[Span]
+        self._meta = {}  # type: Dict[Text, Text]
+        self._metrics = {}  # type: Dict[Text, NumericType]
+        self.dd_origin = dd_origin
+        self.sampling_priority = sampling_priority
 
     @property
     def trace_id(self):
@@ -52,31 +59,34 @@ class Context(object):
 
     @property
     def sampling_priority(self):
-        # type: () -> Optional[float]
-        if self._span:
-            return self._span.sampling_priority
-        return self._sampling_priority
+        # type: () -> Optional[NumericType]
+        """Return the context sampling priority for the trace."""
+        return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
     @sampling_priority.setter
     def sampling_priority(self, value):
-        # type: (Optional[float]) -> None
-        if self._span:
-            self._span.sampling_priority = value
-        self._sampling_priority = value
+        # type: (Optional[NumericType]) -> None
+        if value is None:
+            if SAMPLING_PRIORITY_KEY in self._meta:
+                del self._metrics[SAMPLING_PRIORITY_KEY]
+            return
+        self._metrics[SAMPLING_PRIORITY_KEY] = value
 
     @property
     def dd_origin(self):
-        # type: () -> Optional[str]
-        if self._span:
-            return self._span.dd_origin
-        return self._dd_origin
+        # type: () -> Optional[Text]
+        """Get the origin of the trace."""
+        return self._meta.get(ORIGIN_KEY)
 
     @dd_origin.setter
     def dd_origin(self, value):
-        # type: (Optional[str]) -> None
-        if self._span:
-            self._span.dd_origin = value
-        self._dd_origin = value
+        # type: (Optional[Text]) -> None
+        """Set the origin of the trace."""
+        if value is None:
+            if ORIGIN_KEY in self._meta:
+                del self._meta[ORIGIN_KEY]
+            return
+        self._meta[ORIGIN_KEY] = value
 
     def __eq__(self, other):
         return (
@@ -84,4 +94,6 @@ class Context(object):
             and self.trace_id == other.trace_id
             and self.sampling_priority == other.sampling_priority
             and self.dd_origin == other.dd_origin
+            and self._meta == other._meta
+            and self._metrics == other._metrics
         )

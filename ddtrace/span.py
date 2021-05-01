@@ -16,8 +16,6 @@ import six
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
-from .constants import ORIGIN_KEY
-from .constants import SAMPLING_PRIORITY_KEY
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
@@ -71,6 +69,7 @@ class Span(object):
         # Sampler attributes
         "sampled",
         # Internal attributes
+        "_context",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -146,61 +145,9 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
+        self._context = context  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
-        if context:
-            self.sampling_priority = context.sampling_priority
-            self.dd_origin = context.dd_origin
-
-    @property
-    def dd_origin(self):
-        # type: () -> Optional[str]
-        if self.parent_id is None or self._parent is None:
-            return self.meta.get(ORIGIN_KEY)
-        elif self.tracer:
-            root = self.tracer.current_root_span()
-            if root:
-                return root.dd_origin
-        return None
-
-    @dd_origin.setter
-    def dd_origin(self, value):
-        # type: (Optional[str]) -> None
-        if value is None:
-            if ORIGIN_KEY in self.meta:
-                del self.meta[ORIGIN_KEY]
-            return
-        if self.parent_id is None or self._parent is None:
-            self.meta[ORIGIN_KEY] = value
-        elif self.tracer:
-            parent = self.tracer.current_root_span()
-            if parent:
-                parent.dd_origin = value
-
-    @property
-    def sampling_priority(self):
-        # type: () -> Optional[float]
-        if self.parent_id is None or self._parent is None:
-            return self.metrics.get(SAMPLING_PRIORITY_KEY)
-        elif self.tracer:
-            root = self.tracer.current_root_span()
-            if root:
-                return root.sampling_priority
-        return None
-
-    @sampling_priority.setter
-    def sampling_priority(self, value):
-        # type: (Optional[float]) -> None
-        if value is None:
-            if ORIGIN_KEY in self.meta:
-                del self.meta[ORIGIN_KEY]
-            return
-        if self.parent_id is None or self._parent is None:
-            self.metrics[SAMPLING_PRIORITY_KEY] = value
-        elif self.tracer:
-            root = self.tracer.current_root_span()
-            if root:
-                root.sampling_priority = value
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -339,10 +286,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.sampling_priority = priority.USER_KEEP
+            self.context.sampling_priority = priority.USER_KEEP
             return
         elif key == MANUAL_DROP_KEY:
-            self.sampling_priority = priority.USER_REJECT
+            self.context.sampling_priority = priority.USER_REJECT
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -553,10 +500,11 @@ class Span(object):
         ctx = Context(
             trace_id=self.trace_id,
             span_id=self.span_id,
-            sampling_priority=self.sampling_priority,
-            dd_origin=self.dd_origin,
         )
         ctx._span = self
+        if self._context:
+            ctx._meta = self._context._meta
+            ctx._metrics = self._context._metrics
         return ctx
 
     def __enter__(self):

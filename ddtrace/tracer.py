@@ -40,6 +40,7 @@ from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
+from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -416,18 +417,23 @@ class Tracer(object):
         """
         self._check_new_process()
 
-        context = child_of if isinstance(child_of, Context) else None
-        trace_id = None  # type: Optional[int]
-        parent_id = None  # type: Optional[int]
-        parent = None  # type: Optional[Span]
         if child_of is not None:
-            trace_id = child_of.trace_id
-            parent_id = child_of.span_id
-            if isinstance(child_of, Span):
-                parent = child_of
-            elif isinstance(child_of, Context) and child_of._span:
-                # TODO[v1.0]: backwards support for parent span references.
+            if isinstance(child_of, Context):
+                context = child_of
                 parent = child_of._span
+            else:
+                context = child_of.context
+                parent = child_of
+        else:
+            context = Context()
+            parent = None
+
+        if parent:
+            trace_id = parent.trace_id  # type: Optional[int]
+            parent_id = parent.span_id  # type: Optional[int]
+        else:
+            trace_id = context.trace_id
+            parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -448,6 +454,7 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
+                context=context,
                 trace_id=trace_id,
                 parent_id=parent_id,
                 service=mapped_service,
@@ -467,6 +474,7 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
+                context=context,
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
@@ -492,23 +500,17 @@ class Tracer(object):
                         # priority sampler will use the default sampling rate, which might
                         # lead to oversampling (that is, dropping too many traces).
                         if self.priority_sampler.sample(span):
-                            span.sampling_priority = AUTO_KEEP
+                            span.context.sampling_priority = AUTO_KEEP
                         else:
-                            span.sampling_priority = AUTO_REJECT
+                            span.context.sampling_priority = AUTO_REJECT
                 else:
                     if self.priority_sampler:
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        span.sampling_priority = AUTO_REJECT
+                        span.context.sampling_priority = AUTO_REJECT
             else:
-                span.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                span.context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
                 # The trace must be marked as sampled so it is forwarded to the agent.
                 span.sampled = True
-
-        if context:
-            if context.sampling_priority is not None:
-                span.sampling_priority = context.sampling_priority
-            if context.dd_origin is not None:
-                span.dd_origin = context.dd_origin
 
         # Apply default global tags.
         if self.tags:
@@ -573,6 +575,7 @@ class Tracer(object):
     def _initialize_span_processors(self):
         # type: () -> None
         trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
         trace_processors += self._filters
 
