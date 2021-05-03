@@ -534,7 +534,8 @@ def test_flatten_dict_exclude():
 
 
 @pytest.mark.parametrize(
-    "version_str,expected"[
+    "version_str,expected",
+    [
         ("5", (5, 0, 0)),
         ("0.5", (0, 5, 0)),
         ("0.5.0", (0, 5, 0)),
@@ -544,7 +545,7 @@ def test_flatten_dict_exclude():
         ("2.0.0rc1", (2, 0, 0)),
         ("2.0.0-rc1", (2, 0, 0)),
         ("2.0.0 here be dragons", (2, 0, 0)),
-    ]
+    ],
 )
 def test_parse_version(version_str, expected):
     # type: (str, typing.Tuple[int, int, int]) -> None

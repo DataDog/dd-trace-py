@@ -8,6 +8,9 @@ from typing import Dict
 from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
+from typing import Tuple
+
+import packaging.version
 
 from ddtrace import Pin
 from ddtrace import config
@@ -305,7 +308,7 @@ def flatten_dict(
 
 
 def parse_version(version):
-    # type: (str) -> typing.Tuple[int, int, int]
+    # type: (str) -> Tuple[int, int, int]
     """Convert a version string to a tuple of (major, minor, micro)"""
     # If we have any spaces/extra text, grab the first part
     #   "1.0.0 beta1" -> "1.0.0"
