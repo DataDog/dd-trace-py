@@ -4,6 +4,7 @@ import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
 import pytest
+import six
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -240,6 +241,18 @@ class GrpcTestCase(TracerTestCase):
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="test"))
             assert len(list(responses_iterator)) == 2
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
+        self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
+
+    def test_server_stream_prefetch(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="prefetch"))
+            response = six.next(responses_iterator)
+            assert response.message == "first response"
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
@@ -511,6 +524,17 @@ class _HelloServicer(HelloServicer):
 
         if request.name == "exception":
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "exception")
+
+        if request.name == "prefetch":
+            # Mimic behavior of scenario where first and only result of a
+            # streaming response is prefetched and the RPC is terminated, as is
+            # the case with grpc_helpers._StreamingResponseIterator in the
+            # Google API Library wraps a _MultiThreadedRendezvous future. An
+            # example of this iterator only called once is in the Google Cloud
+            # Firestore library.
+            # https://github.com/googleapis/python-api-core/blob/f87bccbfda11d2c2d1a2ddb6611c1209e29289d9/google/api_core/grpc_helpers.py#L80-L116
+            # https://github.com/googleapis/python-firestore/blob/e57258c51e4b4aa664cc927454056412756fc7ac/google/cloud/firestore_v1/document.py#L400-L404
+            return
 
         yield HelloReply(message="secondresponse")
 
