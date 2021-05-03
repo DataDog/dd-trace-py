@@ -603,7 +603,7 @@ def test_method_service(patch_grpc):
         options=(("grpc.so_reuseport", 0),),
     )
     port = server.add_insecure_port("[::]:0")
-    channel = grpc.insecure_channel("localhost:{}".format(port))
+    channel = grpc.insecure_channel("[::]:{}".format(port))
     server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
     try:
         server.start()

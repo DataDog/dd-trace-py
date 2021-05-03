@@ -1,4 +1,11 @@
+import logging
+
+from ddtrace.internal.compat import parse
+
 from . import constants
+
+
+log = logging.getLogger(__name__)
 
 
 def parse_method_path(method_path):
@@ -24,3 +31,26 @@ def set_grpc_method_meta(span, method, method_kind):
     span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
     span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
     span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+
+
+def _parse_target_from_args(args, kwargs):
+    if "target" in kwargs:
+        target = kwargs["target"]
+    else:
+        target = args[0]
+
+    try:
+        if target is None:
+            return
+
+        # ensure URI follows RFC 3986 and is preceeded by double slash
+        # https://tools.ietf.org/html/rfc3986#section-3.2
+        parsed = parse.urlsplit("//" + target if not target.startswith("//") else target)
+        port = None
+        try:
+            port = parsed.port
+        except ValueError:
+            log.warning("Non-integer port in target '%s'", target)
+        return parsed.hostname, port
+    except ValueError:
+        log.warning("Malformed target '%s'.", target)
