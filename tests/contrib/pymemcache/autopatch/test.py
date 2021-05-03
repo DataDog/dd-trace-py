@@ -1,7 +1,7 @@
 import unittest
 
-from pymemcacahe.client import hash as pymemcache_hash
 import pymemcache
+from pymemcache.client import hash as pymemcache_hash
 
 from ddtrace.vendor import wrapt
 
