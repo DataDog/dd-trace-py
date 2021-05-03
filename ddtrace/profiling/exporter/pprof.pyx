@@ -9,8 +9,26 @@ from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import pprof_pb2
 from ddtrace.utils import config
+
+
+def _protobuf_post_312():
+    # type: (...) -> bool
+    """Check if protobuf version is post 3.12"""
+    import google.protobuf
+    import packaging.version
+
+    v = packaging.version.parse(google.protobuf.__version__)
+    if isinstance(v, packaging.version.Version):
+        return v.major >= 3 and v.minor >= 12
+
+    return False
+
+
+if _protobuf_post_312():
+    from ddtrace.profiling.exporter import pprof_pb2
+else:
+    from ddtrace.profiling.exporter import pprof_pre312_pb2 as pprof_pb2
 
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)
