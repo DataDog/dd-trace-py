@@ -1,7 +1,6 @@
 # 3p
 import psycopg2
 
-# project
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import dbapi
@@ -10,20 +9,15 @@ from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.vendor import wrapt
 
+from .. import trace_utils
+
 
 config._add("psycopg", dict(_default_service="postgres"))
 
 # Original connect method
 _connect = psycopg2.connect
 
-# psycopg2 versions can end in `-betaN` where `N` is a number
-# in such cases we simply skip version specific patching
-PSYCOPG2_VERSION = (0, 0, 0)
-
-try:
-    PSYCOPG2_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split(".")))
-except Exception:
-    pass
+PSYCOPG2_VERSION = trace_utils.parse_version(psycopg2.__version__)
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import Composable

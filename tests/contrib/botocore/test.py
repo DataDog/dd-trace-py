@@ -16,6 +16,7 @@ from moto import mock_sqs
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import stringify
@@ -28,7 +29,7 @@ from tests.utils import assert_span_http_status_code
 
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
-BOTOCORE_VERSION = tuple(int(x) for x in botocore.__version__.split("."))
+BOTOCORE_VERSION = trace_utils.parse_version(botocore.__version__)
 
 
 def get_zip_lambda():

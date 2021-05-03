@@ -53,7 +53,7 @@ config._add(
 #      (0, 9, 0) != (0, 9)
 #      (0, 8, 5) <= (0, 9)
 flask_version_str = getattr(flask, "__version__", "0.0.0")
-flask_version = tuple([int(i) for i in flask_version_str.split(".")])
+flask_version = trace_utils.parse_version(flask_version_str)
 
 
 def patch():

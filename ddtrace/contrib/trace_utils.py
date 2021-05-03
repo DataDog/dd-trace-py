@@ -302,3 +302,14 @@ def flatten_dict(
         else:
             flat[p] = v
     return flat
+
+
+def parse_version(version):
+    # type: (str) -> typing.Tuple[int, int, int]
+    """Convert a version string to a tuple of (major, minor, micro)"""
+    # If we have any spaces/extra text, grab the first part
+    #   "1.0.0 beta1" -> "1.0.0"
+    #   "1.0.0" -> "1.0.0"
+    # DEV: Do not use `packaging.version.parse`, we do not want a LegacyVersion here
+    _version = packaging.version.Version(version.split()[0])
+    return (_version.major, _version.minor, _version.patch)

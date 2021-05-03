@@ -21,7 +21,7 @@ from .wrappers import WrapperRenderer
 from .wrappers import WrapperRouter
 
 
-MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split(".")))
+MOLTEN_VERSION = trace_utils.parse_version(molten.__version__)
 
 # Configure default configuration
 config._add(
