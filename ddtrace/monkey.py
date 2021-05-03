@@ -38,6 +38,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": False,  # experimental propagation
     "grpc": True,
+    "httpx": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
