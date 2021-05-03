@@ -520,6 +520,24 @@ venv = Venv(
             pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
         ),
         Venv(
+            name="mariadb",
+            command="pytest {cmdargs} tests/contrib/mariadb",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="1.0.6"),
+                    pkgs={
+                        "pymongo": [
+                            ">=1.0.0,<1.0.1",
+                            ">=1.0.1,<1.0.2",
+                            ">=1.0.2,<1.0.3",
+                            ">=1.0.3,<1.0.4",
+                            ">=1.0.4,<1.0.5",
+                            ">=1.0.5,<1.0.6",
+                            latest,
+                        ],
+                    },
+                ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[

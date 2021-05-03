@@ -8,6 +8,7 @@ from .span import Span  # noqa: E402
 from .tracer import Tracer  # noqa: E402
 from .utils.deprecation import deprecated  # noqa: E402
 
+print("Hello tracing")
 
 try:
     __version__ = pkg_resources.get_distribution(__name__).version
