@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+import typing
 
 import httpx
 from six import ensure_binary
@@ -17,7 +17,7 @@ from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from ddtrace import Span
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
@@ -74,8 +74,13 @@ def _set_span_meta(span, request, response):
     )
 
 
-async def _wrapped_async_send(wrapped, instance, args, kwargs):
-    # type: (BoundFunctionWrapper, httpx.AsyncClient, typing.Tuple[httpx.Request], typing.Dict[typing.Str, typing.Any]) -> typing.Coroutine[None, None, httpx.Response]
+async def _wrapped_async_send(
+    wrapped,  # type: BoundFunctionWrapper
+    instance,  # type: httpx.AsyncClient
+    args,  # type: typing.Tuple[httpx.Request],
+    kwargs,  # type: typing.Dict[typing.Str, typing.Any]
+):
+    # type: (...) -> typing.Coroutine[None, None, httpx.Response]
     req = kwargs.get("request") or args[0]
 
     with tracer.trace("http.request", service=config.httpx.service, span_type=SpanTypes.HTTP) as span:
@@ -88,8 +93,13 @@ async def _wrapped_async_send(wrapped, instance, args, kwargs):
             _set_span_meta(span, req, resp)
 
 
-def _wrapped_sync_send(wrapped, instance, args, kwargs):
-    # type: (BoundFunctionWrapper, httpx.AsyncClient, typing.Tuple[httpx.Request], typing.Dict[typing.Str, typing.Any]) -> httpx.Response
+def _wrapped_sync_send(
+    wrapped,  # type: BoundFunctionWrapper
+    instance,  # type: httpx.AsyncClient
+    args,  # type: typing.Tuple[httpx.Request]
+    kwargs,  # type: typing.Dict[typing.Str, typing.Any]
+):
+    # type: (...) -> httpx.Response
     req = kwargs.get("request") or args[0]
 
     with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
