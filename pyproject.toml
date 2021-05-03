@@ -45,7 +45,6 @@ exclude = '''
       | boto
       | jinja2
       | pylibmc
-      | pymemcache
       | rediscluster
     )
     | profiling/exporter/pprof_pb2.py$
@@ -59,7 +58,6 @@ exclude = '''
       | config.py
       | jinja2
       | pylibmc
-      | pymemcache
       | rediscluster
     )
   )
