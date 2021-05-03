@@ -533,8 +533,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
     steps:
-      - run_tox_scenario:
-          pattern: '^celery_contrib-'
+      - run_test:
+          pattern: 'celery'
 
   cherrypy:
     <<: *machine_executor
