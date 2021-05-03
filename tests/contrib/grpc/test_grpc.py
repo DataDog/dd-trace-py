@@ -550,3 +550,65 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+<<<<<<< HEAD
+=======
+
+
+def test_handle_response_future_like():
+    from ddtrace.contrib.grpc.client_interceptor import _handle_response
+    from ddtrace.span import Span
+
+    span = Span(None, None)
+
+    def finish_span():
+        span.finish()
+
+    class FutureLike(object):
+        def add_done_callback(self, fn):
+            finish_span()
+
+    class NotFutureLike(object):
+        pass
+
+    _handle_response(span, NotFutureLike())
+    assert span.duration is None
+    _handle_response(span, FutureLike())
+    assert span.duration is not None
+
+
+@pytest.fixture()
+def patch_grpc():
+    patch()
+    try:
+        yield
+    finally:
+        unpatch()
+
+
+class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
+    def __init__(self, handler):
+        self._handler = handler
+
+    def service(self, handler_call_details):
+        return grpc.unary_unary_rpc_method_handler(self._handler)
+
+
+@snapshot(ignores=["meta.grpc.port"])
+def test_method_service(patch_grpc):
+    def handler(request, context):
+        return b""
+
+    server = grpc.server(
+        logging_pool.pool(1),
+        options=(("grpc.so_reuseport", 0),),
+    )
+    port = server.add_insecure_port("[::]:0")
+    channel = grpc.insecure_channel("[::]:{}".format(port))
+    server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
+    try:
+        server.start()
+        channel.unary_unary("/Servicer/Handler")(b"request")
+        channel.unary_unary("/pkg.Servicer/Handler")(b"request")
+    finally:
+        server.stop(None)
+>>>>>>> de406409... fix(grpc): parse target for ipv6 and missing port (#2298)

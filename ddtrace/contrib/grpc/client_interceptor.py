@@ -172,6 +172,7 @@ class _ClientInterceptor(
             resource=client_call_details.method,
         )
 
+<<<<<<< HEAD
         # tags for method details
         method_path = client_call_details.method
         method_package, method_service, method_name = parse_method_path(method_path)
@@ -182,6 +183,12 @@ class _ClientInterceptor(
         span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
         span._set_str_tag(constants.GRPC_HOST_KEY, self._host)
         span._set_str_tag(constants.GRPC_PORT_KEY, self._port)
+=======
+        set_grpc_method_meta(span, client_call_details.method, method_kind)
+        span._set_str_tag(constants.GRPC_HOST_KEY, self._host)
+        if self._port:
+            span._set_str_tag(constants.GRPC_PORT_KEY, str(self._port))
+>>>>>>> de406409... fix(grpc): parse target for ipv6 and missing port (#2298)
         span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         sample_rate = config.grpc.get_analytics_sample_rate()
