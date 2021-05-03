@@ -67,7 +67,7 @@ class Context(object):
     def sampling_priority(self, value):
         # type: (Optional[NumericType]) -> None
         if value is None:
-            if SAMPLING_PRIORITY_KEY in self._meta:
+            if SAMPLING_PRIORITY_KEY in self._metrics:
                 del self._metrics[SAMPLING_PRIORITY_KEY]
             return
         self._metrics[SAMPLING_PRIORITY_KEY] = value

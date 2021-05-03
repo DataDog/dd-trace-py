@@ -24,7 +24,7 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name)
+        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name, context=context._dd_context)
 
     def finish(self, finish_time=None):
         """Finish the span.
