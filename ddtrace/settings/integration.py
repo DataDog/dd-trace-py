@@ -1,4 +1,3 @@
-from copy import deepcopy
 import os
 
 from .._hooks import Hooks
@@ -61,18 +60,6 @@ class IntegrationConfig(AttrDict):
         # integrations use service_name instead of service. These should be
         # unified.
         self.setdefault("service_name", service)
-
-    def __deepcopy__(self, memodict=None):
-        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self), memodict))
-        new.hooks = deepcopy(self.hooks, memodict)
-        new.http = deepcopy(self.http, memodict)
-        return new
-
-    def copy(self):
-        new = IntegrationConfig(self.global_config, self.integration_name, dict(self))
-        new.hooks = self.hooks
-        new.http = self.http
-        return new
 
     @property
     def trace_query_string(self):
