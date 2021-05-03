@@ -571,8 +571,8 @@ jobs:
   falcon:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^falcon_contrib'
+      - run_test:
+          pattern: 'falcon'
 
   django:
     <<: *machine_executor
