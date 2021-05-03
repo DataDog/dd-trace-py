@@ -10,7 +10,6 @@ jobs:
     defaults:
       run:
         working-directory: fastapi
-
     steps:
       - uses: actions/setup-python@v2
         with:
@@ -36,4 +35,4 @@ jobs:
         run: pip install ../ddtrace
       - name: Test
         run: ddtrace-run pytest tests
-
+      
