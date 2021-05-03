@@ -315,4 +315,4 @@ def parse_version(version):
     #   "1.0.0" -> "1.0.0"
     # DEV: Do not use `packaging.version.parse`, we do not want a LegacyVersion here
     _version = packaging.version.Version(version.split()[0])
-    return (_version.major, _version.minor, _version.patch)
+    return (_version.major, _version.minor, _version.micro)
