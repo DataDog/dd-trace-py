@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 
 def parse_method_path(method_path):
-    """ Returns (package, service, method) tuple from parsing method path """
+    """Returns (package, service, method) tuple from parsing method path"""
     # unpack method path based on "/{package}.{service}/{method}"
     # first remove leading "/" as unnecessary
     package_service, method_name = method_path.lstrip("/").rsplit("/", 1)

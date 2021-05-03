@@ -84,7 +84,7 @@ class TraceMiddleware(object):
         self._start_span()
 
     def _after_request(self, response):
-        """ Runs after the server can process a response. """
+        """Runs after the server can process a response."""
         try:
             self._process_response(response)
         except Exception:
@@ -201,7 +201,7 @@ def _set_error_on_span(span, exception):
 
 
 def _patch_render(tracer):
-    """ patch flask's render template methods with the given tracer. """
+    """patch flask's render template methods with the given tracer."""
     # fall back to patching  global method
     _render = flask.templating._render
 

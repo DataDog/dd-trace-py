@@ -179,7 +179,7 @@ else:
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
 def to_unicode(s):
     # type: (AnyStr) -> Text
-    """ Return a unicode string for the given bytes or string instance. """
+    """Return a unicode string for the given bytes or string instance."""
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
     # DEV: Double decoding a `unicode` can cause a `UnicodeEncodeError`

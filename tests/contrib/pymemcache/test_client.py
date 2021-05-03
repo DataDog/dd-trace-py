@@ -26,7 +26,7 @@ _Client = pymemcache.client.base.Client
 
 
 class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
-    """ Tests for a patched pymemcache.client.base.Client. """
+    """Tests for a patched pymemcache.client.base.Client."""
 
     def test_patch(self):
         assert issubclass(pymemcache.client.base.Client, wrapt.ObjectProxy)
@@ -221,7 +221,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 
 
 class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
-    """ Tests for a patched pymemcache.client.hash.HashClient. """
+    """Tests for a patched pymemcache.client.hash.HashClient."""
 
     def get_spans(self):
         spans = []

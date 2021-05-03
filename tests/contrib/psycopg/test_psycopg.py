@@ -265,7 +265,7 @@ class PsycopgCore(TracerTestCase):
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query(self):
-        """ Checks whether execution of composed SQL string is traced """
+        """Checks whether execution of composed SQL string is traced"""
         query = SQL(" union all ").join([SQL("""select 'one' as x"""), SQL("""select 'two' as x""")])
         db = self._get_conn()
 
@@ -284,7 +284,7 @@ class PsycopgCore(TracerTestCase):
     @snapshot()
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query_encoding(self):
-        """ Checks whether execution of composed SQL string is traced """
+        """Checks whether execution of composed SQL string is traced"""
         import logging
 
         logger = logging.getLogger()

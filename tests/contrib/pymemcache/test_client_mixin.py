@@ -21,7 +21,7 @@ TEST_PORT = 117711
 
 
 class PymemcacheClientTestCaseMixin(TracerTestCase):
-    """ Tests for a patched pymemcache.client.base.Client. """
+    """Tests for a patched pymemcache.client.base.Client."""
 
     def get_spans(self):
         pin = Pin.get_from(self.client)
