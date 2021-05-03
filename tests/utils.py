@@ -799,7 +799,7 @@ class SnapshotFailed(Exception):
 
 @contextmanager
 def snapshot_context(token, ignores=None, tracer=None, async_mode=True):
-    ignores = ignores = []
+    ignores = ignores or []
     if not tracer:
         tracer = ddtrace.tracer
 
