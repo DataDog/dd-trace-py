@@ -27,6 +27,6 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: "scripts/install"
-      #Added parameters to skip failing tests
+      #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       - name: Run tests
-        run: ddtrace-run pytest -p no:warnings --ddtrace-patch-all tests -k 'not test_subdomain_route' -k 'not test_request_headers' -k 'not test_websocket_headers'
+        run: ddtrace-run pytest -p no:warnings --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers'
