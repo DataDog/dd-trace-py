@@ -313,6 +313,10 @@ def parse_version(version):
     # If we have any spaces/extra text, grab the first part
     #   "1.0.0 beta1" -> "1.0.0"
     #   "1.0.0" -> "1.0.0"
+    if " " in version:
+        version = version.split()[0]
+
     # DEV: Do not use `packaging.version.parse`, we do not want a LegacyVersion here
-    _version = packaging.version.Version(version.split()[0])
+    # This will raise an InvalidVersion exception if it cannot be parsed
+    _version = packaging.version.Version(version)
     return (_version.major, _version.minor, _version.micro)
