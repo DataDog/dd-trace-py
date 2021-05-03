@@ -324,3 +324,22 @@ def test_memalloc_speed(benchmark, heap_sample_size):
             benchmark(_allocate_1k)
     else:
         benchmark(_allocate_1k)
+
+
+@pytest.mark.parametrize(
+    "enabled,predicates",
+    (
+        (True, (lambda v: v >= 512 * 1024, lambda v: v > 1, lambda v: v > 512, lambda v: v == 512 * 1024 * 1024)),
+        (False, (lambda v: v == 0, lambda v: v == 0, lambda v: v == 0, lambda v: v == 0)),
+    ),
+)
+def test_memalloc_sample_size(enabled, predicates):
+    restore = memalloc._ENABLED
+    memalloc._ENABLED = enabled
+    try:
+        assert predicates[0](memalloc._get_default_heap_sample_size())
+        assert predicates[1](memalloc._get_default_heap_sample_size(1))
+        assert predicates[2](memalloc._get_default_heap_sample_size(512))
+        assert predicates[3](memalloc._get_default_heap_sample_size(512 * 1024 * 1024))
+    finally:
+        memalloc._ENABLED = restore

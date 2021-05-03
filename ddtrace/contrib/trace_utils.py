@@ -2,6 +2,7 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 from collections import deque
+import re
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -11,16 +12,19 @@ from typing import TYPE_CHECKING
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
-import ddtrace.http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.cache import cached
+from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:
+    from ddtrace import Span
     from ddtrace import Tracer
+    from ddtrace.settings import IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -29,8 +33,99 @@ wrap = wrapt.wrap_function_wrapper
 unwrap = ddtrace.utils.wrappers.unwrap
 iswrapped = ddtrace.utils.wrappers.iswrapped
 
-store_request_headers = ddtrace.http.store_request_headers
-store_response_headers = ddtrace.http.store_response_headers
+REQUEST = "request"
+RESPONSE = "response"
+
+# Tag normalization based on: https://docs.datadoghq.com/tagging/#defining-tags
+# With the exception of '.' in header names which are replaced with '_' to avoid
+# starting a "new object" on the UI.
+NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
+
+
+@cached()
+def _normalized_header_name(header_name):
+    # type: (str) -> str
+    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
+def _normalize_tag_name(request_or_response, header_name):
+    # type: (str, str) -> str
+    """
+    Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
+    'http.request.headers.content_type'. Rules applied actual header name are:
+    - any letter is converted to lowercase
+    - any digit is left unchanged
+    - any block of any length of different ASCII chars is converted to a single underscore '_'
+    :param request_or_response: The context of the headers: request|response
+    :param header_name: The header's name
+    :type header_name: str
+    :rtype: str
+    """
+    # Looking at:
+    #   - http://www.iana.org/assignments/message-headers/message-headers.xhtml
+    #   - https://tools.ietf.org/html/rfc6648
+    # and for consistency with other language integrations seems safe to assume the following algorithm for header
+    # names normalization:
+    #   - any letter is converted to lowercase
+    #   - any digit is left unchanged
+    #   - any block of any length of different ASCII chars is converted to a single underscore '_'
+    normalized_name = _normalized_header_name(header_name)
+    return "http.{}.headers.{}".format(request_or_response, normalized_name)
+
+
+def _store_headers(headers, span, integration_config, request_or_response):
+    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+    """
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    :param span: The Span instance where tags will be stored
+    :type span: ddtrace.span.Span
+    :param integration_config: An integration specific config object.
+    :type integration_config: ddtrace.settings.IntegrationConfig
+    """
+    if not isinstance(headers, dict):
+        try:
+            headers = dict(headers)
+        except Exception:
+            return
+
+    if integration_config is None:
+        log.debug("Skipping headers tracing as no integration config was provided")
+        return
+
+    for header_name, header_value in headers.items():
+        if not integration_config.header_is_traced(header_name):
+            continue
+        tag_name = _normalize_tag_name(request_or_response, header_name)
+        span.set_tag(tag_name, header_value)
+
+
+def _store_request_headers(headers, span, integration_config):
+    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    """
+    Store request headers as a span's tags
+    :param headers: All the request's http headers, will be filtered through the whitelist
+    :type headers: dict or list
+    :param span: The Span instance where tags will be stored
+    :type span: ddtrace.Span
+    :param integration_config: An integration specific config object.
+    :type integration_config: ddtrace.settings.IntegrationConfig
+    """
+    _store_headers(headers, span, integration_config, REQUEST)
+
+
+def _store_response_headers(headers, span, integration_config):
+    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    """
+    Store response headers as a span's tags
+    :param headers: All the response's http headers, will be filtered through the whitelist
+    :type headers: dict or list
+    :param span: The Span instance where tags will be stored
+    :type span: ddtrace.Span
+    :param integration_config: An integration specific config object.
+    :type integration_config: ddtrace.settings.IntegrationConfig
+    """
+    _store_headers(headers, span, integration_config, RESPONSE)
 
 
 def with_traced_module(func):
@@ -156,10 +251,10 @@ def set_http_meta(
         span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers is not None:
-        store_request_headers(dict(request_headers), span, integration_config)
+        _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None:
-        store_response_headers(dict(response_headers), span, integration_config)
+        _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
