@@ -19,7 +19,8 @@ def set_grpc_method_meta(span, method, method_kind):
     method_path = method
     method_package, method_service, method_name = parse_method_path(method_path)
     span._set_str_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
-    span._set_str_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+    if method_package is not None:
+        span._set_str_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
     span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
     span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
     span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
