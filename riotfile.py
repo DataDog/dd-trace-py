@@ -229,7 +229,6 @@ venv = Venv(
                     },
                 ),
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
-                # Python 3.7 needs Celery 4.3
                 Venv(
                     pys=select_pys(),
                     pkgs={
@@ -243,6 +242,18 @@ venv = Venv(
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
+                    },
+                ),
+                # Celery 5.x wants Python 3.6+
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "celery": [
+                            "~=5.0.5",
+                            "~=5.0",  # most recent 5.x
+                            latest,
+                        ],
+                        "redis": "~=3.5",
                     },
                 ),
             ],
