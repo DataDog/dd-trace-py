@@ -190,6 +190,43 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
+def _build_tree(
+    spans,  # type: List[Span]
+    root,  # type: Span
+):
+    # type: (...) -> TestSpanNode
+    """helper to build a tree structure for the provided root span"""
+    children = []
+    for span in spans:
+        if span.parent_id == root.span_id:
+            children.append(_build_tree(spans, span))
+
+    return TestSpanNode(root, children)
+
+
+def get_root_span(
+    spans,  # type: List[Span]
+):
+    # type: (...) -> TestSpanNode
+    """
+    Helper to get the root span from the list of spans in this container
+
+    :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
+    :rtype: :class:`tests.utils.span.TestSpanNode`, None
+    :raises: AssertionError
+    """
+    root = None
+    for span in spans:
+        if span.parent_id is None:
+            if root is not None:
+                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+            root = span
+
+    assert root, "No root span found in {0!r}".format(spans)
+
+    return _build_tree(spans, root)
+
+
 class TestSpanContainer(object):
     """
     Helper class for a container of Spans.
@@ -232,16 +269,8 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def _build_tree(self, root):
-        """helper to build a tree structure for the provided root span"""
-        children = []
-        for span in self.spans:
-            if span.parent_id == root.span_id:
-                children.append(self._build_tree(span))
-
-        return TestSpanNode(root, children)
-
     def get_root_span(self):
+        # type: (...) -> TestSpanNode
         """
         Helper to get the root span from the list of spans in this container
 
@@ -249,18 +278,10 @@ class TestSpanContainer(object):
         :rtype: :class:`tests.utils.span.TestSpanNode`, None
         :raises: AssertionError
         """
-        root = None
-        for span in self.spans:
-            if span.parent_id is None:
-                if root is not None:
-                    raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
-                root = span
-
-        assert root, "No root span found in {0!r}".format(self.spans)
-
-        return self._build_tree(root)
+        return get_root_span(self.spans)
 
     def get_root_spans(self):
+        # type: (...) -> List[Span]
         """
         Helper to get all root spans from the list of spans in this container
 
@@ -270,7 +291,7 @@ class TestSpanContainer(object):
         roots = []
         for span in self.spans:
             if span.parent_id is None:
-                roots.append(self._build_tree(span))
+                roots.append(_build_tree(self.spans, span))
 
         return sorted(roots, key=lambda s: s.start)
 
