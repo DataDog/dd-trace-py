@@ -1,6 +1,6 @@
 import typing
 
-import packaging
+import packaging.version
 
 
 def parse_version(version):
