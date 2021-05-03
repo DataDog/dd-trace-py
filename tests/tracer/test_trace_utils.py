@@ -531,31 +531,3 @@ def test_flatten_dict_exclude():
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_B=4)
     assert trace_utils.flatten_dict(d, sep="_", exclude={"C_A", "C_C"}) == e
-
-
-@pytest.mark.parametrize(
-    "version_str,expected",
-    [
-        ("5", (5, 0, 0)),
-        ("0.5", (0, 5, 0)),
-        ("0.5.0", (0, 5, 0)),
-        ("1.0.0", (1, 0, 0)),
-        ("1.2.0", (1, 2, 0)),
-        ("1.2.8", (1, 2, 8)),
-        ("2.0.0rc1", (2, 0, 0)),
-        ("2.0.0-rc1", (2, 0, 0)),
-        ("2.0.0 here be dragons", (2, 0, 0)),
-    ],
-)
-def test_parse_version(version_str, expected):
-    # type: (str, typing.Tuple[int, int, int]) -> None
-    """Ensure parse_version helper properly parses versions"""
-    assert trace_utils.parse_version(version_str) == expected
-
-
-def test_parse_version_errors():
-    # type: () -> None
-    """Ensure parse_version helper raises on bad input"""
-    for version_str in ["beta 1.0.0", "no version found", ""]:
-        with pytest.raises(packaging.version.InvalidVersion):
-            trace_utils.parse_version(version_str)

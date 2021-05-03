@@ -9,7 +9,7 @@ from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.vendor import wrapt
 
-from .. import trace_utils
+from ...utils.version import parse_version
 
 
 config._add("psycopg", dict(_default_service="postgres"))
@@ -17,7 +17,7 @@ config._add("psycopg", dict(_default_service="postgres"))
 # Original connect method
 _connect = psycopg2.connect
 
-PSYCOPG2_VERSION = trace_utils.parse_version(psycopg2.__version__)
+PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import Composable
