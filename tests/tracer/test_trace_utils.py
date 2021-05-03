@@ -1,5 +1,3 @@
-import typing
-
 from hypothesis import given
 from hypothesis.strategies import booleans
 from hypothesis.strategies import dictionaries
@@ -9,7 +7,6 @@ from hypothesis.strategies import none
 from hypothesis.strategies import recursive
 from hypothesis.strategies import text
 import mock
-import packaging.version
 import pytest
 
 from ddtrace import Pin

@@ -8,9 +8,6 @@ from typing import Dict
 from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
-from typing import Tuple
-
-import packaging.version
 
 from ddtrace import Pin
 from ddtrace import config
