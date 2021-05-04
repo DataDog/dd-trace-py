@@ -495,7 +495,7 @@ class TestFetchTracedCursor(TracerTestCase):
         assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
 
     def test_fetch_no_analytics(self):
-        """ Confirm fetch* methods do not have analytics sample rate metric """
+        """Confirm fetch* methods do not have analytics sample rate metric"""
         with self.override_config("dbapi2", dict(analytics_enabled=True)):
             cursor = self.cursor
             cursor.rowcount = 0
