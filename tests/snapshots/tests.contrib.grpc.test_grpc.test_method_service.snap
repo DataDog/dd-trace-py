@@ -10,7 +10,7 @@
    "duration" 1911900
    "meta" {"runtime-id" "04d67a3bd550461295cfd98eedc69d99"
            "grpc.port" "55945"
-           "grpc.host" "localhost"
+           "grpc.host" "::"
            "grpc.method.kind" "unary"
            "span.kind" "client"
            "grpc.method.path" "/Servicer/Handler"
@@ -52,7 +52,7 @@
    "meta" {"runtime-id" "04d67a3bd550461295cfd98eedc69d99"
            "grpc.port" "55945"
            "grpc.method.package" "pkg"
-           "grpc.host" "localhost"
+           "grpc.host" "::"
            "grpc.method.kind" "unary"
            "span.kind" "client"
            "grpc.method.path" "/pkg.Servicer/Handler"

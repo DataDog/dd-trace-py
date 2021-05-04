@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix DD_LOGS_INJECTION incompatibility when using a ``logging.StrFormatStyle`` (``logging.Formatter(fmt, style="{")``)
+    log formatter.

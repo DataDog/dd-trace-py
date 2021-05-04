@@ -19,12 +19,14 @@ _Client = pymemcache.client.base.Client
 TEST_HOST = "localhost"
 TEST_PORT = 117711
 
+PYMEMCACHE_VERSION = tuple(int(_) for _ in pymemcache.__version__.split("."))
+
 
 class PymemcacheClientTestCaseMixin(TracerTestCase):
     """ Tests for a patched pymemcache.client.base.Client. """
 
     def get_spans(self):
-        pin = Pin.get_from(self.client)
+        pin = Pin.get_from(pymemcache)
         tracer = pin.tracer
         spans = tracer.pop()
         return spans
@@ -129,17 +131,35 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
     def test_set_many_success(self):
         client = self.make_client([b"STORED\r\n"])
         result = client.set_many({b"key": b"value"}, noreply=False)
-        assert result is True
 
-        self.check_spans(1, ["set_many"], ["set_many key"])
+        resource = "set_many"
+        query = "set_many key"
+        if PYMEMCACHE_VERSION[0] == 1:
+            assert result is True
+        else:
+            assert result == []
+            if isinstance(client, pymemcache.client.hash.HashClient):
+                resource = "set"
+                query = "set key"
+
+        self.check_spans(1, [resource], [query])
 
     def test_set_multi_success(self):
         # Should just map to set_many
         client = self.make_client([b"STORED\r\n"])
         result = client.set_multi({b"key": b"value"}, noreply=False)
-        assert result is True
 
-        self.check_spans(1, ["set_many"], ["set_many key"])
+        resource = "set_many"
+        query = "set_many key"
+        if PYMEMCACHE_VERSION[0] == 1:
+            assert result is True
+        else:
+            assert result == []
+            if isinstance(client, pymemcache.client.hash.HashClient):
+                resource = "set"
+                query = "set key"
+
+        self.check_spans(1, [resource], [query])
 
     def test_analytics_default(self):
         client = self.make_client([b"STORED\r\n"])
