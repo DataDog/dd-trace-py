@@ -234,7 +234,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertFalse(ic.analytics_enabled)
 
     def test_get_analytics_sample_rate(self):
-        """ Check method for accessing sample rate based on configuration"""
+        """Check method for accessing sample rate based on configuration"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
         self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
 
