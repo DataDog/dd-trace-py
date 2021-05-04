@@ -8,10 +8,20 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 
-config._add("psycopg", dict(_default_service="postgres"))
+
+config._add(
+    "psycopg",
+    dict(
+        _default_service="postgres",
+        trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
+    ),
+)
 
 # Original connect method
 _connect = psycopg2.connect
@@ -69,7 +79,13 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = Psycopg2TracedCursor
-            if config.dbapi2.trace_fetch_methods:
+            if config.psycopg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
+                if config.dbapi2.trace_fetch_methods:
+                    debtcollector.deprecate(
+                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
+                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
+                        removal_version="0.50.0",
+                    )
                 cursor_cls = Psycopg2FetchTracedCursor
 
         super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
