@@ -557,6 +557,26 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pymemcache",
+            pys=select_pys(),
+            pkgs={
+                "pymemcache": [
+                    "~=1.4",  # Most recent 1.x release
+                    "~=2.0",  # Most recent 2.x release
+                    "~=3.0.1",
+                    "~=3.1.1",
+                    "~=3.2.0",
+                    "~=3.3.0",
+                    "~=3.4.2",
+                    latest,
+                ]
+            },
+            venvs=[
+                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
+                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
+            ],
+        ),
+        Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
             pkgs={
