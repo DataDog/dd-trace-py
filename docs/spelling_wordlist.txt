@@ -3,6 +3,7 @@ Fargate
 Firehose
 Gunicorn
 INfo
+IPv
 MySQL
 OpenTracing
 aiobotocore
@@ -10,6 +11,7 @@ aiohttp
 aiopg
 algolia
 algoliasearch
+agentless
 analytics
 api
 app
