@@ -51,7 +51,7 @@ jobs:
         #  tag: ${{ github.ref }}
       #install grpc
       - name: Upgrade pip
-        run: pip3 install --upgrade pip
+        run: pip install --upgrade pip
       - name: Install setup tools
         run: python3 -m pip install --upgrade setuptools
       - name: Install grpc
