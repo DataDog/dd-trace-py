@@ -240,7 +240,7 @@ class Tracer(opentracing.Tracer):
 
             # Compare the active ot and dd spans. Using the one which
             # was created later as the parent.
-            active_dd_parent = self._dd_tracer.active()
+            active_dd_parent = self._dd_tracer._active()
             if parent_span and isinstance(active_dd_parent, DatadogSpan):
                 dd_parent_span = parent_span._dd_span
                 if active_dd_parent.start_ns >= dd_parent_span.start_ns:

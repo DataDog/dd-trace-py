@@ -158,7 +158,7 @@ class PsycopgCore(TracerTestCase):
         assert_is_measured(self.get_spans()[1])
         self.reset()
 
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("psycopg", dict(trace_fetch_methods=True)):
             db = self._get_conn()
             ot_tracer = init_tracer("psycopg-svc", self.tracer)
 
@@ -265,7 +265,7 @@ class PsycopgCore(TracerTestCase):
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query(self):
-        """ Checks whether execution of composed SQL string is traced """
+        """Checks whether execution of composed SQL string is traced"""
         query = SQL(" union all ").join([SQL("""select 'one' as x"""), SQL("""select 'two' as x""")])
         db = self._get_conn()
 
@@ -284,7 +284,7 @@ class PsycopgCore(TracerTestCase):
     @snapshot()
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query_encoding(self):
-        """ Checks whether execution of composed SQL string is traced """
+        """Checks whether execution of composed SQL string is traced"""
         import logging
 
         logger = logging.getLogger()
@@ -309,7 +309,7 @@ class PsycopgCore(TracerTestCase):
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with self.override_config("psycopg", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             conn = self._get_conn()
             conn.cursor().execute("""select 'blah'""")
 
@@ -319,7 +319,7 @@ class PsycopgCore(TracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True)):
+        with self.override_config("psycopg", dict(analytics_enabled=True)):
             conn = self._get_conn()
             conn.cursor().execute("""select 'blah'""")
 

@@ -664,7 +664,7 @@ class Tracer(object):
         """
         return self.start_span(
             name,
-            child_of=self.active(),
+            child_of=self._active(),
             service=service,
             resource=resource,
             span_type=span_type,

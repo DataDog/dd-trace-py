@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
@@ -11,6 +10,8 @@ from .internal.logger import get_logger
 if TYPE_CHECKING:
     from .internal.compat import NumericType
     from .span import Span
+    from .span import _MetaDictType
+    from .span import _MetricDictType
 
 log = get_logger(__name__)
 
@@ -42,8 +43,8 @@ class Context(object):
         #    ctx = span.context
         #    tracer.start_span(child_of=ctx)
         self._span = None  # type: Optional[Span]
-        self._meta = {}  # type: Dict[Text, Text]
-        self._metrics = {}  # type: Dict[Text, NumericType]
+        self._meta = {}  # type: _MetaDictType
+        self._metrics = {}  # type: _MetricDictType
         self.dd_origin = dd_origin
         self.sampling_priority = sampling_priority
 
