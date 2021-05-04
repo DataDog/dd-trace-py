@@ -49,10 +49,10 @@ jobs:
         #  tag: ${{ github.ref }}
       #install grpc
       - name: Install grpc
-        run: pip install grpcio
+        run: python -m pip install grpcio
       #install grpc tools
       - name: Install grpc tools
-        run: pip install grpcio-tools
+        run: python -m pip install grpcio-tools
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Install Pytest
