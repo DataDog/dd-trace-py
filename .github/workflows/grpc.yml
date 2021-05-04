@@ -20,7 +20,7 @@ jobs:
           path: ddtrace
       - uses: actions/checkout@v2
         with:
-          repository: bottlepy/bottle
+          repository: grpc/grpc
           ref: 1.37.1
           path: grpc
       #install grpc
@@ -37,4 +37,3 @@ jobs:
         run: ddtrace-run pytest test/http2_test
       - name: Run Distrib test suite for python
         run: ddtrace-run pytest test/distrib/python
-        
