@@ -1,10 +1,9 @@
 name: grpc-testsuite
-
 on:
   push:
+    branches:
+      - master
   pull_request:
-    types: [opened, synchronize]
-
 jobs:
   grpc-testsuite-1_37_1:
     runs-on: ubuntu-latest
