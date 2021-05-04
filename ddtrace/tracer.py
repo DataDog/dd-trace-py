@@ -207,12 +207,12 @@ class Tracer(object):
         else:
             return Context()
 
-    def activate(self, span_or_ctx):
+    def activate_span(self, span_or_ctx):
         # type: (Union[Context, Span]) -> None
         """Activate a span or context for the current execution context."""
         self.context_provider.activate(span_or_ctx)
 
-    def active(self):
+    def _active(self):
         # type: () -> Optional[Union[Context, Span]]
         """Return the active span or context for the current execution context."""
         return self.context_provider.active()

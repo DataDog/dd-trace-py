@@ -166,7 +166,7 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
-        self._dd_tracer.activate(otspan._dd_span)
+        self._dd_tracer.activate_span(otspan._dd_span)
         return scope
 
     def start_span(
