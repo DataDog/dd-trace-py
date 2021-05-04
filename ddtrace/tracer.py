@@ -44,6 +44,8 @@ from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
+from .propagation.http import HTTPPropagator
+from .propagation.http import Propagator
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -116,6 +118,7 @@ class Tracer(object):
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
         self.context_provider = DefaultContextProvider()
+        self.propagator = HTTPPropagator()  # type: Propagator
         self.sampler = DatadogSampler()  # type: BaseSampler
         self.priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
@@ -233,6 +236,7 @@ class Tracer(object):
         writer=None,  # type: Optional[TraceWriter]
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
+        propagator=None,  # type: Optional[Propagator]
     ):
         # type: (...) -> None
         """
@@ -256,6 +260,7 @@ class Tracer(object):
             complete distributed tracing support. Enabled by default.
         :param collect_metrics: Whether to enable runtime metrics collection.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
+        :param Propagator propagator: Propagator to extract and activate contexts for distributed tracing.
         """
         if enabled is not None:
             self.enabled = enabled
@@ -280,6 +285,9 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
+
+        if propagator is not None:
+            self.propagator = propagator
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -530,6 +538,23 @@ class Tracer(object):
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
+
+    def activate_distributed_header(self, headers, activate=True, propagator=None):
+        # type: (Dict[str, str], bool, Optional[Propagator]) -> Context
+        """Extract a context from request headers and activate a distributed trace into a new active context.
+
+        :param dict headers: HTTP headers of request.
+        :param bool activate: Flag to activate the given context. Defaults to True.
+        :param Propagator propagator: Optional propagator to override the current tracer's propagator.
+        """
+        if propagator is not None:
+            context = propagator.extract(headers)
+        else:
+            context = self.propagator.extract(headers)
+        # Only need to activate the new context if something was propagated
+        if context.trace_id and activate:
+            self.context_provider.activate(context)
+        return context
 
     def _on_span_finish(self, span):
         if not self.enabled:

@@ -1,6 +1,9 @@
+import abc
 from typing import Dict
 from typing import FrozenSet
 from typing import Optional
+
+import six
 
 from ..context import Context
 from ..internal.logger import get_logger
@@ -27,7 +30,23 @@ POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
 POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
 
 
-class HTTPPropagator(object):
+class Propagator(six.with_metaclass(abc.ABCMeta)):
+    """Base Propagator using request headers as carrier."""
+
+    @staticmethod
+    @abc.abstractmethod
+    def inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def extract(headers):
+        # type: (Dict[str, str]) -> Context
+        pass
+
+
+class HTTPPropagator(Propagator):
     """A HTTP Propagator using HTTP headers as carrier."""
 
     @staticmethod

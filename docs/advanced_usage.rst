@@ -77,16 +77,24 @@ required metadata to piece together the trace.
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:
 
+Context extraction and activation is also built into the tracer:
+
+.. autoclass:: ddtrace.tracer.Tracer.activate_distributed_headers
+    :members:
+
 Custom
 ^^^^^^
 
-You can manually propagate your tracing context over your RPC protocol. Here is
+You can manually propagate your tracing context over your RPC protocol by creating your
+own Propagator class based on `ddtrace.propagation.http.Propagator`. Here is
 an example assuming that you have `rpc.call` function that call a `method` and
 propagate a `rpc_metadata` dictionary over the wire::
 
 
     # Implement your own context propagator
-    class MyRPCPropagator(object):
+    from ddtrace.propagation.http import Propagator
+
+    class MyRPCPropagator(Propagator):
         def inject(self, span_context, rpc_metadata):
             rpc_metadata.update({
                 'trace_id': span_context.trace_id,

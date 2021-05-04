@@ -13,7 +13,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.cache import cached
 from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
@@ -273,10 +272,7 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         return None
 
     if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
-        context = HTTPPropagator.extract(request_headers)
-        # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            tracer.context_provider.activate(context)
+        tracer.activate_distributed_header(request_headers)
 
 
 def flatten_dict(

@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The tracer now includes a propagator (HTTPPropagator by default but user-configurable) and can extract
+    and activate Contexts from request headers for distributed tracing.
