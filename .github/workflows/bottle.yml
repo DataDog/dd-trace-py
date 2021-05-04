@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: bottlepy/bottle
-          ref: 0.12.19
+          ref: master
           path: bottle
       - name: Install pytest
         run: pip install -U pip pytest coverage
@@ -43,4 +43,3 @@ jobs:
         run: pip install ../ddtrace
       - name: Run tests
         run: ddtrace-run pytest test
-        
