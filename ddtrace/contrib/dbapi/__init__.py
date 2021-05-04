@@ -4,6 +4,7 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
+from ddtrace.vendor import debtcollector
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -69,7 +70,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.dbapi2.get_analytics_sample_rate())
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             try:
                 return method(*args, **kwargs)
@@ -177,8 +178,10 @@ class _OverrideAttrDict(wrapt.ObjectProxy):
         super(_OverrideAttrDict, self).__init__(self.override)
 
     def __getattr__(self, name):
-        value = self.override.get(name, self.sentinel)
-        return getattr(self.base, name) if value == self.sentinel else value
+        try:
+            return getattr(self.override, name)
+        except AttributeError:
+            return getattr(self.base, name)
 
     def __getitem__(self, name):
         value = self.override.get(name, self.sentinel)
@@ -207,11 +210,20 @@ class TracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
+        if not cfg:
+            cfg = config.dbapi2
         # Set default cursor class if one was not provided
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedCursor
-            if config.dbapi2.trace_fetch_methods:
+            # Deprecation of config.dbapi2 requires we add a check
+            if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
+                if config.dbapi2.trace_fetch_methods:
+                    debtcollector.deprecate(
+                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
+                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
+                        removal_version="0.50.0",
+                    )
                 cursor_cls = FetchTracedCursor
 
         super(TracedConnection, self).__init__(conn)

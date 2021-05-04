@@ -1,3 +1,5 @@
+import warnings
+
 import mock
 import pytest
 
@@ -582,8 +584,15 @@ class TestTracedConnection(TracerTestCase):
 
         # Trace fetched methods
         with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
-            traced_connection = TracedConnection(self.connection, pin=pin)
-            self.assertTrue(traced_connection._self_cursor_cls is FetchTracedCursor)
+            with warnings.catch_warnings(record=True) as ws:
+                warnings.simplefilter("always")
+
+                traced_connection = TracedConnection(self.connection, pin=pin)
+                self.assertTrue(traced_connection._self_cursor_cls is FetchTracedCursor)
+
+                (w,) = ws
+                self.assertTrue(issubclass(w.category, DeprecationWarning))
+                self.assertTrue("ddtrace.config.dbapi2.trace_fetch_methods is now deprecated" in str(w.message))
 
         # Manually provided cursor class
         with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
