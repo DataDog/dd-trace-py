@@ -218,7 +218,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
     def test_analytics_enabled_attribute(self):
-        """ " Confirm environment variable and kwargs are handled properly"""
+        """Confirm environment variable and kwargs are handled properly"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
         self.assertTrue(ic.analytics_enabled)
 
