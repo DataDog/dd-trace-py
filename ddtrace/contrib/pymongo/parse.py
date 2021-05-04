@@ -39,7 +39,7 @@ header_struct = struct.Struct("<iiii")
 
 
 class Command(object):
-    """ Command stores information about a pymongo network command, """
+    """Command stores information about a pymongo network command,"""
 
     __slots__ = ["name", "coll", "db", "tags", "metrics", "query"]
 
@@ -136,7 +136,7 @@ def parse_msg(msg_bytes):
 
 
 def parse_query(query):
-    """ Return a command parsed from the given mongo db query. """
+    """Return a command parsed from the given mongo db query."""
     db, coll = None, None
     ns = getattr(query, "ns", None)
     if ns:
@@ -188,12 +188,12 @@ def parse_spec(spec, db=None):
 
 
 def _cstring(raw):
-    """ Return the first null terminated cstring from the bufffer. """
+    """Return the first null terminated cstring from the bufffer."""
     return ctypes.create_string_buffer(raw).value
 
 
 def _split_namespace(ns):
-    """ Return a tuple of (db, collecton) from the 'db.coll' string. """
+    """Return a tuple of (db, collecton) from the 'db.coll' string."""
     if ns:
         # NOTE[matt] ns is unicode or bytes depending on the client version
         # so force cast to unicode
