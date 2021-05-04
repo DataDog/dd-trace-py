@@ -51,6 +51,7 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
+from .utils import keyboard_interrupt_name
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
 from .utils.formats import get_env
@@ -145,11 +146,10 @@ class Tracer(object):
 
     def _atexit(self):
         # type: () -> None
-        key = "ctrl-break" if os.name == "nt" else "ctrl-c"
         log.debug(
             "Waiting %d seconds for tracer to finish. Hit %s to quit.",
             self.SHUTDOWN_TIMEOUT,
-            key,
+            keyboard_interrupt_name(),
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 

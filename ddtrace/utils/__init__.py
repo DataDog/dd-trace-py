@@ -1,3 +1,4 @@
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -39,3 +40,8 @@ def get_argument_value(
             return args[pos]
         except IndexError:
             raise ArgumentError("%s (at position %d)" % (kw, pos))
+
+
+def keyboard_interrupt_name():
+    # type: (...) -> str
+    return "ctrl-break" if os.name == "nt" else "ctrl-c"

@@ -10,6 +10,7 @@ import warnings
 import attr
 
 import ddtrace
+from ddtrace import utils
 from ddtrace.internal import agent
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
@@ -73,7 +74,7 @@ class Profiler(object):
         self._profiler.start()
 
         if stop_on_exit:
-            atexit.register(self.stop)
+            atexit.register(self._atexit)
 
         if profile_children:
             if hasattr(os, "register_at_fork"):
@@ -84,17 +85,33 @@ class Profiler(object):
                     "You have to start a new Profiler after fork() manually."
                 )
 
+    def _atexit(self):
+        # type: (...) -> None
+        LOG.debug(
+            "Waiting for profiler to finish. Hit %s to quit.",
+            utils.keyboard_interrupt_name(),
+        )
+        self.stop(flush=True)
+
     def stop(self, flush=True):
         """Stop the profiler.
 
         :param flush: Flush last profile.
         """
+
+        # Python 2 does not have unregister
+        if hasattr(atexit, "unregister"):
+            # You can unregister a method that was not registered, so no need to do any other check
+            atexit.unregister(self._atexit)
+
         self._profiler.stop(flush)
 
     def _restart_on_fork(self):
-        # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
-        self.stop(flush=False)
+        # The Rules:
+        # 1. Be sure to stop the parent first, since it might have to e.g. unpatch functions
+        # 2. Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        # 3. Do not call self.stop() as we want to keep our atexit registered function in the children
+        self._profiler.stop(flush=False)
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
@@ -275,10 +292,5 @@ class _ProfilerInstance(service.Service):
 
         for col in reversed(self._collectors):
             col.join()
-
-        # Python 2 does not have unregister
-        if hasattr(atexit, "unregister"):
-            # You can unregister a method that was not registered, so no need to do any other check
-            atexit.unregister(self.stop)
 
         super(_ProfilerInstance, self).stop()
