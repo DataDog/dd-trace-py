@@ -24,29 +24,29 @@ jobs:
           repository: grpc/grpc
           ref: 1.37.0
           submodules: true
-      - name: Build
-        run: |
-          mkdir -p ${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64
-          mkdir -p cmake/build
-          cd cmake/build
-          cmake -DgRPC_INSTALL=ON -DgRPC_SSL_PROVIDER=package \
-            -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON \
-            -DCMAKE_INSTALL_PREFIX=${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64 ../..
-          make -j 2
-          make install
-      - name: Echo version
-        run: |
-          echo ${{ github.ref }}
-          ${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64/bin/protoc --version
-      - name: Make tarball
-        run: |
-          tar -C ${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64 -zcf grpc-${{  1.37.0 }}-${{ matrix.os }}-x64.tar.gz .
-      - name: Upload tarball to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: grpc-${{ 1.37.0 }}-${{ matrix.os }}-x64.tar.gz
-          tag: ${{ github.ref }}
+      #- name: Build
+      #  run: |
+      #    mkdir -p ${{ runner.tool_cache }}/grpc/1.37.0/x64
+      #    mkdir -p cmake/build
+      #    cd cmake/build
+      #    cmake -DgRPC_INSTALL=ON -DgRPC_SSL_PROVIDER=package \
+      #      -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON \
+      #      -DCMAKE_INSTALL_PREFIX=${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64 ../..
+      #    make -j 2
+      #    make install
+      #- name: Echo version
+      #  run: |
+      #    echo ${{ github.ref }}
+      #    ${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64/bin/protoc --version
+      #- name: Make tarball
+      #  run: |
+      #    tar -C ${{ runner.tool_cache }}/grpc/${{ 1.37.0 }}/x64 -zcf grpc-${{  1.37.0 }}-${{ matrix.os }}-x64.tar.gz .
+      #- name: Upload tarball to release
+      ##  uses: svenstaro/upload-release-action@v2
+       # with:
+       ##   repo_token: ${{ secrets.GITHUB_TOKEN }}
+        #  file: grpc-${{ 1.37.0 }}-${{ matrix.os }}-x64.tar.gz
+        #  tag: ${{ github.ref }}
       #install grpc
       - name: Install grpc
         run: pip install grpcio
