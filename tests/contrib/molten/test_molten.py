@@ -29,7 +29,7 @@ def molten_client(headers=None, params=None):
 
 
 class TestMolten(TracerTestCase):
-    """ "Ensures Molten is properly instrumented."""
+    """Ensures Molten is properly instrumented."""
 
     TEST_SERVICE = "molten-patch"
 
