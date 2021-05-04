@@ -16,12 +16,12 @@ jobs:
           python-version: '3.9'
       - uses: actions/checkout@v2
         with:
-          path: ddtrace
-      - uses: actions/checkout@v2
-        with:
           repository: grpc/grpc
           ref: $BASE_BRANCH
           path: grpc
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
       #install grpc
       - name: Install grpc
         run: pip install grpcio
