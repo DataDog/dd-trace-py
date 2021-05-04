@@ -29,7 +29,7 @@ class Context(object):
         self,
         trace_id=None,  # type: Optional[int]
         span_id=None,  # type: Optional[int]
-        sampling_priority=None,  # type: Optional[float]
+        sampling_priority=None,  # type: Optional[NumericType]
         dd_origin=None,  # type: Optional[str]
     ):
         # type: (...) -> None
