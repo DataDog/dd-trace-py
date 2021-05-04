@@ -11,11 +11,13 @@ jobs:
       run:
         working-directory: grpc
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          python-version: "3.9"
+          python-version: '3.9'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip setuptools wheel
       - uses: actions/checkout@v2
         with:
           path: ddtrace
@@ -50,8 +52,6 @@ jobs:
         #  file: grpc-${{ 1.37.0 }}-${{ matrix.os }}-x64.tar.gz
         #  tag: ${{ github.ref }}
       #install grpc
-      - name: Install dependencies
-        run: python -m pip install --upgrade pip setuptools wheel
       - name: Install grpc
         run: pip3 install --no-cache-dir  --force-reinstall -Iv grpcio==1.37.0
       #install grpc tools
