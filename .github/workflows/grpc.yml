@@ -11,6 +11,8 @@ jobs:
       run:
         working-directory: grpc
     steps:
+      - name: Check out code
+        uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
           python-version: '3.9'
@@ -49,7 +51,7 @@ jobs:
         #  tag: ${{ github.ref }}
       #install grpc
       - name: Upgrade pip
-        run:  pip3 install --upgrade pip
+        run: pip3 install --upgrade pip
       - name: Install setup tools
         run: python3 -m pip install --upgrade setuptools
       - name: Install grpc
