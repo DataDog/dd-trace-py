@@ -83,7 +83,7 @@ class RateSamplerTest(unittest.TestCase):
             assert deviation < 0.05, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
-        """ Test that for a given trace ID, the result is always the same """
+        """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
 
         tracer.sampler = RateSampler(0.5)

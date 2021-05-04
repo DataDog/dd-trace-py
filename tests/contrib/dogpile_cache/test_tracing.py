@@ -178,7 +178,7 @@ class TestInnerFunctionCalls(object):
         return [i * 2 for i in x]
 
     def test_calls_inner_functions_correctly(self, region, mocker):
-        """ This ensures the get_or_create behavior of dogpile is not altered. """
+        """This ensures the get_or_create behavior of dogpile is not altered."""
         spy_single_cache = mocker.spy(self, "single_cache")
         spy_multi_cache = mocker.spy(self, "multi_cache")
 
