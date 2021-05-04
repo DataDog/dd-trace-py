@@ -9,12 +9,14 @@ import pytest
 
 # project
 from ddtrace import Pin
+from ddtrace.contrib.pymemcache.client import WrappedClient
 from ddtrace.contrib.pymemcache.patch import patch
 from ddtrace.contrib.pymemcache.patch import unpatch
 from ddtrace.vendor import wrapt
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
+from .test_client_mixin import PYMEMCACHE_VERSION
 from .test_client_mixin import PymemcacheClientTestCaseMixin
 from .test_client_mixin import TEST_HOST
 from .test_client_mixin import TEST_PORT
@@ -63,21 +65,21 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 
     def test_cas_stored(self):
         client = self.make_client([b"STORED\r\n"])
-        result = client.cas(b"key", b"value", b"cas", noreply=False)
+        result = client.cas(b"key", b"value", b"0", noreply=False)
         assert result is True
 
         self.check_spans(1, ["cas"], ["cas key"])
 
     def test_cas_exists(self):
         client = self.make_client([b"EXISTS\r\n"])
-        result = client.cas(b"key", b"value", b"cas", noreply=False)
+        result = client.cas(b"key", b"value", b"0", noreply=False)
         assert result is False
 
         self.check_spans(1, ["cas"], ["cas key"])
 
     def test_cas_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])
-        result = client.cas(b"key", b"value", b"cas", noreply=False)
+        result = client.cas(b"key", b"value", b"0", noreply=False)
         assert result is None
 
         self.check_spans(1, ["cas"], ["cas key"])
@@ -203,7 +205,10 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
     def test_stats(self):
         client = self.make_client([b"STAT fake_stats 1\r\n", b"END\r\n"])
         result = client.stats()
-        assert client.sock.send_bufs == [b"stats \r\n"]
+        if PYMEMCACHE_VERSION >= (3, 4, 0):
+            assert client.sock.send_bufs == [b"stats\r\n"]
+        else:
+            assert client.sock.send_bufs == [b"stats \r\n"]
         assert result == {b"fake_stats": 1}
 
         self.check_spans(1, ["stats"], ["stats"])
@@ -223,14 +228,6 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
     """ Tests for a patched pymemcache.client.hash.HashClient. """
 
-    def get_spans(self):
-        spans = []
-        for _, client in self.client.clients.items():
-            pin = Pin.get_from(client)
-            tracer = pin.tracer
-            spans.extend(tracer.pop())
-        return spans
-
     def make_client_pool(self, hostname, mock_socket_values, serializer=None, **kwargs):
         mock_client = pymemcache.client.base.Client(hostname, serializer=serializer, **kwargs)
         tracer = DummyTracer()
@@ -241,20 +238,23 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         client.client_pool = pymemcache.pool.ObjectPool(lambda: mock_client)
         return mock_client
 
-    def make_client(self, *mock_socket_values, **kwargs):
-        current_port = TEST_PORT
+    def make_client(self, mock_socket_values, **kwargs):
         from pymemcache.client.hash import HashClient
 
-        self.client = HashClient([], **kwargs)
-        ip = TEST_HOST
-
-        for vals in mock_socket_values:
-            s = "{}:{}".format(ip, current_port)
-            c = self.make_client_pool((ip, current_port), vals, **kwargs)
-            self.client.clients[s] = c
-            self.client.hasher.add_node(s)
-            current_port += 1
+        tracer = DummyTracer()
+        Pin.override(pymemcache, tracer=tracer)
+        self.client = HashClient([(TEST_HOST, TEST_PORT)], **kwargs)
+        for _c in self.client.clients.values():
+            _c.sock = MockSocket(list(mock_socket_values))
         return self.client
+
+    def test_patched_hash_client(self):
+        client = self.make_client([b"STORED\r\n"])
+        if PYMEMCACHE_VERSION >= (3, 2, 0):
+            assert client.client_class == WrappedClient
+        assert len(client.clients)
+        for _c in client.clients.values():
+            assert isinstance(_c, wrapt.ObjectProxy)
 
     def test_delete_many_found(self):
         """
