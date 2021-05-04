@@ -23,7 +23,7 @@ PYMEMCACHE_VERSION = tuple(int(_) for _ in pymemcache.__version__.split("."))
 
 
 class PymemcacheClientTestCaseMixin(TracerTestCase):
-    """ Tests for a patched pymemcache.client.base.Client. """
+    """Tests for a patched pymemcache.client.base.Client."""
 
     def get_spans(self):
         pin = Pin.get_from(pymemcache)

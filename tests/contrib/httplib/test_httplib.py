@@ -473,7 +473,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.url"), URL_200)
 
     def test_httplib_request_get_request_ot(self):
-        """ OpenTracing version of test with same name. """
+        """OpenTracing version of test with same name."""
         ot_tracer = init_tracer("my_svc", self.tracer)
 
         with ot_tracer.start_active_span("ot_span"):

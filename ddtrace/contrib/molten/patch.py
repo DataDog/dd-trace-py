@@ -95,7 +95,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
-            """ Patch respond handling to set metadata """
+            """Patch respond handling to set metadata"""
 
             pin = Pin.get_from(molten)
             if not pin or not pin.enabled():

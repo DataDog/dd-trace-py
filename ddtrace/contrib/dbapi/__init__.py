@@ -31,7 +31,7 @@ config._add(
 
 
 class TracedCursor(wrapt.ObjectProxy):
-    """ TracedCursor wraps a psql cursor and traces its queries. """
+    """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin, cfg):
         super(TracedCursor, self).__init__(cursor)
@@ -85,7 +85,7 @@ class TracedCursor(wrapt.ObjectProxy):
                     s.set_tag(sql.ROWS, row_count)
 
     def executemany(self, query, *args, **kwargs):
-        """ Wraps the cursor.executemany method"""
+        """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -103,7 +103,7 @@ class TracedCursor(wrapt.ObjectProxy):
         )
 
     def execute(self, query, *args, **kwargs):
-        """ Wraps the cursor.execute method"""
+        """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
 
         # Always return the result as-is
@@ -112,7 +112,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, *args):
-        """ Wraps the cursor.callproc method"""
+        """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
 
@@ -134,21 +134,21 @@ class FetchTracedCursor(TracedCursor):
     """
 
     def fetchone(self, *args, **kwargs):
-        """ Wraps the cursor.fetchone method"""
+        """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
             self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
-        """ Wraps the cursor.fetchall method"""
+        """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
             self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
-        """ Wraps the cursor.fetchmany method"""
+        """Wraps the cursor.fetchmany method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchmany")
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
@@ -204,7 +204,7 @@ def _override_dbapi2_config(new_cfg):
 
 
 class TracedConnection(wrapt.ObjectProxy):
-    """ TracedConnection wraps a Connection with tracing code. """
+    """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
         # Set default cursor class if one was not provided
