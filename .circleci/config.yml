@@ -697,8 +697,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pymemcache_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
