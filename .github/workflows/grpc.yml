@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: grpc/grpc
-          ref: 1.37.0
+          ref: master
           submodules: true
       #- name: Build
       #  run: |
