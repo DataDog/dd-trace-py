@@ -5,7 +5,7 @@ on:
       - master
   pull_request:
 jobs:
-  grpc-testsuite-1_37_1:
+  grpc-testsuite-1_37_0:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: grpc/grpc
-          ref: $BASE_BRANCH
+          ref: 1.37.0
           path: grpc
       - uses: actions/checkout@v2
         with:
