@@ -64,7 +64,7 @@ class PylonsTraceMiddleware(object):
 
             # tentative on status code, otherwise will be caught by except below
             def _start_response(status, *args, **kwargs):
-                """ a patched response callback which will pluck some metadata. """
+                """a patched response callback which will pluck some metadata."""
                 if len(args):
                     response_headers = args[0]
                 else:

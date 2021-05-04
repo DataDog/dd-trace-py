@@ -9,6 +9,8 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 
 
 config._add(
@@ -16,6 +18,7 @@ config._add(
     dict(
         # TODO[v1.0] this should be "mysql"
         _default_service="pymysql",
+        trace_fetch_methods=asbool(get_env("pymysql", "trace_fetch_methods", default=False)),
     ),
 )
 
