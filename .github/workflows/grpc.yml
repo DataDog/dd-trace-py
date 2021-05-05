@@ -5,7 +5,7 @@ on:
       - master
   pull_request:
 jobs:
-  grpc-testsuite-1_37_0:
+  grpc-testsuite-1_37_1:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: '3.9'
       #- name: Install dependencies
       #  run: pip install --upgrade pip setuptools wheel
       - uses: actions/checkout@v2
@@ -53,7 +53,7 @@ jobs:
         #  tag: ${{ github.ref }}
       #install grpc
       - name: Install grpc
-        run: pip install --no-cache-dir  --force-reinstall -Iv grpcio==1.37.0
+        run: pip install grpcio
       #install grpc tools
       - name: Install grpc tools
         run: python -m pip install grpcio-tools
