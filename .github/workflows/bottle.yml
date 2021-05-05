@@ -29,9 +29,9 @@ jobs:
         run: sudo apt-get install -y libev-dev
       - name: Install further dependencies
         run: pip install mako jinja2
-      - name: Install bottle module
+      #- name: Install bottle module
       #Bottle module is not installed as a dependency
-        run: pip install bottle
+       # run: pip install bottle
       - name: Test dependencies (Server back-ends and template engines)
       #Taken from install script inside of .github/workflows of test suite
         run: |
