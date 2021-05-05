@@ -443,7 +443,7 @@ class Span(object):
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         # type: (Any, Any, Any) -> None
-        """ Tag the span with an error tuple as from `sys.exc_info()`. """
+        """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
 
@@ -466,7 +466,7 @@ class Span(object):
 
     def _remove_exc_info(self):
         # type: () -> None
-        """ Remove all exception related information from the span. """
+        """Remove all exception related information from the span."""
         self.error = 0
         self._remove_tag(errors.ERROR_MSG)
         self._remove_tag(errors.ERROR_TYPE)
@@ -474,7 +474,7 @@ class Span(object):
 
     def pprint(self):
         # type: () -> str
-        """ Return a human readable version of the span. """
+        """Return a human readable version of the span."""
         data = [
             ("name", self.name),
             ("id", self.span_id),

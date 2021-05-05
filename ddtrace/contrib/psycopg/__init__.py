@@ -26,6 +26,14 @@ Global Configuration
 
    Default: ``"postgres"``
 
+.. py:data:: ddtrace.config.psycopg["trace_fetch_methods"]
+
+   Whether or not to trace fetch methods.
+
+   Can also configured via the ``DD_PSYCOPG_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~

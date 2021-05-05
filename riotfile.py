@@ -83,7 +83,7 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==20.8b1"},
+            pkgs={"black": "==21.4b2"},
             venvs=[
                 Venv(
                     name="fmt",
