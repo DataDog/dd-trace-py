@@ -221,7 +221,11 @@ class Tracer(object):
         # type: () -> Optional[Span]
         """Return the active span in the current execution context."""
         active = self.context_provider.active()
-        return active if isinstance(active, Span) else None
+        if isinstance(active, Span):
+            return active
+        elif isinstance(active, Context):
+            return active._span
+        return None
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
@@ -500,15 +504,15 @@ class Tracer(object):
                         # priority sampler will use the default sampling rate, which might
                         # lead to oversampling (that is, dropping too many traces).
                         if self.priority_sampler.sample(span):
-                            span.context.sampling_priority = AUTO_KEEP
+                            context.sampling_priority = AUTO_KEEP
                         else:
-                            span.context.sampling_priority = AUTO_REJECT
+                            context.sampling_priority = AUTO_REJECT
                 else:
                     if self.priority_sampler:
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        span.context.sampling_priority = AUTO_REJECT
+                        context.sampling_priority = AUTO_REJECT
             else:
-                span.context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
                 # The trace must be marked as sampled so it is forwarded to the agent.
                 span.sampled = True
 
