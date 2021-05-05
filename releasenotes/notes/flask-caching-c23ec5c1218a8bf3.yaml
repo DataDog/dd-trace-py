@@ -1,0 +1,3 @@
+features:
+  - |
+    Support flask-caching with the Flask-Cache tracer.
