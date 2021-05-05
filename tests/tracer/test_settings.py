@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
@@ -220,7 +218,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
     def test_analytics_enabled_attribute(self):
-        """" Confirm environment variable and kwargs are handled properly """
+        """Confirm environment variable and kwargs are handled properly"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
         self.assertTrue(ic.analytics_enabled)
 
@@ -236,7 +234,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertFalse(ic.analytics_enabled)
 
     def test_get_analytics_sample_rate(self):
-        """" Check method for accessing sample rate based on configuration """
+        """Check method for accessing sample rate based on configuration"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
         self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
 
@@ -265,30 +263,6 @@ class TestIntegrationConfig(BaseTestCase):
             config = Config()
             ic = IntegrationConfig(config, "foo")
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
-
-    def test_deepcopy(self):
-        ic = IntegrationConfig(
-            self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5, deep={"field": "sodeep"}
-        )
-        cpy = deepcopy(ic)
-        assert isinstance(cpy, IntegrationConfig)
-        assert cpy == ic
-        assert cpy.deep["field"] == ic.deep["field"]
-        ic.deep["field"] = ""
-        assert cpy.deep["field"] != ic.deep["field"]
-
-    def test_copy(self):
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
-        copy = ic.copy()
-        assert isinstance(copy, IntegrationConfig)
-
-        for key in ic:
-            assert key in copy
-
-        for key in copy:
-            assert key in ic
-
-        assert ic == copy
 
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
