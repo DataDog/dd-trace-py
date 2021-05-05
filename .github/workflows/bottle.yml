@@ -42,4 +42,4 @@ jobs:
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Run tests
-        run: ddtrace-run pytest test
+        run: ddtrace-run pytest test --continue-on-collection-errors -v
