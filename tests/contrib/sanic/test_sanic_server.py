@@ -85,6 +85,7 @@ async def test_sanic_errors(tracer, sanic_http_server, unused_port):
     assert len(spans[0]) == 1
     assert spans[0][0].name == "sanic.request"
     assert spans[0][0].meta.get("http.status_code") == "404"
+    assert spans[0][0].error == 0
 
     url = "http://0.0.0.0:{}/internal_error".format(unused_port)
     async with httpx_client() as client:
@@ -96,3 +97,4 @@ async def test_sanic_errors(tracer, sanic_http_server, unused_port):
     assert len(spans[0]) == 1
     assert spans[0][0].name == "sanic.request"
     assert spans[0][0].meta.get("http.status_code") == "500"
+    assert spans[0][0].error == 1
