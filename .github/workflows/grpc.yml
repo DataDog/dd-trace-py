@@ -27,7 +27,7 @@ jobs:
         with:
           repository: grpc/grpc
           ref: master
-          submodules: true
+         # submodules: true
       #- name: Build
       #  run: |
       #    mkdir -p ${{ runner.tool_cache }}/grpc/1.37.0/x64
