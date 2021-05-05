@@ -24,7 +24,7 @@ class Context(object):
     is created.
     """
 
-    __slots__ = ["_trace_id", "_span_id", "_span", "_meta", "_metrics"]
+    __slots__ = ["trace_id", "span_id", "_span", "_meta", "_metrics"]
 
     def __init__(
         self,
@@ -34,8 +34,8 @@ class Context(object):
         dd_origin=None,  # type: Optional[str]
     ):
         # type: (...) -> None
-        self._trace_id = trace_id
-        self._span_id = span_id
+        self.trace_id = trace_id
+        self.span_id = span_id
 
         # TODO[v1.0]: we need to keep a reference back to the span to maintain
         # backwards compatibility when using context as a parent.
@@ -47,16 +47,6 @@ class Context(object):
         self._metrics = {}  # type: _MetricDictType
         self.dd_origin = dd_origin
         self.sampling_priority = sampling_priority
-
-    @property
-    def trace_id(self):
-        # type: () -> Optional[int]
-        return self._trace_id
-
-    @property
-    def span_id(self):
-        # type: () -> Optional[int]
-        return self._span_id
 
     @property
     def sampling_priority(self):
