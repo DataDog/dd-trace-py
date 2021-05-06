@@ -46,7 +46,7 @@ jobs:
       - name: Install troubleshootiung commands
         run: sudo pip install --ignore-installed six
       - name: Run test suite 
-        run: ddtrace-run pytest --import-mode=importlib #src/python/grpcio_tests #--continue-on-collection-errors -v
+        run: ddtrace-run python -m pytest src/python/grpcio
 
 
     
