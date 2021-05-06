@@ -16,6 +16,9 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
+      - run: |
+           cd src/python/grpcio_tests 
+           python my_script.py
       #- name: Install dependencies
       #  run: pip install --upgrade pip setuptools wheel
       - uses: actions/checkout@v2
@@ -48,6 +51,7 @@ jobs:
       - name: Run test suite 
         run: |
           cd src/python/grpcio_tests        
+          pip install .
           python -m pytest --ddtrace-patch-all
 
 
