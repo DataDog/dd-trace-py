@@ -244,6 +244,10 @@ venv = Venv(
                 # Celery 5.x wants Python 3.6+
                 Venv(
                     pys=select_pys(min_version="3.6"),
+                    env={
+                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                        "PYTEST_PLUGINS": "celery.contrib.pytest",
+                    },
                     pkgs={
                         "celery": [
                             "~=5.0.5",
