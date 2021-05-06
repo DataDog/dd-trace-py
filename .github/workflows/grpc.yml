@@ -48,7 +48,7 @@ jobs:
       - name: Run test suite 
         run: |
           cd src/python/grpcio_tests        
-          ddtrace-run python -m pytest 
+          python -m pytest --ddtrace-patch-all
 
 
 
