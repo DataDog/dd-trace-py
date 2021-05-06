@@ -3,7 +3,8 @@ import unittest
 from flask import Flask
 
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.utils import _extract_client, _extract_conn_tags
+from ddtrace.contrib.flask_cache.utils import _extract_client
+from ddtrace.contrib.flask_cache.utils import _extract_conn_tags
 from ddtrace.contrib.flask_cache.utils import _resource_from_cache_prefix
 from ddtrace.tracer import Tracer
 
