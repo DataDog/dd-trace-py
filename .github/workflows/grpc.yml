@@ -16,8 +16,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-      #- name: Install dependencies
-      #  run: pip install --upgrade pip setuptools wheel
+      - name: Install dependencies
+        run: pip install --upgrade pip setuptools wheel
       - uses: actions/checkout@v2
         with:
           path: ddtrace
@@ -28,7 +28,7 @@ jobs:
           repository: grpc/grpc
           ref: master
           path: grpc
-         # submodules: true
+          submodules: true
       #install grpc
       - name: Install grpc
         run: pip install grpcio
@@ -43,8 +43,8 @@ jobs:
         run: sudo apt-get install -y libev-dev
       - name: Install further dependencies
         run: sudo apt-get install python-dev
-      - name: Install troubleshootiung commands
-        run: sudo pip install --ignore-installed six
+      #- name: Install troubleshootiung commands
+      #  run: sudo pip install --ignore-installed six
       - name: Run test suite 
         run: |
           cd src/python/grpcio_tests        
