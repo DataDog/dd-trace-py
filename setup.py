@@ -168,7 +168,6 @@ setup(
             "typing; python_version<'3.5'",
             "packaging>=17.1",
             "protobuf>=3",
-            "packaging",
             "tenacity>=5",
             "attrs>=19.2.0",
             "six>=1.12.0",
