@@ -16,8 +16,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-      - name: Install dependencies
-        run: pip install --upgrade pip setuptools wheel
+      #- name: Install dependencies
+      #  run: pip install --upgrade pip setuptools wheel
       - uses: actions/checkout@v2
         with:
           path: ddtrace
