@@ -33,3 +33,15 @@ def parse_version(version):
         _version.release[1] if len(_version.release) >= 2 else 0,
         _version.release[2] if len(_version.release) >= 3 else 0,
     )
+
+
+def parse_version_safe(version):
+    # type: (str) -> typing.Tuple[int, int, int]
+    """Wrapper for ``parse_version`` to prevent raising on version parse error
+
+    This function will return (0, 0, 0) on parse error instead of raising
+    """
+    try:
+        return parse_version(version)
+    except packaging.version.InvalidVersion:
+        return (0, 0, 0)
