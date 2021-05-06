@@ -36,7 +36,7 @@ PATCH_MODULES = {
     "django": True,
     "elasticsearch": True,
     "algoliasearch": True,
-    "futures": False,  # experimental propagation
+    "futures": True,
     "grpc": True,
     "mongoengine": True,
     "mysql": True,
