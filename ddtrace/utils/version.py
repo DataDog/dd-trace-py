@@ -5,7 +5,16 @@ import packaging.version
 
 def parse_version(version):
     # type: (str) -> typing.Tuple[int, int, int]
-    """Convert a version string to a tuple of (major, minor, micro)"""
+    """Convert a version string to a tuple of (major, minor, micro)
+
+    Examples::
+
+       1.2.3       -> (1, 2, 3)
+       1.2         -> (1, 2, 0)
+       1           -> (1, 0, 0)
+       1.0.0-beta1 -> (1, 0, 0)
+       2020.6.19   -> (2020, 6, 19)
+    """
     # If we have any spaces/extra text, grab the first part
     #   "1.0.0 beta1" -> "1.0.0"
     #   "1.0.0" -> "1.0.0"
