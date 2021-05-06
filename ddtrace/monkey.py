@@ -178,7 +178,8 @@ def patch(raise_errors=True, **patch_modules):
             for m in modules_to_poi:
                 # If the module has already been imported then patch immediately
                 if m in sys.modules:
-                    patch_module(m, raise_errors=raise_errors)
+                    patch_module(module, raise_errors=raise_errors)
+                    break
                 # Otherwise, add a hook to patch when it is imported for the first time
                 else:
                     # Use factory to create handler to close over `module` and `raise_errors` values from this loop
