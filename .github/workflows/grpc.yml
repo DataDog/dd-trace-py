@@ -47,7 +47,7 @@ jobs:
         run: sudo pip install --ignore-installed six
       - name: Run test suite 
         run: |
-          cd src/python/grcpio        
+          cd src/python/grpcio_tests        
           ddtrace-run python -m pytest 
 
 
