@@ -39,6 +39,8 @@ jobs:
         run: pip install ../ddtrace
       - name: Install Pytest
         run: pip install pytest
+      - name: Install Dependencies
+        run: sudo apt-get install -y libev-dev
       - name: Run Http2 test suite 
         run: ddtrace-run pytest test/http2_test --continue-on-collection-errors -v
       - name: Run Distrib test suite for python
