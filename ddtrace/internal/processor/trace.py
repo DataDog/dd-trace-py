@@ -81,8 +81,9 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        chunk_root.meta.update(ctx._meta)
-        chunk_root.metrics.update(ctx._metrics)
+        # Make copies for thread-safety.
+        chunk_root.meta.update(ctx._meta.copy())
+        chunk_root.metrics.update(ctx._metrics.copy())
         return trace
 
 

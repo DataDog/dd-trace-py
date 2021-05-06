@@ -1,3 +1,4 @@
+import threading
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
@@ -17,14 +18,12 @@ log = get_logger(__name__)
 
 
 class Context(object):
-    """Represents a snapshot of a trace to be used to propagate a trace
-    across execution boundaries (eg. distributed tracing).
+    """Represents the context of a trace.
 
-    A Context contains the span_id of the active span at the time the context
-    is created.
+    The context of a trace includes the active span id and trace-level tags.
     """
 
-    __slots__ = ["trace_id", "span_id", "_span", "_meta", "_metrics"]
+    __slots__ = ["trace_id", "span_id", "_lock", "_span", "_meta", "_metrics"]
 
     def __init__(
         self,
@@ -37,6 +36,7 @@ class Context(object):
         self.trace_id = trace_id
         self.span_id = span_id
 
+        self._lock = threading.RLock()
         # TODO[v1.0]: we need to keep a reference back to the span to maintain
         # backwards compatibility when using context as a parent.
         # eg:
@@ -57,11 +57,12 @@ class Context(object):
     @sampling_priority.setter
     def sampling_priority(self, value):
         # type: (Optional[NumericType]) -> None
-        if value is None:
-            if SAMPLING_PRIORITY_KEY in self._metrics:
-                del self._metrics[SAMPLING_PRIORITY_KEY]
-            return
-        self._metrics[SAMPLING_PRIORITY_KEY] = value
+        with self._lock:
+            if value is None:
+                if SAMPLING_PRIORITY_KEY in self._metrics:
+                    del self._metrics[SAMPLING_PRIORITY_KEY]
+                return
+            self._metrics[SAMPLING_PRIORITY_KEY] = value
 
     @property
     def dd_origin(self):
@@ -73,11 +74,12 @@ class Context(object):
     def dd_origin(self, value):
         # type: (Optional[Text]) -> None
         """Set the origin of the trace."""
-        if value is None:
-            if ORIGIN_KEY in self._meta:
-                del self._meta[ORIGIN_KEY]
-            return
-        self._meta[ORIGIN_KEY] = value
+        with self._lock:
+            if value is None:
+                if ORIGIN_KEY in self._meta:
+                    del self._meta[ORIGIN_KEY]
+                return
+            self._meta[ORIGIN_KEY] = value
 
     def __eq__(self, other):
         return (
