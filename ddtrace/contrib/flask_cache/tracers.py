@@ -43,7 +43,6 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
 
             cache_cls = Cache
 
-
     class TracedCache(cache_cls):
         """
         Traced cache backend that monitors any operations done by flask_cache. Observed actions are:
