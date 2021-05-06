@@ -236,9 +236,6 @@ venv = Venv(
                             "~=4.3.1",
                             "~=4.4.7",
                             "~=4.4",  # most recent 4.x
-                            "~=5.0.5",
-                            "~=5.0",  # most recent 5.x
-                            latest,
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
