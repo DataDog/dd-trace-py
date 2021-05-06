@@ -45,6 +45,7 @@ config._add(
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         database_service_name=get_env("django", "database_service_name", default=""),
+        trace_fetch_methods=asbool(get_env("django", "trace_fetch_methods", default=False)),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,

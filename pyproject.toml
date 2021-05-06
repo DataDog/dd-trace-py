@@ -47,7 +47,7 @@ exclude = '''
       | pylibmc
       | rediscluster
     )
-    | profiling/exporter/pprof_pb2.py$
+    | profiling/exporter/pprof_.*pb2.py$
     | vendor/
   )
   | tests/

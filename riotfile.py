@@ -83,7 +83,7 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==20.8b1"},
+            pkgs={"black": "==21.4b2"},
             venvs=[
                 Venv(
                     name="fmt",
@@ -555,6 +555,26 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"psycopg2": ["~=2.8.0", latest]},
                 ),
+            ],
+        ),
+        Venv(
+            name="pymemcache",
+            pys=select_pys(),
+            pkgs={
+                "pymemcache": [
+                    "~=1.4",  # Most recent 1.x release
+                    "~=2.0",  # Most recent 2.x release
+                    "~=3.0.1",
+                    "~=3.1.1",
+                    "~=3.2.0",
+                    "~=3.3.0",
+                    "~=3.4.2",
+                    latest,
+                ]
+            },
+            venvs=[
+                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
+                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
         ),
         Venv(
