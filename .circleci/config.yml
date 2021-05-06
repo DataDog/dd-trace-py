@@ -111,7 +111,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: true
+        default: false
     steps:
       - attach_workspace:
           at: .
@@ -193,7 +193,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: true
+        default: false
     steps:
       - checkout
       - setup_tox
@@ -1096,4 +1096,4 @@ workflows:
       - wsgi: *requires_base_venvs
 
       # Final reports
-      - coverage_report: *requires_tests
+      # - coverage_report: *requires_tests
