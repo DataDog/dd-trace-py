@@ -38,11 +38,15 @@ jobs:
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Install Pytest
-        run: pip install pytest
+        run: pip install pytest coverage
       - name: Install Dependencies
         run: sudo apt-get install -y libev-dev
-      - name: Install tests module
-        run: pip install tests
+      - name: Install further dependencies
+        run: sudo apt-get install python-dev
+      - name: Install troubleshootiung commands
+        run: sudo pip install --ignore-installed six
       - name: Run test suite 
         run: ddtrace-run pytest src/python/grpcio_tests --continue-on-collection-errors -v
+
+
     
