@@ -33,7 +33,7 @@ jobs:
       - name: Install grpc
         run: pip install grpcio 
       - name: Install grpcio-admin
-        run: pip install grpc-admin
+        run: pip install grpcio-admin
       #install grpc tools
       - name: Install grpc tools
         run: python -m pip install grpcio-tools
