@@ -31,7 +31,7 @@ else:
 
 
 class TestApp:
-    """ Sample request handler class. """
+    """Sample request handler class."""
 
     def __init__(self):
         self.dispatch = TestDispatch()

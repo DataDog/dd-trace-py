@@ -75,15 +75,15 @@ venv = Venv(
     pkgs={
         "mock": latest,
         "pytest": latest,
-        "coverage": latest,
-        "pytest-cov": latest,
+        # "coverage": latest,
+        # "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": latest,
     },
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==20.8b1"},
+            pkgs={"black": "==21.4b2"},
             venvs=[
                 Venv(
                     name="fmt",
@@ -141,7 +141,7 @@ venv = Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest --no-cov {cmdargs} tests/benchmarks",
+            command="pytest {cmdargs} tests/benchmarks",
         ),
         Venv(
             name="tracer",
@@ -163,7 +163,7 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
+            command="pytest {cmdargs} tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
                 "redis": latest,

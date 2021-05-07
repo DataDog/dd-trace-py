@@ -2,6 +2,8 @@ import pyodbc
 
 from ... import Pin
 from ... import config
+from ...utils.formats import asbool
+from ...utils.formats import get_env
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
 from ..trace_utils import unwrap
@@ -12,6 +14,7 @@ config._add(
     "pyodbc",
     dict(
         _default_service="pyodbc",
+        trace_fetch_methods=asbool(get_env("pyodbc", "trace_fetch_methods", default=False)),
     ),
 )
 

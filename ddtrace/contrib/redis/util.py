@@ -13,7 +13,7 @@ CMD_MAX_LEN = 1000
 
 
 def _extract_conn_tags(conn_kwargs):
-    """ Transform redis conn info into dogtrace metas """
+    """Transform redis conn info into dogtrace metas"""
     try:
         return {
             net.TARGET_HOST: conn_kwargs["host"],
