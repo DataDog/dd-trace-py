@@ -30,7 +30,7 @@ Here is the end result, in a sample app::
         # this access is traced
         conn_counter = cache.get("conn_counter")
 
-Use an alternative ``Cache`` implementation with:
+Use an alternative ``Cache`` implementation with::
 
     from ddtrace import tracer
     from ddtrace.contrib.flask_cache import get_traced_cache
