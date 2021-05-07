@@ -30,7 +30,7 @@ jobs:
       - name: Install further dependencies
         run: pip install mako jinja2
       - name: Test dependencies (Server back-ends and template engines)
-      #Taken from install script inside of .github/workflows of test suite
+      #Taken from install script inside of .github/workflows of test suite (https://github.com/bottlepy/bottle/blob/master/.github/workflows/run_tests.yml)
         run: |
           for name in waitress "cherrypy<9" cheroot paste tornado twisted diesel meinheld\
             gunicorn eventlet flup bjoern gevent aiohttp-wsgi uvloop; do
@@ -38,5 +38,6 @@ jobs:
           done
       - name: Inject ddtrace
         run: pip install ../ddtrace
+        # Allows tests to continue through deprecation warnings for jinja2 and mak0
       - name: Run tests
         run: ddtrace-run pytest test --continue-on-collection-errors -v
