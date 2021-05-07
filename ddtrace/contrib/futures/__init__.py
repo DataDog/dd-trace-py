@@ -1,18 +1,19 @@
 """
-The ``futures`` integration propagates the current active Tracing Context
+The ``futures`` integration propagates the current active tracing context
 between threads. The integration ensures that when operations are executed
 in a new thread, that thread can continue the previously generated trace.
 
-The integration doesn't trace automatically threads execution, so manual
-instrumentation or another integration must be activated. Threads propagation
-is not enabled by default with the `patch_all()` method and must be activated
-as follows::
 
-    from ddtrace import patch, patch_all
+Enabling
+~~~~~~~~
 
+The futures integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
     patch(futures=True)
-    # or, when instrumenting all libraries
-    patch_all(futures=True)
 """
 from ...utils.importlib import require_modules
 
