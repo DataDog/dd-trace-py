@@ -4,6 +4,7 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
+from ddtrace.vendor import debtcollector
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -31,7 +32,7 @@ config._add(
 
 
 class TracedCursor(wrapt.ObjectProxy):
-    """ TracedCursor wraps a psql cursor and traces its queries. """
+    """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin, cfg):
         super(TracedCursor, self).__init__(cursor)
@@ -69,7 +70,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
-                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.dbapi2.get_analytics_sample_rate())
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             try:
                 return method(*args, **kwargs)
@@ -85,7 +86,7 @@ class TracedCursor(wrapt.ObjectProxy):
                     s.set_tag(sql.ROWS, row_count)
 
     def executemany(self, query, *args, **kwargs):
-        """ Wraps the cursor.executemany method"""
+        """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -103,7 +104,7 @@ class TracedCursor(wrapt.ObjectProxy):
         )
 
     def execute(self, query, *args, **kwargs):
-        """ Wraps the cursor.execute method"""
+        """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
 
         # Always return the result as-is
@@ -112,7 +113,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, *args):
-        """ Wraps the cursor.callproc method"""
+        """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
 
@@ -134,21 +135,21 @@ class FetchTracedCursor(TracedCursor):
     """
 
     def fetchone(self, *args, **kwargs):
-        """ Wraps the cursor.fetchone method"""
+        """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
             self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
-        """ Wraps the cursor.fetchall method"""
+        """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
             self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
-        """ Wraps the cursor.fetchmany method"""
+        """Wraps the cursor.fetchmany method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchmany")
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
@@ -177,8 +178,10 @@ class _OverrideAttrDict(wrapt.ObjectProxy):
         super(_OverrideAttrDict, self).__init__(self.override)
 
     def __getattr__(self, name):
-        value = self.override.get(name, self.sentinel)
-        return getattr(self.base, name) if value == self.sentinel else value
+        try:
+            return getattr(self.override, name)
+        except AttributeError:
+            return getattr(self.base, name)
 
     def __getitem__(self, name):
         value = self.override.get(name, self.sentinel)
@@ -204,14 +207,23 @@ def _override_dbapi2_config(new_cfg):
 
 
 class TracedConnection(wrapt.ObjectProxy):
-    """ TracedConnection wraps a Connection with tracing code. """
+    """TracedConnection wraps a Connection with tracing code."""
 
     def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
+        if not cfg:
+            cfg = config.dbapi2
         # Set default cursor class if one was not provided
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedCursor
-            if config.dbapi2.trace_fetch_methods:
+            # Deprecation of config.dbapi2 requires we add a check
+            if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
+                if config.dbapi2.trace_fetch_methods:
+                    debtcollector.deprecate(
+                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
+                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
+                        removal_version="0.50.0",
+                    )
                 cursor_cls = FetchTracedCursor
 
         super(TracedConnection, self).__init__(conn)

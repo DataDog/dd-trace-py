@@ -13,7 +13,7 @@ HEADER_POS = 4
 
 
 def extract_conn_tags(connection):
-    """ Transform kombu conn info into dogtrace metas """
+    """Transform kombu conn info into dogtrace metas"""
     try:
         host, port = connection.host.split(":")
         return {

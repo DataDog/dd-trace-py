@@ -111,7 +111,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: true
+        default: false
     steps:
       - attach_workspace:
           at: .
@@ -127,7 +127,8 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --pass-env -s '<< parameters.pattern >>'"
+
+                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - unless:
           condition:
               << parameters.snapshot >>
@@ -142,7 +143,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run -s '<< parameters.pattern >>'"
+                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -192,7 +193,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: true
+        default: false
     steps:
       - checkout
       - setup_tox
@@ -532,8 +533,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
     steps:
-      - run_tox_scenario:
-          pattern: '^celery_contrib-'
+      - run_test:
+          pattern: 'celery'
 
   cherrypy:
     <<: *machine_executor
@@ -696,8 +697,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pymemcache_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
@@ -1095,4 +1096,4 @@ workflows:
       - wsgi: *requires_base_venvs
 
       # Final reports
-      - coverage_report: *requires_tests
+      # - coverage_report: *requires_tests

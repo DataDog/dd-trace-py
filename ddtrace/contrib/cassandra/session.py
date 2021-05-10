@@ -35,7 +35,7 @@ _connect = cassandra.cluster.Cluster.connect
 
 
 def patch():
-    """ patch will add tracing to the cassandra library. """
+    """patch will add tracing to the cassandra library."""
     setattr(cassandra.cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
     Pin(service=SERVICE, app=SERVICE).onto(cassandra.cluster.Cluster)
 
