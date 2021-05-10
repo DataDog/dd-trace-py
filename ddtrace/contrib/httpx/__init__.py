@@ -21,7 +21,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.httpx['service']
 
-   The service name reported by default for httpx requests. This value will
+   The service name reported by default for ``httpx`` requests. This value will
    be overridden by an instance override or if the ``split_by_domain`` setting is
    enabled.
 
