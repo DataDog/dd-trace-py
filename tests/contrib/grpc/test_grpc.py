@@ -247,7 +247,7 @@ class GrpcTestCase(TracerTestCase):
         self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
 
-    def test_server_stream_prefetch(self):
+    def test_server_stream_once(self):
         # use an event to signal when the callbacks have been called from the response
         callback_called = threading.Event()
         def callback(response):
@@ -256,7 +256,7 @@ class GrpcTestCase(TracerTestCase):
 
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            responses_iterator = stub.SayHelloTwice(HelloRequest(name="prefetch"))
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
             responses_iterator.add_done_callback(callback)
             response = six.next(responses_iterator)
             callback_called.wait(timeout=1)
@@ -533,9 +533,9 @@ class _HelloServicer(HelloServicer):
         if request.name == "exception":
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "exception")
 
-        if request.name == "prefetch":
-            # Mimic behavior of scenario where first and only result of a
-            # streaming response is prefetched and the RPC is terminated, as is
+        if request.name == "once":
+            # Mimic behavior of scenario where only one result is expected from
+            # streaming response and the RPC is successfully terminated, as is
             # the case with grpc_helpers._StreamingResponseIterator in the
             # Google API Library wraps a _MultiThreadedRendezvous future. An
             # example of this iterator only called once is in the Google Cloud
