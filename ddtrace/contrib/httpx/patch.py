@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.propagation.http import HTTPPropagator
@@ -84,7 +85,7 @@ async def _wrapped_async_send(
     # type: (...) -> typing.Coroutine[None, None, httpx.Response]
     req = kwargs.get("request") or args[0]
 
-    with tracer.trace("http.request", service=config.httpx.service, span_type=SpanTypes.HTTP) as span:
+    with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
         resp = None
         try:
@@ -103,7 +104,7 @@ def _wrapped_sync_send(
     # type: (...) -> httpx.Response
     req = kwargs.get("request") or args[0]
 
-    with tracer.trace("http.request", span_type=SpanTypes.HTTP) as span:
+    with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
 
         resp = None
