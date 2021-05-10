@@ -253,7 +253,6 @@ class GrpcTestCase(TracerTestCase):
         callback_called = threading.Event()
 
         def callback(response):
-            nonlocal callback_called
             callback_called.set()
 
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
