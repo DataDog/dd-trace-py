@@ -11,7 +11,7 @@ The ``httpx`` integration is enabled automatically when using
 Or use :ref:`patch()<patch>` to manually enable the integration::
 
     from ddtrace import patch
-    patch(https=True)
+    patch(httpx=True)
 
     # use httpx like usual
 
@@ -19,10 +19,10 @@ Or use :ref:`patch()<patch>` to manually enable the integration::
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.https['service']
+.. py:data:: ddtrace.config.httpx['service']
 
    The service name reported by default for httpx requests. This value will
-   be overridden by an instance override or if the split_by_domain setting is
+   be overridden by an instance override or if the ``split_by_domain`` setting is
    enabled.
 
    This option can also be set with the ``DD_HTTPX_SERVICE`` environment
@@ -31,18 +31,11 @@ Global Configuration
    Default: ``None`` (inherit from ``DD_SERVICE``)
 
 
-.. py:data:: ddtrace.config.https['distributed_tracing']
+.. py:data:: ddtrace.config.httpx['distributed_tracing']
 
    Whether or not to inject distributed tracing headers into requests.
 
    Default: ``True``
-
-
-.. py:data:: ddtrace.config.https['trace_query_string']
-
-   Whether or not to include the query string as a tag.
-
-   Default: ``False``
 
 
 .. py:data:: ddtrace.config.httpx['split_by_domain']
@@ -54,22 +47,9 @@ Global Configuration
    Default: ``False``
 
 
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 
-To set configuration options for all requests made with a ``tktk`` object
-use the config API::
-
-    from ddtrace import config
-    from httpx import tktk
-
-    tktktk
-
-    session = Session()
-    cfg = config.get_from(session)
-    cfg['service_name'] = 'auth-api'
-    cfg['distributed_tracing'] = False
-
+:ref:`HTTP Tagging <http-tagging>` is supported for this integration.
 """
 from ...utils.importlib import require_modules
 
