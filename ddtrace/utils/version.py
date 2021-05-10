@@ -25,6 +25,8 @@ def parse_version(version):
     if " " in version:
         version = version.split()[0]
 
+    # version() will not raise an exception, if the version if malformed instead
+    # we will end up with a LegacyVersion
     parsed = packaging.version.parse(version)
 
     # LegacyVersion.release will always be `None`
