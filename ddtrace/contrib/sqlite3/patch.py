@@ -23,6 +23,7 @@ config._add(
     dict(
         _default_service="sqlite",
         trace_fetch_methods=asbool(get_env("sqlite", "trace_fetch_methods", default=False)),
+        _deprecated_name="dbapi2",
     ),
 )
 

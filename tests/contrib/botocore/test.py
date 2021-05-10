@@ -21,6 +21,7 @@ from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.utils.version import parse_version
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -28,7 +29,7 @@ from tests.utils import assert_span_http_status_code
 
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
-BOTOCORE_VERSION = tuple(int(x) for x in botocore.__version__.split("."))
+BOTOCORE_VERSION = parse_version(botocore.__version__)
 
 
 def get_zip_lambda():
