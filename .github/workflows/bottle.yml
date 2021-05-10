@@ -36,6 +36,6 @@ jobs:
           done
       - name: Inject ddtrace
         run: pip install ../ddtrace
-        # Allows tests to continue through deprecation warnings for jinja2 and mak0
+        # Allows tests to continue through deprecation warnings for jinja2 and mako
       - name: Run tests
         run: ddtrace-run pytest test --continue-on-collection-errors -v
