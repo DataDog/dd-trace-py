@@ -1,3 +1,4 @@
+import threading
 import time
 
 import grpc
@@ -25,7 +26,6 @@ from .hello_pb2_grpc import add_HelloServicer_to_server
 
 _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
-
 
 class GrpcTestCase(TracerTestCase):
     def setUp(self):
@@ -248,10 +248,18 @@ class GrpcTestCase(TracerTestCase):
         self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
 
     def test_server_stream_prefetch(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+        def callback(response):
+            nonlocal callback_called
+            callback_called.set()
+
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="prefetch"))
+            responses_iterator.add_done_callback(callback)
             response = six.next(responses_iterator)
+            callback_called.wait(timeout=1)
             assert response.message == "first response"
 
         spans = self.get_spans_with_sync_and_assert(size=2)
