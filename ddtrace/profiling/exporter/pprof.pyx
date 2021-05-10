@@ -16,9 +16,9 @@ def _protobuf_post_312():
     # type: (...) -> bool
     """Check if protobuf version is post 3.12"""
     import google.protobuf
-    from ddtrace.utils.version import parse_version_safe
+    from ddtrace.utils.version import parse_version
 
-    v = parse_version_safe(google.protobuf.__version__)
+    v = parse_version(google.protobuf.__version__)
     return v[0] >= 3 and v[1] >= 12
 
 
