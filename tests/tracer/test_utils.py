@@ -5,7 +5,6 @@ import unittest
 import warnings
 
 import mock
-import packaging
 import pytest
 
 from ddtrace.utils import ArgumentError
