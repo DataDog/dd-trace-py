@@ -20,7 +20,7 @@ def parse_version(version):
     # If we have any spaces/extra text, grab the first part
     #   "1.0.0 beta1" -> "1.0.0"
     #   "1.0.0" -> "1.0.0"
-    # DEV: Versions will spaces will get converted to LegacyVersion, we do this splitting
+    # DEV: Versions with spaces will get converted to LegacyVersion, we do this splitting
     # to maximize the changes of getting a Version as a parsing result
     if " " in version:
         version = version.split()[0]
