@@ -8,9 +8,9 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap as _u
@@ -26,7 +26,6 @@ config._add(
     {
         "distributed_tracing": asbool(get_env("httpx", "distributed_tracing", default=True)),
         "split_by_domain": asbool(get_env("httpx", "split_by_domain", default=False)),
-        "trace_query_string": asbool(get_env("httpx", "tracee_query_string", default=False)),
     },
 )
 
@@ -53,7 +52,9 @@ def _init_span(span, request):
             span.service = service
 
     span.set_tag(SPAN_MEASURED_KEY)
-    activate_distributed_headers(tracer, int_config=config.httpx, request_headers=request.headers)
+
+    if config.httpx.get("distributed_tracing_enabled", config.httpx.get("distributed_tracing", False)):
+        HTTPPropagator.inject(span.context, request.headers)
 
     sample_rate = config.httpx.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
