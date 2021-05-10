@@ -169,6 +169,12 @@ httplib
 ^^^^^^^
 .. automodule:: ddtrace.contrib.httplib
 
+.. _httpx:
+
+httpx
+^^^^^
+.. automodule:: ddtrace.contrib.httpx
+
 
 .. _jinja2:
 
