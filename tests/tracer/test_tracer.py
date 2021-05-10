@@ -1549,3 +1549,74 @@ def test_spans_sampled_all(tracer, test_spans):
 
     spans = test_spans.pop()
     assert len(spans) == 3
+
+
+def test_global_context_set_before(tracer, test_spans):
+    ctx = tracer.get_call_context()
+    ctx.sampling_priority = priority.USER_REJECT
+    with tracer.trace("span"):
+        pass
+    (span,) = test_spans.pop()
+    assert span.metrics[SAMPLING_PRIORITY_KEY] == priority.USER_REJECT
+
+    # Context resets sampling priority after a trace is complete.
+    with tracer.trace("span"):
+        pass
+    (span,) = test_spans.pop()
+    assert span.metrics[SAMPLING_PRIORITY_KEY] == priority.AUTO_KEEP
+
+
+def test_global_context_set_after(tracer, test_spans):
+    with tracer.trace("span") as span:
+        span.context.sampling_priority = priority.USER_REJECT
+
+    (span,) = test_spans.pop()
+    assert span.metrics[SAMPLING_PRIORITY_KEY] == priority.USER_REJECT
+
+    # Context resets sampling priority after a trace is complete.
+    with tracer.trace("span"):
+        pass
+    (span,) = test_spans.pop()
+    assert span.metrics[SAMPLING_PRIORITY_KEY] == priority.AUTO_KEEP
+
+
+def test_manual_tracing(tracer, test_spans):
+    with tracer.start_span("parent") as span:
+        with tracer.start_span("child", child_of=span):
+            pass
+        with tracer.start_span("child2", child_of=span):
+            pass
+
+        with tracer.trace("parent2"):
+            with tracer.trace("child3"):
+                pass
+
+    spans = {s.name: s for s in test_spans.pop()}
+    parent, child, child2 = spans["parent"], spans["child"], spans["child2"]
+    assert parent.trace_id == child.trace_id == child2.trace_id
+    assert parent.parent_id is None
+    assert child.parent_id == parent.span_id
+    assert child2.parent_id == parent.span_id
+
+    parent2, child3 = spans["parent2"], spans["child3"]
+    assert parent2.trace_id != parent.trace_id
+    assert parent2.trace_id == child3.trace_id
+    assert child3.parent_id == parent2.span_id
+
+
+def test_explicit_context(tracer):
+    span = tracer.start_span("parent")
+    span2 = tracer.start_span("child", child_of=span)
+    assert span2.context.span_id == span2.span_id
+    assert span.context.span_id == span2.span_id
+
+    with tracer.trace("test") as span3:
+        assert span3.context.span_id == span3.span_id
+
+        assert span.context.span_id == span2.span_id
+        assert span2.context.span_id == span2.span_id
+
+    assert span.context.span_id == span2.span_id
+    assert span2.context.span_id == span2.span_id
+    span2.finish()
+    span.finish()

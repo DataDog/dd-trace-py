@@ -492,29 +492,30 @@ class Tracer(object):
             span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
-            if not isinstance(self.sampler, DatadogSampler):
-                if span.sampled:
-                    # When doing client sampling in the client, keep the sample rate so that we can
-                    # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self.sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
+            if context.sampling_priority is None:
+                if not isinstance(self.sampler, DatadogSampler):
+                    if span.sampled:
+                        # When doing client sampling in the client, keep the sample rate so that we can
+                        # scale up statistics in the next steps of the pipeline.
+                        if isinstance(self.sampler, RateSampler):
+                            span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
 
-                    if self.priority_sampler:
-                        # At this stage, it's important to have the service set. If unset,
-                        # priority sampler will use the default sampling rate, which might
-                        # lead to oversampling (that is, dropping too many traces).
-                        if self.priority_sampler.sample(span):
-                            context.sampling_priority = AUTO_KEEP
-                        else:
+                        if self.priority_sampler:
+                            # At this stage, it's important to have the service set. If unset,
+                            # priority sampler will use the default sampling rate, which might
+                            # lead to oversampling (that is, dropping too many traces).
+                            if self.priority_sampler.sample(span):
+                                context.sampling_priority = AUTO_KEEP
+                            else:
+                                context.sampling_priority = AUTO_REJECT
+                    else:
+                        if self.priority_sampler:
+                            # If dropped by the local sampler, distributed instrumentation can drop it too.
                             context.sampling_priority = AUTO_REJECT
                 else:
-                    if self.priority_sampler:
-                        # If dropped by the local sampler, distributed instrumentation can drop it too.
-                        context.sampling_priority = AUTO_REJECT
-            else:
-                context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
-                # The trace must be marked as sampled so it is forwarded to the agent.
-                span.sampled = True
+                    context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                    # We must always mark the span as sampled so it is forwarded to the agent
+                    span.sampled = True
 
         # Apply default global tags.
         if self.tags:
