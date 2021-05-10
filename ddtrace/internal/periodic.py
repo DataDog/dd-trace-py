@@ -4,9 +4,10 @@ import threading
 import time
 import typing
 
+import attr
+
 from ddtrace.internal import nogevent
 from ddtrace.internal import service
-from ddtrace.vendor import attr
 
 
 class PeriodicThread(threading.Thread):
@@ -24,7 +25,7 @@ class PeriodicThread(threading.Thread):
         interval,  # type: float
         target,  # type: typing.Callable[[], typing.Any]
         name=None,  # type: typing.Optional[str]
-        on_shutdown=None,  # type: typing.Callable[[], typing.Any]
+        on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
     ):
         # type: (...) -> None
         """Create a periodic thread.
@@ -163,7 +164,7 @@ def PeriodicRealThreadClass():
     return PeriodicThread
 
 
-@attr.s
+@attr.s(eq=False)
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 

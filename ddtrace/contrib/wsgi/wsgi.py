@@ -1,6 +1,6 @@
 import sys
 
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 
 
 if PY2:
@@ -13,6 +13,7 @@ else:
     generatorExit = builtins.GeneratorExit
 
 
+import six
 from six.moves.urllib.parse import quote
 
 import ddtrace
@@ -21,7 +22,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
-from ddtrace.vendor import six
 
 from .. import trace_utils
 
@@ -108,10 +108,7 @@ class DDWSGIMiddleware(object):
                 write = start_response(status, response_headers, exc_info)
             return write
 
-        if config.wsgi.distributed_tracing:
-            ctx = propagator.extract(environ)
-            if ctx.trace_id:
-                self.tracer.context_provider.activate(ctx)
+        trace_utils.activate_distributed_headers(self.tracer, int_config=config.wsgi, request_headers=environ)
 
         with self.tracer.trace(
             "wsgi.request",

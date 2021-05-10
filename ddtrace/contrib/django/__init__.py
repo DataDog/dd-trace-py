@@ -71,6 +71,14 @@ Configuration
 
    Default: ``''``
 
+.. py:data:: ddtrace.config.django["trace_fetch_methods"]
+
+   Whether or not to trace fetch methods.
+
+   Can also configured via the ``DD_DJANGO_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
 .. py:data:: ddtrace.config.django['instrument_middleware']
 
    Whether or not to instrument middleware.

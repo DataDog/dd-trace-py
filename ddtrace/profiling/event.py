@@ -1,5 +1,6 @@
-from ddtrace import compat
-from ddtrace.vendor import attr
+import attr
+
+from ddtrace.internal import compat
 
 
 def event_class(klass):

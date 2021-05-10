@@ -3,16 +3,17 @@ import atexit
 import logging
 import os
 import sys
-from typing import AnyStr
-from typing import Dict
 from typing import List
 from typing import Optional
 import warnings
+
+import attr
 
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
+from ddtrace.internal import writer
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
@@ -22,19 +23,10 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
-from ddtrace.utils import deprecation
-from ddtrace.vendor import attr
+from ddtrace.utils import formats
 
 
 LOG = logging.getLogger(__name__)
-
-
-def _get_api_key():
-    legacy = os.environ.get("DD_PROFILING_API_KEY")
-    if legacy:
-        deprecation.deprecation("DD_PROFILING_API_KEY", "Use DD_API_KEY")
-        return legacy
-    return os.environ.get("DD_API_KEY")
 
 
 def _get_service_name():
@@ -73,7 +65,7 @@ class Profiler(object):
 
         if profile_children:
             try:
-                uwsgi.check_uwsgi(self.start, atexit=self.stop if stop_on_exit else None)
+                uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
             except uwsgi.uWSGIMasterProcess:
                 # Do nothing, the start() method will be called in each worker subprocess
                 return
@@ -135,43 +127,6 @@ class Profiler(object):
         return self._profiler.tags
 
 
-ENDPOINT_TEMPLATE = "https://intake.profile.{}"
-
-
-def _get_default_url(
-    tracer,  # type: Optional[ddtrace.Tracer]
-    api_key,  # type: str
-):
-    # type: (...) -> str
-    """Get default profiler exporter URL.
-
-    If an API key is not specified, the URL will default to the agent location configured via the environment variables.
-
-    If an API key is specified, the profiler goes into agentless mode and uses `DD_SITE` to upload directly to Datadog
-    backend.
-
-    :param api_key: The API key provided by the user.
-    :param tracer: The tracer object to use to find default URL.
-    """
-    # Default URL changes if an API_KEY is provided in the env
-    if api_key is None:
-        if tracer is None:
-            return agent.get_trace_url()
-        else:
-            # Only use the tracer writer URL if it has been modified by the user.
-            if tracer.writer.agent_url != agent.get_trace_url() and tracer.writer.agent_url != agent.DEFAULT_TRACE_URL:
-                return tracer.writer.agent_url
-            else:
-                return agent.get_trace_url()
-    # Agentless mode
-    legacy = os.environ.get("DD_PROFILING_API_URL")
-    if legacy:
-        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
-        return legacy
-    site = os.environ.get("DD_SITE", "datadoghq.com")
-    return ENDPOINT_TEMPLATE.format(site)
-
-
 @attr.s
 class _ProfilerInstance(service.Service):
     """A instance of the profiler.
@@ -187,44 +142,50 @@ class _ProfilerInstance(service.Service):
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
+    api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
+    agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
 
-    @staticmethod
-    def _build_default_exporters(
-        tracer,  # type: Optional[ddtrace.Tracer]
-        url,  # type: Optional[str]
-        tags,  # type: Dict[str, AnyStr]
-        service,  # type: Optional[str]
-        env,  # type: Optional[str]
-        version,  # type: Optional[str]
-    ):
+    ENDPOINT_TEMPLATE = "https://intake.profile.{}"
+
+    def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
-                file.PprofFileExporter(_OUTPUT_PPROF),  # type: ignore[call-arg]
+                file.PprofFileExporter(_OUTPUT_PPROF),
             ]
 
-        api_key = _get_api_key()
+        if self.url is not None:
+            endpoint = self.url
+        elif self.agentless:
+            LOG.warning(
+                "Agentless uploading is currently for internal usage only and not officially supported. "
+                "You should not enable it unless somebody at Datadog instructed you to do so."
+            )
+            endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
+        else:
+            if isinstance(self.tracer.writer, writer.AgentWriter):
+                endpoint = self.tracer.writer.agent_url
+            else:
+                endpoint = agent.get_trace_url()
 
-        if api_key is None:
+        if self.agentless:
+            endpoint_path = "/v1/input"
+        else:
             # Agent mode
             endpoint_path = "/profiling/v1/input"
-        else:
-            endpoint_path = "/v1/input"
-
-        endpoint = _get_default_url(tracer, api_key) if url is None else url
 
         return [
-            http.PprofHTTPExporter(  # type: ignore[call-arg]
-                service=service,
-                env=env,
-                tags=tags,
-                version=version,
-                api_key=api_key,
+            http.PprofHTTPExporter(
+                service=self.service,
+                env=self.env,
+                tags=self.tags,
+                version=self.version,
+                api_key=self.api_key,
                 endpoint=endpoint,
                 endpoint_path=endpoint_path,
             ),
@@ -252,9 +213,7 @@ class _ProfilerInstance(service.Service):
             threading.LockCollector(r, tracer=self.tracer),
         ]
 
-        exporters = self._build_default_exporters(
-            self.tracer, self.url, self.tags, self.service, self.env, self.version
-        )
+        exporters = self._build_default_exporters()
 
         if exporters:
             self._scheduler = scheduler.Scheduler(

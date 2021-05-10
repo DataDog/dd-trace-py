@@ -1,15 +1,31 @@
 import collections
 import itertools
 import operator
-import sys
+
+import attr
+import six
 
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import pprof_pb2
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
+from ddtrace.utils import config
+
+
+def _protobuf_post_312():
+    # type: (...) -> bool
+    """Check if protobuf version is post 3.12"""
+    import google.protobuf
+    from ddtrace.utils.version import parse_version
+
+    v = parse_version(google.protobuf.__version__)
+    return v[0] >= 3 and v[1] >= 12
+
+
+if _protobuf_post_312():
+    from ddtrace.profiling.exporter import pprof_pb2
+else:
+    from ddtrace.profiling.exporter import pprof_pre312_pb2 as pprof_pb2
 
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)
@@ -270,23 +286,6 @@ class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
     @staticmethod
-    def _get_program_name(default="-"):
-        try:
-            import __main__
-
-            program_name = __main__.__file__
-        except (ImportError, AttributeError):
-            try:
-                program_name = sys.argv[0]
-            except IndexError:
-                program_name = None
-
-        if program_name is None:
-            return default
-
-        return program_name
-
-    @staticmethod
     def _get_trace_id(event):
         if event.trace_ids:
             return str(list(sorted(event.trace_ids))[0])
@@ -402,7 +401,7 @@ class PprofExporter(exporter.Exporter):
         :param end_time_ns: The end time of recording.
         :return: A protobuf Profile object.
         """
-        program_name = self._get_program_name()
+        program_name = config.get_application_name()
 
         sum_period = 0
         nb_event = 0

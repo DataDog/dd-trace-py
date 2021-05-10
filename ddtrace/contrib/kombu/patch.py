@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 # project
+from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -87,10 +88,9 @@ def traced_receive(func, instance, args, kwargs):
 
     # Signature only takes 2 args: (body, message)
     message = args[1]
-    context = propagator.extract(message.headers)
-    # only need to active the new context if something was propagated
-    if context.trace_id:
-        pin.tracer.context_provider.activate(context)
+
+    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
+
     with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         # run the command

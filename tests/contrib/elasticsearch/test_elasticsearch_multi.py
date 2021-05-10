@@ -2,7 +2,8 @@ import os
 import subprocess
 import sys
 
-from ddtrace.vendor import six
+import six
+
 from tests.utils import snapshot
 
 

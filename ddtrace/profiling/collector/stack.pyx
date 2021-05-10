@@ -6,7 +6,10 @@ import sys
 import threading
 import weakref
 
-from ddtrace import compat
+import attr
+import six
+
+from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -14,8 +17,6 @@ from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -480,10 +481,10 @@ class StackCollector(collector.PeriodicCollector):
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
 
-    def start(self):
+    def _start(self):
         # This is split in its own function to ease testing
         self._init()
-        super(StackCollector, self).start()
+        super(StackCollector, self)._start()
 
     def stop(self):
         super(StackCollector, self).stop()

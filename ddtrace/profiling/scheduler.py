@@ -1,12 +1,13 @@
 # -*- encoding: utf-8 -*-
 import logging
 
-from ddtrace import compat
+import attr
+
+from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.utils import attr as attr_utils
-from ddtrace.vendor import attr
 
 
 LOG = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ class Scheduler(periodic.PeriodicService):
     recorder = attr.ib()
     exporters = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
-    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
+    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
 

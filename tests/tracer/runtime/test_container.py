@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.runtime.container import get_container_info
 
@@ -79,18 +79,6 @@ def test_cgroup_info_init():
                 groups="name=systemd",
                 controllers=["name=systemd"],
                 path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986",
-                container_id=None,
-                pod_id=None,
-            ),
-        ),
-        (
-            # One character too long
-            "13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f8698600",
-            CGroupInfo(
-                id="13",
-                groups="name=systemd",
-                controllers=["name=systemd"],
-                path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f8698600",
                 container_id=None,
                 pod_id=None,
             ),
@@ -195,6 +183,13 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/kubepods/test/pod3d274242-8ee0-11e9-a8a6-1e68d864ef1a/3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1
             """,
             "3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1",
+        ),
+        # k8 format with additional characters before task ID
+        (
+            """
+1:name=systemd:/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2d3da189_6407_48e3_9ab6_78188d75e609.slice/docker-7b8952daecf4c0e44bbcefe1b5c5ebc7b4839d4eefeccefe694709d3809b6199.scope
+            """,
+            "7b8952daecf4c0e44bbcefe1b5c5ebc7b4839d4eefeccefe694709d3809b6199",
         ),
         # ECS file
         (

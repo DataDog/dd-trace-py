@@ -5,12 +5,18 @@ import os
 import re
 import subprocess
 import sys
+from typing import List
+from typing import Optional
 
 import mock
 import pytest
 
 import ddtrace
+from ddtrace import Span
 from ddtrace.internal import debug
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -202,7 +208,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer.log = mock.MagicMock()
         tracer.configure()
         # Python 2 logs will go to stderr directly since there's no log handler
-        if ddtrace.compat.PY3:
+        if PY3:
             assert tracer.log.log.mock_calls == [
                 mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
                 mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
@@ -218,7 +224,7 @@ class TestGlobalConfig(SubprocessTestCase):
         tracer.log = mock.MagicMock()
         logging.basicConfig()
         tracer.configure()
-        if ddtrace.compat.PY2:
+        if PY2:
             assert tracer.log.log.mock_calls == []
 
     @run_in_subprocess(
@@ -268,7 +274,29 @@ def test_agentless(monkeypatch):
     tracer = ddtrace.Tracer()
     info = debug.collect(tracer)
 
-    assert info.get("agent_url", "AGENTLESS")
+    assert info.get("agent_url") == "AGENTLESS"
+
+
+def test_custom_writer():
+    tracer = ddtrace.Tracer()
+
+    class CustomWriter(TraceWriter):
+        def recreate(self):
+            # type: () -> TraceWriter
+            return self
+
+        def stop(self, timeout=None):
+            # type: (Optional[float]) -> None
+            pass
+
+        def write(self, spans=None):
+            # type: (Optional[List[Span]]) -> None
+            pass
+
+    tracer.writer = CustomWriter()
+    info = debug.collect(tracer)
+
+    assert info.get("agent_url") == "CUSTOM"
 
 
 def test_different_samplers():

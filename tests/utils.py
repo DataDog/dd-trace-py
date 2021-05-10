@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import inspect
 import os
+import subprocess
 import sys
 from typing import List
 
@@ -10,13 +11,13 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace.compat import httplib
-from ddtrace.compat import parse
-from ddtrace.compat import to_unicode
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.encoding import JSONEncoder
 from ddtrace.ext import http
 from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal.compat import httplib
+from ddtrace.internal.compat import parse
+from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
@@ -189,6 +190,43 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
+def _build_tree(
+    spans,  # type: List[Span]
+    root,  # type: Span
+):
+    # type: (...) -> TestSpanNode
+    """helper to build a tree structure for the provided root span"""
+    children = []
+    for span in spans:
+        if span.parent_id == root.span_id:
+            children.append(_build_tree(spans, span))
+
+    return TestSpanNode(root, children)
+
+
+def get_root_span(
+    spans,  # type: List[Span]
+):
+    # type: (...) -> TestSpanNode
+    """
+    Helper to get the root span from the list of spans in this container
+
+    :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
+    :rtype: :class:`tests.utils.span.TestSpanNode`, None
+    :raises: AssertionError
+    """
+    root = None
+    for span in spans:
+        if span.parent_id is None:
+            if root is not None:
+                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+            root = span
+
+    assert root, "No root span found in {0!r}".format(spans)
+
+    return _build_tree(spans, root)
+
+
 class TestSpanContainer(object):
     """
     Helper class for a container of Spans.
@@ -231,16 +269,8 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def _build_tree(self, root):
-        """helper to build a tree structure for the provided root span"""
-        children = []
-        for span in self.spans:
-            if span.parent_id == root.span_id:
-                children.append(self._build_tree(span))
-
-        return TestSpanNode(root, children)
-
     def get_root_span(self):
+        # type: (...) -> TestSpanNode
         """
         Helper to get the root span from the list of spans in this container
 
@@ -248,18 +278,10 @@ class TestSpanContainer(object):
         :rtype: :class:`tests.utils.span.TestSpanNode`, None
         :raises: AssertionError
         """
-        root = None
-        for span in self.spans:
-            if span.parent_id is None:
-                if root is not None:
-                    raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
-                root = span
-
-        assert root, "No root span found in {0!r}".format(self.spans)
-
-        return self._build_tree(root)
+        return get_root_span(self.spans)
 
     def get_root_spans(self):
+        # type: (...) -> List[Span]
         """
         Helper to get all root spans from the list of spans in this container
 
@@ -269,7 +291,7 @@ class TestSpanContainer(object):
         roots = []
         for span in self.spans:
             if span.parent_id is None:
-                roots.append(self._build_tree(span))
+                roots.append(_build_tree(self.spans, span))
 
         return sorted(roots, key=lambda s: s.start)
 
@@ -434,10 +456,7 @@ class DummyTracer(Tracer):
 
     def __init__(self):
         super(DummyTracer, self).__init__()
-        self._update_writer()
-
-    def _update_writer(self):
-        self.writer = DummyWriter()
+        self.configure()
 
     def pop(self):
         # type: () -> List[Span]
@@ -448,9 +467,11 @@ class DummyTracer(Tracer):
         return self.writer.pop_traces()
 
     def configure(self, *args, **kwargs):
+        assert "writer" not in kwargs or isinstance(
+            kwargs["writer"], DummyWriter
+        ), "cannot configure writer of DummyTracer"
+        kwargs["writer"] = DummyWriter()
         super(DummyTracer, self).configure(*args, **kwargs)
-        # `.configure()` may reset the writer
-        self._update_writer()
 
 
 class TestSpan(Span):
@@ -797,6 +818,67 @@ class SnapshotFailed(Exception):
     pass
 
 
+@contextmanager
+def snapshot_context(token, ignores=None, tracer=None, async_mode=True):
+    ignores = ignores or []
+    if not tracer:
+        tracer = ddtrace.tracer
+
+    parsed = parse.urlparse(tracer.writer.agent_url)
+    conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+    try:
+        # clear queue in case traces have been generated before test case is
+        # itself run
+        try:
+            tracer.writer.flush_queue()
+        except Exception as e:
+            pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
+
+        if async_mode:
+            # Patch the tracer writer to include the test token header for all requests.
+            tracer.writer._headers["X-Datadog-Test-Token"] = token
+        else:
+            # Signal the start of this test case to the test agent.
+            try:
+                conn.request("GET", "/test/start?token=%s" % token)
+            except Exception as e:
+                pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
+            else:
+                r = conn.getresponse()
+                if r.status != 200:
+                    # The test agent returns nice error messages we can forward to the user.
+                    raise SnapshotFailed(r.read())
+
+        # Return context to the caller
+        try:
+            yield
+        finally:
+            # Force a flush so all traces are submitted.
+            tracer.writer.flush_queue()
+            if async_mode:
+                del tracer.writer._headers["X-Datadog-Test-Token"]
+
+        # Query for the results of the test.
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+        r = conn.getresponse()
+        if r.status != 200:
+            raise SnapshotFailed(r.read())
+    except SnapshotFailed as e:
+        # Fail the test if a failure has occurred and print out the
+        # message we got from the test agent.
+        pytest.fail(to_unicode(e.args[0]), pytrace=False)
+    except Exception as e:
+        # Even though it's unlikely any traces have been sent, make the
+        # final request to the test agent so that the test case is finished.
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+        conn.getresponse()
+        pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
+    finally:
+        conn.close()
+
+
 def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True):
     """Performs a snapshot integration test with the testing agent.
 
@@ -837,62 +919,11 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
             variant_id = applicable_variant_ids[0]
             token = "{}_{}".format(token, variant_id) if variant_id else token
 
-        parsed = parse.urlparse(tracer.writer.agent_url)
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        try:
-            # clear queue in case traces have been generated before test case is
-            # itself run
-            try:
-                tracer.writer.flush_queue()
-            except Exception as e:
-                pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
-
-            if async_mode:
-                # Patch the tracer writer to include the test token header for all requests.
-                tracer.writer._headers["X-Datadog-Test-Token"] = token
-            else:
-                # Signal the start of this test case to the test agent.
-                try:
-                    conn.request("GET", "/test/start?token=%s" % token)
-                except Exception as e:
-                    pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
-                else:
-                    r = conn.getresponse()
-                    if r.status != 200:
-                        # The test agent returns nice error messages we can forward to the user.
-                        raise SnapshotFailed(r.read())
-
+        with snapshot_context(token, ignores=ignores, tracer=tracer, async_mode=async_mode):
             # Run the test.
-            try:
-                if include_tracer:
-                    kwargs["tracer"] = tracer
-                ret = wrapped(*args, **kwargs)
-                # Force a flush so all traces are submitted.
-                tracer.writer.flush_queue()
-            finally:
-                if async_mode:
-                    del tracer.writer._headers["X-Datadog-Test-Token"]
-
-            # Query for the results of the test.
-            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-            r = conn.getresponse()
-            if r.status != 200:
-                raise SnapshotFailed(r.read())
-            return ret
-        except SnapshotFailed as e:
-            # Fail the test if a failure has occurred and print out the
-            # message we got from the test agent.
-            pytest.fail(to_unicode(e.args[0]), pytrace=False)
-        except Exception as e:
-            # Even though it's unlikely any traces have been sent, make the
-            # final request to the test agent so that the test case is finished.
-            conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-            conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
-            conn.getresponse()
-            pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
-        finally:
-            conn.close()
+            if include_tracer:
+                kwargs["tracer"] = tracer
+            return wrapped(*args, **kwargs)
 
     return wrapper
 
@@ -910,3 +941,13 @@ class AnyInt(object):
 class AnyFloat(object):
     def __eq__(self, other):
         return isinstance(other, float)
+
+
+def call_program(*args):
+    subp = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        close_fds=True,
+    )
+    stdout, stderr = subp.communicate()
+    return stdout, stderr, subp.wait(), subp.pid

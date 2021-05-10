@@ -6,7 +6,6 @@ import unittest
 import mock
 import pytest
 
-from ddtrace.compat import iteritems
 from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
 from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
@@ -14,6 +13,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
@@ -83,7 +83,7 @@ class RateSamplerTest(unittest.TestCase):
             assert deviation < 0.05, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
-        """ Test that for a given trace ID, the result is always the same """
+        """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
 
         tracer.sampler = RateSampler(0.5)
@@ -135,8 +135,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer != tracer.writer, "writer should have been updated by configure"
-            tracer.writer = writer
+            assert writer is not tracer.writer, "writer should have been updated by configure"
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
@@ -145,7 +144,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(i)
                 span.finish()
 
-            samples = tracer.pop()
+            samples = tracer.writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:

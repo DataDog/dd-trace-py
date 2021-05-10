@@ -1,7 +1,9 @@
 import errno
 import re
+from typing import Optional
 
-from ...vendor import attr
+import attr
+
 from ..logger import get_logger
 
 
@@ -28,11 +30,12 @@ class CGroupInfo(object):
     LINE_RE = re.compile(r"^(\d+):([^:]*):(.+)$")
     POD_RE = re.compile(r"pod({0})(?:\.slice)?$".format(UUID_SOURCE_PATTERN))
     CONTAINER_RE = re.compile(
-        r"({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN, TASK_PATTERN)
+        r"(?:.+)?({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE_PATTERN, CONTAINER_SOURCE_PATTERN, TASK_PATTERN)
     )
 
     @classmethod
     def from_line(cls, line):
+        # type: (str) -> Optional[CGroupInfo]
         """
         Parse a new :class:`CGroupInfo` from the provided line
 
@@ -78,6 +81,7 @@ class CGroupInfo(object):
 
 
 def get_container_info(pid="self"):
+    # type: (str) -> Optional[CGroupInfo]
     """
     Helper to fetch the current container id, if we are running in a container
 
@@ -104,3 +108,4 @@ def get_container_info(pid="self"):
             log.debug("Failed to open cgroup file for pid %r", pid, exc_info=True)
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)
+    return None
