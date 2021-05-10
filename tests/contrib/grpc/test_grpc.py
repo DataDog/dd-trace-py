@@ -27,6 +27,7 @@ from .hello_pb2_grpc import add_HelloServicer_to_server
 _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
+
 class GrpcTestCase(TracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
@@ -250,6 +251,7 @@ class GrpcTestCase(TracerTestCase):
     def test_server_stream_once(self):
         # use an event to signal when the callbacks have been called from the response
         callback_called = threading.Event()
+
         def callback(response):
             nonlocal callback_called
             callback_called.set()
