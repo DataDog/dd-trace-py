@@ -13,7 +13,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal._encoding import MsgpackEncoder
+from ddtrace.internal._encoding import MsgpackEncoderV03 as MsgpackEncoder
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode

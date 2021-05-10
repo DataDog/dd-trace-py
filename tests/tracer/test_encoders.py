@@ -12,7 +12,8 @@ from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03
+from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
@@ -64,7 +65,7 @@ class RefMsgpackEncoder(_EncoderBase):
 
     @staticmethod
     def decode(data):
-        return msgpack.unpackb(data, raw=True)
+        return msgpack.unpackb(data, raw=True, strict_map_key=False)
 
     @staticmethod
     def join_encoded(objs):
@@ -241,7 +242,7 @@ class TestEncoders(TestCase):
             ]
         )
 
-        encoder = MsgpackEncoder()
+        encoder = MsgpackEncoderV03()
         spans = encoder.encode_traces(traces)
         items = encoder._decode(spans)
 
@@ -271,7 +272,7 @@ class TestEncoders(TestCase):
             ]
         )
 
-        encoder = MsgpackEncoder()
+        encoder = MsgpackEncoderV03()
 
         # Encode each individual trace on its own
         encoded_traces = [encoder.encode_trace(trace) for trace in traces]
@@ -295,11 +296,11 @@ class TestEncoders(TestCase):
 def decode(obj):
     if msgpack.version[:2] < (0, 6):
         return msgpack.unpackb(obj)
-    return msgpack.unpackb(obj, raw=True)
+    return msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
 
 def test_custom_msgpack_encode():
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoderV03()
     refencoder = RefMsgpackEncoder()
 
     trace = gen_trace(nspans=50)
@@ -323,7 +324,7 @@ def test_custom_msgpack_encode():
 
 
 def test_custom_msgpack_join_encoded():
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoderV03()
     refencoder = RefMsgpackEncoder()
 
     trace = gen_trace(nspans=50)
@@ -354,7 +355,7 @@ def span_type_span():
 )
 def test_msgpack_span_property_variations(span):
     refencoder = RefMsgpackEncoder()
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoderV03()
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -387,7 +388,7 @@ class SubFloat(float):
 )
 def test_span_types(span, tags):
     refencoder = RefMsgpackEncoder()
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoderV03()
 
     span.set_tags(tags)
 
@@ -396,3 +397,28 @@ def test_span_types(span, tags):
 
     trace = [span]
     assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+
+
+def test_custom_msgpack_encode_v05():
+    encoder = MsgpackEncoderV05()
+    tracer = Tracer()
+    trace = [
+        Span(tracer=tracer, name="v05-test", service="foo", resource="GET"),
+        Span(tracer=tracer, name="v05-test", service="foo", resource="POST"),
+        Span(tracer=tracer, name=None, service="bar"),
+    ]
+
+    st, ts = decode(encoder.encode_trace(trace))
+    print(st, ts)
+
+    def filter_mut(ts):
+        return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
+
+    assert st == [b"", b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert filter_mut(ts) == [
+        [
+            [1, 2, 3, 0, 0, 0, {}, {}, 0],
+            [1, 2, 4, 0, 0, 0, {}, {}, 0],
+            [5, 0, 0, 0, 0, 0, {}, {}, 0],
+        ]
+    ]

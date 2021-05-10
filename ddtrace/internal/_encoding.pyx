@@ -1,5 +1,6 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
+from libc cimport stdint
 import struct
 
 from ..span import Span
@@ -165,8 +166,7 @@ cdef class Packer(object):
                        if ret != 0: break
                        ret = self._pack(v)
                        if ret != 0: break
-            elif PyList_CheckExact(o):
-                # Expect a list of traces or a list of spans
+            elif PyList_Check(o):
                 L = len(o)
                 if L > ITEM_LIMIT:
                     raise ValueError("list is too large")
@@ -175,17 +175,9 @@ cdef class Packer(object):
                 if ret != 0:
                     break
 
-                if L > 0 and PyList_CheckExact(o[0]):
-                    # List of lists of spans (a list of traces)
-                    for i in range(L):
-                        span = o[i]
-                        ret = self._pack(span)
-                        if ret != 0: break
-                else:
-                    # List of spans
-                    for i in range(L):
-                        ret = self._pack(o[i])
-                        if ret != 0: break
+                for e in o:
+                    if 0 != self._pack(e):
+                        break
 
             elif isinstance(o, Span):
                 has_span_type = <bint>(o.span_type is not None)
@@ -296,6 +288,8 @@ cdef class MsgpackEncoder(object):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
+
+cdef class MsgpackEncoderV03(MsgpackEncoder):
     cpdef encode_trace(self, list trace):
         return Packer().pack(trace)
 
@@ -314,3 +308,48 @@ cdef class MsgpackEncoder(object):
             return struct.pack(">BH", 0xdc, count) + buf
         else:
             return struct.pack(">BI", 0xdd, count) + buf
+
+
+cdef class _StringTable(list):
+    cdef dict _index
+
+    def __init__(self):
+        super(_StringTable, self).__init__([""])
+        self._index = {"": 0}
+
+    def index(self, string):
+        cdef int index
+
+        if not string:
+            return 0
+        
+        index = self._index.get(string, 0)
+        if not index:
+            index = len(self)
+            self.append(string)
+            self._index[string] = index
+        return index
+
+
+cdef class MsgpackEncoderV05(MsgpackEncoder):
+    cpdef encode_trace(self, list trace):
+        return self.encode_traces([trace])
+
+    cpdef encode_traces(self, traces):
+        st = _StringTable()
+        ts = [[[
+            <stdint.uint32_t>st.index(span.service),
+            <stdint.uint32_t>st.index(span.name),
+            <stdint.uint32_t>st.index(span.resource),
+            <stdint.uint64_t>(span.trace_id or 0),
+            <stdint.uint64_t>(span.span_id or 0),
+            <stdint.uint64_t>(span.parent_id or 0),
+            <stdint.int64_t>(span.start_ns or 0),
+            <stdint.int64_t>(span.duration_ns or 0),
+            <stdint.int32_t>(span.error or 0),
+            {<stdint.uint32_t>st.index(k): <stdint.uint32_t>st.index(v) for k, v in span.meta.items()},
+            {<stdint.uint32_t>st.index(k): <double>v for k, v in span.metrics.items()},
+            <stdint.uint32_t>st.index(span.span_type)
+        ] for span in trace] for trace in traces]
+        
+        return Packer().pack([st, ts])

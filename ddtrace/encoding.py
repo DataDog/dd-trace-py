@@ -1,7 +1,7 @@
 from .internal.encoding import Encoder
 from .internal.encoding import JSONEncoder
 from .internal.encoding import JSONEncoderV2
-from .internal.encoding import MsgpackEncoder
+from .internal.encoding import MsgpackEncoderV03
 from .utils.deprecation import deprecation
 
 
@@ -9,7 +9,7 @@ __all__ = (
     "Encoder",
     "JSONEncoder",
     "JSONEncoderV2",
-    "MsgpackEncoder",
+    "MsgpackEncoderV03",
 )
 
 

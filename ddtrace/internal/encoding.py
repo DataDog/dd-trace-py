@@ -5,7 +5,8 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from ._encoding import MsgpackEncoder
+from ._encoding import MsgpackEncoderV03
+from ._encoding import MsgpackEncoderV05
 from .logger import get_logger
 
 
@@ -120,4 +121,5 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-Encoder = MsgpackEncoder
+Encoder = MsgpackEncoderV03
+EncoderV05 = MsgpackEncoderV05
