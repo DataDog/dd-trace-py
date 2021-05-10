@@ -111,7 +111,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: true
+        default: false
     steps:
       - attach_workspace:
           at: .
@@ -193,7 +193,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: true
+        default: false
     steps:
       - checkout
       - setup_tox
@@ -533,8 +533,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
     steps:
-      - run_tox_scenario:
-          pattern: '^celery_contrib-'
+      - run_test:
+          pattern: 'celery'
 
   cherrypy:
     <<: *machine_executor
@@ -697,8 +697,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pymemcache_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
@@ -1096,4 +1096,4 @@ workflows:
       - wsgi: *requires_base_venvs
 
       # Final reports
-      - coverage_report: *requires_tests
+      # - coverage_report: *requires_tests

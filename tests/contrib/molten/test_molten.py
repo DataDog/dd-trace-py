@@ -29,7 +29,7 @@ def molten_client(headers=None, params=None):
 
 
 class TestMolten(TracerTestCase):
-    """"Ensures Molten is properly instrumented."""
+    """Ensures Molten is properly instrumented."""
 
     TEST_SERVICE = "molten-patch"
 
@@ -43,7 +43,7 @@ class TestMolten(TracerTestCase):
         unpatch()
 
     def test_route_success(self):
-        """ Tests request was a success with the expected span tags """
+        """Tests request was a success with the expected span tags"""
         response = molten_client()
         spans = self.pop_spans()
         self.assertEqual(response.status_code, 200)
@@ -202,7 +202,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual(route_error_span.get_tag(errors.ERROR_MSG), "Error message")
 
     def test_resources(self):
-        """ Tests request has expected span resources """
+        """Tests request has expected span resources"""
         molten_client()
         spans = self.pop_spans()
 
@@ -238,7 +238,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual([s.resource for s in spans], expected)
 
     def test_distributed_tracing(self):
-        """ Tests whether span IDs are propogated when distributed tracing is on """
+        """Tests whether span IDs are propogated when distributed tracing is on"""
         # Default: distributed tracing enabled
         response = molten_client(
             headers={
@@ -290,7 +290,7 @@ class TestMolten(TracerTestCase):
         self.assertNotEqual(span.parent_id, 42)
 
     def test_unpatch_patch(self):
-        """ Tests unpatch-patch cycle """
+        """Tests unpatch-patch cycle"""
         unpatch()
         self.assertIsNone(Pin.get_from(molten))
         molten_client()
@@ -306,7 +306,7 @@ class TestMolten(TracerTestCase):
         self.assertTrue(len(spans) > 0)
 
     def test_patch_unpatch(self):
-        """ Tests repatch-unpatch cycle """
+        """Tests repatch-unpatch cycle"""
         # Already call patch in setUp
         self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
@@ -321,7 +321,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual(len(spans), 0)
 
     def test_patch_idempotence(self):
-        """ Tests repatching """
+        """Tests repatching"""
         # Already call patch in setUp but patch again
         patch()
         molten_client()

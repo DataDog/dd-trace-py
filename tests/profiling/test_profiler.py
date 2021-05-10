@@ -132,14 +132,26 @@ def test_tags_api():
         pytest.fail("Unable to find HTTP exporter")
 
 
-@pytest.mark.parametrize(
-    "name_var",
-    ("DD_API_KEY", "DD_PROFILING_API_KEY"),
-)
-def test_env_api_key(name_var, monkeypatch):
-    monkeypatch.setenv(name_var, "foobar")
+def test_env_agentless(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
+    monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
     _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
+
+
+def test_env_agentless_site(monkeypatch):
+    monkeypatch.setenv("DD_SITE", "datadoghq.eu")
+    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    prof = profiler.Profiler()
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/v1/input")
+
+
+def test_env_no_agentless(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "false")
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    prof = profiler.Profiler()
+    _check_url(prof, "http://localhost:8126", "foobar")
 
 
 def test_url():
@@ -210,7 +222,8 @@ def test_env_no_api_key():
 def test_env_endpoint_url(monkeypatch):
     monkeypatch.setenv("DD_AGENT_HOST", "foobar")
     monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
-    prof = profiler.Profiler()
+    t = ddtrace.Tracer()
+    prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:123")
 
 
@@ -218,7 +231,7 @@ def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu", "123", endpoint_path="/v1/input")
+    _check_url(prof, "http://localhost:8126", "123")
 
 
 def test_copy():

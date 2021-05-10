@@ -218,7 +218,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
     def test_analytics_enabled_attribute(self):
-        """" Confirm environment variable and kwargs are handled properly """
+        """Confirm environment variable and kwargs are handled properly"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
         self.assertTrue(ic.analytics_enabled)
 
@@ -234,7 +234,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertFalse(ic.analytics_enabled)
 
     def test_get_analytics_sample_rate(self):
-        """" Check method for accessing sample rate based on configuration """
+        """Check method for accessing sample rate based on configuration"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
         self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
 
@@ -267,6 +267,38 @@ class TestIntegrationConfig(BaseTestCase):
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service is None
+
+    def test_get_analytics_sample_rate_deprecated_name(self):
+        """Check method for accessing sample rate based on configuration"""
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="False")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertIsNone(ic.get_analytics_sample_rate())
+
+        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="False")):
+            config = Config()
+            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
+            self.assertIsNone(ic.get_analytics_sample_rate())
 
     @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE="foo-svc"))
     def test_service_env_var(self):

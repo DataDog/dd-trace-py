@@ -98,7 +98,7 @@ class TestSQLite(TracerTestCase):
         self.assert_structure(dict(name="sqlite.query", resource=q))
         self.reset()
 
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("sqlite", dict(trace_fetch_methods=True)):
             connection = self._given_a_traced_connection(self.tracer)
             cursor = connection.execute(q)
             cursor.fetchall()
@@ -125,7 +125,7 @@ class TestSQLite(TracerTestCase):
         self.assert_structure(dict(name="sqlite.query", resource=q))
         self.reset()
 
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("sqlite", dict(trace_fetch_methods=True)):
             connection = self._given_a_traced_connection(self.tracer)
             cursor = connection.execute(q)
             cursor.fetchone()
@@ -159,7 +159,7 @@ class TestSQLite(TracerTestCase):
         self.assert_structure(dict(name="sqlite.query", resource=q))
         self.reset()
 
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("sqlite", dict(trace_fetch_methods=True)):
             connection = self._given_a_traced_connection(self.tracer)
             cursor = connection.execute(q)
             cursor.fetchmany(123)
@@ -206,7 +206,7 @@ class TestSQLite(TracerTestCase):
         assert_is_measured(self.get_spans()[1])
         self.reset()
 
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("sqlite", dict(trace_fetch_methods=True)):
             with ot_tracer.start_active_span("sqlite_op"):
                 db = sqlite3.connect(":memory:")
                 pin = Pin.get_from(db)
@@ -294,7 +294,7 @@ class TestSQLite(TracerTestCase):
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with self.override_config("sqlite", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             q = "select * from sqlite_master"
             connection = self._given_a_traced_connection(self.tracer)
             cursor = connection.execute(q)
@@ -306,7 +306,7 @@ class TestSQLite(TracerTestCase):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True)):
+        with self.override_config("sqlite", dict(analytics_enabled=True)):
             q = "select * from sqlite_master"
             connection = self._given_a_traced_connection(self.tracer)
             cursor = connection.execute(q)

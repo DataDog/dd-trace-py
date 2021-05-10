@@ -43,7 +43,7 @@ class TracedCursor(cursor):
         super(TracedCursor, self).__init__(*args, **kwargs)
 
     def execute(self, query, vars=None):  # noqa: A002
-        """ just wrap the cursor execution in a span """
+        """just wrap the cursor execution in a span"""
         if not self._datadog_tracer:
             return cursor.execute(self, query, vars)
 
@@ -60,7 +60,7 @@ class TracedCursor(cursor):
                 s.set_metric("db.rowcount", self.rowcount)
 
     def callproc(self, procname, vars=None):  # noqa: A002
-        """ just wrap the execution in a span """
+        """just wrap the execution in a span"""
         return cursor.callproc(self, procname, vars)
 
 
@@ -92,6 +92,6 @@ class TracedConnection(connection):
         )
 
     def cursor(self, *args, **kwargs):
-        """ register our custom cursor factory """
+        """register our custom cursor factory"""
         kwargs.setdefault("cursor_factory", self._datadog_cursor_class)
         return super(TracedConnection, self).cursor(*args, **kwargs)
