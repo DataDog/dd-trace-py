@@ -16,6 +16,7 @@ config._add(
     dict(
         _default_service="mysql",
         trace_fetch_methods=asbool(get_env("mysql", "trace_fetch_methods", default=False)),
+        _deprecated_name="dbapi2",
     ),
 )
 
