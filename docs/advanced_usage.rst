@@ -23,6 +23,80 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+Context
+-------
+
+The :class:`Context` object is used to represent the active span of a trace and
+to store trace-level data. It is used to continue a trace across processes in
+:ref:`Distributed Tracing<disttracing>`.
+
+
+Tracing Context Management
+--------------------------
+
+In ``ddtrace`` "context management" is the management of which :class:`Span` or
+:class:`Context` is active in an execution (thread, task, etc). There can only be one
+active span or context in an execution.
+
+Context management enables parenting to be done implicitly when creating new
+spans by using the active span as the parent of a new span. When an active span
+finishes its parent becomes the active span.
+
+``tracer.trace()`` automatically creates new spans as the child of the active
+context::
+
+    # Here no span is active
+    assert tracer.current_span() is None
+
+    with tracer.trace("parent") as parent:
+        # Here `parent` is active
+        assert tracer.current_span() is parent
+
+        with tracer.trace("child) as child:
+            # Here `child` is active.
+            # `child` automatically inherits from `parent`
+            assert tracer.current_span() is child
+
+        # `parent` is active again
+        assert tracer.current_span() is parent
+
+    # Here no span is active again
+    assert tracer.current_span() is None
+
+
+Manual Management
+^^^^^^^^^^^^^^^^^
+
+Parenting can be managed manually by using ``tracer.start_span()`` which by
+default does not activate spans when they are created::
+
+    with tracer.start_span("parent") as parent:
+        # Here no span is active
+        with tracer.start_span("parent", child_of=parent):
+            # Still no span active
+    # Still no span active
+
+
+
+Context Providers
+^^^^^^^^^^^^^^^^^
+
+The default context provider used in the tracer uses contextvars_ to store
+the active context per execution.
+
+Context providers must implement the
+:class:`ddtrace.provider.BaseContextProvider` interface.
+
+Context management is configured in the tracer through context providers::
+
+    tracer.configure(context_provider=MyContextProvider)
+
+
+.. _contextvars: https://docs.python.org/3/library/contextvars.html
+
+
+.. _disttracing:
+
 Distributed Tracing
 -------------------
 

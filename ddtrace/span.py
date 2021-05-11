@@ -497,25 +497,10 @@ class Span(object):
     @property
     def context(self):
         # type: () -> Context
-        span_id = self.span_id
-        # TODO[v1.0] this is to backwards support the context
-        # containing the active span in the execution. ex:
-        #   s1 = tracer.trace("span")
-        #   s2 = tracer.trace("span2")
-        #   s2.finish()
-        #   assert s2.context.span_id == s1.span_id
-        if self.tracer:
-            span = self.tracer.current_span()
-            if span:
-                span_id = span.span_id
-        ctx = Context(
-            trace_id=self.trace_id,
-            span_id=span_id,
-        )
-        ctx._span = self
-        if self._context:
-            ctx._meta = self._context._meta
-            ctx._metrics = self._context._metrics
+        if self._context is None:
+            ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
+        else:
+            ctx = self._context._with_span(self)
         return ctx
 
     def __enter__(self):

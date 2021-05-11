@@ -350,10 +350,8 @@ class TracerTestCases(TracerTestCase):
         self.assertIsNone(self.tracer.current_root_span())
 
     def test_default_provider_get(self):
-        # Tracer Context Provider must return a Context object
-        # even if empty
         ctx = self.tracer.context_provider.active()
-        assert isinstance(ctx, Context)
+        assert ctx is None
 
     def test_default_provider_set(self):
         # The Context Provider can set the current active Context;
@@ -450,7 +448,7 @@ class TracerTestCases(TracerTestCase):
             name="web.worker",
             parent_id=root.span_id,
             trace_id=root.trace_id,
-            _parent=root,
+            _parent=None,
             tracer=self.tracer,
         )
 
@@ -1302,7 +1300,7 @@ def test_ctx_distributed(tracer, test_spans):
     assert tracer.current_span() is None
     assert (
         tracer.get_call_context()
-        == tracer._active()
+        == tracer.context_provider.active()
         == Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     )
 
@@ -1425,9 +1423,9 @@ def test_non_active_span(tracer, test_spans):
 
     with tracer.start_span("active", activate=True) as active:
         with tracer.start_span("non active", child_of=active, activate=False):
-            assert tracer._active() is active
+            assert tracer.context_provider.active() is active
             assert tracer.current_root_span() is active
-        assert tracer._active() is active
+        assert tracer.context_provider.active() is active
         assert tracer.current_root_span() is active
     traces = test_spans.pop_traces()
     assert len(traces) == 1

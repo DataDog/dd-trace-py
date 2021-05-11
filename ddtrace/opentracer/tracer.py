@@ -166,7 +166,7 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
-        self._dd_tracer.activate_span(otspan._dd_span)
+        self._dd_tracer.context_provider.activate(otspan._dd_span)
         return scope
 
     def start_span(
@@ -240,7 +240,7 @@ class Tracer(opentracing.Tracer):
 
             # Compare the active ot and dd spans. Using the one which
             # was created later as the parent.
-            active_dd_parent = self._dd_tracer._active()
+            active_dd_parent = self._dd_tracer.context_provider.active()
             if parent_span and isinstance(active_dd_parent, DatadogSpan):
                 dd_parent_span = parent_span._dd_span
                 if active_dd_parent.start_ns >= dd_parent_span.start_ns:

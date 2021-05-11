@@ -18,9 +18,8 @@ log = get_logger(__name__)
 
 
 class Context(object):
-    """Represents the context of a trace.
-
-    The context of a trace includes the active span id and trace-level tags.
+    """Represents the state required to propagate a trace across process
+    boundaries.
     """
 
     __slots__ = ["trace_id", "span_id", "_lock", "_span", "_meta", "_metrics"]
@@ -37,16 +36,30 @@ class Context(object):
         self.span_id = span_id
 
         self._lock = threading.RLock()
-        # TODO[v1.0]: we need to keep a reference back to the span to maintain
-        # backwards compatibility when using context as a parent.
-        # eg:
-        #    ctx = span.context
-        #    tracer.start_span(child_of=ctx)
-        self._span = None  # type: Optional[Span]
         self._meta = {}  # type: _MetaDictType
         self._metrics = {}  # type: _MetricDictType
         self.dd_origin = dd_origin
         self.sampling_priority = sampling_priority
+
+    def __eq__(self, other):
+        return (
+            self.span_id == other.span_id
+            and self.trace_id == other.trace_id
+            and self.sampling_priority == other.sampling_priority
+            and self.dd_origin == other.dd_origin
+            and self._meta == other._meta
+            and self._metrics == other._metrics
+        )
+
+    def _with_span(self, span):
+        # type: (Span) -> Context
+        """Return a shallow copy of the context with the given span."""
+        with self._lock:
+            ctx = Context(trace_id=span.trace_id, span_id=span.span_id)
+            ctx._lock = self._lock
+            ctx._meta = self._meta
+            ctx._metrics = self._metrics
+            return ctx
 
     @property
     def sampling_priority(self):
@@ -80,13 +93,3 @@ class Context(object):
                     del self._meta[ORIGIN_KEY]
                 return
             self._meta[ORIGIN_KEY] = value
-
-    def __eq__(self, other):
-        return (
-            self.span_id == other.span_id
-            and self.trace_id == other.trace_id
-            and self.sampling_priority == other.sampling_priority
-            and self.dd_origin == other.dd_origin
-            and self._meta == other._meta
-            and self._metrics == other._metrics
-        )

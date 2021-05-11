@@ -29,7 +29,7 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def activate(self, context):
+    def activate(self, ctx):
         # type: (Optional[Union[Context, Span]]) -> None
         pass
 
@@ -63,15 +63,16 @@ class DefaultContextProvider(BaseContextProvider):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
-    def activate(self, context):
+    def activate(self, ctx):
         # type: (Optional[Union[Span, Context]]) -> None
         """Makes the given context active in the current execution."""
-        _DD_CONTEXTVAR.set(context)
+        _DD_CONTEXTVAR.set(ctx)
 
     def active(self):
-        # type: () -> Union[Context, Span]
-        """Returns the active context for the current execution."""
+        # type: () -> Optional[Union[Context, Span]]
+        """Returns the active context for the current execution.
+
+        If none is available then a new empty context is activated and returned.
+        """
         ctx = _DD_CONTEXTVAR.get()
-        if ctx is None:
-            return Context()
         return ctx

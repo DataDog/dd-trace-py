@@ -3,13 +3,21 @@ prelude: >
     Major breaking changes to context management. See the upgrade section for
     the specifics. Note that only advanced users of the library should be
     affected by the changes.
+features:
+  - |
+    `tracer.start_span()` now accepts an `activate` argument (default False) to
+    allow manual context management."
 upgrade:
-  - Tracer
-    - tracer.get_call_context() will return a new instance of Context with each
-      invocation.
-  - Span
-    - `context` parameter to Span has been removed.
-    - `context` attribute has been removed.
-  - Context
-    - No longer maintains the trace state.
+  - |
+    `ddtrace.span.Span`
+    - `Span.context` will now return a `Context`
+  - |
+    `ddtrace.tracer.Tracer`
+    - "`tracer.get_call_context()` will now return None if there is no active trace."
+    - `tracer.start_span()` passing a `span.context` for `child_of` no longer adds
+      the `_parent` reference to the new span.
+  - |
+    `ddtrace.context.Context`
+    - No longer maintains the active span state.
     - All methods have been removed.
+    - Replace `context.get_current_span()` usage with `tracer.current_span()`.

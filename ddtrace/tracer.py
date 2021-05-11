@@ -197,35 +197,28 @@ class Tracer(object):
         """The global tracer except hook."""
 
     def get_call_context(self, *args, **kwargs):
-        # type (...) -> Context
-        """Return the active ``Context`` for the current execution."""
+        # type (...) -> Optional[Context]
+        """Return the active context for the current trace.
+
+        If there is no active trace then None is returned.
+        """
         active = self.context_provider.active(*args, **kwargs)
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
             return active.context
-        else:
-            return Context()
-
-    def activate_span(self, span_or_ctx):
-        # type: (Union[Context, Span]) -> None
-        """Activate a span or context for the current execution context."""
-        self.context_provider.activate(span_or_ctx)
-
-    def _active(self):
-        # type: () -> Optional[Union[Context, Span]]
-        """Return the active span or context for the current execution context."""
-        return self.context_provider.active()
+        return None
 
     def current_span(self):
         # type: () -> Optional[Span]
-        """Return the active span in the current execution context."""
+        """Return the active span in the current execution context.
+
+        Note that there may be an active span represented by a context object
+        (eg. from a distributed trace) which will not be returned by this
+        method.
+        """
         active = self.context_provider.active()
-        if isinstance(active, Span):
-            return active
-        elif isinstance(active, Context):
-            return active._span
-        return None
+        return active if isinstance(active, Span) else None
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
@@ -421,16 +414,15 @@ class Tracer(object):
         """
         self._check_new_process()
 
+        parent = None
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = child_of
-                parent = child_of._span
             else:
                 context = child_of.context
                 parent = child_of
         else:
             context = Context()
-            parent = None
 
         if parent:
             trace_id = parent.trace_id  # type: Optional[int]
@@ -669,7 +661,7 @@ class Tracer(object):
         """
         return self.start_span(
             name,
-            child_of=self._active(),
+            child_of=self.context_provider.active(),
             service=service,
             resource=resource,
             span_type=span_type,
