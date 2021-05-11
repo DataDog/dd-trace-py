@@ -212,7 +212,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         writer_encoder = mock.Mock()
         writer_metrics_reset = mock.Mock()
-        writer_encoder.encode_trace.side_effect = Exception
+        writer_encoder.encode_traces.side_effect = Exception
         writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         writer._encoder = writer_encoder
         writer._metrics_reset = writer_metrics_reset
