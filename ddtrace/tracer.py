@@ -626,7 +626,7 @@ class Tracer(object):
 
     def trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
-        """Return an active span that inherits from the active span.
+        """Activate and return a new span that inherits from the active span.
 
         The returned span will automatically be activated in the current
         execution and will inherit from the previously active span or context.
@@ -651,10 +651,15 @@ class Tracer(object):
 
         Example of the automatic parenting::
 
-            parent = tracer.trace('parent')     # has no parent span, becomes the active span
-            child  = tracer.trace('child')      # is a child of a parent, becomes the active span
+            parent = tracer.trace('parent')     # has no parent span
+            # parent is now the active span
+            child  = tracer.trace('child')      # is a child of parent
+            # child is now the active span
             child.finish()
+            # parent is now the active span
             parent.finish()
+
+            # no span is active now
 
             parent2 = tracer.trace('parent2')   # has no parent span as parent and child have finished
             parent2.finish()
