@@ -10,8 +10,6 @@ def parse_method_path(method_path):
         return package_service[0], package_service[1], method_name
 
     return None, package_service[0], method_name
-<<<<<<< HEAD
-=======
 
 
 def set_grpc_method_meta(span, method, method_kind):
@@ -23,4 +21,3 @@ def set_grpc_method_meta(span, method, method_kind):
     span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
     span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
     span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
->>>>>>> 5c197a40... fix(grpc): no package in method service (#2384)
