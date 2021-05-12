@@ -529,9 +529,8 @@ There are different options to make that happen:
 - Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
   as the first import of your application.
 
-- Use a ```post_fork`` hook
-  <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`_ to import
-  ``ddtrace.bootstrap.sitecustomize``.
+- Use a `post_fork hook <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`_
+  to import ``ddtrace.bootstrap.sitecustomize``.
 
 API
 ---

@@ -1,4 +1,3 @@
-import atexit
 import functools
 import json
 import logging
@@ -30,6 +29,7 @@ from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .internal import _rand
 from .internal import agent
+from .internal import atexit
 from .internal import compat
 from .internal import debug
 from .internal import hostname
@@ -829,6 +829,7 @@ class Tracer(object):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         self.writer.stop(timeout=timeout)
+        atexit.unregister(self._atexit)
 
     @staticmethod
     def _use_log_writer():
