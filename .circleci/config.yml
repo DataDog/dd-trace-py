@@ -631,7 +631,7 @@ jobs:
           pattern: '^httplib_contrib'
 
   httpx:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'httpx'
