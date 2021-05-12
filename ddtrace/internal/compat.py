@@ -226,3 +226,35 @@ except ImportError:
     CONTEXTVARS_IS_AVAILABLE = False
 else:
     CONTEXTVARS_IS_AVAILABLE = True
+
+
+# Source: https://github.com/facelessuser/pep562
+class EnsurePep562(object):
+    """
+    Backport of PEP 562 <https://pypi.org/search/?q=pep562>.
+    Wraps the module in a class that exposes the mechanics to override `__dir__` and `__getattr__`.
+    The given module will be searched for overrides of `__dir__` and `__getattr__` and use them when needed.
+    """
+
+    def __init__(self, name):
+        """Acquire `__getattr__` and `__dir__`, but only replace module for versions less than Python 3.7."""
+        if sys.version_info < (3, 7):
+            self._module = sys.modules[name]
+            self._get_attr = getattr(self._module, "__getattr__", None)
+            self._get_dir = getattr(self._module, "__dir__", None)
+            sys.modules[name] = self
+
+    def __dir__(self):
+        """Return the overridden `dir` if one was provided, else apply `dir` to the module."""
+
+        return self._get_dir() if self._get_dir else dir(self._module)
+
+    def __getattr__(self, name):
+        """Attempt to retrieve the attribute from the module, and if missing, use the overridden function if present."""
+
+        try:
+            return getattr(self._module, name)
+        except AttributeError:
+            if self._get_attr:
+                return self._get_attr(name)
+            raise
