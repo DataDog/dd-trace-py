@@ -1,5 +1,4 @@
 # -*- encoding: utf-8 -*-
-import atexit
 import logging
 import os
 import sys
@@ -11,6 +10,7 @@ import attr
 
 import ddtrace
 from ddtrace.internal import agent
+from ddtrace.internal import atexit
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
@@ -276,9 +276,6 @@ class _ProfilerInstance(service.Service):
         for col in reversed(self._collectors):
             col.join()
 
-        # Python 2 does not have unregister
-        if hasattr(atexit, "unregister"):
-            # You can unregister a method that was not registered, so no need to do any other check
-            atexit.unregister(self.stop)
+        atexit.unregister(self.stop)
 
         super(_ProfilerInstance, self).stop()
