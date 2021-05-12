@@ -3,6 +3,8 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
 
+import attr
+
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
@@ -17,39 +19,23 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+@attr.s(eq=True, slots=True)
 class Context(object):
     """Represents the state required to propagate a trace across process
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_span", "_meta", "_metrics"]
+    trace_id = attr.ib(default=None)  # type: Optional[int]
+    span_id = attr.ib(default=None)  # type: Optional[int]
+    _dd_origin = attr.ib(default=None)  # type: Optional[str]
+    _sampling_priority = attr.ib(default=None)  # type: Optional[NumericType]
+    _lock = attr.ib(factory=threading.RLock, eq=False)  # type: threading.Lock
+    _meta = attr.ib(factory=dict)  # type: _MetaDictType
+    _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
-    def __init__(
-        self,
-        trace_id=None,  # type: Optional[int]
-        span_id=None,  # type: Optional[int]
-        sampling_priority=None,  # type: Optional[NumericType]
-        dd_origin=None,  # type: Optional[str]
-    ):
-        # type: (...) -> None
-        self.trace_id = trace_id
-        self.span_id = span_id
-
-        self._lock = threading.RLock()
-        self._meta = {}  # type: _MetaDictType
-        self._metrics = {}  # type: _MetricDictType
-        self.dd_origin = dd_origin
-        self.sampling_priority = sampling_priority
-
-    def __eq__(self, other):
-        return (
-            self.span_id == other.span_id
-            and self.trace_id == other.trace_id
-            and self.sampling_priority == other.sampling_priority
-            and self.dd_origin == other.dd_origin
-            and self._meta == other._meta
-            and self._metrics == other._metrics
-        )
+    def __attrs_post_init__(self):
+        self.dd_origin = self._dd_origin
+        self.sampling_priority = self._sampling_priority
 
     def _with_span(self, span):
         # type: (Span) -> Context
