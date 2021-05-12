@@ -81,9 +81,7 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        with ctx._lock:
-            chunk_root.meta.update(ctx._meta)
-            chunk_root.metrics.update(ctx._metrics)
+        ctx._update_tags(chunk_root)
         return trace
 
 

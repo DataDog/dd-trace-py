@@ -47,6 +47,12 @@ class Context(object):
             ctx._metrics = self._metrics
             return ctx
 
+    def _update_tags(self, span):
+        # type: (Span) -> None
+        with self._lock:
+            span.meta.update(self._meta)
+            span.metrics.update(self._metrics)
+
     @property
     def sampling_priority(self):
         # type: () -> Optional[NumericType]
