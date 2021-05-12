@@ -167,7 +167,7 @@ def distributed_tracing_enabled(int_config, default=False):
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config:
         return int_config.distributed_tracing_enabled
-    elif "distrbuted_tracing" in int_config:
+    elif "distributed_tracing" in int_config:
         return int_config.distributed_tracing
     return default
 
