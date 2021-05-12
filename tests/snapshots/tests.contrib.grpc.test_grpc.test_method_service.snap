@@ -6,10 +6,10 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1619744633550844100
-   "duration" 1911900
-   "meta" {"runtime-id" "04d67a3bd550461295cfd98eedc69d99"
-           "grpc.port" "55945"
+   "start" 1620852382523305000
+   "duration" 2042000
+   "meta" {"runtime-id" "e77b2d3fc0304fc7bc9b7520f69177fc"
+           "grpc.port" "58317"
            "grpc.host" "localhost"
            "grpc.method.kind" "unary"
            "span.kind" "client"
@@ -20,7 +20,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 714
+              "system.pid" 25491
               "_dd.tracer_kr" 1.0}}
       {"name" "grpc"
        "service" "grpc-server"
@@ -30,15 +30,16 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1619744633552296900
-       "duration" 48200
+       "start" 1620852382524760000
+       "duration" 59000
        "meta" {"grpc.method.path" "/Servicer/Handler"
-               "grpc.method.service" "Servicer"
+               "span.kind" "server"
                "grpc.method.name" "Handler"
-               "grpc.method.kind" "unary"
-               "span.kind" "server"}
+               "grpc.method.service" "Servicer"
+               "grpc.method.kind" "unary"}
        "metrics" {"_dd.measured" 1
-                  "_sampling_priority_v1" 1}}]
+                  "_sampling_priority_v1" 1
+                  "_dd.tracer_kr" 1.0}}]
  [{"name" "grpc"
    "service" "grpc-client"
    "resource" "/pkg.Servicer/Handler"
@@ -47,10 +48,10 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1619744633553123900
-   "duration" 1079700
-   "meta" {"runtime-id" "04d67a3bd550461295cfd98eedc69d99"
-           "grpc.port" "55945"
+   "start" 1620852382525600000
+   "duration" 1335000
+   "meta" {"runtime-id" "e77b2d3fc0304fc7bc9b7520f69177fc"
+           "grpc.port" "58317"
            "grpc.method.package" "pkg"
            "grpc.host" "localhost"
            "grpc.method.kind" "unary"
@@ -62,7 +63,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 714
+              "system.pid" 25491
               "_dd.tracer_kr" 1.0}}
       {"name" "grpc"
        "service" "grpc-server"
@@ -72,13 +73,14 @@
        "span_id" 1
        "trace_id" 1
        "parent_id" 0
-       "start" 1619744633553812700
-       "duration" 42900
-       "meta" {"grpc.method.path" "/pkg.Servicer/Handler"
-               "grpc.method.package" "pkg"
+       "start" 1620852382526578000
+       "duration" 50000
+       "meta" {"grpc.method.package" "pkg"
                "grpc.method.service" "Servicer"
-               "grpc.method.name" "Handler"
+               "grpc.method.path" "/pkg.Servicer/Handler"
                "grpc.method.kind" "unary"
+               "grpc.method.name" "Handler"
                "span.kind" "server"}
        "metrics" {"_dd.measured" 1
-                  "_sampling_priority_v1" 1}}]]
+                  "_sampling_priority_v1" 1
+                  "_dd.tracer_kr" 1.0}}]]
