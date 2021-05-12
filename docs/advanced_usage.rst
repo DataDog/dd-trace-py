@@ -76,18 +76,21 @@ default does not activate spans when they are created::
             # Still no span active
     # Still no span active
 
+    new_parent = tracer.start_span("new_parent", activate=True)
+    # new_parent is active
 
 
 Context Providers
 ^^^^^^^^^^^^^^^^^
 
 The default context provider used in the tracer uses contextvars_ to store
-the active context per execution.
+the active context per execution. This means that any async library that uses
+contextvars will have support for automatic context management.
 
-Context providers must implement the
-:class:`ddtrace.provider.BaseContextProvider` interface.
-
-Context management is configured in the tracer through context providers::
+If there is a case where the default is insufficient then a custom context
+provider can be used. It must implement the
+:class:`ddtrace.provider.BaseContextProvider` interface and can be configured
+with::
 
     tracer.configure(context_provider=MyContextProvider)
 
