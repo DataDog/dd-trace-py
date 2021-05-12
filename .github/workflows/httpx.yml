@@ -28,5 +28,7 @@ jobs:
         run: pip install ../ddtrace
       - name: Add pytest configuration for ddtrace
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
+        env:
+          DD_HTTPX_DISTRIBUTED_TRACING: false
       - name: Run tests
         run: pytest
