@@ -1,3 +1,6 @@
+from . import constants
+
+
 def parse_method_path(method_path):
     """ Returns (package, service, method) tuple from parsing method path """
     # unpack method path based on "/{package}.{service}/{method}"
