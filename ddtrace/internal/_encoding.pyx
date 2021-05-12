@@ -279,6 +279,27 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
+cdef class StringTable(list):
+    cdef dict _index
+
+    def __init__(self):
+        super(StringTable, self).__init__([""])
+        self._index = {"": 0}
+
+    def index(self, string):
+        cdef int index
+
+        if not string:
+            return 0
+        
+        index = self._index.get(string, 0)
+        if not index:
+            index = len(self)
+            self.append(string)
+            self._index[string] = index
+        return index
+
+
 cdef class MsgpackEncoder(object):
     content_type = "application/msgpack"
 
@@ -310,33 +331,12 @@ cdef class MsgpackEncoderV03(MsgpackEncoder):
             return struct.pack(">BI", 0xdd, count) + buf
 
 
-cdef class _StringTable(list):
-    cdef dict _index
-
-    def __init__(self):
-        super(_StringTable, self).__init__([""])
-        self._index = {"": 0}
-
-    def index(self, string):
-        cdef int index
-
-        if not string:
-            return 0
-        
-        index = self._index.get(string, 0)
-        if not index:
-            index = len(self)
-            self.append(string)
-            self._index[string] = index
-        return index
-
-
 cdef class MsgpackEncoderV05(MsgpackEncoder):
     cpdef encode_trace(self, list trace):
         return self.encode_traces([trace])
 
     cpdef encode_traces(self, traces):
-        st = _StringTable()
+        st = StringTable()
         ts = [[[
             <stdint.uint32_t>st.index(span.service),
             <stdint.uint32_t>st.index(span.name),

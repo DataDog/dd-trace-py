@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
+from ._encoding import StringTable
 from .logger import get_logger
+
+
+__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "StringTable"]
 
 
 if TYPE_CHECKING:

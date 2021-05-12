@@ -2,6 +2,9 @@ from typing import Any
 from typing import List
 from typing import Union
 
+class StringTable(list):
+    def index(self, string: str) -> int: ...  # type: ignore[override]
+
 class MsgpackEncoder(object):
     content_type: str
     def _decode(self, data: Union[str, bytes]) -> Any: ...
