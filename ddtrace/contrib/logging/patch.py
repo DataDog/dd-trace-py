@@ -4,17 +4,20 @@ import attr
 
 import ddtrace
 
+from . import constants
 from ...utils.wrappers import unwrap as _u
 from ...vendor.wrapt import wrap_function_wrapper as _w
 
 
-RECORD_ATTR_TRACE_ID = "dd.trace_id"
-RECORD_ATTR_SPAN_ID = "dd.span_id"
-RECORD_ATTR_ENV = "dd.env"
-RECORD_ATTR_VERSION = "dd.version"
-RECORD_ATTR_SERVICE = "dd.service"
-RECORD_ATTR_VALUE_ZERO = "0"
-RECORD_ATTR_VALUE_EMPTY = ""
+# Deprecated and replaced by constants module
+RECORD_ATTR_TRACE_ID = constants.RECORD_ATTR_TRACE_ID
+RECORD_ATTR_SPAN_ID = constants.RECORD_ATTR_SPAN_ID
+RECORD_ATTR_ENV = constants.RECORD_ATTR_ENV
+RECORD_ATTR_VERSION = constants.RECORD_ATTR_VERSION
+RECORD_ATTR_SERVICE = constants.RECORD_ATTR_SERVICE
+RECORD_ATTR_VALUE_ZERO = constants.RECORD_ATTR_VALUE_ZERO
+RECORD_ATTR_VALUE_EMPTY = constants.RECORD_ATTR_VALUE_EMPTY
+
 
 ddtrace.config._add(
     "logging",
@@ -48,9 +51,9 @@ def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
 
-    setattr(record, RECORD_ATTR_VERSION, ddtrace.config.version or "")
-    setattr(record, RECORD_ATTR_ENV, ddtrace.config.env or "")
-    setattr(record, RECORD_ATTR_SERVICE, ddtrace.config.service or "")
+    setattr(record, constants.RECORD_ATTR_VERSION, ddtrace.config.version or constants.RECORD_ATTR_VALUE_EMPTY)
+    setattr(record, constants.RECORD_ATTR_ENV, ddtrace.config.env or constants.RECORD_ATTR_VALUE_EMPTY)
+    setattr(record, constants.RECORD_ATTR_SERVICE, ddtrace.config.service or constants.RECORD_ATTR_VALUE_EMPTY)
 
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
@@ -61,11 +64,11 @@ def _w_makeRecord(func, instance, args, kwargs):
         span = _get_current_span(tracer=ddtrace.config.logging.tracer)
 
     if span:
-        setattr(record, RECORD_ATTR_TRACE_ID, str(span.trace_id))
-        setattr(record, RECORD_ATTR_SPAN_ID, str(span.span_id))
+        setattr(record, constants.RECORD_ATTR_TRACE_ID, str(span.trace_id))
+        setattr(record, constants.RECORD_ATTR_SPAN_ID, str(span.span_id))
     else:
-        setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO)
-        setattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO)
+        setattr(record, constants.RECORD_ATTR_TRACE_ID, constants.RECORD_ATTR_VALUE_ZERO)
+        setattr(record, constants.RECORD_ATTR_SPAN_ID, constants.RECORD_ATTR_VALUE_ZERO)
 
     return record
 
@@ -79,11 +82,11 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
     record = kwargs.get("record", args[0])
 
     record.dd = DDLogRecord(
-        trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
-        span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
-        service=getattr(record, RECORD_ATTR_SERVICE, ""),
-        version=getattr(record, RECORD_ATTR_VERSION, ""),
-        env=getattr(record, RECORD_ATTR_ENV, ""),
+        trace_id=getattr(record, constants.RECORD_ATTR_TRACE_ID, constants.RECORD_ATTR_VALUE_ZERO),
+        span_id=getattr(record, constants.RECORD_ATTR_SPAN_ID, constants.RECORD_ATTR_VALUE_ZERO),
+        service=getattr(record, constants.RECORD_ATTR_SERVICE, constants.RECORD_ATTR_VALUE_EMPTY),
+        version=getattr(record, constants.RECORD_ATTR_VERSION, constants.RECORD_ATTR_VALUE_EMPTY),
+        env=getattr(record, constants.RECORD_ATTR_ENV, constants.RECORD_ATTR_VALUE_EMPTY),
     )
 
     try:

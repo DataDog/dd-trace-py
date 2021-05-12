@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    logging: all `RECORD_ATTR_*` are moved to `ddtrace.contrib.logging.constants` module.
