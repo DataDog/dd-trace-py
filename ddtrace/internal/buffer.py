@@ -1,11 +1,15 @@
 from collections import deque
 import threading
+from typing import Callable
 from typing import Deque
 from typing import List
 
 import attr
 
 from ddtrace.span import Span
+
+
+Trace = List[Span]
 
 
 class BufferFull(Exception):
@@ -27,10 +31,10 @@ class TraceBuffer(object):
 
     max_size = attr.ib(type=int)
     max_item_size = attr.ib(type=int)
-    meter = attr.ib(type=callable, repr=False)
+    meter = attr.ib(type=Callable[[Trace], int], repr=False)
     _size = attr.ib(init=False, type=int, default=0, repr=True)
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
-    _traces = attr.ib(init=False, factory=deque, repr=False, type=Deque[list])
+    _traces = attr.ib(init=False, factory=deque, repr=False, type=Deque[Trace])
 
     def __len__(self):
         return len(self._traces)
@@ -48,7 +52,7 @@ class TraceBuffer(object):
         self._size = 0
 
     def put(self, trace):
-        # type: (List[Span]) -> None
+        # type: (Trace) -> None
         """Put a trace (i.e. a list of spans) in the buffer."""
         item_len = self.meter(trace)
         if item_len > self.max_item_size or item_len > self.max_size:
@@ -62,7 +66,7 @@ class TraceBuffer(object):
                 raise BufferFull(item_len)
 
     def get(self):
-        # type: () -> List[List[Span]]
+        # type: () -> List[Trace]
         """Return the entire buffer.
 
         The buffer is cleared in the process.
