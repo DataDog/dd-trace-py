@@ -125,10 +125,10 @@ def test_is_integer(obj, expected):
 
 def test_pep562():
     with pytest.raises(RuntimeError):
-        from tests.pep562 import deprecated
+        from tests.pep562_test import deprecated
 
         print(deprecated)
 
-    from tests.pep562 import whatever
+    from tests.pep562_test import whatever
 
     assert whatever == "good module attribute"
