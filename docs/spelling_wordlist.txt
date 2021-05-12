@@ -54,6 +54,7 @@ hostname
 http
 httplib
 https
+httpx
 iPython
 initializer
 integration
