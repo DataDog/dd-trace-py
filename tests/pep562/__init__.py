@@ -1,4 +1,4 @@
-from ddtrace.internal.compat import EnsurePep562
+from ddtrace.internal.compat import ensure_pep562
 
 
 def __getattr__(name):
@@ -7,4 +7,4 @@ def __getattr__(name):
     return "good module attribute"
 
 
-EnsurePep562(__name__)
+ensure_pep562(__name__)
