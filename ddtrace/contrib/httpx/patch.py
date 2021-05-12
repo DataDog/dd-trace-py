@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -54,7 +55,7 @@ def _init_span(span, request):
 
     span.set_tag(SPAN_MEASURED_KEY)
 
-    if config.httpx.get("distributed_tracing_enabled", config.httpx.get("distributed_tracing", False)):
+    if distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)
 
     sample_rate = config.httpx.get_analytics_sample_rate(use_global_config=True)
