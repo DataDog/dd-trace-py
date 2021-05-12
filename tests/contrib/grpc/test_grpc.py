@@ -238,10 +238,18 @@ class GrpcTestCase(TracerTestCase):
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_server_stream(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="test"))
+            responses_iterator.add_done_callback(callback)
             assert len(list(responses_iterator)) == 2
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
@@ -282,12 +290,20 @@ class GrpcTestCase(TracerTestCase):
         self._check_server_span(server_span, "grpc-server", "SayHelloLast", "client_streaming")
 
     def test_bidi_stream(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"])
 
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            responses = stub.SayHelloRepeatedly(requests_iterator)
-            messages = [r.message for r in responses]
+            responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
+            responses_iterator.add_done_callback(callback)
+            messages = [r.message for r in responses_iterator]
+            callback_called.wait(timeout=1)
             assert list(messages) == ["first;second", "third;fourth", "fifth"]
 
         spans = self.get_spans_with_sync_and_assert(size=2)
@@ -353,6 +369,12 @@ class GrpcTestCase(TracerTestCase):
         assert server_span.get_tag(errors.ERROR_STACK) is None
 
     def test_client_cancellation(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         # unpatch and restart server since we are only testing here caller cancellation
         self._stop_server()
         _unpatch_server()
@@ -365,9 +387,11 @@ class GrpcTestCase(TracerTestCase):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             with self.assertRaises(grpc.RpcError):
                 stub = HelloStub(channel)
-                responses = stub.SayHelloRepeatedly(requests_iterator)
-                responses.cancel()
-                next(responses)
+                responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
+                responses_iterator.add_done_callback(callback)
+                responses_iterator.cancel()
+                next(responses_iterator)
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=1)
         client_span = spans[0]
@@ -426,10 +450,19 @@ class GrpcTestCase(TracerTestCase):
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(errors.ERROR_STACK)
 
     def test_server_stream_exception(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
-                list(stub.SayHelloTwice(HelloRequest(name="exception")))
+                responses_iterator = stub.SayHelloTwice(HelloRequest(name="exception"))
+                responses_iterator.add_done_callback(callback)
+                list(responses_iterator)
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
