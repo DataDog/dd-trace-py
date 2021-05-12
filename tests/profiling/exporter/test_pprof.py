@@ -3,7 +3,6 @@ import os
 import mock
 import six
 
-from ddtrace.internal.encoding import StringTable
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -650,20 +649,6 @@ def test_sequence():
     assert s.generate() == 1
     assert s.start_at == 1
     assert s.next_id == 2
-
-
-def test_string_table():
-    t = StringTable()
-    assert len(t) == 1
-    id1 = t.index("foobar")
-    assert len(t) == 2
-    assert id1 == t.index("foobar")
-    assert len(t) == 2
-    id2 = t.index("foobaz")
-    assert len(t) == 3
-    assert id2 == t.index("foobaz")
-    assert len(t) == 3
-    assert id1 != id2
 
 
 def test_to_str_none():

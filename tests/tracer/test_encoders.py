@@ -14,6 +14,7 @@ from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
+from ddtrace.internal.encoding import StringTable
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
@@ -422,3 +423,17 @@ def test_custom_msgpack_encode_v05():
             [5, 0, 0, 0, 0, 0, {}, {}, 0],
         ]
     ]
+
+
+def test_string_table():
+    t = StringTable()
+    assert len(t) == 1
+    id1 = t.index("foobar")
+    assert len(t) == 2
+    assert id1 == t.index("foobar")
+    assert len(t) == 2
+    id2 = t.index("foobaz")
+    assert len(t) == 3
+    assert id2 == t.index("foobaz")
+    assert len(t) == 3
+    assert id1 != id2
