@@ -79,7 +79,6 @@ venv = Venv(
         # "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": latest,
-        "pep562": latest,
     },
     venvs=[
         Venv(
