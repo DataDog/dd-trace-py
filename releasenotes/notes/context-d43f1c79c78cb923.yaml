@@ -5,15 +5,15 @@ prelude: >
     affected by the changes.
 features:
   - |
-    `tracer.start_span()` now accepts an `activate` argument (default False) to
-    allow manual context management."
+    ``tracer.start_span()`` now accepts an `activate` argument (default ``False``) to
+    allow manual context management.
 upgrade:
   - |
     `ddtrace.span.Span`
     - `Span.context` will now return a `Context`
   - |
     `ddtrace.tracer.Tracer`
-    - "`tracer.get_call_context()` will now return None if there is no active trace."
+    - ``tracer.get_call_context()`` will now return ``None`` if there is no active trace.
     - `tracer.start_span()` passing a `span.context` for `child_of` no longer adds
       the `_parent` reference to the new span.
   - |
