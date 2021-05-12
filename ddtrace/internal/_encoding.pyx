@@ -296,6 +296,24 @@ cdef class MsgpackEncoder(object):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
+    cpdef trace_size(self, list trace):
+        """Heuristic to determine the approximate size of a trace in bytes."""
+        cdef int size = 92 * len(trace)
+        for span in trace:
+            if span.name:
+                size += len(span.name)
+            if span.resource:
+                size += len(span.resource)
+            if span.service:
+                size += len(span.service)
+            if span._span_type:
+                size += len(span._span_type)
+            if span.meta:
+                size += sum([len(k) + len(v) for k, v in span.meta.items()])
+            if span.metrics:
+                size += sum([len(k) + 9 for k in span.metrics])
+        return size
+
     cpdef encode_trace(self, list trace):
         return Packer().pack(trace)
 
