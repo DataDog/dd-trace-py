@@ -21,7 +21,7 @@ log = get_logger(__name__)
 
 @attr.s(eq=True, slots=True)
 class Context(object):
-    """Represents the state required to propagate a trace across process
+    """Represents the state required to propagate a trace across execution
     boundaries.
     """
 
@@ -41,7 +41,7 @@ class Context(object):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
         with self._lock:
-            ctx = Context(trace_id=span.trace_id, span_id=span.span_id)
+            ctx = self.__class__(trace_id=span.trace_id, span_id=span.span_id)
             ctx._lock = self._lock
             ctx._meta = self._meta
             ctx._metrics = self._metrics

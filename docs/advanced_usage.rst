@@ -28,7 +28,7 @@ Context
 
 The :class:`Context` object is used to represent the active span of a trace and
 to store trace-level data. It is used to continue a trace across processes in
-:ref:`Distributed Tracing<disttracing>`.
+:ref:`Distributed Tracing <disttracing>`.
 
 
 Tracing Context Management
@@ -52,7 +52,7 @@ context::
         # Here `parent` is active
         assert tracer.current_span() is parent
 
-        with tracer.trace("child) as child:
+        with tracer.trace("child") as child:
             # Here `child` is active.
             # `child` automatically inherits from `parent`
             assert tracer.current_span() is child
