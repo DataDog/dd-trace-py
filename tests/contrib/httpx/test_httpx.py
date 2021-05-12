@@ -43,7 +43,6 @@ def _snapshot_context(request):
         yield
 
 
-# GET 200
 @pytest.mark.asyncio
 async def test_get_200(request):
     url = get_url("/status/200")
@@ -55,6 +54,21 @@ async def test_get_200(request):
         async with httpx.AsyncClient() as client:
             resp = await client.get(url)
             assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_configure_service_name(request):
+    url = get_url("/status/200")
+
+    with override_config("httpx", {"service_name": "test-httpx-service-name"}):
+        with _snapshot_context(request):
+            resp = httpx.get(url)
+            assert resp.status_code == 200
+
+        with _snapshot_context(request):
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url)
+                assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -138,3 +152,22 @@ async def test_distributed_tracing_headers(request):
     async with httpx.AsyncClient() as client:
         resp = await client.get(url)
         assert_request_headers(resp)
+
+
+@pytest.mark.asyncio
+async def test_distributed_tracing_disabled(request):
+    url = get_url("/headers")
+
+    def assert_request_headers(response):
+        data = response.json()
+        assert "X-Datadog-Trace-Id" not in data["headers"]
+        assert "X-Datadog-Parent-Id" not in data["headers"]
+        assert "X-Datadog-Sampling-Priority" not in data["headers"]
+
+    with override_config("httpx", {"distributed_tracing": False}):
+        resp = httpx.get(url)
+        assert_request_headers(resp)
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url)
+            assert_request_headers(resp)
