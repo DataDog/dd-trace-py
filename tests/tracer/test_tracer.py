@@ -3,7 +3,6 @@
 tests for Tracer and utilities.
 """
 import contextlib
-import logging
 import multiprocessing
 import os
 from os import getpid
