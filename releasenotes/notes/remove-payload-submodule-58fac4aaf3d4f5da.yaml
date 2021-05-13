@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    The `ddtrace.payload` submodule has been removed.
+    The ``ddtrace.payload`` submodule has been removed.
