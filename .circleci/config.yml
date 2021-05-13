@@ -722,11 +722,12 @@ jobs:
           pattern: '^httplib_contrib'
 
   grpc:
-    <<: *contrib_job
+    <<: *machine_executor
     parallelism: 6
     steps:
       - run_test:
           pattern: "grpc"
+          snapshot: true
 
   molten:
     <<: *contrib_job
