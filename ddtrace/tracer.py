@@ -196,7 +196,7 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
-    def get_call_context(self, *args, **kwargs):
+    def current_trace_context(self, *args, **kwargs):
         # type (...) -> Optional[Context]
         """Return the active context for the current trace.
 

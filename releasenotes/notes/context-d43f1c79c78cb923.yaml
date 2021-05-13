@@ -5,19 +5,22 @@ prelude: >
     affected by the changes.
 features:
   - |
-    ``tracer.start_span()`` now accepts an `activate` argument (default ``False``) to
+    ``tracer.start_span()`` now accepts an ``activate`` argument (default ``False``) to
     allow manual context management.
+  - |
+    ``tracer.get_call_context()`` has been removed as this functionality no
+    longer exists. The replacement API is not ``tracer.current_trace_context()``.
 upgrade:
   - |
-    `ddtrace.span.Span`
-    - `Span.context` will now return a `Context`
+    ``ddtrace.span.Span``
+    - ``Span.context`` will now return a ``Context``
   - |
-    `ddtrace.tracer.Tracer`
+    ``ddtrace.tracer.Tracer``
     - ``tracer.get_call_context()`` will now return ``None`` if there is no active trace.
-    - `tracer.start_span()` passing a `span.context` for `child_of` no longer adds
-      the `_parent` reference to the new span.
+    - ``tracer.start_span()`` passing a ``span.context`` for ``child_of`` no longer adds
+      the ``_parent`` reference to the new span.
   - |
-    `ddtrace.context.Context`
+    ``ddtrace.context.Context``
     - No longer maintains the active span state.
     - All methods have been removed.
-    - Replace `context.get_current_span()` usage with `tracer.current_span()`.
+    - Replace ``context.get_current_span()`` usage with ``tracer.current_span()``.
