@@ -239,5 +239,6 @@ try:
 
 except ImportError:
 
-    def ensure_pep562(_):
+    def ensure_pep562(module_name):
+        # type: (str) -> None
         pass
