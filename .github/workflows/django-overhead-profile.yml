@@ -59,34 +59,27 @@ jobs:
           pip install austin-python==0.3.2
 
       - name: Run tests
-        id: diff
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: |
           DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py -k base &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -o django_base.ddtrace.austin -sp $!
+          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.ddtrace.austin -sp $!
 
           tests/runtests.py -k base &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -o django_base.austin -sp $!
+          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.austin -sp $!
 
-          TOP=$(python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py -T django_base.ddtrace.austin django_base.austin)
-          TOP="${TOP//'%'/'%25'}"
-          TOP="${TOP//$'\n'/'%0A'}"
-          TOP="${TOP//$'\r'/'%0D'}"
-          echo "::set-output name=top::$TOP"
+      - name: Compute diff
+          mkdir artifacts
+          cd artifacts
+          python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py django_base.ddtrace.austin django_base.austin > django_base.diff.austin
+          python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py -T django_base.ddtrace.austin django_base.austin > django_base.diff.top
+          cat artifacts/django_base.diff.top
+          austin2pprof artifacts/django_base.diff.austin artifacts/django_base.diff.pprof
 
-      - name: Post profile result on PR
-        uses: mshick/add-pr-comment@v1
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
         with:
-          message: |
-            ## Django overhead profile
+          name: overhead-profile
+          path: artifacts/
 
-            Below are shown the top 25 functions, sorted by %own time.
-
-            ~~~
-            ${{steps.diff.outputs.top}}
-            ~~~
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          repo-token-user-login: 'diff-mit-austin[bot]'
-          allow-repeats: true
