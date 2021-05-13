@@ -536,7 +536,7 @@ class Tracer(object):
             return  # nothing to do
 
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %r", span)
+            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
         for p in self._span_processors:
             p.on_span_finish(span)
