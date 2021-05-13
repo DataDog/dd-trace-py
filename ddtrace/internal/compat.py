@@ -9,7 +9,6 @@ from typing import AnyStr
 from typing import Text
 from typing import Union
 
-from pep562 import Pep562  # type: ignore[import]
 import six
 
 
@@ -229,7 +228,16 @@ else:
     CONTEXTVARS_IS_AVAILABLE = True
 
 
-def ensure_pep562(module_name):
-    # type: (str) -> None
-    if sys.version_info < (3, 7):
-        Pep562(module_name)
+try:
+    from pep562 import Pep562  # type: ignore[import]  # noqa
+
+    def ensure_pep562(module_name):
+        # type: (str) -> None
+        if sys.version_info < (3, 7):
+            Pep562(module_name)
+
+
+except ImportError:
+
+    def ensure_pep562(_):
+        pass
