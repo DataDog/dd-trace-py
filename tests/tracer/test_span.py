@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
+import re
 import sys
 import time
 from unittest.case import SkipTest
 
 import mock
 import pytest
+import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -608,3 +610,43 @@ def test_span_preconditions(arg):
     Span(None, "test", **{arg: None})
     with pytest.raises(TypeError):
         Span(None, "test", **{arg: "foo"})
+
+
+def test_span_pprint():
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.set_tag("t", "v")
+    root.set_metric("m", 1.0)
+    root.finish()
+    actual = root.pprint()
+    assert "name='test.span'" in actual
+    assert "service='s'" in actual
+    assert "resource='r'" in actual
+    assert "type='web'" in actual
+    assert "error=0" in actual
+    assert ("tags={'t': 'v'}" if six.PY3 else "tags={'t': u'v'}") in actual
+    assert "metrics={'m': 1.0}" in actual
+    assert re.search("id=[0-9]+", actual) is not None
+    assert re.search("trace_id=[0-9]+", actual) is not None
+    assert "parent_id=None" in actual
+    assert re.search("duration=[0-9.]+", actual) is not None
+    assert re.search("start=[0-9.]+", actual) is not None
+    assert re.search("end=[0-9.]+", actual) is not None
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    actual = root.pprint()
+    assert "duration=None" in actual
+    assert "end=None" in actual
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.error = 1
+    actual = root.pprint()
+    assert "error=1" in actual
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.set_tag(u"😌", u"😌")
+    actual = root.pprint()
+    assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
+
+    root = Span(None, "test.span", service=object())
+    actual = root.pprint()
+    assert "service=<object object at" in actual

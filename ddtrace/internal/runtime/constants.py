@@ -4,6 +4,7 @@ GC_COUNT_GEN2 = "runtime.python.gc.count.gen2"
 
 THREAD_COUNT = "runtime.python.thread_count"
 MEM_RSS = "runtime.python.mem.rss"
+# `runtime.python.cpu.time.sys` metric is used to auto-enable runtime metrics dashboards in DD backend
 CPU_TIME_SYS = "runtime.python.cpu.time.sys"
 CPU_TIME_USER = "runtime.python.cpu.time.user"
 CPU_PERCENT = "runtime.python.cpu.percent"

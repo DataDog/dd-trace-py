@@ -1,4 +1,5 @@
 import math
+import pprint
 import sys
 import traceback
 from typing import Any
@@ -12,14 +13,6 @@ from typing import Union
 
 import six
 
-from .compat import NumericType
-from .compat import StringIO
-from .compat import ensure_text
-from .compat import is_integer
-from .compat import iteritems
-from .compat import numeric_types
-from .compat import stringify
-from .compat import time_ns
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
@@ -33,6 +26,14 @@ from .ext import http
 from .ext import net
 from .ext import priority
 from .internal import _rand
+from .internal.compat import NumericType
+from .internal.compat import StringIO
+from .internal.compat import ensure_text
+from .internal.compat import is_integer
+from .internal.compat import iteritems
+from .internal.compat import numeric_types
+from .internal.compat import stringify
+from .internal.compat import time_ns
 from .internal.logger import get_logger
 
 
@@ -223,10 +224,7 @@ class Span(object):
             self.duration_ns = ft - (self.start_ns or ft)
 
         if self._context:
-            trace, sampled = self._context.close_span(self)
-            if self.tracer and trace and sampled:
-                self.tracer.write(trace)
-
+            self._context.close_span(self)
         for cb in self._on_finish_callbacks:
             cb(self)
 
@@ -445,7 +443,7 @@ class Span(object):
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         # type: (Any, Any, Any) -> None
-        """ Tag the span with an error tuple as from `sys.exc_info()`. """
+        """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
             return  # nothing to do
 
@@ -468,7 +466,7 @@ class Span(object):
 
     def _remove_exc_info(self):
         # type: () -> None
-        """ Remove all exception related information from the span. """
+        """Remove all exception related information from the span."""
         self.error = 0
         self._remove_tag(errors.ERROR_MSG)
         self._remove_tag(errors.ERROR_TYPE)
@@ -476,8 +474,8 @@ class Span(object):
 
     def pprint(self):
         # type: () -> str
-        """ Return a human readable version of the span. """
-        lines = [
+        """Return a human readable version of the span."""
+        data = [
             ("name", self.name),
             ("id", self.span_id),
             ("trace_id", self.trace_id),
@@ -486,14 +484,17 @@ class Span(object):
             ("resource", self.resource),
             ("type", self.span_type),
             ("start", self.start),
-            ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", "%fs" % (self.duration or 0)),
+            ("end", None if not self.duration else self.start + self.duration),
+            ("duration", self.duration),
             ("error", self.error),
-            ("tags", ""),
+            ("tags", dict(sorted(self.meta.items()))),
+            ("metrics", dict(sorted(self.metrics.items()))),
         ]
-
-        lines.extend((" ", "%r:%s" % kv) for kv in sorted(self.meta.items()))
-        return "\n".join("%10s %s" % line for line in lines)
+        return " ".join(
+            # use a large column width to keep pprint output on one line
+            "%s=%s" % (k, pprint.pformat(v, width=1024 ** 2).strip())
+            for (k, v) in data
+        )
 
     @property
     def context(self):
