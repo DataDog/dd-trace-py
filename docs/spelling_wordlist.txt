@@ -107,6 +107,7 @@ sqlite
 starlette
 stringable
 subdomains
+submodule
 submodules
 timestamp
 tweens
