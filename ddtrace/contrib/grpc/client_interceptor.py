@@ -172,7 +172,6 @@ class _ClientInterceptor(
             resource=client_call_details.method,
         )
 
-<<<<<<< HEAD
         # tags for method details
         method_path = client_call_details.method
         method_package, method_service, method_name = parse_method_path(method_path)

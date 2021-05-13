@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 import logging
 
 from ddtrace.internal.compat import parse
@@ -10,7 +8,6 @@ from . import constants
 log = logging.getLogger(__name__)
 
 
->>>>>>> de406409... fix(grpc): parse target for ipv6 and missing port (#2298)
 def parse_method_path(method_path):
     """ Returns (package, service, method) tuple from parsing method path """
     # unpack method path based on "/{package}.{service}/{method}"
@@ -23,8 +20,6 @@ def parse_method_path(method_path):
         return package_service[0], package_service[1], method_name
 
     return None, package_service[0], method_name
-<<<<<<< HEAD
-=======
 
 
 def set_grpc_method_meta(span, method, method_kind):
@@ -59,4 +54,3 @@ def _parse_target_from_args(args, kwargs):
         return parsed.hostname, port
     except ValueError:
         log.warning("Malformed target '%s'.", target)
->>>>>>> de406409... fix(grpc): parse target for ipv6 and missing port (#2298)

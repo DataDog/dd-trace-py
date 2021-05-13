@@ -550,8 +550,6 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
-<<<<<<< HEAD
-=======
 
 
 def test_handle_response_future_like():
@@ -611,4 +609,3 @@ def test_method_service(patch_grpc):
         channel.unary_unary("/pkg.Servicer/Handler")(b"request")
     finally:
         server.stop(None)
->>>>>>> de406409... fix(grpc): parse target for ipv6 and missing port (#2298)
