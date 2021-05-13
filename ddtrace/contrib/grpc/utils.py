@@ -1,6 +1,6 @@
 import logging
 
-from ddtrace.internal.compat import parse
+from ddtrace.compat import parse
 
 from . import constants
 
