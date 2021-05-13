@@ -29,7 +29,7 @@ class Context(object):
     span_id = attr.ib(default=None)  # type: Optional[int]
     _dd_origin = attr.ib(default=None)  # type: Optional[str]
     _sampling_priority = attr.ib(default=None)  # type: Optional[NumericType]
-    _lock = attr.ib(factory=threading.RLock, eq=False)  # type: threading.Lock
+    _lock = attr.ib(factory=threading.RLock, eq=False)  # type: threading.RLock
     _meta = attr.ib(factory=dict)  # type: _MetaDictType
     _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
