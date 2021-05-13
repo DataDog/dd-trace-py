@@ -19,9 +19,7 @@ FoldedStack = List[Frame]
 CONSOLE = Console(file=sys.stderr)
 
 
-def _similarities(
-    x: List[FoldedStack], y: List[FoldedStack]
-) -> List[Tuple[Tuple[int, int], float]]:
+def _similarities(x: List[FoldedStack], y: List[FoldedStack]) -> List[Tuple[Tuple[int, int], float]]:
     """O(n * log(n)), n = len(x) * len(y)."""
 
     def score(a: List[Frame], b: List[Frame]) -> float:
@@ -31,9 +29,7 @@ def _similarities(
         """
         fa, ma = a
         fb, mb = b
-        if [_ for _ in fa if "ddtrace" not in _.filename] == [
-            _ for _ in fb if "ddtrace" not in _.filename
-        ]:
+        if [_ for _ in fa if "ddtrace" not in _.filename] == [_ for _ in fb if "ddtrace" not in _.filename]:
             return 1 - abs(ma.time - mb.time) / (ma.time + mb.time)
         return 0
 
@@ -53,9 +49,7 @@ def _similarities(
     )
 
 
-def _match(
-    x: List[FoldedStack], y: List[FoldedStack], threshold: float = 0.5
-) -> List[Tuple[int, int]]:
+def _match(x: List[FoldedStack], y: List[FoldedStack], threshold: float = 0.5) -> List[Tuple[int, int]]:
     """O(len(x) * len(y))."""
     ss = _similarities(x, y)
     mx, my = set(), set()
@@ -95,14 +89,10 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3, top: bool = False) -> st
         buffer = StringIO()
         stats.dump(buffer)
 
-        total_time = sum(
-            t.total.time for p in stats.processes.values() for t in p.threads.values()
-        )
+        total_time = sum(t.total.time for p in stats.processes.values() for t in p.threads.values())
         return buffer.getvalue(), total_time
 
-    def get_frames(
-        text: str, threshold: float = 1e-3
-    ) -> List[Tuple[FoldedStack, Metrics]]:
+    def get_frames(text: str, threshold: float = 1e-3) -> List[Tuple[FoldedStack, Metrics]]:
         """Get the folded stacks and metrics from a string of samples."""
         x = []
         max_time = 1
@@ -175,12 +165,7 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3, top: bool = False) -> st
             ]
         )
 
-    return "\n".join(
-        [
-            ";".join(["P0", "T0"] + [str(_) for _ in f]) + " %d" % int(delta * 1e8)
-            for f, delta in stacks
-        ]
-    )
+    return "\n".join([";".join(["P0", "T0"] + [str(_) for _ in f]) + " %d" % int(delta * 1e8) for f, delta in stacks])
 
 
 def main() -> None:

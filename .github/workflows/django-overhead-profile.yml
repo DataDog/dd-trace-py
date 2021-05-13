@@ -4,7 +4,7 @@ on:
     branches: [master]
   pull_request:
 jobs:
-  django-testsuite-3_1_7:
+  django-overhead-profile-3_1_7:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -61,25 +61,27 @@ jobs:
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: |
+          mkdir artifacts
           DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py -k base &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.ddtrace.austin -sp $!
+          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.ddtrace.austin -p $!
 
           tests/runtests.py -k base &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.austin -sp $!
+          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.austin -p $!
 
       - name: Compute diff
-          mkdir artifacts
+        run: |
           cd artifacts
           python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py django_base.ddtrace.austin django_base.austin > django_base.diff.austin
           python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py -T django_base.ddtrace.austin django_base.austin > django_base.diff.top
-          cat artifacts/django_base.diff.top
-          austin2pprof artifacts/django_base.diff.austin artifacts/django_base.diff.pprof
+          cat django_base.diff.top
+          austin2pprof django_base.diff.austin django_base.diff.pprof
+          ls -alh
+          cd -
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v2
         with:
           name: overhead-profile
-          path: artifacts/
+          path: ${{ github.workspace }}/django/artifacts
 
