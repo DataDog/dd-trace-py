@@ -631,7 +631,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask": ["~=1.0.0", "~=1.1.0", "<2.0.0"],
                     },
                 ),
                 Venv(
@@ -642,7 +642,7 @@ venv = Venv(
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask": ["~=1.0.0", "~=1.1.0", "<2.0.0"],
                     },
                 ),
             ],
