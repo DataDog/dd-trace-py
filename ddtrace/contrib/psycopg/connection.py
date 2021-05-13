@@ -5,6 +5,7 @@ Tracing utilities for the psycopg potgres client library.
 # stdlib
 import functools
 
+from ...compat import stringify
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes, db, net, sql
 from ...utils.deprecation import deprecated
@@ -50,7 +51,7 @@ class TracedCursor(cursor):
             if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)
 
-            s.resource = query
+            s.resource = stringify(query)
             s.set_tags(self._datadog_tags)
             try:
                 return super(TracedCursor, self).execute(query, vars)
