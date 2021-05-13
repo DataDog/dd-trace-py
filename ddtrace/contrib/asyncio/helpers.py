@@ -28,7 +28,7 @@ def ensure_future(coro_or_future, *, loop=None, tracer=None):
     If the current task already has a Context, it will be attached to the new Task so the Trace list will be preserved.
     """
     tracer = tracer or ddtrace.tracer
-    current_ctx = tracer.get_call_context()
+    current_ctx = tracer.current_trace_context()
     task = asyncio.ensure_future(coro_or_future, loop=loop)
     set_call_context(task, current_ctx)
     return task
@@ -52,7 +52,7 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
 
     """
     tracer = tracer or ddtrace.tracer
-    current_ctx = tracer.get_call_context()
+    current_ctx = tracer.current_trace_context()
 
     # prepare the future using an executor wrapper
     future = loop.run_in_executor(executor, _wrap_executor, func, args, tracer, current_ctx)

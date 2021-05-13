@@ -27,7 +27,7 @@ def execute(func, handler, args, kwargs):
 
     with TracerStackContext():
         # attach the context to the request
-        setattr(handler.request, REQUEST_CONTEXT_KEY, tracer.get_call_context())
+        setattr(handler.request, REQUEST_CONTEXT_KEY, tracer.current_trace_context())
 
         trace_utils.activate_distributed_headers(
             tracer, int_config=config.tornado, request_headers=handler.request.headers, override=distributed_tracing

@@ -73,7 +73,7 @@ def _run_on_executor(run_on_executor, _, params, kw_params):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             # from the current context, retrive the active span
-            current_ctx = ddtrace.tracer.get_call_context()
+            current_ctx = ddtrace.tracer.current_trace_context()
             parent_span = getattr(current_ctx, "_current_span", None)
 
             # pass the current parent span in the Future call so that
@@ -121,7 +121,7 @@ def run_executor_stack_context(fn, args, kwargs, parent_span):
     the context here will always bring to an empty `Context`.
     """
     with TracerStackContext():
-        ctx = ddtrace.tracer.get_call_context()
+        ctx = ddtrace.tracer.current_trace_context()
         ctx._current_span = parent_span
         return fn(*args, **kwargs)
 

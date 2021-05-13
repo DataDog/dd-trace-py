@@ -80,7 +80,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if self._self_tracer is None:
             return (None, None)
 
-        ctxt = self._self_tracer.get_call_context()
+        ctxt = self._self_tracer.current_trace_context()
         return (
             None if ctxt.trace_id is None else {ctxt.trace_id},
             None if ctxt.span_id is None else {ctxt.span_id},

@@ -330,7 +330,7 @@ class TracerTestCases(TracerTestCase):
     def test_global_context(self):
         # the tracer uses a global thread-local Context
         span = self.trace("fake_span")
-        ctx = self.tracer.get_call_context()
+        ctx = self.tracer.current_trace_context()
         assert ctx.trace_id == span.trace_id
         assert ctx.span_id == span.span_id
 
@@ -1203,29 +1203,29 @@ def test_ctx(tracer, test_spans):
     with tracer.trace("test") as s1:
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
-        assert tracer.get_call_context().trace_id == s1.trace_id
-        assert tracer.get_call_context().span_id == s1.span_id
+        assert tracer.current_trace_context().trace_id == s1.trace_id
+        assert tracer.current_trace_context().span_id == s1.span_id
 
         with tracer.trace("test2") as s2:
             assert tracer.current_span() == s2
             assert tracer.current_root_span() == s1
-            assert tracer.get_call_context().trace_id == s1.trace_id
-            assert tracer.get_call_context().span_id == s2.span_id
+            assert tracer.current_trace_context().trace_id == s1.trace_id
+            assert tracer.current_trace_context().span_id == s2.span_id
 
             with tracer.trace("test3") as s3:
                 assert tracer.current_span() == s3
                 assert tracer.current_root_span() == s1
-                assert tracer.get_call_context().trace_id == s1.trace_id
-                assert tracer.get_call_context().span_id == s3.span_id
+                assert tracer.current_trace_context().trace_id == s1.trace_id
+                assert tracer.current_trace_context().span_id == s3.span_id
 
-            assert tracer.get_call_context().trace_id == s1.trace_id
-            assert tracer.get_call_context().span_id == s2.span_id
+            assert tracer.current_trace_context().trace_id == s1.trace_id
+            assert tracer.current_trace_context().span_id == s2.span_id
 
         with tracer.trace("test4") as s4:
             assert tracer.current_span() == s4
             assert tracer.current_root_span() == s1
-            assert tracer.get_call_context().trace_id == s1.trace_id
-            assert tracer.get_call_context().span_id == s4.span_id
+            assert tracer.current_trace_context().trace_id == s1.trace_id
+            assert tracer.current_trace_context().span_id == s4.span_id
 
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
@@ -1287,8 +1287,8 @@ def test_ctx_distributed(tracer, test_spans):
     with tracer.trace("test") as s1:
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
-        assert tracer.get_call_context().trace_id == s1.trace_id
-        assert tracer.get_call_context().span_id == s1.span_id
+        assert tracer.current_trace_context().trace_id == s1.trace_id
+        assert tracer.current_trace_context().span_id == s1.span_id
         assert s1.parent_id is None
 
     trace = test_spans.pop_traces()
@@ -1299,7 +1299,7 @@ def test_ctx_distributed(tracer, test_spans):
     tracer.context_provider.activate(ctx)
     assert tracer.current_span() is None
     assert (
-        tracer.get_call_context()
+        tracer.current_trace_context()
         == tracer.context_provider.active()
         == Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     )
@@ -1307,8 +1307,8 @@ def test_ctx_distributed(tracer, test_spans):
     with tracer.trace("test2") as s2:
         assert tracer.current_span() == s2
         assert tracer.current_root_span() == s2
-        assert tracer.get_call_context().trace_id == s2.trace_id == 4321
-        assert tracer.get_call_context().span_id == s2.span_id
+        assert tracer.current_trace_context().trace_id == s2.trace_id == 4321
+        assert tracer.current_trace_context().span_id == s2.span_id
         assert s2.parent_id == 1234
 
     trace = test_spans.pop_traces()

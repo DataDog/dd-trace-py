@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(
 async def test_get_call_context(tracer):
     tracer.configure(context_provider=DefaultContextProvider())
     # it should return a context even if not attached to the Task
-    ctx = tracer.get_call_context()
+    ctx = tracer.current_trace_context()
     assert ctx is not None
     # test that it behaves the wrong way
     task = asyncio_current_task()

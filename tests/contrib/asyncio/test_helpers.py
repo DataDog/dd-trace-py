@@ -19,7 +19,7 @@ async def test_set_call_context(tracer):
     task = asyncio.Task.current_task()
     ctx = Context()
     helpers.set_call_context(task, ctx)
-    assert ctx == tracer.get_call_context()
+    assert ctx == tracer.current_trace_context()
 
 
 @pytest.mark.asyncio
