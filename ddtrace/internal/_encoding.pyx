@@ -67,6 +67,7 @@ cdef class Packer(object):
     cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
+    cdef int ticker
 
     def __cinit__(self):
         cdef int buf_size = 1024*1024
@@ -75,6 +76,7 @@ cdef class Packer(object):
             raise MemoryError("Unable to allocate internal buffer.")
         self.pk.buf_size = buf_size
         self.pk.length = 0
+        self.ticker = 0
 
     def __init__(self, default=None):
         if default is not None:
@@ -106,6 +108,13 @@ cdef class Packer(object):
         cdef long i
 
         while True:
+            # Give other threads a chance to run every 16K "cycles"
+            if self.ticker & (16 << 10):
+                self.ticker = 0
+                with nogil: pass  
+            
+            self.ticker += 1
+
             if o is None:
                 ret = msgpack_pack_nil(&self.pk)
             elif PyLong_Check(o):
@@ -266,6 +275,7 @@ cdef class Packer(object):
     cpdef pack(self, object obj):
         cdef int ret
         try:
+            self.ticker = 0
             ret = self._pack(obj)
         except:
             self.pk.length = 0
