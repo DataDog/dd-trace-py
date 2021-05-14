@@ -181,15 +181,17 @@ support for continuing a trace in another application.
 Web frameworks
 ++++++++++++++
 
+
 A web framework integration must do the following if possible:
 
+    - Install the WSGI or ASGI trace middlewares already provided by ``ddtrace``.
     - Trace the duration of the request.
-    - Report HTTP status codes.
-    - Have an :ref:`internal service` name.
     - Assign a resource name for a route.
-    - Provide toggleable support for tracing query parameters (defaulting to off).
+    - Use ``trace_utils.set_http_meta`` to set the standard http tags.
+    - Have an :ref:`internal service` name.
     - Support distributed tracing (configurable).
     - Provide insight to middlewares and views.
+    - Use the `SpanTypes.WEB` span type.
 
 Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask>`_

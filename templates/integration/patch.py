@@ -1,9 +1,13 @@
 from ddtrace import config
 
 
-config._add("foo", {
-    "distributed_tracing": True,
-})
+config._add(
+    "foo",
+    {
+        "distributed_tracing": True,
+        "_default_service": "foo",
+    },
+)
 
 
 def patch():
