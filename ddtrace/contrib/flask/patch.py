@@ -437,7 +437,7 @@ def traced_render(wrapped, instance, args, kwargs):
 
 
 def traced__register_error_handler(wrapped, instance, args, kwargs):
-    """Wrapper to trace all functions registered with flask.app.register_error_handler"""
+    """Wrapper to trace all functions registered with flask.app._register_error_handler"""
 
     def _wrap(key, code_or_exception, f):
         return wrapped(key, code_or_exception, wrap_function(instance, f))
