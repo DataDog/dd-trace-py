@@ -1,25 +1,28 @@
 # -*- encoding: utf-8 -*-
 import logging
 
-from ddtrace import compat
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
+import attr
+
+from ddtrace.internal import compat
+from ddtrace.internal import periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
+from ddtrace.utils import attr as attr_utils
+
 
 LOG = logging.getLogger(__name__)
 
 
 @attr.s
-class Scheduler(_periodic.PeriodicService):
+class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
     recorder = attr.ib()
     exporters = attr.ib()
-    _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
+    before_flush = attr.ib(default=None, eq=False)
+    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
     _configured_interval = attr.ib(init=False)
-    _last_export = attr.ib(init=False, default=None)
+    _last_export = attr.ib(init=False, default=None, eq=False)
 
     def __attrs_post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
@@ -35,6 +38,11 @@ class Scheduler(_periodic.PeriodicService):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
+        if self.before_flush is not None:
+            try:
+                self.before_flush()
+            except Exception:
+                LOG.error("Scheduler before_flush hook failed", exc_info=True)
         if self.exporters:
             events = self.recorder.reset()
             start = self._last_export
@@ -43,7 +51,7 @@ class Scheduler(_periodic.PeriodicService):
                 try:
                     exp.export(events, start, self._last_export)
                 except exporter.ExportError as e:
-                    LOG.error("%s. Ignoring.", _traceback.format_exception(e))
+                    LOG.error("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
                 except Exception:
                     LOG.exception(
                         "Unexpected error while exporting events. "
@@ -56,5 +64,3 @@ class Scheduler(_periodic.PeriodicService):
             self.flush()
         finally:
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
-
-    on_shutdown = flush

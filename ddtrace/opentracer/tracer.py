@@ -6,20 +6,21 @@ import ddtrace
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
-from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
 
 from ..internal.logger import get_logger
 from .propagation import HTTPPropagator
+from .settings import ConfigKeys as keys
+from .settings import config_invalid_keys
 from .span import Span
 from .span_context import SpanContext
-from .settings import ConfigKeys as keys, config_invalid_keys
 from .utils import get_context_provider_for_scope_manager
+
 
 log = get_logger(__name__)
 
 DEFAULT_CONFIG = {
-    keys.AGENT_HOSTNAME: 'localhost',
+    keys.AGENT_HOSTNAME: "localhost",
     keys.AGENT_HTTPS: False,
     keys.AGENT_PORT: 8126,
     keys.DEBUG: False,
@@ -56,9 +57,9 @@ class Tracer(opentracing.Tracer):
             to the global ``ddtrace.tracer`` tracer.
         """
         # Merge the given config with the default into a new dict
-        config = config or {}
-        self._config = merge_dicts(DEFAULT_CONFIG, config)
-
+        self._config = DEFAULT_CONFIG.copy()
+        if config is not None:
+            self._config.update(config)
         # Pull out commonly used properties for performance
         self._service_name = service_name or get_application_name()
         self._enabled = self._config.get(keys.ENABLED)
@@ -68,33 +69,36 @@ class Tracer(opentracing.Tracer):
             # Ensure there are no typos in any of the keys
             invalid_keys = config_invalid_keys(self._config)
             if invalid_keys:
-                str_invalid_keys = ','.join(invalid_keys)
-                raise ConfigException('invalid key(s) given ({})'.format(str_invalid_keys))
+                str_invalid_keys = ",".join(invalid_keys)
+                raise ConfigException("invalid key(s) given ({})".format(str_invalid_keys))
 
         if not self._service_name:
-            raise ConfigException(""" Cannot detect the \'service_name\'.
+            raise ConfigException(
+                """ Cannot detect the \'service_name\'.
                                       Please set the \'service_name=\'
                                       keyword argument.
-                                  """)
+                                  """
+            )
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
-        self._dd_tracer.configure(enabled=self._enabled,
-                                  hostname=self._config.get(keys.AGENT_HOSTNAME),
-                                  https=self._config.get(keys.AGENT_HTTPS),
-                                  port=self._config.get(keys.AGENT_PORT),
-                                  sampler=self._config.get(keys.SAMPLER),
-                                  settings=self._config.get(keys.SETTINGS),
-                                  priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
-                                  uds_path=self._config.get(keys.UDS_PATH),
-                                  context_provider=dd_context_provider,
-                                  )
+        self._dd_tracer.configure(
+            enabled=self._enabled,
+            hostname=self._config.get(keys.AGENT_HOSTNAME),
+            https=self._config.get(keys.AGENT_HTTPS),
+            port=self._config.get(keys.AGENT_PORT),
+            sampler=self._config.get(keys.SAMPLER),
+            settings=self._config.get(keys.SETTINGS),
+            priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+            uds_path=self._config.get(keys.UDS_PATH),
+            context_provider=dd_context_provider,
+        )
         self._propagators = {
-            Format.HTTP_HEADERS: HTTPPropagator(),
-            Format.TEXT_MAP: HTTPPropagator(),
+            Format.HTTP_HEADERS: HTTPPropagator,
+            Format.TEXT_MAP: HTTPPropagator,
         }
 
     @property
@@ -102,9 +106,16 @@ class Tracer(opentracing.Tracer):
         """Returns the scope manager being used by this tracer."""
         return self._scope_manager
 
-    def start_active_span(self, operation_name, child_of=None, references=None,
-                          tags=None, start_time=None, ignore_active_span=False,
-                          finish_on_close=True):
+    def start_active_span(
+        self,
+        operation_name,
+        child_of=None,
+        references=None,
+        tags=None,
+        start_time=None,
+        ignore_active_span=False,
+        finish_on_close=True,
+    ):
         """Returns a newly started and activated `Scope`.
         The returned `Scope` supports with-statement contexts. For example::
 
@@ -156,8 +167,9 @@ class Tracer(opentracing.Tracer):
         scope = self._scope_manager.activate(otspan, finish_on_close)
         return scope
 
-    def start_span(self, operation_name=None, child_of=None, references=None,
-                   tags=None, start_time=None, ignore_active_span=False):
+    def start_span(
+        self, operation_name=None, child_of=None, references=None, tags=None, start_time=None, ignore_active_span=False
+    ):
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
@@ -201,12 +213,12 @@ class Tracer(opentracing.Tracer):
             active `Scope` and creates a root `Span`.
         :return: an already-started Span instance.
         """
-        ot_parent = None          # 'ot_parent' is more readable than 'child_of'
+        ot_parent = None  # 'ot_parent' is more readable than 'child_of'
         ot_parent_context = None  # the parent span's context
-        dd_parent = None          # the child_of to pass to the ddtracer
+        dd_parent = None  # the child_of to pass to the ddtracer
 
         if child_of is not None:
-            ot_parent = child_of      # 'ot_parent' is more readable than 'child_of'
+            ot_parent = child_of  # 'ot_parent' is more readable than 'child_of'
         elif references and isinstance(references, list):
             # we currently only support child_of relations to one span
             ot_parent = references[0].referenced_context
@@ -221,11 +233,11 @@ class Tracer(opentracing.Tracer):
         if ot_parent is None and not ignore_active_span:
             # attempt to get the parent span from the scope manager
             scope = self._scope_manager.active
-            parent_span = getattr(scope, 'span', None)
-            ot_parent_context = getattr(parent_span, 'context', None)
+            parent_span = getattr(scope, "span", None)
+            ot_parent_context = getattr(parent_span, "context", None)
             # we want the ddcontext of the active span in order to maintain the
             # ddspan hierarchy
-            dd_parent = getattr(ot_parent_context, '_dd_context', None)
+            dd_parent = getattr(ot_parent_context, "_dd_context", None)
 
             # if we cannot get the context then try getting it from the DD tracer
             # this emulates the behaviour of tracer.trace()
@@ -243,7 +255,7 @@ class Tracer(opentracing.Tracer):
             # anything
             pass
         else:
-            raise TypeError('invalid span configuration given')
+            raise TypeError("invalid span configuration given")
 
         # create a new otspan and ddspan using the ddtracer and associate it
         # with the new otspan

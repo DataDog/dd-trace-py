@@ -1,5 +1,8 @@
-from ...compat import parse
+from django.utils.functional import SimpleLazyObject
+from six import ensure_text
+
 from ...internal.logger import get_logger
+from .compat import get_resolver
 
 
 log = get_logger(__name__)
@@ -10,7 +13,7 @@ def resource_from_cache_prefix(resource, cache):
     Combine the resource name with the cache prefix (if any)
     """
     if getattr(cache, "key_prefix", None):
-        name = "{} {}".format(resource, cache.key_prefix)
+        name = " ".join((resource, cache.key_prefix))
     else:
         name = resource
 
@@ -33,19 +36,21 @@ def quantize_key_values(key):
     return key
 
 
-def get_django_2_route(resolver, resolver_match):
+def get_django_2_route(request, resolver_match):
     # Try to use `resolver_match.route` if available
     # Otherwise, look for `resolver.pattern.regex.pattern`
     route = resolver_match.route
-    if not route:
-        # DEV: Use all these `getattr`s to protect against changes between versions
-        pattern = getattr(resolver, "pattern", None)
-        if pattern:
-            regex = getattr(pattern, "regex", None)
-            if regex:
-                route = getattr(regex, "pattern", "")
+    if route:
+        return route
 
-    return route
+    resolver = get_resolver(getattr(request, "urlconf", None))
+    if resolver:
+        try:
+            return resolver.pattern.regex.pattern
+        except AttributeError:
+            pass
+
+    return None
 
 
 def set_tag_array(span, prefix, value):
@@ -54,10 +59,12 @@ def set_tag_array(span, prefix, value):
         return
 
     if len(value) == 1:
-        span.set_tag(prefix, value[0])
+        if value[0]:
+            span._set_str_tag(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
-            span.set_tag("{0}.{1}".format(prefix, i), v)
+            if v:
+                span._set_str_tag("".join((prefix, ".", str(i))), v)
 
 
 def get_request_uri(request):
@@ -80,14 +87,38 @@ def get_request_uri(request):
                 host = request.META["SERVER_NAME"]
                 port = str(request.META["SERVER_PORT"])
                 if port != ("443" if request.is_secure() else "80"):
-                    host = "{0}:{1}".format(host, port)
+                    host = "".join((host, ":", port))
         except Exception:
             # This really shouldn't ever happen, but lets guard here just in case
             log.debug("Failed to build Django request host", exc_info=True)
             host = "unknown"
 
+    # If request scheme is missing, possible in case where wsgi.url_scheme
+    # environ has not been set, return None and skip providing a uri
+    if request.scheme is None:
+        return
+
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    return parse.urlunparse(
-        parse.ParseResult(scheme=request.scheme, netloc=host, path=request.path, params="", query="", fragment="",)
-    )
+    urlparts = {"scheme": request.scheme, "netloc": host, "path": request.path}
+
+    # If any url part is a SimpleLazyObject, use its __class__ property to cast
+    # str/bytes and allow for _setup() to execute
+    for (k, v) in urlparts.items():
+        if isinstance(v, SimpleLazyObject):
+            if issubclass(v.__class__, str):
+                v = str(v)
+            elif issubclass(v.__class__, bytes):
+                v = bytes(v)
+            else:
+                # lazy object that is not str or bytes should not happen here
+                # but if it does skip providing a uri
+                log.debug(
+                    "Skipped building Django request uri, %s is SimpleLazyObject wrapping a %s class",
+                    k,
+                    v.__class__.__name__,
+                )
+                return None
+        urlparts[k] = ensure_text(v)
+
+    return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))

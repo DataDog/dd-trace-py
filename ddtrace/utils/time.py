@@ -1,4 +1,8 @@
-from .. import compat
+from types import TracebackType
+from typing import Optional
+from typing import Type
+
+from ..internal import compat
 
 
 class StopWatch(object):
@@ -17,15 +21,18 @@ class StopWatch(object):
     """
 
     def __init__(self):
-        self._started_at = None
-        self._stopped_at = None
+        # type: () -> None
+        self._started_at = None  # type: Optional[float]
+        self._stopped_at = None  # type: Optional[float]
 
     def start(self):
+        # type: () -> StopWatch
         """Starts the watch."""
         self._started_at = compat.monotonic()
         return self
 
     def elapsed(self):
+        # type: () -> float
         """Get how many seconds have elapsed.
 
         :return: Number of seconds elapsed
@@ -41,15 +48,18 @@ class StopWatch(object):
         return now - self._started_at
 
     def __enter__(self):
+        # type: () -> StopWatch
         """Starts the watch."""
         self.start()
         return self
 
     def __exit__(self, tp, value, traceback):
+        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> None
         """Stops the watch."""
         self.stop()
 
     def stop(self):
+        # type: () -> StopWatch
         """Stops the watch."""
         if self._started_at is None:
             raise RuntimeError("Can not stop a stopwatch that has not been" " started")

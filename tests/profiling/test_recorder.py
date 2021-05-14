@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
+import pytest
+
 from ddtrace.profiling import event
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
-
-import pytest
 
 
 def test_defaultdictkey():
@@ -41,6 +41,11 @@ def test_push_events_empty():
 
 
 def test_limit():
-    r = recorder.Recorder(default_max_events=12, max_events={stack.StackSampleEvent: 24,})
+    r = recorder.Recorder(
+        default_max_events=12,
+        max_events={
+            stack.StackSampleEvent: 24,
+        },
+    )
     assert r.events[stack.StackExceptionSampleEvent].maxlen == 12
     assert r.events[stack.StackSampleEvent].maxlen == 24

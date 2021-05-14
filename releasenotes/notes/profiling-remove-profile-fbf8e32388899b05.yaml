@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The deprecated compatibility module `ddtrace.profile` has been removed.

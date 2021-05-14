@@ -1,4 +1,5 @@
 import celery
+import pytest
 
 from .base import CeleryBaseTestCase
 
@@ -6,6 +7,7 @@ from .base import CeleryBaseTestCase
 class CeleryOldStyleTaskTest(CeleryBaseTestCase):
     """Ensure Old Style Tasks are properly instrumented"""
 
+    @pytest.mark.skipif(celery.VERSION >= (5, 0, 0), reason="celery.task.Task was removed in Celery 5")
     def test_apply_async_previous_style_tasks(self):
         # ensures apply_async is properly patched if Celery 1.0 style tasks
         # are used even in newer versions. This should extend support to
@@ -33,7 +35,7 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         t = CelerySubClass()
         res = t.apply()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         run_span = traces[0][0]

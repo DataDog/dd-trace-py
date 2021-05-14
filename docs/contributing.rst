@@ -8,7 +8,7 @@ wish to make via an `issue <https://github.com/DataDog/dd-trace-py/issues>`_.
 Branches
 ========
 
-Developement happens in the `master` branch. When all the features for the next
+Development happens in the `master` branch. When all the features for the next
 milestone are merged, the next version is released and tagged on the `master`
 branch as `vVERSION`.
 

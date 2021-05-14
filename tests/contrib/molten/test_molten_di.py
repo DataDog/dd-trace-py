@@ -1,16 +1,15 @@
-from unittest import TestCase
-
-# Test base adapted from molten/tests/test_dependency_injection.py
-
 from inspect import Parameter
 
 import molten
 from molten import DependencyInjector
 
 from ddtrace import Pin
-from ddtrace.contrib.molten import patch, unpatch
+from ddtrace.contrib.molten import patch
+from ddtrace.contrib.molten import unpatch
+from tests.utils import TracerTestCase
 
-from tests.tracer.test_tracer import get_dummy_tracer
+
+# Test base adapted from molten/tests/test_dependency_injection.py
 
 
 class Settings(dict):
@@ -28,7 +27,7 @@ class SettingsComponent:
 
 
 class Metrics:
-    __slots__ = ['settings']
+    __slots__ = ["settings"]
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -45,7 +44,7 @@ class MetricsComponent:
 
 
 class DB:
-    __slots__ = ['settings', 'metrics']
+    __slots__ = ["settings", "metrics"]
 
     def __init__(self, settings: Settings, metrics: Metrics) -> None:
         self.settings = settings
@@ -78,28 +77,30 @@ class AccountsComponent:
         return Accounts(db)
 
 
-class TestMoltenDI(TestCase):
-    """"Ensures Molten dependency injection is properly instrumented."""
+class TestMoltenDI(TracerTestCase):
+    """Ensures Molten dependency injection is properly instrumented."""
 
-    TEST_SERVICE = 'molten-patch-di'
+    TEST_SERVICE = "molten-patch-di"
 
     def setUp(self):
+        super(TestMoltenDI, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
         Pin.override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
 
     def tearDown(self):
         unpatch()
-        self.tracer.writer.pop()
+        super(TestMoltenDI, self).tearDown()
 
     def test_di_can_inject_dependencies(self):
         # Given that I have a DI instance
-        di = DependencyInjector(components=[
-            SettingsComponent(),
-            MetricsComponent(),
-            DBComponent(),
-            AccountsComponent(),
-        ])
+        di = DependencyInjector(
+            components=[
+                SettingsComponent(),
+                MetricsComponent(),
+                DBComponent(),
+                AccountsComponent(),
+            ]
+        )
 
         # And a function that uses DI
         def example(accounts: Accounts):
@@ -112,7 +113,7 @@ class TestMoltenDI(TestCase):
         resolved_example = resolver.resolve(example)
         resolved_example()
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         # TODO[tahir]: We could in future trace the resolve method on components
         self.assertEqual(len(spans), 0)

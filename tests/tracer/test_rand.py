@@ -1,6 +1,7 @@
 from itertools import chain
 import multiprocessing as mp
 
+
 try:
     from multiprocessing import SimpleQueue as MPQueue
 except ImportError:
@@ -9,9 +10,11 @@ except ImportError:
 import os
 import threading
 
-from ddtrace import tracer, Span
-from ddtrace.compat import PYTHON_VERSION_INFO, Queue
+from ddtrace import Span
+from ddtrace import tracer
 from ddtrace.internal import _rand
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import Queue
 
 
 def test_random():

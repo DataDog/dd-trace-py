@@ -1,17 +1,30 @@
 from datetime import datetime
 import json
 import logging
-import mock
 import os
 import re
 import subprocess
 import sys
+from typing import List
+from typing import Optional
+
+import mock
+import pytest
 
 import ddtrace
-import ddtrace.sampler
+from ddtrace import Span
 from ddtrace.internal import debug
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.writer import TraceWriter
+import ddtrace.sampler
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from .test_integration import AGENT_VERSION
+
+
+pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
 
 
 def re_matcher(pattern):
@@ -101,7 +114,9 @@ def test_standard_tags():
 def test_debug_post_configure():
     tracer = ddtrace.Tracer()
     tracer.configure(
-        hostname="0.0.0.0", port=1234, priority_sampling=True,
+        hostname="0.0.0.0",
+        port=1234,
+        priority_sampling=True,
     )
 
     f = debug.collect(tracer)
@@ -124,7 +139,7 @@ def test_debug_post_configure():
     f = debug.collect(tracer)
 
     agent_url = f.get("agent_url")
-    assert agent_url == "uds:///file.sock"
+    assert agent_url == "unix:///file.sock"
 
     agent_error = f.get("agent_error")
     assert re.match("^Agent not reachable.*No such file or directory", agent_error)
@@ -161,63 +176,92 @@ class TestGlobalConfig(SubprocessTestCase):
         icfg = f.get("integrations")
         assert icfg["django"] == "N/A"
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+        )
+    )
     def test_trace_agent_url(self):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:1234"
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://localhost:8126",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://localhost:8126",
+            DD_TRACE_STARTUP_LOGS="1",
+        )
+    )
     def test_tracer_loglevel_info_connection(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+            DD_TRACE_STARTUP_LOGS="1",
+        )
+    )
     def test_tracer_loglevel_info_no_connection(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         # Python 2 logs will go to stderr directly since there's no log handler
-        if ddtrace.compat.PY3:
+        if PY3:
             assert tracer.log.log.mock_calls == [
                 mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
                 mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
             ]
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+        )
+    )
     def test_tracer_loglevel_info_no_connection_py2_handler(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         logging.basicConfig()
         tracer.configure()
-        if ddtrace.compat.PY2:
-            assert tracer.log.log.mock_calls == [
-                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
-                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
-            ]
+        if PY2:
+            assert tracer.log.log.mock_calls == []
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="0",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
+            DD_TRACE_STARTUP_LOGS="0",
+        )
+    )
     def test_tracer_log_disabled_error(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         assert tracer.log.log.mock_calls == []
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126", DD_TRACE_STARTUP_LOGS="0",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
+            DD_TRACE_STARTUP_LOGS="0",
+        )
+    )
     def test_tracer_log_disabled(self):
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
         assert tracer.log.log.mock_calls == []
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126",))
+    @run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
+        )
+    )
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
         tracer = ddtrace.Tracer()
         tracer.log = mock.MagicMock()
         tracer.configure()
-        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
+        assert tracer.log.log.mock_calls == []
 
 
 def test_to_json():
@@ -230,7 +274,29 @@ def test_agentless(monkeypatch):
     tracer = ddtrace.Tracer()
     info = debug.collect(tracer)
 
-    assert info.get("agent_url", "AGENTLESS")
+    assert info.get("agent_url") == "AGENTLESS"
+
+
+def test_custom_writer():
+    tracer = ddtrace.Tracer()
+
+    class CustomWriter(TraceWriter):
+        def recreate(self):
+            # type: () -> TraceWriter
+            return self
+
+        def stop(self, timeout=None):
+            # type: (Optional[float]) -> None
+            pass
+
+        def write(self, spans=None):
+            # type: (Optional[List[Span]]) -> None
+            pass
+
+    tracer.writer = CustomWriter()
+    info = debug.collect(tracer)
+
+    assert info.get("agent_url") == "CUSTOM"
 
 
 def test_different_samplers():
@@ -253,7 +319,7 @@ def test_error_output_ddtracerun_debug_mode():
     assert b"DATADOG TRACER CONFIGURATION" in p.stderr.read()
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in p.stderr.read()
 
-    # No connection to agent, debug mode disabled
+    # No connection to agent, debug mode enabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="true", **os.environ),
@@ -268,7 +334,7 @@ def test_error_output_ddtracerun_debug_mode():
 
 
 def test_error_output_ddtracerun():
-    # Connection to agent, debug mode enabled
+    # Connection to agent, debug mode disabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DATADOG_TRACE_DEBUG="false", **os.environ),
@@ -281,7 +347,7 @@ def test_error_output_ddtracerun():
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
 
-    # No connection to agent, debug mode enabled
+    # No connection to agent, debug mode disabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
         env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DATADOG_TRACE_DEBUG="false", **os.environ),
@@ -292,4 +358,16 @@ def test_error_output_ddtracerun():
     assert b"Test success" in p.stdout.read()
     stderr = p.stderr.read()
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
-    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" in stderr
+    assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
+
+
+def test_debug_span_log():
+    p = subprocess.Popen(
+        ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    stderr = p.stderr.read()
+    assert b"finishing span name='span'" in stderr

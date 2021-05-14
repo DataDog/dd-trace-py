@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Patch pynamodb on import to prevent patching conflicts with gevent.

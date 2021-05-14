@@ -1,9 +1,7 @@
 import threading
-import time
 
 import pytest
-
-from ddtrace.vendor.six.moves import _thread
+from six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import threading as collector_threading
@@ -15,7 +13,7 @@ def test_repr():
     test_collector._test_repr(
         collector_threading.LockCollector,
         "LockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), capture_pct=2.0, nframes=64)",
+        "recorder=Recorder(default_max_events=32768, max_events={}), capture_pct=2.0, nframes=64, tracer=None)",
     )
 
 
@@ -62,14 +60,39 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 0
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:60"
+    assert event.lock_name == "test_threading.py:58"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns > 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 61, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 59, "test_lock_acquire_events")
     assert event.sampling_pct == 100
+
+
+def test_lock_events_tracer(tracer):
+    r = recorder.Recorder()
+    with collector_threading.LockCollector(r, tracer=tracer, capture_pct=100):
+        lock = threading.Lock()
+        lock.acquire()
+        with tracer.trace("test") as t:
+            lock2 = threading.Lock()
+            lock2.acquire()
+            lock.release()
+            trace_id = t.trace_id
+            span_id = t.span_id
+        lock2.release()
+    events = r.reset()
+    # The tracer might use locks, so we need to look into every event to assert we got ours
+    for event_type in (collector_threading.LockAcquireEvent, collector_threading.LockReleaseEvent):
+        assert {"test_threading.py:76", "test_threading.py:79"}.issubset({e.lock_name for e in events[event_type]})
+        for event in events[event_type]:
+            if event.name == "test_threading.py:76":
+                assert event.trace_ids is None
+                assert event.span_ids is None
+            elif event.name == "test_threading.py:79":
+                assert event.trace_ids == {trace_id}
+                assert event.span_ids == {span_id}
 
 
 def test_lock_release_events():
@@ -77,29 +100,32 @@ def test_lock_release_events():
     with collector_threading.LockCollector(r, capture_pct=100):
         lock = threading.Lock()
         lock.acquire()
-        time.sleep(0.1)
         lock.release()
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 1
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:78"
+    assert event.lock_name == "test_threading.py:101"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0.1
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 81, "test_lock_release_events")
+    assert event.frames[0] == (__file__, 103, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 
-@pytest.mark.benchmark(group="threading-lock-create",)
+@pytest.mark.benchmark(
+    group="threading-lock-create",
+)
 def test_lock_create_speed_patched(benchmark):
     r = recorder.Recorder()
     with collector_threading.LockCollector(r):
         benchmark(threading.Lock)
 
 
-@pytest.mark.benchmark(group="threading-lock-create",)
+@pytest.mark.benchmark(
+    group="threading-lock-create",
+)
 def test_lock_create_speed(benchmark):
     benchmark(threading.Lock)
 
@@ -109,9 +135,12 @@ def _lock_acquire_release(lock):
     lock.release()
 
 
-@pytest.mark.benchmark(group="threading-lock-acquire-release",)
+@pytest.mark.benchmark(
+    group="threading-lock-acquire-release",
+)
 @pytest.mark.parametrize(
-    "pct", range(5, 61, 5),
+    "pct",
+    range(5, 61, 5),
 )
 def test_lock_acquire_release_speed_patched(benchmark, pct):
     r = recorder.Recorder()
@@ -119,6 +148,8 @@ def test_lock_acquire_release_speed_patched(benchmark, pct):
         benchmark(_lock_acquire_release, threading.Lock())
 
 
-@pytest.mark.benchmark(group="threading-lock-acquire-release",)
+@pytest.mark.benchmark(
+    group="threading-lock-acquire-release",
+)
 def test_lock_acquire_release_speed(benchmark):
     benchmark(_lock_acquire_release, threading.Lock())

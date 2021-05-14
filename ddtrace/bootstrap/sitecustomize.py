@@ -4,13 +4,26 @@ Add all monkey-patching that needs to run by default here
 """
 import logging
 import os
-import imp
 import sys
 
-from ddtrace.utils.formats import asbool, get_env, parse_tags_str
-from ddtrace.internal.logger import get_logger
-from ddtrace import config, constants
-from ddtrace.tracer import debug_mode, DD_LOG_FORMAT
+
+# Perform gevent patching as early as possible in the application before
+# importing more of the library internals.
+if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+
+from ddtrace import config  # noqa
+from ddtrace import constants
+from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.tracer import DD_LOG_FORMAT  # noqa
+from ddtrace.tracer import debug_mode
+from ddtrace.utils.formats import asbool  # noqa
+from ddtrace.utils.formats import get_env
+from ddtrace.utils.formats import parse_tags_str
 
 
 if config.logs_injection:
@@ -67,6 +80,9 @@ try:
     if profiling:
         import ddtrace.profiling.auto  # noqa: F401
 
+    if asbool(get_env("runtime_metrics", "enabled")):
+        RuntimeWorker.enable()
+
     opts = {}
 
     if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
@@ -82,6 +98,7 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
+    # FIXME: Remove as part of the deprecation of collect_metrics
     opts["collect_metrics"] = asbool(get_env("runtime_metrics", "enabled"))
 
     if opts:
@@ -100,24 +117,40 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
-    # Ensure sitecustomize.py is properly called if available in application directories:
-    # * exclude `bootstrap_dir` from the search
-    # * find a user `sitecustomize.py` module
-    # * import that module via `imp`
+    # Check for and import any sitecustomize that would have normally been used
+    # had ddtrace-run not been used.
     bootstrap_dir = os.path.dirname(__file__)
-    path = list(sys.path)
+    if bootstrap_dir in sys.path:
+        index = sys.path.index(bootstrap_dir)
+        del sys.path[index]
 
-    if bootstrap_dir in path:
-        path.remove(bootstrap_dir)
-
-    try:
-        (f, path, description) = imp.find_module("sitecustomize", path)
-    except ImportError:
-        pass
+        # NOTE: this reference to the module is crucial in Python 2.
+        # Without it the current module gets gc'd and all subsequent references
+        # will be `None`.
+        ddtrace_sitecustomize = sys.modules["sitecustomize"]
+        del sys.modules["sitecustomize"]
+        try:
+            import sitecustomize  # noqa
+        except ImportError:
+            # If an additional sitecustomize is not found then put the ddtrace
+            # sitecustomize back.
+            log.debug("additional sitecustomize not found")
+            sys.modules["sitecustomize"] = ddtrace_sitecustomize
+        else:
+            log.debug("additional sitecustomize found in: %s", sys.path)
+        finally:
+            # Always reinsert the ddtrace bootstrap directory to the path so
+            # that introspection and debugging the application makes sense.
+            # Note that this does not interfere with imports since a user
+            # sitecustomize, if it exists, will be imported.
+            sys.path.insert(index, bootstrap_dir)
     else:
-        # `sitecustomize.py` found, load it
-        log.debug("sitecustomize from user found in: %s", path)
-        imp.load_module("sitecustomize", f, path, description)
+        try:
+            import sitecustomize  # noqa
+        except ImportError:
+            log.debug("additional sitecustomize not found")
+        else:
+            log.debug("additional sitecustomize found in: %s", sys.path)
 
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module

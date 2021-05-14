@@ -1,35 +1,36 @@
-from .collector import ValueCollector
-from .constants import (
-    SERVICE,
-    LANG_INTERPRETER,
-    LANG_VERSION,
-    LANG,
-    TRACER_VERSION,
-)
+from typing import List
+from typing import Tuple
+
 from ...constants import ENV_KEY
+from .collector import ValueCollector
+from .constants import LANG
+from .constants import LANG_INTERPRETER
+from .constants import LANG_VERSION
+from .constants import SERVICE
+from .constants import TRACER_VERSION
 
 
 class RuntimeTagCollector(ValueCollector):
     periodic = False
-    value = []
+    value = []  # type: List[Tuple[str, str]]
 
 
 class TracerTagCollector(RuntimeTagCollector):
-    """ Tag collector for the ddtrace Tracer
-    """
+    """Tag collector for the ddtrace Tracer"""
 
     required_modules = ["ddtrace"]
 
     def collect_fn(self, keys):
         ddtrace = self.modules.get("ddtrace")
-        tags = [(SERVICE, service) for service in ddtrace.tracer._services]
+        # make sure to copy _services to avoid RuntimeError: Set changed size during iteration
+        tags = [(SERVICE, service) for service in list(ddtrace.tracer._services)]
         if ENV_KEY in ddtrace.tracer.tags:
             tags.append((ENV_KEY, ddtrace.tracer.tags[ENV_KEY]))
         return tags
 
 
 class PlatformTagCollector(RuntimeTagCollector):
-    """ Tag collector for the Python interpreter implementation.
+    """Tag collector for the Python interpreter implementation.
 
     Tags collected:
     - ``lang_interpreter``:
@@ -44,7 +45,7 @@ class PlatformTagCollector(RuntimeTagCollector):
 
     """
 
-    required_modules = ("platform", "ddtrace")
+    required_modules = ["platform", "ddtrace"]
 
     def collect_fn(self, keys):
         platform = self.modules.get("platform")

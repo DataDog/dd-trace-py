@@ -3,8 +3,9 @@ import asyncio
 from ...context import Context
 from ...provider import DefaultContextProvider
 
+
 # Task attribute used to set/get the Context instance
-CONTEXT_ATTR = '__datadog_context'
+CONTEXT_ATTR = "__datadog_context"
 
 
 class AsyncioContextProvider(DefaultContextProvider):
@@ -18,12 +19,12 @@ class AsyncioContextProvider(DefaultContextProvider):
     it uses a thread-local storage when the ``Context`` is propagated to
     a different thread, than the one that is running the async loop.
     """
+
     def activate(self, context, loop=None):
-        """Sets the scoped ``Context`` for the current running ``Task``.
-        """
+        """Sets the scoped ``Context`` for the current running ``Task``."""
         loop = self._get_loop(loop)
         if not loop:
-            self._local.set(context)
+            super(AsyncioContextProvider, self).activate(context)
             return context
 
         # the current unit of work (if tasks are used)
@@ -47,7 +48,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """Helper to determine if we have a currently active context"""
         loop = self._get_loop(loop=loop)
         if loop is None:
-            return self._local._has_active_context()
+            return super(AsyncioContextProvider, self)._has_active_context()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
@@ -65,7 +66,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         """
         loop = self._get_loop(loop=loop)
         if not loop:
-            return self._local.get()
+            return super(AsyncioContextProvider, self).active()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)

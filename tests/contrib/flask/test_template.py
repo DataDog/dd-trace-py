@@ -37,9 +37,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             We create the expected spans
         """
         with self.app.app_context():
-            with self.app.test_request_context('/'):
-                response = flask.render_template('test.html', world='world')
-                self.assertEqual(response, 'hello world')
+            with self.app.test_request_context("/"):
+                response = flask.render_template("test.html", world="world")
+                self.assertEqual(response, "hello world")
 
         # 1 for calling `flask.render_template`
         # 1 for tearing down the request
@@ -48,13 +48,12 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(len(spans), 3)
 
         self.assertIsNone(spans[0].service)
-        self.assertEqual(spans[0].name, 'flask.render_template')
-        self.assertEqual(spans[0].resource, 'test.html')
-        self.assertEqual(set(spans[0].meta.keys()), set(['flask.template_name', "runtime-id"]))
-        self.assertEqual(spans[0].meta['flask.template_name'], 'test.html')
-
-        self.assertEqual(spans[1].name, 'flask.do_teardown_request')
-        self.assertEqual(spans[2].name, 'flask.do_teardown_appcontext')
+        self.assertEqual(spans[0].name, "flask.render_template")
+        self.assertEqual(spans[0].resource, "test.html")
+        self.assertEqual(set(spans[0].meta.keys()), set(["flask.template_name", "runtime-id"]))
+        self.assertEqual(spans[0].meta["flask.template_name"], "test.html")
+        self.assertEqual(spans[1].name, "flask.do_teardown_request")
+        self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
     def test_render_template_pin_disabled(self):
         """
@@ -66,9 +65,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         pin.tracer.enabled = False
 
         with self.app.app_context():
-            with self.app.test_request_context('/'):
-                response = flask.render_template('test.html', world='world')
-                self.assertEqual(response, 'hello world')
+            with self.app.test_request_context("/"):
+                response = flask.render_template("test.html", world="world")
+                self.assertEqual(response, "hello world")
 
         self.assertEqual(len(self.get_spans()), 0)
 
@@ -78,9 +77,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             We create the expected spans
         """
         with self.app.app_context():
-            with self.app.test_request_context('/'):
-                response = flask.render_template_string('hello {{world}}', world='world')
-                self.assertEqual(response, 'hello world')
+            with self.app.test_request_context("/"):
+                response = flask.render_template_string("hello {{world}}", world="world")
+                self.assertEqual(response, "hello world")
 
         # 1 for calling `flask.render_template`
         # 1 for tearing down the request
@@ -89,13 +88,12 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(len(spans), 3)
 
         self.assertIsNone(spans[0].service)
-        self.assertEqual(spans[0].name, 'flask.render_template_string')
-        self.assertEqual(spans[0].resource, '<memory>')
-        self.assertEqual(set(spans[0].meta.keys()), set(['flask.template_name', "runtime-id"]))
-        self.assertEqual(spans[0].meta['flask.template_name'], '<memory>')
-
-        self.assertEqual(spans[1].name, 'flask.do_teardown_request')
-        self.assertEqual(spans[2].name, 'flask.do_teardown_appcontext')
+        self.assertEqual(spans[0].name, "flask.render_template_string")
+        self.assertEqual(spans[0].resource, "<memory>")
+        self.assertEqual(set(spans[0].meta.keys()), set(["flask.template_name", "runtime-id"]))
+        self.assertEqual(spans[0].meta["flask.template_name"], "<memory>")
+        self.assertEqual(spans[1].name, "flask.do_teardown_request")
+        self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
     def test_render_template_string_pin_disabled(self):
         """
@@ -107,8 +105,8 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         pin.tracer.enabled = False
 
         with self.app.app_context():
-            with self.app.test_request_context('/'):
-                response = flask.render_template_string('hello {{world}}', world='world')
-                self.assertEqual(response, 'hello world')
+            with self.app.test_request_context("/"):
+                response = flask.render_template_string("hello {{world}}", world="world")
+                self.assertEqual(response, "hello world")
 
         self.assertEqual(len(self.get_spans()), 0)

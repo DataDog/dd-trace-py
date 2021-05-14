@@ -1,0 +1,12 @@
+---
+prelude: >
+features:
+  - |
+    The ddtrace-run command now supports the following arguments:
+      -h, --help
+      -d, --debug      enable debug mode (disabled by default)
+      -i, --info       print library info useful for debugging
+      -p, --profiling  enable profiling (disabled by default)
+      -v, --version    show program's version number and exit
+
+    It now also has friendlier error messages when used incorrectly.

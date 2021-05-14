@@ -1,12 +1,14 @@
 import os
+
 import django
 from django.conf import settings
 import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.django import patch
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
-from ... import DummyTracer, TracerSpanContainer
 
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`
@@ -24,27 +26,22 @@ def pytest_configure():
     django.setup()
 
 
-@pytest.fixture(autouse=True)
-def patch_django(tracer):
+@pytest.fixture
+def tracer():
+    tracer = DummyTracer()
     # Patch Django and override tracer to be our test tracer
     pin = Pin.get_from(django)
     original_tracer = pin.tracer
     Pin.override(django, tracer=tracer)
 
     # Yield to our test
-    yield
+    yield tracer
+    tracer.pop()
 
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test
     # unpatch()
     Pin.override(django, tracer=original_tracer)
-
-
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    yield tracer
-    tracer.writer.pop()
 
 
 @pytest.fixture

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import random
 import string
@@ -5,33 +6,21 @@ import struct
 from unittest import TestCase
 
 import msgpack
+import pytest
 
-from ddtrace.tracer import Tracer
+from ddtrace.internal.compat import msgpack_type
+from ddtrace.internal.compat import string_type
+from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.internal.encoding import JSONEncoderV2
+from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
-from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import _EncoderBase, JSONEncoder, JSONEncoderV2, MsgpackEncoder
+from ddtrace.span import SpanTypes
+from ddtrace.tracer import Tracer
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return "".join(random.choice(chars) for _ in range(size))
-
-
-def gen_span(length=None, **span_attrs):
-    # Helper to generate spans
-    name = span_attrs.pop("name", None)
-    if name is None:
-        name = "a" * length
-
-    span = Span(None, **span_attrs)
-
-    for attr in span_attrs:
-        if hasattr(span, attr):
-            setattr(span, attr, attr)
-        else:
-            pass
-
-    if length is not None:
-        pass
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
@@ -42,7 +31,11 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t, "span_name", resource="/fsdlajfdlaj/afdasd%s" % i, service="myservice", parent_id=parent_id,
+            t,
+            "span_name",
+            resource="/fsdlajfdlaj/afdasd%s" % i,
+            service="myservice",
+            parent_id=parent_id,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
@@ -98,10 +91,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -122,10 +121,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -224,10 +229,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()
@@ -248,10 +259,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()
@@ -318,3 +335,64 @@ def test_custom_msgpack_join_encoded():
     ref = refencoder.join_encoded([refencoder.encode_trace(trace) for _ in range(1)])
     custom = encoder.join_encoded([encoder.encode_trace(trace) for _ in range(1)])
     assert decode(ref) == decode(custom)
+
+
+def span_type_span():
+    s = Span(None, "span_name")
+    s.span_type = SpanTypes.WEB
+    return s
+
+
+@pytest.mark.parametrize(
+    "span",
+    [
+        Span(None, "span_name", span_type=SpanTypes.WEB),
+        Span(None, "span_name", resource="/my-resource"),
+        Span(None, "span_name", service="my-svc"),
+        span_type_span(),
+    ],
+)
+def test_msgpack_span_property_variations(span):
+    refencoder = RefMsgpackEncoder()
+    encoder = MsgpackEncoder()
+
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    trace = [span]
+    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+
+
+class SubString(str):
+    pass
+
+
+class SubInt(int):
+    pass
+
+
+class SubFloat(float):
+    pass
+
+
+@pytest.mark.parametrize(
+    "span, tags",
+    [
+        (Span(None, "name"), {"int": SubInt(123)}),
+        (Span(None, "name"), {"float": SubFloat(123.213)}),
+        (Span(None, SubString("name")), {SubString("test"): SubString("test")}),
+        (Span(None, "name"), {"unicode": u"😐"}),
+        (Span(None, "name"), {u"😐": u"😐"}),
+    ],
+)
+def test_span_types(span, tags):
+    refencoder = RefMsgpackEncoder()
+    encoder = MsgpackEncoder()
+
+    span.set_tags(tags)
+
+    # Finish the span to ensure a duration exists.
+    span.finish()
+
+    trace = [span]
+    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))

@@ -16,5 +16,9 @@ def test_check_traceback_to_frames():
     assert nframes == 2
     assert frames == [
         (__file__, 7, "_x"),
-        (__file__, 15, "test_check_traceback_to_frames",),
+        (
+            __file__,
+            15,
+            "test_check_traceback_to_frames",
+        ),
     ]

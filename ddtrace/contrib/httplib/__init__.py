@@ -1,40 +1,50 @@
 """
-Patch the built-in ``httplib``/``http.client`` libraries to trace all HTTP calls.
+Trace the standard library ``httplib``/``http.client`` libraries to trace
+HTTP requests.
 
 
-Usage::
+Enabling
+~~~~~~~~
 
-    # Patch all supported modules/functions
-    from ddtrace import patch
-    patch(httplib=True)
+The httplib integration is disabled by default. It can be enabled when using
+:ref:`ddtrace-run<ddtracerun>` using the ``DD_TRACE_HTTPLIB_ENABLED``
+environment variable::
 
-    # Python 2
-    import httplib
-    import urllib
+    DD_TRACE_HTTPLIB_ENABLED=true ddtrace-run ....
 
-    resp = urllib.urlopen('http://www.datadog.com/')
+The integration can also be enabled manually in code with
+:ref:`patch_all()<patch_all>`::
 
-    # Python 3
-    import http.client
-    import urllib.request
+    from ddtrace import patch_all
+    patch_all(httplib=True)
 
-    resp = urllib.request.urlopen('http://www.datadog.com/')
 
-``httplib`` spans do not include a default service name. Before HTTP calls are
-made, ensure a parent span has been started with a service name to be used for
-spans generated from those calls::
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
 
-    with tracer.trace('main', service='my-httplib-operation'):
-        resp = urllib.request.urlopen('http://www.datadog.com/')
+.. py:data:: ddtrace.config.httplib['distributed_tracing']
 
-The library can be configured globally and per instance, using the Configuration API::
+   Include distributed tracing headers in requests sent from httplib.
+
+   This option can also be set with the ``DD_HTTPLIB_DISTRIBUTED_TRACING``
+   environment variable.
+
+   Default: ``True``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+
+The integration can be configured per instance::
 
     from ddtrace import config
 
-    # disable distributed tracing globally
+    # Disable distributed tracing globally.
     config.httplib['distributed_tracing'] = False
 
-    # change the service name/distributed tracing only for this HTTP connection
+    # Change the service distributed tracing option only for this HTTP
+    # connection.
 
     # Python 2
     connection = urllib.HTTPConnection('www.datadog.com')
@@ -43,9 +53,13 @@ The library can be configured globally and per instance, using the Configuration
     connection = http.client.HTTPConnection('www.datadog.com')
 
     cfg = config.get_from(connection)
-    cfg['distributed_tracing'] = False
+    cfg['distributed_tracing'] = True
+
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from .patch import patch, unpatch
-__all__ = ['patch', 'unpatch']
+from .patch import patch
+from .patch import unpatch
+
+
+__all__ = ["patch", "unpatch"]

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed an issue in profiling exporting profiles twice when forking.

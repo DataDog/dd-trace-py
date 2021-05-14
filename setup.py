@@ -79,13 +79,13 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
@@ -107,13 +107,45 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-if platform.uname()[0] != "Windows":
-    encoding_libraries = []
-    extra_compile_args = ["-DPy_BUILD_CORE"]
-else:
+if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
+    debug_compile_args = []
+else:
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+    if "DD_COMPILE_DEBUG" in os.environ:
+        if platform.system() == "Linux":
+            debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+        else:
+            debug_compile_args = [
+                "-g",
+                "-O0",
+                "-Werror",
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                # Cython is not deprecation-proof
+                "-Wno-deprecated-declarations",
+            ]
+    else:
+        debug_compile_args = []
 
+
+if sys.version_info[:2] >= (3, 4):
+    ext_modules = [
+        Extension(
+            "ddtrace.profiling.collector._memalloc",
+            sources=[
+                "ddtrace/profiling/collector/_memalloc.c",
+                "ddtrace/profiling/collector/_memalloc_tb.c",
+                "ddtrace/profiling/collector/_memalloc_heap.c",
+            ],
+            extra_compile_args=debug_compile_args,
+        ),
+    ]
+else:
+    ext_modules = []
 
 # Base `setup()` kwargs without any C-extension registering
 setup(
@@ -133,9 +165,13 @@ setup(
         install_requires=[
             "enum34; python_version<'3.4'",
             "funcsigs>=1.0.0; python_version=='2.7'",
+            "typing; python_version<'3.5'",
+            "packaging>=17.1",
             "protobuf>=3",
-            "intervaltree",
             "tenacity>=5",
+            "attrs>=19.2.0",
+            "six>=1.12.0",
+            "pep562; python_version<'3.7'",
         ],
         extras_require={
             # users can include opentracing by having:
@@ -148,8 +184,11 @@ setup(
         entry_points={
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-                "pyddprofile = ddtrace.profiling.__main__:main",
-            ]
+            ],
+            "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
+            "gevent.plugins.monkey.did_patch_all": [
+                "ddtrace.profiling.profiler = ddtrace.profiling.profiler:gevent_patch_all",
+            ],
         },
         classifiers=[
             "Programming Language :: Python",
@@ -158,13 +197,17 @@ setup(
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
         ],
         use_scm_version=True,
         setup_requires=["setuptools_scm[toml]>=4", "cython"],
-        ext_modules=cythonize(
+        ext_modules=ext_modules
+        + cythonize(
             [
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c",
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
                 ),
                 Extension(
                     "ddtrace.internal._encoding",
@@ -172,9 +215,6 @@ setup(
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._queue", sources=["ddtrace/internal/_queue.pyx"], language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
@@ -188,7 +228,19 @@ setup(
                     language="c",
                 ),
                 Cython.Distutils.Extension(
-                    "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
+                    "ddtrace.profiling.collector._threading",
+                    sources=["ddtrace/profiling/collector/_threading.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._build",
+                    sources=["ddtrace/profiling/_build.pyx"],
+                    language="c",
                 ),
             ],
             compile_time_env={

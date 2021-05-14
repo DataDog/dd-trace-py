@@ -1,8 +1,10 @@
 # -*- encoding: utf-8 -*-
 import collections
+import os
 
-from ddtrace.profiling import _nogevent
-from ddtrace.vendor import attr
+import attr
+
+from ddtrace.internal import nogevent
 
 
 class _defaultdictkey(dict):
@@ -18,7 +20,7 @@ class _defaultdictkey(dict):
         raise KeyError(key)
 
 
-@attr.s(slots=True, eq=False)
+@attr.s(slots=True)
 class Recorder(object):
     """An object that records program activity."""
 
@@ -30,8 +32,9 @@ class Recorder(object):
     max_events = attr.ib(factory=dict)
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
-    events = attr.ib(init=False, repr=False)
-    _events_lock = attr.ib(init=False, repr=False, factory=_nogevent.DoubleLock)
+    events = attr.ib(init=False, repr=False, eq=False)
+    _events_lock = attr.ib(init=False, repr=False, factory=nogevent.DoubleLock, eq=False)
+    _pid = attr.ib(init=False, repr=False, factory=os.getpid)
 
     def __attrs_post_init__(self):
         self._reset_events()
@@ -51,7 +54,11 @@ class Recorder(object):
 
         :param events: The event list to push.
         """
-        if events:
+        # NOTE: do not try to push events if the current PID has changed
+        # This means:
+        # 1. the process has forked
+        # 2. we don't know the state of _events_lock and it might be unusable — we'd deadlock
+        if events and os.getpid() == self._pid:
             event_type = events[0].__class__
             with self._events_lock:
                 q = self.events[event_type]
