@@ -297,6 +297,46 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
+# -- msgpack helpers for payload size calculation --
+
+cdef inline unsigned int _prefix_size(int n):
+    """Prefix size for complex types (arrays, maps, ...)."""
+    if n < 16:
+        return 1
+    if n < 2**16:
+        return 3
+    return 5
+
+
+cdef inline unsigned int _str_len(text):
+    """msgpack string length, including prefix."""
+    if text is None:
+        return 1
+    cdef int n = len(text) if isinstance(text, bytes) else len(text.encode())
+    if n < 32:
+        return 1 + n
+    if n < 256:
+        return 2 + n
+    if n < 2**16:
+        return 3 + n
+    return 5 + n
+    
+
+cdef inline unsigned int _num_size(n):
+    """msgpack number size, including prefix."""
+    if isinstance(n, float):
+        return 9
+    if n is None or n < 128:
+        return 1
+    if n < 256:
+        return 2
+    if n < 2**16:
+        return 3
+    if n < 2**32:
+        return 5
+    return 9
+
+
 cdef class MsgpackEncoder(object):
     content_type = "application/msgpack"
 
@@ -307,21 +347,28 @@ cdef class MsgpackEncoder(object):
         return msgpack.unpackb(data, raw=True)
 
     cpdef trace_size(self, list trace):
-        """Heuristic to determine the approximate size of a trace in bytes."""
-        cdef int size = 92 * len(trace)
+        """Determine the size of a trace in bytes."""
+        cdef int n = len(trace)
+        cdef int size = _prefix_size(n) + n * 72
         for span in trace:
-            if span.name:
-                size += len(span.name)
-            if span.resource:
-                size += len(span.resource)
-            if span.service:
-                size += len(span.service)
+            size += _num_size(span.trace_id)
+            size += _num_size(span.span_id)
+            size += _num_size(span.parent_id)
+            size += _num_size(span.start_ns)
+            size += _num_size(span.duration_ns)
+            size += _str_len(span.name)
+            size += _str_len(span.resource)
+            size += _str_len(span.service)
             if span._span_type:
-                size += len(span._span_type)
+                size += 5 + _str_len(span._span_type)
             if span.meta:
-                size += sum([len(k) + len(v) for k, v in span.meta.items()])
+                size += 5
+                size += _prefix_size(len(span.meta))
+                size += sum([_str_len(k) + _str_len(v) for k, v in span.meta.items()])
             if span.metrics:
-                size += sum([len(k) + 9 for k in span.metrics])
+                size += 8
+                size += _prefix_size(len(span.metrics))
+                size += sum([_str_len(k) + _num_size(v) for k, v in span.metrics.items()])
         return size
 
     cpdef encode_trace(self, list trace):

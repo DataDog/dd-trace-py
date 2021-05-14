@@ -6,7 +6,7 @@ from ddtrace.internal.buffer import TraceBuffer
 
 
 def test_buffer_put_get():
-    buf = TraceBuffer(max_size=10, max_item_size=3)
+    buf = TraceBuffer(max_size=10, max_item_size=3, meter=len)
     buf.put([1, 2, 3])
     assert len(buf) == 1
     assert buf.size == 3
@@ -32,7 +32,7 @@ def test_buffer_put_get():
 
 
 def test_buffer_size_limit():
-    buf = TraceBuffer(max_size=10, max_item_size=3)
+    buf = TraceBuffer(max_size=10, max_item_size=3, meter=len)
     buf.put([3])
     for i in range(9):
         buf.put([0])
@@ -45,7 +45,7 @@ def test_buffer_size_limit():
 
 
 def test_buffer_item_size_limit():
-    buf = TraceBuffer(max_size=10, max_item_size=3)
+    buf = TraceBuffer(max_size=10, max_item_size=3, meter=len)
 
     with pytest.raises(BufferItemTooLarge):
         buf.put([i for i in range(10000)])
@@ -58,7 +58,7 @@ def test_buffer_item_size_limit():
 
 
 def test_buffer_many_items():
-    buf = TraceBuffer(max_size=10000, max_item_size=50)
+    buf = TraceBuffer(max_size=10000, max_item_size=50, meter=len)
     for _ in range(10000):
         buf.put("1")
     assert buf.size == 10000

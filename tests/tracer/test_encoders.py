@@ -396,3 +396,15 @@ def test_span_types(span, tags):
 
     trace = [span]
     assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+
+
+def test_custom_msgpack_encode_trace_size():
+    encoder = MsgpackEncoder()
+    span = Span(tracer=None, name="test", service="foo", resource="GET")
+    span.meta = {"foo": "bar"}
+    span.metrics = {"cpu": 10.4}
+    span.error = 0
+    span.span_type = "boo"
+    trace = [span, span, span]
+
+    assert len(encoder.encode_traces([trace])) == encoder.trace_size(trace) + 1
