@@ -605,17 +605,14 @@ venv = Venv(
                         "pytest": "~=3.0",
                     },
                 ),
-                # Flask >= 1.0.0
+                # Flask 1.x.x
                 Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": [
                             "~=1.0.0",
-                            "~=1.1.0",
+                            "==1.1.2",
                             "~=1.0",  # latest 1.x
-                            "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                            latest,
                         ],
                     },
                 ),
@@ -629,8 +626,31 @@ venv = Venv(
                     pkgs={
                         "flask": [
                             "~=1.0.0",
-                            "~=1.1.0",
+                            "==1.1.2",
                             "~=1.0",  # latest 1.x
+                        ],
+                    },
+                ),
+                # Flask >= 2.0.0
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DATADOG_SERVICE_NAME": "test.flask.service",
+                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": [
                             "~=2.0.0",
                             "~=2.0",  # latest 2.x
                             latest,
