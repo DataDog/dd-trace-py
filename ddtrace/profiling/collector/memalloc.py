@@ -1,4 +1,7 @@
 # -*- encoding: utf-8 -*-
+import logging
+import math
+import os
 import threading
 import typing
 
@@ -15,6 +18,9 @@ from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
+
+
+LOG = logging.getLogger(__name__)
 
 
 @event.event_class
@@ -42,13 +48,44 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
+_ENABLED = False
+
+
+def _get_default_heap_sample_size(
+    default_heap_sample_size=512 * 1024,  # type: int
+):
+    # type: (...) -> int
+    heap_sample_size = os.environ.get("DD_PROFILING_HEAP_SAMPLE_SIZE")
+    if heap_sample_size is not None:
+        return int(heap_sample_size)
+
+    if not _ENABLED:
+        return 0
+
+    try:
+        from ddtrace.vendor import psutil
+
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+    except Exception:
+        LOG.warning(
+            "Unable to get total memory available, using default value of %d KB",
+            default_heap_sample_size / 1024,
+            exc_info=True,
+        )
+        return default_heap_sample_size
+
+    # This is TRACEBACK_ARRAY_MAX_COUNT
+    max_samples = 2 ** 16
+
+    return max(math.ceil(total_mem / max_samples), default_heap_sample_size)
+
+
 @attr.s
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
     _DEFAULT_MAX_EVENTS = 32
     _DEFAULT_INTERVAL = 0.5
-    _DEFAULT_HEAP_SAMPLE_SIZE = 0
 
     # Arbitrary interval to empty the _memalloc event buffer
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
@@ -56,9 +93,7 @@ class MemoryCollector(collector.PeriodicCollector):
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
     _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
     max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    heap_sample_size = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_HEAP_SAMPLE_SIZE", _DEFAULT_HEAP_SAMPLE_SIZE, int)
-    )
+    heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
     def _start(self):

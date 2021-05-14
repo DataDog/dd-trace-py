@@ -417,9 +417,9 @@ class TestTracer(object):
         assert spans[2].parent_id is spans[0].span_id
         assert spans[3].parent_id is spans[2].span_id
 
-    def test_interleave(self, ot_tracer, test_spans):
+    def test_interleave(self, dd_tracer, ot_tracer, test_spans):
         with ot_tracer.start_active_span("ot_root_1", ignore_active_span=True):
-            with ddtrace.tracer.trace("dd_child"):
+            with dd_tracer.trace("dd_child"):
                 with ot_tracer.start_active_span("ot_child_1"):
                     pass
 

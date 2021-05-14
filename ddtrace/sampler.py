@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 import six
 
-from .compat import iteritems
-from .compat import pattern_type
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
+from .internal.compat import iteritems
+from .internal.compat import pattern_type
 from .internal.constants import ENV_KEY
 from .internal.constants import SAMPLING_AGENT_DECISION
 from .internal.constants import SAMPLING_LIMIT_DECISION

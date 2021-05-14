@@ -47,13 +47,14 @@ def get_error_ranges(error_range_str):
     for error_range in error_ranges_str:
         values = error_range.split("-")
         try:
-            values = [int(v) for v in values]
+            # Note: mypy does not like variable type changing
+            values = [int(v) for v in values]  # type: ignore[misc]
         except ValueError:
             log.exception("Error status codes was not a number %s", values)
             continue
-        error_range = (min(values), max(values))
+        error_range = (min(values), max(values))  # type: ignore[assignment]
         error_ranges.append(error_range)
-    return error_ranges
+    return error_ranges  # type: ignore[return-value]
 
 
 class Config(object):
@@ -72,17 +73,18 @@ class Config(object):
             # type: () -> str
             return self._error_statuses
 
-        @property
-        def error_ranges(self):
-            # type: () -> List[Tuple[int, int]]
-            return self._error_ranges
-
         @error_statuses.setter
         def error_statuses(self, value):
             # type: (str) -> None
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
-            self.is_error_code.invalidate()
+            # Mypy can't catch cached method's invalidate()
+            self.is_error_code.invalidate()  # type: ignore[attr-defined]
+
+        @property
+        def error_ranges(self):
+            # type: () -> List[Tuple[int, int]]
+            return self._error_ranges
 
         @cachedmethod()
         def is_error_code(self, status_code):

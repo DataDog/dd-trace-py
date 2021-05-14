@@ -1,10 +1,3 @@
-from . import SpanTypes
-
-
-# [TODO] Deprecated, remove when we remove AppTypes
-# type of the spans
-TYPE = SpanTypes.WORKER
-
 SERVICE = "kombu"
 
 # net extension

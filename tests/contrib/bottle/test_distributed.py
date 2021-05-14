@@ -2,8 +2,8 @@ import bottle
 import webtest
 
 import ddtrace
-from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
+from ddtrace.internal import compat
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 

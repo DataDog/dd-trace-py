@@ -13,16 +13,17 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
+from six import ensure_text
 
 from ddtrace import config
-from ddtrace.compat import binary_type
-from ddtrace.compat import string_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
+from ddtrace.internal.compat import binary_type
+from ddtrace.internal.compat import string_type
 from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -1577,6 +1578,9 @@ class _HttpRequest(django.http.HttpRequest):
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
+    def eval_lazy(lo):
+        return str(lo) if issubclass(lo.__class__, str) else bytes(lo)
+
     request = request_cls()
     request.path = request_path
     request.META = {"HTTP_HOST": http_host}
@@ -1592,6 +1596,9 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
             and isinstance(http_host, binary_type)
             and isinstance(request_uri, binary_type)
         ) or isinstance(request_uri, string_type)
+
+        host = ensure_text(eval_lazy(http_host)) if isinstance(http_host, SimpleLazyObject) else http_host
+        assert request_uri == "".join(map(ensure_text, (request.scheme, "://", host, request_path)))
 
 
 @pytest.fixture()

@@ -6,11 +6,11 @@ from webob import Request
 from ddtrace import config as ddconfig
 
 from .. import trace_utils
-from ...compat import reraise
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
+from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from ...utils.formats import asbool
 from .constants import CONFIG_MIDDLEWARE
@@ -64,7 +64,7 @@ class PylonsTraceMiddleware(object):
 
             # tentative on status code, otherwise will be caught by except below
             def _start_response(status, *args, **kwargs):
-                """ a patched response callback which will pluck some metadata. """
+                """a patched response callback which will pluck some metadata."""
                 if len(args):
                     response_headers = args[0]
                 else:

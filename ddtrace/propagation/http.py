@@ -1,3 +1,5 @@
+from typing import Dict
+from typing import FrozenSet
 from typing import Optional
 
 from ..context import Context
@@ -30,6 +32,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -59,7 +62,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def _extract_header_value(possible_header_names, headers, default=None):
-        # type: (frozenset[str], dict[str, str], Optional[str]) -> str
+        # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
         for header in possible_header_names:
             try:
                 return headers[header]
@@ -70,7 +73,7 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract(headers):
-        # type: (dict[str,str]) -> Context
+        # type: (Dict[str,str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
 
         Here is an example from a web endpoint::
@@ -93,16 +96,18 @@ class HTTPPropagator(object):
 
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-
+            # TODO: Fix variable type changing (mypy)
             trace_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_TRACE_IDS,
                 normalized_headers,
-                default=0,
             )
+            if trace_id is None:
+                return Context()
+
             parent_span_id = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_PARENT_IDS,
                 normalized_headers,
-                default=0,
+                default="0",
             )
             sampling_priority = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
@@ -116,13 +121,15 @@ class HTTPPropagator(object):
             # Try to parse values into their expected types
             try:
                 if sampling_priority is not None:
-                    sampling_priority = int(sampling_priority)
+                    sampling_priority = int(sampling_priority)  # type: ignore[assignment]
+                else:
+                    sampling_priority = sampling_priority
 
                 return Context(
                     # DEV: Do not allow `0` for trace id or span id, use None instead
                     trace_id=int(trace_id) or None,
-                    span_id=int(parent_span_id) or None,
-                    sampling_priority=sampling_priority,
+                    span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
+                    sampling_priority=sampling_priority,  # type: ignore[arg-type]
                     dd_origin=origin,
                 )
             # If headers are invalid and cannot be parsed, return a new context and log the issue.

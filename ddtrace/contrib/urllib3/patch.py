@@ -5,9 +5,9 @@ from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
+from ...internal.compat import parse
 from ...propagation.http import HTTPPropagator
 from ...utils import ArgumentError
 from ...utils import get_argument_value
@@ -37,6 +37,7 @@ def patch():
     setattr(urllib3, "__datadog_patch", True)
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
+    Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
 
 def unpatch():

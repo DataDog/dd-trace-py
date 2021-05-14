@@ -10,12 +10,12 @@ import ddtrace
 from ddtrace import config
 from ddtrace.vendor.wrapt import ObjectProxy
 
-from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
+from ...internal.compat import iteritems
 from ...internal.logger import get_logger
 from .parse import parse_msg
 from .parse import parse_query
@@ -254,7 +254,7 @@ def set_address_tags(span, address):
 
 
 def _set_query_metadata(span, cmd):
-    """ Sets span `mongodb.query` tag and resource given command query """
+    """Sets span `mongodb.query` tag and resource given command query"""
     if cmd.query:
         nq = normalize_filter(cmd.query)
         span.set_tag("mongodb.query", nq)

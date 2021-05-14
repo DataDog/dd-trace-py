@@ -2,10 +2,10 @@ import ddtrace
 from ddtrace import config
 
 from .. import trace_utils
-from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.compat import parse
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 
