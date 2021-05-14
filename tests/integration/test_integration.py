@@ -221,7 +221,7 @@ def test_single_trace_too_large():
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        calls = [mock.call("trace (%db) larger than payload limit (%db), dropping", AnyInt(), AnyInt())]
+        calls = [mock.call("trace (%db) larger than payload buffer limit (%db), dropping", AnyInt(), AnyInt())]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
@@ -326,11 +326,8 @@ def test_bad_payload():
     t = Tracer()
 
     class BadEncoder:
-        def encode_trace(self, spans):
+        def encode_traces(self, traces):
             return []
-
-        def join_encoded(self, traces):
-            return "not msgpack"
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -351,11 +348,8 @@ def test_bad_encoder():
     t = Tracer()
 
     class BadEncoder:
-        def encode_trace(self, spans):
+        def encode_traces(self, traces):
             raise Exception()
-
-        def join_encoded(self, traces):
-            pass
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:

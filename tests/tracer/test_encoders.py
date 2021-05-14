@@ -2,7 +2,6 @@
 import json
 import random
 import string
-import struct
 from unittest import TestCase
 
 import msgpack
@@ -66,21 +65,6 @@ class RefMsgpackEncoder(_EncoderBase):
     def decode(data):
         return msgpack.unpackb(data, raw=True)
 
-    @staticmethod
-    def join_encoded(objs):
-        """Join a list of encoded objects together as a msgpack array"""
-        buf = b"".join(objs)
-
-        # Prepend array header to buffer
-        # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
-        count = len(objs)
-        if count <= 0xF:
-            return struct.pack("B", 0x90 + count) + buf
-        elif count <= 0xFFFF:
-            return struct.pack(">BH", 0xDC, count) + buf
-        else:
-            return struct.pack(">BI", 0xDD, count) + buf
-
 
 class TestEncoders(TestCase):
     """
@@ -110,43 +94,6 @@ class TestEncoders(TestCase):
         # test the encoded output that should be a string
         # and the output must be flatten
         assert isinstance(spans, string_type)
-        assert len(items) == 2
-        assert len(items[0]) == 2
-        assert len(items[1]) == 2
-        for i in range(2):
-            for j in range(2):
-                assert "client.testing" == items[i][j]["name"]
-
-    def test_join_encoded_json(self):
-        # test encoding for JSON format
-        traces = []
-        traces.append(
-            [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
-            ]
-        )
-        traces.append(
-            [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
-            ]
-        )
-
-        encoder = JSONEncoder()
-
-        # Encode each trace on it's own
-        encoded_traces = [encoder.encode_trace(trace) for trace in traces]
-
-        # Join the encoded traces together
-        data = encoder.join_encoded(encoded_traces)
-
-        # Parse the resulting data
-        items = json.loads(data)
-
-        # test the encoded output that should be a string
-        # and the output must be flatten
-        assert isinstance(data, string_type)
         assert len(items) == 2
         assert len(items[0]) == 2
         assert len(items[1]) == 2
@@ -185,46 +132,6 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], string_type)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
-    def test_join_encoded_json_v2(self):
-        # test encoding for JSON format
-        traces = []
-        traces.append(
-            [
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-            ]
-        )
-        traces.append(
-            [
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-            ]
-        )
-
-        encoder = JSONEncoderV2()
-
-        # Encode each trace on it's own
-        encoded_traces = [encoder.encode_trace(trace) for trace in traces]
-
-        # Join the encoded traces together
-        data = encoder.join_encoded(encoded_traces)
-
-        # Parse the resulting data
-        items = json.loads(data)["traces"]
-
-        # test the encoded output that should be a string
-        # and the output must be flatten
-        assert isinstance(data, string_type)
-        assert len(items) == 2
-        assert len(items[0]) == 2
-        assert len(items[1]) == 2
-        for i in range(2):
-            for j in range(2):
-                span = items[i][j]
-                assert "client.testing" == span["name"]
-                assert isinstance(span["span_id"], string_type)
-                assert span["span_id"] == "0000000000AAAAAA"
-
     def test_encode_traces_msgpack(self):
         # test encoding for MsgPack format
         traces = []
@@ -255,42 +162,6 @@ class TestEncoders(TestCase):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
 
-    def test_join_encoded_msgpack(self):
-        # test encoding for MsgPack format
-        traces = []
-        traces.append(
-            [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
-            ]
-        )
-        traces.append(
-            [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
-            ]
-        )
-
-        encoder = MsgpackEncoder()
-
-        # Encode each individual trace on its own
-        encoded_traces = [encoder.encode_trace(trace) for trace in traces]
-        # Join the encoded traces together
-        data = encoder.join_encoded(encoded_traces)
-
-        # Parse the encoded data
-        items = encoder._decode(data)
-
-        # test the encoded output that should be a string
-        # and the output must be flatten
-        assert isinstance(data, msgpack_type)
-        assert len(items) == 2
-        assert len(items[0]) == 2
-        assert len(items[1]) == 2
-        for i in range(2):
-            for j in range(2):
-                assert b"client.testing" == items[i][j][b"name"]
-
 
 def decode(obj):
     if msgpack.version[:2] < (0, 6):
@@ -306,35 +177,20 @@ def test_custom_msgpack_encode():
 
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
-    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode_traces([trace]))
 
     ref_encoded = refencoder.encode_traces([trace, trace])
     encoded = encoder.encode_traces([trace, trace])
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
-    assert decode(refencoder.encode_trace([])) == decode(encoder.encode_trace([]))
+    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode_traces([[]]))
 
     s = Span(None, None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
-    assert decode(refencoder.encode_trace([s])) == decode(encoder.encode_trace([s]))
-
-
-def test_custom_msgpack_join_encoded():
-    encoder = MsgpackEncoder()
-    refencoder = RefMsgpackEncoder()
-
-    trace = gen_trace(nspans=50)
-
-    ref = refencoder.join_encoded([refencoder.encode_trace(trace) for _ in range(10)])
-    custom = encoder.join_encoded([encoder.encode_trace(trace) for _ in range(10)])
-    assert decode(ref) == decode(custom)
-
-    ref = refencoder.join_encoded([refencoder.encode_trace(trace) for _ in range(1)])
-    custom = encoder.join_encoded([encoder.encode_trace(trace) for _ in range(1)])
-    assert decode(ref) == decode(custom)
+    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode_traces([[s]]))
 
 
 def span_type_span():
@@ -360,7 +216,7 @@ def test_msgpack_span_property_variations(span):
     span.finish()
 
     trace = [span]
-    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode_traces([trace]))
 
 
 class SubString(str):
@@ -395,7 +251,7 @@ def test_span_types(span, tags):
     span.finish()
 
     trace = [span]
-    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode_traces([trace]))
 
 
 def test_custom_msgpack_encode_trace_size():

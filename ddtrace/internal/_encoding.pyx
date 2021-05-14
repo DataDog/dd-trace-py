@@ -274,8 +274,8 @@ cdef class Packer(object):
 
     cpdef pack(self, object obj):
         cdef int ret
+        self.ticker = 0
         try:
-            self.ticker = 0
             ret = self._pack(obj)
         except:
             self.pk.length = 0
@@ -371,21 +371,5 @@ cdef class MsgpackEncoder(object):
                 size += sum([_str_len(k) + _num_size(v) for k, v in span.metrics.items()])
         return size
 
-    cpdef encode_trace(self, list trace):
-        return Packer().pack(trace)
-
     cpdef encode_traces(self, traces):
         return Packer().pack(traces)
-
-    cpdef join_encoded(self, objs):
-        """Join a list of encoded objects together as a msgpack array"""
-        cdef Py_ssize_t count
-        buf = b''.join(objs)
-
-        count = len(objs)
-        if count <= 0xf:
-            return struct.pack("B", 0x90 + count) + buf
-        elif count <= 0xffff:
-            return struct.pack(">BH", 0xdc, count) + buf
-        else:
-            return struct.pack(">BI", 0xdd, count) + buf
