@@ -63,6 +63,11 @@ def _parse_target_from_args(args, kwargs):
             port = parsed.port
         except ValueError:
             log.warning("Non-integer port in target '%s'", target)
-        return parsed.hostname, port
+
+        # an empty hostname in Python 2.7 will be an empty string rather than
+        # None
+        hostname = parsed.hostname if len(parsed.hostname) > 0 else None
+
+        return hostname, port
     except ValueError:
         log.warning("Malformed target '%s'.", target)
