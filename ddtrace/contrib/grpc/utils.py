@@ -66,7 +66,7 @@ def _parse_target_from_args(args, kwargs):
 
         # an empty hostname in Python 2.7 will be an empty string rather than
         # None
-        hostname = parsed.hostname if len(parsed.hostname) > 0 else None
+        hostname = parsed.hostname if parsed.hostname is not None and len(parsed.hostname) > 0 else None
 
         return hostname, port
     except ValueError:
