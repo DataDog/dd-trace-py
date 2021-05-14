@@ -264,7 +264,7 @@ class GrpcTestCase(TracerTestCase):
             assert response.message == "first response"
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        client_span, server_span = spans
+        server_span, client_span = spans
         self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
 
