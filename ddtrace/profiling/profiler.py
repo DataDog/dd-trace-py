@@ -174,7 +174,7 @@ class _ProfilerInstance(service.Service):
                 endpoint = agent.get_trace_url()
 
         if self.agentless:
-            endpoint_path = "/v1/input"
+            endpoint_path = "v1/input"
         else:
             # Agent mode
             endpoint_path = "/profiling/v1/input"
