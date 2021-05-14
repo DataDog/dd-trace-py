@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
+from .utils.deprecation import deprecated
 from .utils.formats import asbool
 from .utils.formats import get_env
 
@@ -82,12 +83,8 @@ class Context(object):
         with self._lock:
             self._sampling_priority = value
 
-    def clone(self):
+    def _clone(self):
         # type: () -> Context
-        """
-        Partially clones the current context.
-        It copies everything EXCEPT the registered and finished spans.
-        """
         with self._lock:
             new_ctx = Context(
                 trace_id=self._parent_trace_id,
@@ -97,14 +94,34 @@ class Context(object):
             new_ctx._current_span = self._current_span
             return new_ctx
 
+    @deprecated("Cloning contexts will no longer be required in 0.50", version="0.50")
+    def clone(self):
+        # type: () -> Context
+        """
+        Partially clones the current context.
+        It copies everything EXCEPT the registered and finished spans.
+        """
+        return self._clone()
+
+    def _get_current_root_span(self):
+        # type: () -> Optional[Span]
+        with self._lock:
+            return self._local_root_span
+
+    @deprecated("Please use tracer.current_root_span() instead", version="0.50")
     def get_current_root_span(self):
         # type: () -> Optional[Span]
         """
         Return the root span of the context or None if it does not exist.
         """
-        with self._lock:
-            return self._local_root_span
+        return self._get_current_root_span()
 
+    def _get_current_span(self):
+        # type: () -> Optional[Span]
+        with self._lock:
+            return self._current_span
+
+    @deprecated("Please use tracer.current_span() instead", version="0.50")
     def get_current_span(self):
         # type: () -> Optional[Span]
         """
@@ -113,8 +130,7 @@ class Context(object):
         span in asynchronous environments, because some spans can be closed
         earlier while child spans still need to finish their traced execution.
         """
-        with self._lock:
-            return self._current_span
+        return self._get_current_span()
 
     def _set_current_span(self, span):
         # type: (Optional[Span]) -> None
@@ -130,9 +146,8 @@ class Context(object):
         else:
             self._parent_span_id = None
 
-    def add_span(self, span):
+    def _add_span(self, span):
         # type: (Span) -> None
-        """Activates span in the context."""
         with self._lock:
             # Assume the first span added to the context is the local root
             if self._local_root_span is None:
@@ -140,12 +155,14 @@ class Context(object):
             self._set_current_span(span)
             span._context = self
 
-    def close_span(self, span):
+    @deprecated("Context will no longer support active span management in a later version.", version="0.50")
+    def add_span(self, span):
         # type: (Span) -> None
-        """Updates the context after a span has finished.
+        """Activates span in the context."""
+        return self._add_span(span)
 
-        The next active span becomes `span`'s parent.
-        """
+    def _close_span(self, span):
+        # type: (Span) -> None
         with self._lock:
             if span == self._local_root_span:
                 if self.dd_origin is not None:
@@ -178,3 +195,12 @@ class Context(object):
                 self._parent_trace_id = None
                 self._parent_span_id = None
                 self._sampling_priority = None
+
+    @deprecated(message="Context will no longer support active span management in a later version.", version="0.50")
+    def close_span(self, span):
+        # type: (Span) -> None
+        """Updates the context after a span has finished.
+
+        The next active span becomes `span`'s parent.
+        """
+        return self._close_span(span)

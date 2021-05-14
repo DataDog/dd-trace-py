@@ -409,7 +409,7 @@ class Tracer(object):
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = new_ctx or child_of
-                parent = child_of.get_current_span()
+                parent = child_of._get_current_span()
             else:
                 context = child_of.context
                 parent = child_of
@@ -519,7 +519,7 @@ class Tracer(object):
                 span._set_str_tag(VERSION_KEY, config.version)
 
         # add it to the current context
-        context.add_span(span)
+        context._add_span(span)
 
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
@@ -674,7 +674,7 @@ class Tracer(object):
         """
         ctx = self.get_call_context()
         if ctx:
-            return ctx.get_current_root_span()
+            return ctx._get_current_root_span()
         return None
 
     def current_span(self):
@@ -685,7 +685,7 @@ class Tracer(object):
         """
         ctx = self.get_call_context()
         if ctx:
-            return ctx.get_current_span()
+            return ctx._get_current_span()
         return None
 
     def write(self, spans):
