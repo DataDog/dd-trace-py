@@ -65,7 +65,7 @@ can be used::
 
 
 Service names also need to be configured for libraries that query other
-services (eg. ``requests``, ``grpc``, database libraries, etc).  Check out the
+services (``requests``, ``grpc``, database libraries, etc).  Check out the
 :ref:`integration documentation<integrations>` for each to set them up.
 
 To begin learn more about adding manual instrumentation check out the :ref:`basic usage<basic usage>` page.
