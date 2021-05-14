@@ -1,5 +1,6 @@
-import sys
 import warnings
+
+import pytest
 
 
 def test_deprecated_public_constants():
@@ -11,7 +12,11 @@ def test_deprecated_public_constants():
 
         assert ENV_KEY and MANUAL_DROP_KEY
 
-        if sys.version_info >= (3, 7, 0):
-            (w,) = ws
-            assert issubclass(w.category, DeprecationWarning)
-            assert "constant ENV_KEY has been deprecated and will be removed in v1.0" == str(w.message)
+        (w,) = ws
+        assert issubclass(w.category, DeprecationWarning)
+        assert "constant ENV_KEY has been deprecated and will be removed in v1.0" == str(w.message)
+
+
+def test_invalid_constant():
+    with pytest.raises(ImportError):
+        from ddtrace.constants import INVALID_CONSTANT  # noqa
