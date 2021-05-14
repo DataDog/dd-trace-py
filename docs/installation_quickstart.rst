@@ -44,21 +44,32 @@ Tracing
 Getting started for tracing is as easy as prefixing your python entry-point
 command with ``ddtrace-run``.
 
-For example if you start your application with ``python app.py`` then run::
+For example if you start your application with ``python app.py`` then run (with
+your desired settings in place of the example environment variables)::
 
-    ddtrace-run python app.py
+    DD_SERVICE=app DD_ENV=dev DD_VERSION=0.1 ddtrace-run python app.py
 
-For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here<ddtracerun>`.
-
-
-If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all` can be used::
-
-    import ddtrace
-
-    ddtrace.patch_all()
+For more advanced usage of ``ddtrace-run`` refer to the documentation
+:ref:`here<ddtracerun>`.
 
 
-For information on how to manually create traces refer to the documentation :ref:`here<basic usage>`.
+If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all`
+can be used::
+
+    from ddtrace import config, patch_all
+
+    config.env = "dev"
+    config.service = "app"  # replace with the name of your application
+    config.version = "0.1"
+    patch_all()
+
+
+Service names also need to be configured for libraries that query other
+services (eg. ``requests``, ``grpc``, database libraries, etc).  Check out the
+:ref:`integration documentation<integrations>` for each to set them up.
+
+To begin learn more about adding manual instrumentation check out the :ref:`basic usage<basic usage>` page.
+
 
 Profiling
 ~~~~~~~~~
