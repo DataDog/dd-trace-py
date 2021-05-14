@@ -35,6 +35,7 @@ datadoghq
 datastore
 dbapi
 ddtrace
+deprecations
 django
 dogpile
 dogstatsd
