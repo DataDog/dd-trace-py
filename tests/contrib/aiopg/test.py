@@ -1,23 +1,25 @@
 # stdlib
-import time
 import asyncio
+import time
 
 # 3p
 import aiopg
 from psycopg2 import extras
 
+from ddtrace import Pin
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.aiopg.patch import patch, unpatch
-from ddtrace import Pin
-
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
+from tests.contrib.config import POSTGRES_CONFIG
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
-from tests.tracer.test_tracer import get_dummy_tracer
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from tests.utils import assert_is_measured
+
 from ...subprocesstest import run_in_subprocess
-from ... import assert_is_measured
+
 
 TEST_PORT = POSTGRES_CONFIG['port']
 
@@ -55,7 +57,6 @@ class AiopgTestCase(AsyncioTestCase):
         except AttributeError:
             pass
 
-        writer = tracer.writer
         # Ensure we can run a query and it's correctly traced
         q = 'select \'foobarblah\''
         start = time.time()
@@ -65,7 +66,7 @@ class AiopgTestCase(AsyncioTestCase):
         end = time.time()
         assert rows == [('foobarblah',)]
         assert rows
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans
         assert len(spans) == 1
         span = spans[0]
@@ -86,7 +87,7 @@ class AiopgTestCase(AsyncioTestCase):
             yield from cursor.execute(q)
             rows = yield from cursor.fetchall()
             assert rows == [('foobarblah',)]
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans
         # confirm the parenting
@@ -110,7 +111,7 @@ class AiopgTestCase(AsyncioTestCase):
             pass
         else:
             assert 0, 'should have an error'
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
@@ -130,7 +131,7 @@ class AiopgTestCase(AsyncioTestCase):
         # these calls were crashing with a previous version of the code.
         yield from (yield from conn.cursor()).execute(query='select \'blah\'')
         yield from (yield from conn.cursor()).execute('select \'blah\'')
-        assert not tracer.writer.pop()
+        assert not self.pop_spans()
 
     @mark_asyncio
     def test_manual_wrap_extension_types(self):
@@ -142,25 +143,15 @@ class AiopgTestCase(AsyncioTestCase):
 
     @mark_asyncio
     def test_connect_factory(self):
-        tracer = get_dummy_tracer()
-
         services = ['db', 'another']
         for service in services:
             conn, _ = yield from self._get_conn_and_tracer()
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-            yield from self.assert_conn_is_traced(tracer, conn, service)
+            Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
+            yield from self.assert_conn_is_traced(self.tracer, conn, service)
             conn.close()
-
-        # ensure we have the service types
-        service_meta = tracer.writer.pop_services()
-        expected = {}
-        assert service_meta == expected
 
     @mark_asyncio
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # Test patch idempotence
         patch()
         patch()
@@ -168,11 +159,11 @@ class AiopgTestCase(AsyncioTestCase):
         service = 'fo'
 
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -183,18 +174,18 @@ class AiopgTestCase(AsyncioTestCase):
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
 
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 

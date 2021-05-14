@@ -1,20 +1,24 @@
 from falcon import testing
-import falcon as falcon
+
+from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from tests.utils import TracerTestCase
+
 from .app import get_app
 from .test_suite import FalconTestCase
-from ... import TracerTestCase
 
 
 class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     """Executes tests using the manual instrumentation so a middleware
     is explicitly added.
     """
+
     def setUp(self):
         super(MiddlewareTestCase, self).setUp()
 
         # build a test app with a dummy tracer
-        self._service = 'falcon'
+        self._service = "falcon"
         self.api = get_app(tracer=self.tracer)
-        self.version = falcon.__version__
-        if(self.version[0] != '1'):
+        if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
+        else:
+            self.client = self

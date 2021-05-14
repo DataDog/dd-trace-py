@@ -1,29 +1,24 @@
 """
 An API to provide after_in_child fork hooks across all Pythons.
 """
-import functools
 import logging
 import os
-import threading
-
-
-__all__ = [
-    "ddtrace_after_in_child",
-    "register",
-]
+import typing
 
 
 log = logging.getLogger(__name__)
 
-BUILTIN_FORK_HOOKS = hasattr(os, "register_at_fork")
 
-registry = []
+_registry = []  # type: typing.List[typing.Callable[[], None]]
 
 
 def ddtrace_after_in_child():
-    global registry
+    # type: () -> None
+    global _registry
 
-    for hook in registry:
+    # DEV: we make a copy of the registry to prevent hook execution from
+    # introducing new hooks, potentially causing an infinite loop.
+    for hook in list(_registry):
         try:
             hook()
         except Exception:
@@ -31,58 +26,32 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def _register(hook):
-    if hook not in registry:
-        registry.append(hook)
+def register(after_in_child):
+    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
+    """Register a function to be called after fork in the child process."""
+    _registry.append(after_in_child)
+    return after_in_child
 
 
-if BUILTIN_FORK_HOOKS:
+def unregister(after_in_child):
+    # type: (typing.Callable[[], None]) -> None
+    """Unregister a function to be called after fork in the child process.
 
-    def register(after_in_child):
-        _register(after_in_child)
-        return lambda f: f
+    Raises `ValueError` if the function was not registered.
+    """
+    _registry.remove(after_in_child)
 
+
+if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=ddtrace_after_in_child)
 else:
-    PID = os.getpid()
-    PID_LOCK = threading.Lock()
+    import threading
 
-    def register(after_in_child):
-        """Decorator that registers a function `after_in_child` that will be
-        called in the child process when a fork occurs.
+    _threading_after_fork = threading._after_fork  # type: ignore[attr-defined]
 
-        Decorator usage::
-            def after_fork():
-                # update fork-sensitive state
-                pass
+    def _after_fork():
+        # type: () -> None
+        _threading_after_fork()
+        ddtrace_after_in_child()
 
-            @forksafe.register(after_in_child=after_fork)
-            def fork_sensitive_fn():
-                # after_fork is guaranteed to be called by this point
-                # if a fork occurred and we're in the child.
-                pass
-        """
-        _register(after_in_child)
-
-        def wrapper(func):
-            @functools.wraps(func)
-            def forksafe_func(*args, **kwargs):
-                global PID
-
-                # A lock is required here to ensure that the hooks
-                # are only called once.
-                with PID_LOCK:
-                    pid = os.getpid()
-
-                    # Check the global pid
-                    if pid != PID:
-                        # Call ALL the hooks.
-                        ddtrace_after_in_child()
-                        PID = pid
-                return func(*args, **kwargs)
-
-            # Set a flag to use to perform sanity checks.
-            forksafe_func._is_forksafe = True
-            return forksafe_func
-
-        return wrapper
+    threading._after_fork = _after_fork  # type: ignore[attr-defined]

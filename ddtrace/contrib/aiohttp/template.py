@@ -21,9 +21,9 @@ def _trace_render_template(func, module, args, kwargs):
     env = aiohttp_jinja2.get_env(request.app)
 
     # the prefix is available only on PackageLoader
-    template_prefix = getattr(env.loader, 'package_path', '')
-    template_meta = '{}/{}'.format(template_prefix, template_name)
+    template_prefix = getattr(env.loader, "package_path", "")
+    template_meta = "{}/{}".format(template_prefix, template_name)
 
-    with pin.tracer.trace('aiohttp.template', span_type=SpanTypes.TEMPLATE) as span:
-        span.set_meta('aiohttp.template', template_meta)
+    with pin.tracer.trace("aiohttp.template", span_type=SpanTypes.TEMPLATE) as span:
+        span.set_meta("aiohttp.template", template_meta)
         return func(*args, **kwargs)

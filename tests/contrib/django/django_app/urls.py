@@ -2,9 +2,11 @@ from django.conf.urls import url
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.http import HttpResponse
-from django.views.generic import TemplateView
+from django.urls import include
+from django.urls import path
+from django.urls import re_path
 from django.views.decorators.cache import cache_page
-from django.urls import include, path, re_path
+from django.views.generic import TemplateView
 
 from .. import views
 
@@ -56,4 +58,5 @@ urlpatterns = [
     url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
     url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
+    url(r"^404-view/$", views.not_found_view, name="404-view"),
 ]

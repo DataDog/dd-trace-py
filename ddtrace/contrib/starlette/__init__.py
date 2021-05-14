@@ -32,7 +32,7 @@ Configuration
 
    Whether to parse distributed tracing headers from requests received by your Starlette app.
 
-   Can also be enabled with the ``DD_TRACE_STARLETTE_DISTRIBUTED_TRACING`` environment variable.
+   Can also be enabled with the ``DD_STARLETTE_DISTRIBUTED_TRACING`` environment variable.
 
    Default: ``True``
 
@@ -40,7 +40,7 @@ Configuration
 
    Whether to analyze spans for starlette in App Analytics.
 
-   Can also be enabled with the ``DD_TRACE_STARLETTE_ANALYTICS_ENABLED`` environment variable.
+   Can also be enabled with the ``DD_STARLETTE_ANALYTICS_ENABLED`` environment variable.
 
    Default: ``None``
 
@@ -75,10 +75,12 @@ Example::
 """
 from ...utils.importlib import require_modules
 
+
 required_modules = ["starlette"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = ["patch", "unpatch"]

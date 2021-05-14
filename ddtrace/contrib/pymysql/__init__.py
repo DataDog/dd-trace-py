@@ -26,6 +26,14 @@ Global Configuration
 
    Default: ``"mysql"``
 
+.. py:data:: ddtrace.config.pymysql["trace_fetch_methods"]
+
+   Whether or not to trace fetch methods.
+
+   Can also configured via the ``DD_PYMYSQL_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -50,11 +58,11 @@ To configure the integration on an per-connection basis use the
 from ...utils.importlib import require_modules
 
 
-required_modules = ['pymysql']
+required_modules = ["pymysql"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
         from .tracers import get_traced_pymysql_connection
 
-        __all__ = ['get_traced_pymysql_connection', 'patch']
+        __all__ = ["get_traced_pymysql_connection", "patch"]

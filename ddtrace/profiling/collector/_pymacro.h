@@ -1,0 +1,20 @@
+#ifndef _DDTRACE_MEMALLOC_PYMACRO
+#define _DDTRACE_MEMALLOC_PYMACRO
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 9
+#define _PY39_AND_LATER
+#endif
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 8
+#define _PY38_AND_LATER
+#endif
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION == 8
+#define _PY38
+#endif
+
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 7
+#define _PY37_AND_LATER
+#endif
+
+#endif

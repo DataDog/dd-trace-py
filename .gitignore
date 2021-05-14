@@ -11,7 +11,6 @@ ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
-ddtrace/internal/_queue.c
 *.so
 
 # Distribution / packaging
@@ -49,7 +48,9 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+test-results/
 coverage.xml
+coverage.json
 *,cover
 .hypothesis/
 .pytest_cache/

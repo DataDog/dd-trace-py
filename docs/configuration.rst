@@ -4,7 +4,7 @@
  Configuration
 ===============
 
-`ddtrace` can be configured using environment variable. They are listed
+`ddtrace` can be configured using environment variables. They are listed
 below:
 
 .. list-table::
@@ -18,23 +18,27 @@ below:
    * - ``DD_ENV``
      - String
      -
-     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``.
+     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``staging``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
    * - ``DD_SERVICE``
      - String
      - (autodetected)
      - Set the service name to be used for this application. A default is
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
-       :ref:`falcon`. Added in ``v0.36.0``.
+       :ref:`falcon`. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
+   * - ``DD_SERVICE_MAPPING``
+     - String
+     -
+     - Define service name mappings to allow renaming services in traces, e.g. ``postgres:postgresql,defaultdb:postgresql``.
    * - ``DD_TAGS``
      - String
      -
-     - Set global tags to be attached to every span. e.g. ``key1:value1,key2,value2``. Added in ``v0.38.0``.
+     - Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2,value2`` or ``key1:value key2:value2``. Comma separated support added in ``v0.38.0`` and space separated support added in ``v0.48.0``.
    * - ``DD_VERSION``
      - String
      -
      - Set an application's version in traces and logs e.g. ``1.2.3``,
-       ``6c44da20``, ``2020.02.13``. Added in ``v0.36.0``.
+       ``6c44da20``, ``2020.02.13``. Generally set along with ``DD_SERVICE``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
    * - ``DD_SITE``
      - String
      - datadoghq.com
@@ -73,7 +77,7 @@ below:
        Domain Socket.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
-     - True
+     - False
      - Enable or disable start up diagnostic logging.
    * - ``DD_TRACE_SAMPLE_RATE``
      - Float
@@ -90,7 +94,7 @@ below:
        reply.
    * - ``DD_PROFILING_MAX_TIME_USAGE_PCT``
      - Float
-     - 2
+     - 1
      - The percentage of maximum time the stack profiler can use when computing
        statistics. Must be greater than 0 and lesser or equal to 100.
    * - ``DD_PROFILING_MAX_FRAMES``
@@ -116,3 +120,5 @@ below:
      -
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
+
+.. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

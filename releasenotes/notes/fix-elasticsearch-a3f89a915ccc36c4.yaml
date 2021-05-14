@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Set span error to 1 for 5xx status codes for elasticsearch.
+    elasticsearch: set span error for 5xx status codes.

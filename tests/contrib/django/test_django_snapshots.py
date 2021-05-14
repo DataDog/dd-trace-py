@@ -3,7 +3,8 @@ import os
 import django
 import pytest
 
-from tests import snapshot
+from tests.utils import snapshot
+
 
 pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
@@ -55,3 +56,15 @@ def test_middleware_trace_partial_based_view(client):
 )
 def test_safe_string_encoding(client):
     assert client.get("/safe-template/").status_code == 200
+
+
+@snapshot(
+    variants={
+        "18x": django.VERSION < (1, 9),
+        "111x": (1, 9) <= django.VERSION < (1, 12),
+        "21x": (1, 12) < django.VERSION < (2, 2),
+        "": django.VERSION >= (2, 2),
+    }
+)
+def test_404_exceptions(client):
+    assert client.get("/404-view/").status_code == 404

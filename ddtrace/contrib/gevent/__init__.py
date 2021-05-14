@@ -1,9 +1,18 @@
 """
 The gevent integration adds support for tracing across greenlets.
 
+
 The integration patches the gevent internals to add context management logic.
-It also configures the global tracer instance to use a gevent context
-provider to utilize the context management logic.
+
+.. note::
+    If you are using :ref:`ddtrace-run<ddtracerun>` and experiencing issues with
+    patching then set ``DD_GEVENT_PATCH_ALL=true`` and ``ddtrace`` will call
+    ``gevent.monkey.patch_all()`` as early as possible in your application to
+    avoid patching conflicts.
+
+
+The integration also configures the global tracer instance to use a gevent
+context provider to utilize the context management logic.
 
 If custom tracer instances are being used in a gevent application, then
 configure it with::
@@ -51,8 +60,9 @@ required_modules = ["gevent"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import patch
+        from .patch import unpatch
         from .provider import GeventContextProvider
-        from .patch import patch, unpatch
 
         context_provider = GeventContextProvider()
 

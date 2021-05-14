@@ -6,34 +6,51 @@ import sys
 import threading
 import weakref
 
-from ddtrace import compat
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
-from ddtrace.profiling import _nogevent
+import attr
+import six
+
+from ddtrace.internal import compat
+from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
+from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
 # module without having gevent crashing our dedicated thread.
 
 
-# Those are special features that might not be available depending on your Python version and platform
+# These are special features that might not be available depending on your Python version and platform
 FEATURES = {
     "cpu-time": False,
     "stack-exceptions": False,
+    "gevent-tasks": False,
 }
+
+
+_gevent_tracer = None
+try:
+    import gevent._tracer
+    import gevent.thread
+except ImportError:
+    _gevent_tracer = None
+else:
+    # NOTE: bold assumption: this module is always imported by the MainThread.
+    # A GreenletTracer is local to the thread instantiating it and we assume this is run by the MainThread.
+    _gevent_tracer = gevent._tracer.GreenletTracer()
+    FEATURES["gevent-tasks"] = True
+
 
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
 
-    from posix.time cimport timespec, clock_gettime
+    from posix.time cimport clock_gettime
+    from posix.time cimport timespec
     from posix.types cimport clockid_t
+
     from cpython.exc cimport PyErr_SetFromErrno
 
     cdef extern from "<pthread.h>":
@@ -150,20 +167,21 @@ class StackExceptionSampleEvent(event.StackBasedEvent):
 
 from cpython.object cimport PyObject
 
+
 # The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
 IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
     FEATURES['stack-exceptions'] = True
 
     from cpython cimport PyInterpreterState
-    from cpython cimport PyInterpreterState_Head, PyInterpreterState_Next
-    from cpython cimport PyInterpreterState_ThreadHead, PyThreadState_Next
-
-    from cpython.pythread cimport (
-        PyThread_acquire_lock, PyThread_release_lock,
-        WAIT_LOCK,
-        PyThread_type_lock,
-        PY_LOCK_ACQUIRED
-    )
+    from cpython cimport PyInterpreterState_Head
+    from cpython cimport PyInterpreterState_Next
+    from cpython cimport PyInterpreterState_ThreadHead
+    from cpython cimport PyThreadState_Next
+    from cpython.pythread cimport PY_LOCK_ACQUIRED
+    from cpython.pythread cimport PyThread_acquire_lock
+    from cpython.pythread cimport PyThread_release_lock
+    from cpython.pythread cimport PyThread_type_lock
+    from cpython.pythread cimport WAIT_LOCK
 
     cdef extern from "<Python.h>":
         # This one is provided as an opaque struct from Cython's cpython/pystate.pxd,
@@ -214,7 +232,27 @@ ELSE:
         PyObject* _PyThread_CurrentFrames()
 
 
-cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
+cdef get_task(thread_id):
+    """Return the task id and name for a thread."""
+    # gevent greenlet support:
+    # we only support tracing tasks in the greenlets are run in the MainThread.
+    if thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
+        if _gevent_tracer.active_greenlet is None:
+            # That means gevent never switch to another greenlet, we're still in the main one
+            task_id = compat.main_thread.ident
+        else:
+            task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
+
+        # Greenlets might be started as Thread in gevent
+        task_name = _threading.get_thread_name(task_id)
+    else:
+        task_id = None
+        task_name = None
+
+    return task_id, task_name
+
+
+cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
 
     IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 7:
@@ -270,14 +308,22 @@ cdef collect_threads(ignore_profiler, thread_time, thread_span_links) with gil:
             cpu_time,
         )
         for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
-        if not ignore_profiler or pthread_id not in _periodic.PERIODIC_THREADS
+        if pthread_id not in thread_id_ignore_list
     )
 
 
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
 
-    running_threads = collect_threads(ignore_profiler, thread_time, thread_span_links)
+    if ignore_profiler:
+        # Do not use `threading.enumerate` to not mess with locking (gevent!)
+        thread_id_ignore_list = {thread_id
+                                 for thread_id, thread in threading._active.items()
+                                 if getattr(thread, "_ddtrace_profiling_ignore", False)}
+    else:
+        thread_id_ignore_list = set()
+
+    running_threads = collect_threads(thread_id_ignore_list, thread_time, thread_span_links)
 
     if thread_span_links:
         # FIXME also use native thread id
@@ -287,12 +333,23 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     exc_events = []
 
     for thread_id, thread_native_id, thread_name, frame, exception, spans, cpu_time in running_threads:
+        task_id, task_name = get_task(thread_id)
+
+        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks
+        # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
+        # We ignore them here:
+        if task_id in thread_id_ignore_list:
+            continue
+
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+
         stack_events.append(
             StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
+                task_id=task_id,
+                task_name=task_name,
                 trace_ids=set(span.trace_id for span in spans),
                 span_ids=set(span.span_id for span in spans),
                 nframes=nframes, frames=frames,
@@ -310,6 +367,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     thread_id=thread_id,
                     thread_name=thread_name,
                     thread_native_id=thread_native_id,
+                    task_id=task_id,
+                    task_name=task_name,
                     nframes=nframes,
                     frames=frames,
                     sampling_period=int(interval * 1e9),
@@ -326,7 +385,7 @@ class _ThreadSpanLinks(object):
     # Keys is a thread_id
     # Value is a set of weakrefs to spans
     _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
-    _lock = attr.ib(factory=_nogevent.Lock, repr=False, init=False)
+    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False)
 
     def link_span(self, span):
         """Link a span to its running environment.
@@ -335,7 +394,7 @@ class _ThreadSpanLinks(object):
         """
         # Since we're going to iterate over the set, make sure it's locked
         with self._lock:
-            self._thread_id_to_spans[_nogevent.thread_get_ident()].add(weakref.ref(span))
+            self._thread_id_to_spans[nogevent.thread_get_ident()].add(weakref.ref(span))
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
@@ -402,13 +461,13 @@ class StackCollector(collector.PeriodicCollector):
     # no matter how fast the computer is.
     min_interval_time = attr.ib(factory=_default_min_interval_time, init=False)
 
-    max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
-    nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
+    max_time_usage_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
+    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
     tracer = attr.ib(default=None)
-    _thread_time = attr.ib(init=False, repr=False)
-    _last_wall_time = attr.ib(init=False, repr=False)
-    _thread_span_links = attr.ib(default=None, init=False, repr=False)
+    _thread_time = attr.ib(init=False, repr=False, eq=False)
+    _last_wall_time = attr.ib(init=False, repr=False, eq=False)
+    _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -422,10 +481,10 @@ class StackCollector(collector.PeriodicCollector):
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.on_start_span(self._thread_span_links.link_span)
 
-    def start(self):
+    def _start(self):
         # This is split in its own function to ease testing
         self._init()
-        super(StackCollector, self).start()
+        super(StackCollector, self)._start()
 
     def stop(self):
         super(StackCollector, self).stop()

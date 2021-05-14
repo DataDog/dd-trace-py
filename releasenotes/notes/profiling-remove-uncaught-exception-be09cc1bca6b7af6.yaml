@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The profiler does not catch uncaught exception anymore.

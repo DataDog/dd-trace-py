@@ -1,7 +1,12 @@
 import abc
-from ddtrace.vendor import six
 
-from .internal.context_manager import DefaultContextManager
+import six
+
+from .context import Context
+from .internal.compat import contextvars
+
+
+_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -13,16 +18,19 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     * the ``active`` method, that returns the current active ``Context``
     * the ``activate`` method, that sets the current active ``Context``
     """
+
     @abc.abstractmethod
     def _has_active_context(self):
         pass
 
     @abc.abstractmethod
     def activate(self, context):
+        # type: (Context) -> None
         pass
 
     @abc.abstractmethod
     def active(self):
+        # type: () -> Context
         pass
 
     def __call__(self, *args, **kwargs):
@@ -38,8 +46,10 @@ class DefaultContextProvider(BaseContextProvider):
     thread-local storage. It is suitable for synchronous programming and
     Python WSGI frameworks.
     """
-    def __init__(self, reset_context_manager=True):
-        self._local = DefaultContextManager(reset=reset_context_manager)
+
+    def __init__(self):
+        # type: () -> None
+        _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
         """
@@ -48,17 +58,25 @@ class DefaultContextProvider(BaseContextProvider):
         :returns: Whether we have an active context
         :rtype: bool
         """
-        return self._local._has_active_context()
+        ctx = _DD_CONTEXTVAR.get()
+        return ctx is not None
 
-    def activate(self, context):
+    def activate(self, ctx):
+        # type: (Context) -> None
         """Makes the given ``context`` active, so that the provider calls
         the thread-local storage implementation.
         """
-        return self._local.set(context)
+        _DD_CONTEXTVAR.set(ctx)  # type: ignore[arg-type]
 
     def active(self):
+        # type: () -> Context
         """Returns the current active ``Context`` for this tracer. Returned
         ``Context`` must be thread-safe or thread-local for this specific
         implementation.
         """
-        return self._local.get()
+        ctx = _DD_CONTEXTVAR.get()
+        if not ctx:
+            ctx = Context()
+            self.activate(ctx)
+
+        return ctx

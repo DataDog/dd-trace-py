@@ -7,13 +7,12 @@ import threading
 import time
 
 import pytest
-
-from ddtrace import compat
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import BaseHTTPServer
-from ddtrace.vendor.six.moves import http_client
+import six
+from six.moves import BaseHTTPServer
+from six.moves import http_client
 
 import ddtrace
+from ddtrace.internal import compat
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
@@ -371,6 +370,20 @@ def test_get_tags_override(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
     assert tags["version"] == b"123"
     assert tags["env"] == b"prod"
+
+    tags = http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
+    _check_tags_types(tags)
+    assert len(tags) == 11
+    assert tags["service"] == u"🤣".encode("utf-8")
+    assert len(tags["host"])
+    assert len(tags["runtime-id"])
+    assert tags["language"] == b"python"
+    assert tags["runtime"] == b"CPython"
+    assert tags["foobar"] == b"baz"
+    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["version"] == b"123"
+    assert tags["env"] == b"prod"
+    assert tags["mytag"] == b"123"
 
 
 def test_get_tags_legacy(monkeypatch):

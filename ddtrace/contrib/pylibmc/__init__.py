@@ -21,6 +21,7 @@
 
 from ...utils.importlib import require_modules
 
+
 required_modules = ['pylibmc']
 
 with require_modules(required_modules) as missing_modules:

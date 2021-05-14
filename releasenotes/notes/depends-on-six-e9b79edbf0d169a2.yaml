@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The `six` library has been removed from `vendor` and the system-wide version
+    is being used. It requires version 1.12.0 or later.

@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
+import pytest
+
 from ddtrace.profiling import event
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
-
-import pytest
 
 
 def test_defaultdictkey():

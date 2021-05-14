@@ -3,10 +3,10 @@ from starlette.middleware import Middleware
 from starlette.routing import Match
 
 from ddtrace import config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
-from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.internal.logger import get_logger
+from ddtrace.utils.wrappers import unwrap as _u
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
 log = get_logger(__name__)
@@ -59,9 +59,9 @@ def patch():
 
 
 def unpatch():
-    if getattr(starlette, "_datadog_patch", False):
+    if not getattr(starlette, "_datadog_patch", False):
         return
 
     setattr(starlette, "_datadog_patch", False)
 
-    _u("starlette.applications", "Starlette.__init__")
+    _u(starlette.applications.Starlette, "__init__")

@@ -1,11 +1,12 @@
-from ddtrace import config
-from ddtrace.vendor import wrapt
 import molten
 
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
+from .. import trace_utils
 from ... import Pin
 from ...utils.importlib import func_name
 
-from .. import trace_utils
 
 MOLTEN_ROUTE = "molten.route"
 
@@ -20,8 +21,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
 
 
 def trace_func(resource):
-    """Trace calls to function using provided resource name
-    """
+    """Trace calls to function using provided resource name"""
 
     @wrapt.function_wrapper
     def _trace_func(wrapped, instance, args, kwargs):
@@ -39,7 +39,7 @@ def trace_func(resource):
 
 
 class WrapperComponent(wrapt.ObjectProxy):
-    """ Tracing of components """
+    """Tracing of components"""
 
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
@@ -52,7 +52,7 @@ class WrapperComponent(wrapt.ObjectProxy):
 
 
 class WrapperRenderer(wrapt.ObjectProxy):
-    """ Tracing of renderers """
+    """Tracing of renderers"""
 
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
@@ -62,7 +62,7 @@ class WrapperRenderer(wrapt.ObjectProxy):
 
 
 class WrapperMiddleware(wrapt.ObjectProxy):
-    """ Tracing of callable functional-middleware """
+    """Tracing of callable functional-middleware"""
 
     def __call__(self, *args, **kwargs):
         func = self.__wrapped__.__call__
@@ -71,7 +71,7 @@ class WrapperMiddleware(wrapt.ObjectProxy):
 
 
 class WrapperRouter(wrapt.ObjectProxy):
-    """ Tracing of router on the way back from a matched route """
+    """Tracing of router on the way back from a matched route"""
 
     def match(self, *args, **kwargs):
         # catch matched route and wrap tracer around its handler and set root span resource
@@ -88,7 +88,10 @@ class WrapperRouter(wrapt.ObjectProxy):
             route.handler = trace_func(func_name(route.handler))(route.handler)
 
             # update root span resource while we know the matched route
-            resource = "{} {}".format(route.method, route.template,)
+            resource = "{} {}".format(
+                route.method,
+                route.template,
+            )
             root_span = pin.tracer.current_root_span()
             root_span.resource = resource
 

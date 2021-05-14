@@ -26,6 +26,14 @@ Global Configuration
 
    Default: ``"mysql"``
 
+.. py:data:: ddtrace.config.mysqldb["trace_fetch_methods"]
+
+   Whether or not to trace fetch methods.
+
+   Can also configured via the ``DD_MYSQLDB_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -57,10 +65,11 @@ https://mysqlclient.readthedocs.io/
 """
 from ...utils.importlib import require_modules
 
-required_modules = ['MySQLdb']
+
+required_modules = ["MySQLdb"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
 
-        __all__ = ['patch']
+        __all__ = ["patch"]

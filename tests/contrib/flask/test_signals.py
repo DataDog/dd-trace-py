@@ -1,6 +1,5 @@
-import mock
-
 import flask
+import mock
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import unpatch
@@ -15,7 +14,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
         #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
         # DEV: Version 0.9 doesn't have a patch version
-        if flask_version <= (0, 9) and signal_name == 'appcontext_tearing_down':
+        if flask_version <= (0, 9) and signal_name == "appcontext_tearing_down":
             return getattr(flask.signals, signal_name)
         return getattr(flask, signal_name)
 
@@ -24,7 +23,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             pass
 
         func = mock.Mock(signal, name=name)
-        func.__module__ = 'tests.contrib.flask'
+        func.__module__ = "tests.contrib.flask"
         func.__name__ = name
         return func
 
@@ -45,24 +44,22 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
     def signals(self):
         """Helper to get the signals for the current Flask version being tested"""
         signals = [
-            'request_started',
-            'request_finished',
-            'request_tearing_down',
-
-            'template_rendered',
-
-            'got_request_exception',
-            'appcontext_tearing_down',
+            "request_started",
+            "request_finished",
+            "request_tearing_down",
+            "template_rendered",
+            "got_request_exception",
+            "appcontext_tearing_down",
         ]
         # This signal was added in 0.11.0
         if flask_version >= (0, 11):
-            signals.append('before_render_template')
+            signals.append("before_render_template")
 
         # These were added in 0.10
         if flask_version >= (0, 10):
-            signals.append('appcontext_pushed')
-            signals.append('appcontext_popped')
-            signals.append('message_flashed')
+            signals.append("appcontext_pushed")
+            signals.append("appcontext_popped")
+            signals.append("message_flashed")
 
         return signals
 
@@ -74,7 +71,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         # DEV: We call `patch()` in `setUp`
         for signal_name in self.signals():
             signal = self.get_signal(signal_name)
-            receivers_for = getattr(signal, 'receivers_for')
+            receivers_for = getattr(signal, "receivers_for")
             self.assert_is_wrapped(receivers_for)
 
     def test_unpatch(self):
@@ -86,7 +83,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
 
         for signal_name in self.signals():
             signal = self.get_signal(signal_name)
-            receivers_for = getattr(signal, 'receivers_for')
+            receivers_for = getattr(signal, "receivers_for")
             self.assert_is_not_wrapped(receivers_for)
 
     def test_signals(self):
@@ -106,11 +103,11 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
 
             # Assert the span that was created
             span = spans[0]
-            self.assertEqual(span.service, 'flask')
-            self.assertEqual(span.name, 'tests.contrib.flask.{}'.format(signal_name))
-            self.assertEqual(span.resource, 'tests.contrib.flask.{}'.format(signal_name))
-            self.assertEqual(set(span.meta.keys()), set(['flask.signal', "runtime-id"]))
-            self.assertEqual(span.meta['flask.signal'], signal_name)
+            self.assertEqual(span.service, "flask")
+            self.assertEqual(span.name, "tests.contrib.flask.{}".format(signal_name))
+            self.assertEqual(span.resource, "tests.contrib.flask.{}".format(signal_name))
+            self.assertEqual(set(span.meta.keys()), set(["flask.signal", "runtime-id"]))
+            self.assertEqual(span.meta["flask.signal"], signal_name)
 
     def test_signals_multiple(self):
         """
@@ -119,8 +116,8 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
                 We create a span whenever that signal is sent
         """
         # Our signal handlers
-        request_started_a = self.signal_function('request_started_a')
-        request_started_b = self.signal_function('request_started_b')
+        request_started_a = self.signal_function("request_started_a")
+        request_started_b = self.signal_function("request_started_b")
 
         flask.request_started.connect(request_started_a, self.app)
         flask.request_started.connect(request_started_b, self.app)
@@ -141,19 +138,19 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
 
         # Assert the span that was created
         span_a = spans[0]
-        self.assertEqual(span_a.service, 'flask')
-        self.assertEqual(span_a.name, 'tests.contrib.flask.request_started_a')
-        self.assertEqual(span_a.resource, 'tests.contrib.flask.request_started_a')
-        self.assertEqual(set(span_a.meta.keys()), set(['flask.signal', "runtime-id"]))
-        self.assertEqual(span_a.meta['flask.signal'], 'request_started')
+        self.assertEqual(span_a.service, "flask")
+        self.assertEqual(span_a.name, "tests.contrib.flask.request_started_a")
+        self.assertEqual(span_a.resource, "tests.contrib.flask.request_started_a")
+        self.assertEqual(set(span_a.meta.keys()), set(["flask.signal", "runtime-id"]))
+        self.assertEqual(span_a.meta["flask.signal"], "request_started")
 
         # Assert the span that was created
         span_b = spans[1]
-        self.assertEqual(span_b.service, 'flask')
-        self.assertEqual(span_b.name, 'tests.contrib.flask.request_started_b')
-        self.assertEqual(span_b.resource, 'tests.contrib.flask.request_started_b')
-        self.assertEqual(set(span_b.meta.keys()), set(['flask.signal', "runtime-id"]))
-        self.assertEqual(span_b.meta['flask.signal'], 'request_started')
+        self.assertEqual(span_b.service, "flask")
+        self.assertEqual(span_b.name, "tests.contrib.flask.request_started_b")
+        self.assertEqual(span_b.resource, "tests.contrib.flask.request_started_b")
+        self.assertEqual(set(span_b.meta.keys()), set(["flask.signal", "runtime-id"]))
+        self.assertEqual(span_b.meta["flask.signal"], "request_started")
 
     def test_signals_pin_disabled(self):
         """

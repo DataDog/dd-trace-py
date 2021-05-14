@@ -1,10 +1,8 @@
 import asyncio
-
 from functools import wraps
 
 from ddtrace.contrib.asyncio import context_provider
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class AsyncioTestCase(TracerTestCase):

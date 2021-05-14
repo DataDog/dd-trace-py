@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Start-up logs are now disabled by default. To enable start-up logs use
+    `DD_TRACE_STARTUP_LOGS=true` or `DD_TRACE_DEBUG=true`.

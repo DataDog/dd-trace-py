@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import random
 import string
@@ -7,10 +8,15 @@ from unittest import TestCase
 import msgpack
 import pytest
 
+from ddtrace.internal.compat import msgpack_type
+from ddtrace.internal.compat import string_type
+from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.internal.encoding import JSONEncoderV2
+from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import _EncoderBase
+from ddtrace.span import Span
+from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
-from ddtrace.span import Span, SpanTypes
-from ddtrace.compat import msgpack_type, string_type
-from ddtrace.encoding import _EncoderBase, JSONEncoder, JSONEncoderV2, MsgpackEncoder
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -25,7 +31,11 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t, "span_name", resource="/fsdlajfdlaj/afdasd%s" % i, service="myservice", parent_id=parent_id,
+            t,
+            "span_name",
+            resource="/fsdlajfdlaj/afdasd%s" % i,
+            service="myservice",
+            parent_id=parent_id,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
@@ -81,10 +91,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -105,10 +121,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = JSONEncoder()
@@ -207,10 +229,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()
@@ -231,10 +259,16 @@ class TestEncoders(TestCase):
         # test encoding for MsgPack format
         traces = []
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
         traces.append(
-            [Span(name="client.testing", tracer=None), Span(name="client.testing", tracer=None),]
+            [
+                Span(name="client.testing", tracer=None),
+                Span(name="client.testing", tracer=None),
+            ]
         )
 
         encoder = MsgpackEncoder()
@@ -347,6 +381,8 @@ class SubFloat(float):
         (Span(None, "name"), {"int": SubInt(123)}),
         (Span(None, "name"), {"float": SubFloat(123.213)}),
         (Span(None, SubString("name")), {SubString("test"): SubString("test")}),
+        (Span(None, "name"), {"unicode": u"😐"}),
+        (Span(None, "name"), {u"😐": u"😐"}),
     ],
 )
 def test_span_types(span, tags):

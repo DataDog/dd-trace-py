@@ -2,8 +2,7 @@ from __future__ import absolute_import
 
 import threading
 
-from ddtrace.profiling import _nogevent
-from ddtrace.profiling import _periodic
+from ddtrace.internal import nogevent
 
 
 cpdef get_thread_name(thread_id):
@@ -13,22 +12,18 @@ cpdef get_thread_name(thread_id):
     # Therefore we special case the MainThread that way.
     # If native threads are started using gevent.threading, they will be inserted in threading._active
     # so we will find them normally.
-    if thread_id == _nogevent.main_thread_id:
+    if thread_id == nogevent.main_thread_id:
         return "MainThread"
 
-    # Try to look if this is one of our periodic threads
+    # We don't want to bother to lock anything here, especially with eventlet involved 😓. We make a best effort to
+    # get the thread name; if we fail, it'll just be an anonymous thread because it's either starting or dying.
     try:
-        return _periodic.PERIODIC_THREADS[thread_id].name
+        return threading._active[thread_id].name
     except KeyError:
-        # Since we own the GIL, we can safely run this and assume no change will happen,
-        # without bothering to lock anything
         try:
-            return threading._active[thread_id].name
+            return threading._limbo[thread_id].name
         except KeyError:
-            try:
-                return threading._limbo[thread_id].name
-            except KeyError:
-                return "Anonymous Thread %d" % thread_id
+            return None
 
 
 cpdef get_thread_native_id(thread_id):

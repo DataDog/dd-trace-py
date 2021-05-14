@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.44.0+
+
+Changelogs are now managed automatically by reno and located at https://ddtrace.readthedocs.io/en/stable/release_notes.html.
+
 ---
 
 ## 0.43.0 (5/10/2020)

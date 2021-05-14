@@ -1,9 +1,9 @@
 from falcon import testing
-import falcon as falcon
 
 import ddtrace
+from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from .app import get_app
 from .test_suite import FalconTestCase
 
@@ -19,11 +19,11 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     def setUp(self):
         super(AutoPatchTestCase, self).setUp()
 
-        self._service = 'my-falcon'
+        self._service = "my-falcon"
 
         # Since most integrations do `from ddtrace import tracer` we cannot update do `ddtrace.tracer = self.tracer`
         self.original_writer = ddtrace.tracer.writer
-        ddtrace.tracer.writer = self.tracer.writer
+        ddtrace.tracer.configure(writer=self.tracer.writer)
         self.tracer = ddtrace.tracer
 
         # build a test app without adding a tracer middleware;
@@ -31,9 +31,10 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         # uses it
         self.api = get_app(tracer=None)
 
-        self.version = falcon.__version__
-        if(self.version[0] != '1'):
+        if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
+        else:
+            self.client = self
 
     def tearDown(self):
         super(AutoPatchTestCase, self).tearDown()

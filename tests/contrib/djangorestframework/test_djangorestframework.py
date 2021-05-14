@@ -1,7 +1,7 @@
 import django
 import pytest
 
-from ... import assert_span_http_status_code
+from tests.utils import assert_span_http_status_code
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
@@ -19,7 +19,7 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     else:
         assert sp.resource == "GET tests.contrib.djangorestframework.app.views.UserViewSet"
     assert sp.error == 1
-    assert sp.span_type == "http"
+    assert sp.span_type == "web"
     assert_span_http_status_code(sp, 500)
     assert sp.get_tag("http.method") == "GET"
 

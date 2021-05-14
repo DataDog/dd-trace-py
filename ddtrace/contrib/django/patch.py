@@ -6,24 +6,34 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+from inspect import getmro
+from inspect import isclass
+from inspect import isfunction
 import sys
 
-from inspect import isclass, isfunction, getmro
+import six
 
-from ddtrace import config, Pin
-from ddtrace.vendor import debtcollector, six, wrapt
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib import func_name, dbapi
-from ddtrace.ext import http, sql as sqlx, SpanTypes
-from ddtrace.http import store_request_headers, store_response_headers
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import dbapi
+from ddtrace.contrib import func_name
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
+from ddtrace.ext import sql as sqlx
 from ddtrace.internal.logger import get_logger
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.utils import from_wsgi_header
-from ddtrace.utils.formats import asbool, get_env
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
+from ddtrace.vendor import debtcollector
+from ddtrace.vendor import wrapt
 
+from . import conf
+from . import utils
 from .. import trace_utils
-from .compat import get_resolver, user_is_authenticated
-from . import utils, conf
+from .compat import get_resolver
+from .compat import user_is_authenticated
 
 
 log = get_logger(__name__)
@@ -35,6 +45,7 @@ config._add(
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         database_service_name=get_env("django", "database_service_name", default=""),
+        trace_fetch_methods=asbool(get_env("django", "trace_fetch_methods", default=False)),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
         instrument_databases=True,
@@ -43,11 +54,15 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        use_handler_resource_format=get_env("django", "use_handler_resource_format", default=False),
+        use_handler_resource_format=asbool(get_env("django", "use_handler_resource_format", default=False)),
+        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
     ),
 )
 
-propagator = HTTPPropagator()
+
+# Set on patch, when django is imported
+Resolver404 = None
+DJANGO22 = None
 
 
 def patch_conn(django, conn):
@@ -74,50 +89,43 @@ def patch_conn(django, conn):
 
 
 def instrument_dbs(django):
-    def all_connections(wrapped, instance, args, kwargs):
-        conns = wrapped(*args, **kwargs)
-        for conn in conns:
-            try:
-                patch_conn(django, conn)
-            except Exception:
-                log.debug("Error instrumenting database connection %r", conn, exc_info=True)
-        return conns
+    def set_connection(wrapped, instance, args, kwargs):
+        _, conn = args
+        try:
+            patch_conn(django, conn)
+        except Exception:
+            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
+        return wrapped(*args, **kwargs)
 
-    if not isinstance(django.db.connections.all, wrapt.ObjectProxy):
-        django.db.connections.all = wrapt.FunctionWrapper(django.db.connections.all, all_connections)
+    if not isinstance(django.db.connections.__setitem__, wrapt.ObjectProxy):
+        django.db.connections.__setitem__ = wrapt.FunctionWrapper(django.db.connections.__setitem__, set_connection)
 
     if hasattr(django.db, "connection") and not isinstance(django.db.connection.cursor, wrapt.ObjectProxy):
         patch_conn(django, django.db.connection)
 
 
 def _set_request_tags(django, span, request):
-    span.set_tag("django.request.class", func_name(request))
-    span.set_tag(http.METHOD, request.method)
-
-    if django.VERSION >= (2, 2, 0):
-        headers = request.headers
-    else:
-        headers = {}
-        for header, value in request.META.items():
-            name = from_wsgi_header(header)
-            if name:
-                headers[name] = value
-
-    store_request_headers(headers, span, config.django)
+    span._set_str_tag("django.request.class", func_name(request))
 
     user = getattr(request, "user", None)
     if user is not None:
-        if hasattr(user, "is_authenticated"):
-            span.set_tag("django.user.is_authenticated", user_is_authenticated(user))
+        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
+        # Django's get_user_model():
+        # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+        try:
+            if hasattr(user, "is_authenticated"):
+                span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
 
-        uid = getattr(user, "pk", None)
-        if uid:
-            span.set_tag("django.user.id", uid)
+            uid = getattr(user, "pk", None)
+            if uid:
+                span._set_str_tag("django.user.id", str(uid))
 
-        if config.django.include_user_name:
-            username = getattr(user, "username", None)
-            if username:
-                span.set_tag("django.user.name", username)
+            if config.django.include_user_name:
+                username = getattr(user, "username", None)
+                if username:
+                    span._set_str_tag("django.user.name", username)
+        except Exception:
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
 
 
 @trace_utils.with_traced_module
@@ -130,11 +138,11 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-        span.set_tag("django.cache.backend", cache_backend)
+        span._set_str_tag("django.cache.backend", cache_backend)
 
         if args:
             keys = utils.quantize_key_values(args[0])
-            span.set_tag("django.cache.key", keys)
+            span._set_str_tag("django.cache.key", str(keys))
 
         return func(*args, **kwargs)
 
@@ -215,11 +223,14 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     return ret
 
 
-def traced_func(django, name, resource=None):
+def traced_func(django, name, resource=None, ignored_excs=None):
     """Returns a function to trace Django functions."""
 
     def wrapped(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(name, resource=resource):
+        with pin.tracer.trace(name, resource=resource) as s:
+            if ignored_excs:
+                for exc in ignored_excs:
+                    s._ignore_exception(exc)
             return func(*args, **kwargs)
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -268,7 +279,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             def wrapped_factory(func, instance, args, kwargs):
                 # r is the middleware handler function returned from the factory
                 r = func(*args, **kwargs)
-                return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
+                if r:
+                    return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
+                # If r is an empty middleware function (i.e. returns None), don't wrap since NoneType cannot be called
+                else:
+                    return r
 
             trace_utils.wrap(base, attr, wrapped_factory)
 
@@ -309,53 +324,59 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     if request is None:
         return func(*args, **kwargs)
 
-    try:
-        request_headers = request.META
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
 
-        if config.django.distributed_tracing_enabled:
-            context = propagator.extract(request_headers)
-            if context.trace_id:
-                pin.tracer.context_provider.activate(context)
+    with pin.tracer.trace(
+        "django.request",
+        resource=request.method,
+        service=trace_utils.int_service(pin, config.django),
+        span_type=SpanTypes.WEB,
+    ) as span:
+        span.metrics[SPAN_MEASURED_KEY] = 1
 
-        # Determine the resolver and resource name for this request
-        resolver = get_resolver(getattr(request, "urlconf", None))
+        analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
+        if analytics_sr is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-        if django.VERSION < (1, 10, 0):
-            error_type_404 = django.core.urlresolvers.Resolver404
-        else:
-            error_type_404 = django.urls.exceptions.Resolver404
+        # Set HTTP Request tags
+        response = func(*args, **kwargs)
 
-        route = None
-        resolver_match = None
-        resource = request.method
         try:
-            # Resolve the requested url and build resource name pieces
-            resolver_match = resolver.resolve(request.path_info)
-            handler, _, _ = resolver_match
-            handler = func_name(handler)
-            urlpattern = ""
-            resource_format = None
+            # Get resolver match result and build resource name pieces
+            resolver_match = request.resolver_match
+            if not resolver_match:
+                # The request quite likely failed (e.g. 404) so we do the resolution anyway.
+                resolver = get_resolver(getattr(request, "urlconf", None))
+                resolver_match = resolver.resolve(request.path_info)
+            handler = func_name(resolver_match[0])
 
             if config.django.use_handler_resource_format:
-                resource_format = "{method} {handler}"
+                span.resource = " ".join((span.resource, handler))
+            elif config.django.use_legacy_resource_format:
+                span.resource = handler
             else:
                 # In Django >= 2.2.0 we can access the original route or regex pattern
                 # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
-                if django.VERSION >= (2, 2, 0):
-                    route = utils.get_django_2_route(resolver, resolver_match)
-                    resource_format = "{method} {urlpattern}"
+                if DJANGO22:
+                    # Determine the resolver and resource name for this request
+                    route = utils.get_django_2_route(request, resolver_match)
+                    if route:
+                        span.resource = " ".join((request.method, route))
+                        span._set_str_tag("http.route", route)
                 else:
-                    resource_format = "{method} {handler}"
+                    span.resource = " ".join((request.method, handler))
 
-                if route is not None:
-                    urlpattern = route
+            span._set_str_tag("django.view", resolver_match.view_name)
+            utils.set_tag_array(span, "django.namespace", resolver_match.namespaces)
 
-            resource = resource_format.format(method=request.method, urlpattern=urlpattern, handler=handler)
+            # Django >= 2.0.0
+            if hasattr(resolver_match, "app_names"):
+                utils.set_tag_array(span, "django.app", resolver_match.app_names)
 
-        except error_type_404:
+        except Resolver404:
             # Normalize all 404 requests into a single resource name
             # DEV: This is for potential cardinality issues
-            resource = "{0} 404".format(request.method)
+            span.resource = " ".join((request.method, "404"))
         except Exception:
             log.debug(
                 "Failed to resolve request path %r with path info %r",
@@ -363,81 +384,66 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 getattr(request, "path_info", "not-set"),
                 exc_info=True,
             )
-    except Exception:
-        log.debug("Failed to trace django request %r", args, exc_info=True)
-        return func(*args, **kwargs)
-    else:
-        with pin.tracer.trace(
-            "django.request",
-            resource=resource,
-            service=trace_utils.int_service(pin, config.django),
-            span_type=SpanTypes.HTTP,
-        ) as span:
-            analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
-            if analytics_sr is not None:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-            if config.django.http.trace_query_string:
-                span.set_tag(http.QUERY_STRING, request_headers["QUERY_STRING"])
+        # Note: this call must be done after the function call because
+        # some attributes (like `user`) are added to the request through
+        # the middleware chain
+        _set_request_tags(django, span, request)
 
-            # Not a 404 request
-            if resolver_match:
-                span.set_tag("django.view", resolver_match.view_name)
-                utils.set_tag_array(span, "django.namespace", resolver_match.namespaces)
+        if response:
+            status = response.status_code
+            span._set_str_tag("django.response.class", func_name(response))
+            if hasattr(response, "template_name"):
+                # template_name is a bit of a misnomer, as it could be any of:
+                # a list of strings, a tuple of strings, a single string, or an instance of Template
+                # for more detail, see:
+                # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+                template = response.template_name
 
-                # Django >= 2.0.0
-                if hasattr(resolver_match, "app_names"):
-                    utils.set_tag_array(span, "django.app", resolver_match.app_names)
+                if isinstance(template, six.string_types):
+                    template_names = [template]
+                elif isinstance(
+                    template,
+                    (
+                        list,
+                        tuple,
+                    ),
+                ):
+                    template_names = template
+                elif hasattr(template, "template"):
+                    # ^ checking by attribute here because
+                    # django backend implementations don't have a common base
+                    # `.template` is also the most consistent across django versions
+                    template_names = [template.template.name]
+                else:
+                    template_names = None
 
-            if route:
-                span.set_tag("http.route", route)
+                utils.set_tag_array(span, "django.response.template", template_names)
 
-            # Set HTTP Request tags
-            span.set_tag(http.URL, utils.get_request_uri(request))
+            url = utils.get_request_uri(request)
 
-            response = func(*args, **kwargs)
+            if DJANGO22:
+                request_headers = request.headers
+            else:
+                request_headers = {}
+                for header, value in request.META.items():
+                    name = from_wsgi_header(header)
+                    if name:
+                        request_headers[name] = value
 
-            # Note: this call must be done after the function call because
-            # some attributes (like `user`) are added to the request through
-            # the middleware chain
-            _set_request_tags(django, span, request)
+            response_headers = dict(response.items())
+            trace_utils.set_http_meta(
+                span,
+                config.django,
+                method=request.method,
+                url=url,
+                status_code=status,
+                query=request.META.get("QUERY_STRING", None),
+                request_headers=request_headers,
+                response_headers=response_headers,
+            )
 
-            if response:
-                span.set_tag(http.STATUS_CODE, response.status_code)
-                if 500 <= response.status_code < 600:
-                    span.error = 1
-                span.set_tag("django.response.class", func_name(response))
-                if hasattr(response, "template_name"):
-                    # template_name is a bit of a misnomer, as it could be any of:
-                    # a list of strings, a tuple of strings, a single string, or an instance of Template
-                    # for more detail, see:
-                    # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
-                    template = response.template_name
-
-                    if isinstance(template, six.string_types):
-                        template_names = [template]
-                    elif isinstance(
-                        template,
-                        (
-                            list,
-                            tuple,
-                        ),
-                    ):
-                        template_names = template
-                    elif hasattr(template, "template"):
-                        # ^ checking by attribute here because
-                        # django backend implementations don't have a common base
-                        # `.template` is also the most consistent across django versions
-                        template_names = [template.template.name]
-                    else:
-                        template_names = None
-
-                    utils.set_tag_array(span, "django.response.template", template_names)
-
-                headers = dict(response.items())
-                store_response_headers(headers, span, config.django)
-
-            return response
+        return response
 
 
 @trace_utils.with_traced_module
@@ -451,10 +457,10 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
         if template_name:
-            span.set_tag("django.template.name", template_name)
+            span._set_str_tag("django.template.name", template_name)
         engine = getattr(instance, "engine", None)
         if engine:
-            span.set_tag("django.template.engine.class", func_name(engine))
+            span._set_str_tag("django.template.engine.class", func_name(engine))
 
         return wrapped(*args, **kwargs)
 
@@ -512,7 +518,9 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+        view = wrapt.FunctionWrapper(
+            view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
+        )
     return view
 
 
@@ -577,8 +585,17 @@ def _patch(django):
 
 
 def patch():
+    global Resolver404, DJANGO22
+
     # DEV: this import will eventually be replaced with the module given from an import hook
     import django
+
+    if django.VERSION < (1, 10, 0):
+        Resolver404 = django.core.urlresolvers.Resolver404
+    else:
+        Resolver404 = django.urls.exceptions.Resolver404
+
+    DJANGO22 = django.VERSION >= (2, 2, 0)
 
     if getattr(django, "_datadog_patch", False):
         return
@@ -589,8 +606,8 @@ def patch():
 
 def _unpatch(django):
     trace_utils.unwrap(django.apps.registry.Apps, "populate")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "lotrace_utils.ad_middleware")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "getrace_utils.t_response")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "load_middleware")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response")
     trace_utils.unwrap(django.template.base.Template, "render")
     trace_utils.unwrap(django.conf.urls.static, "static")
     trace_utils.unwrap(django.conf.urls, "url")
