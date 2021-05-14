@@ -74,29 +74,35 @@ and losing time.
 How-to: Write an Integration
 ============================
 
-First off, thank you for writing a new integration! The best way to get started
-writing a new integration is to refer to existing integrations. Looking at
-a similarly themed library or framework is a great starting point. For example,
-to write a new integration for ``memcached`` we might refer to the existing
-``redis`` integration as a starting point since both of these would generate
-similar spans.
+An integration should provide concise, insightful data about the library or
+framework that will aid developers in monitor their application's health and
+performance.
 
-The focal point of an integration is to provide concise, insightful information
-about the library or framework that'll be useful for developers to monitor their
-application's health and performance.
+The best way to get started writing a new integration is to refer to existing
+integrations. Looking at a similarly themed library or framework is a great
+starting point. To write a new integration for ``memcached`` we might refer to
+the existing ``redis`` integration as a starting point since both of these
+would generate similar spans.
 
-  **Notes**:
-    - Every integration must be defined in it's own folder in `ddtrace/contrib <https://github.com/DataDog/dd-trace-py/tree/master/ddtrace/contrib>`_ and contain an ``__init__.py`` file.
+The development process looks like this:
 
-       - ``__init__`` file should also contain information about configuring the integration manually as well as automatically e.g: `flask init file <https://github.com/DataDog/dd-trace-py/blob/master/ddtrace/contrib/flask/__init__.py>`_ , `asgi init file <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/ddtrace/contrib/asgi/__init__.py>`_.
+  - Research the library or framework that is to be instrumented. Reading
+    through its docs and code examples will reveal what APIs are meaningful to
+    instrument.
 
-    - For automatic instrumentation: each integration module must have a ``patch()`` and ``unpatch()`` method. These are used to enable and disable integration.
+  - Copy the skeleton module provided in ``templates/integration`` and replace
+    ``foo`` with the integration name. The integration name typically matches
+    the library or framework being instrumented::
 
-       - **For example**: `sanic automatic instrumentation <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/ddtrace/contrib/sanic/patch.py>`_.
+      cp -r templates/integration ddtrace/contrib/<integration>
 
-    - For manual instrumentation integration: check out this `asgi Tracemiddleware() example <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/ddtrace/contrib/asgi/middleware.py>`_.
+  - Create a test file for the integration under
+    ``tests/contrib/<integration>/test_<integration>.py``.
 
-There are a number of things to keep in mind while writing an integration:
+  - Write the integration (see more on this below).
+
+  - Open up a draft PR using the `integration checklist
+    <https://github.com/DataDog/dd-trace-py/.github/PULL_REQUEST_TEMPLATE/integration.md>`.
 
 
 Integration Fundamentals
@@ -115,34 +121,32 @@ All integrations live in ``ddtrace/contrib/`` and contain at least two files,
 It is preferred to keep as much code as possible in ``patch.py``.
 
 
-Preserving Behaviour
-~~~~~~~~~~~~~~~~~~~~
-
-The most important aspect of the integration should be that it interferes
-in no way with the expected behaviour of library or application. Close attention
-should be paid to CPU and memory usage of the integration. It is also unacceptable
-for the integration to raise unhandled exceptions since these would surely crash
-or alter application.
-
-
 Pin API
 ~~~~~~~
+
 The Pin API is used to configure the instrumentation at run-time. This includes
 enabling and disabling the instrumentation and overriding the service name.
 
 
 Library Support
 ~~~~~~~~~~~~~~~
-``ddtrace`` tries to support as many active versions of a library as possible.
-Because of this, it can become tricky to instrument a library due to changing
-features and APIs.
 
-For tricky libraries it's recommended to pull out the version of the library to
-use when instrumenting volatile features. A great example of this is the Flask
-integration:
+``ddtrace`` tries to support as many active versions of a library as possible.
+The general rule is:
+
+  - If the integration depends on internals of the library then test every
+    minor version going back 2 years.
+
+  - Else test each major version going back 2 years.
+
+
+For libraries with many versions it is recommended to pull out the version of
+the library to use when instrumenting volatile features. A great example of
+this is the Flask integration:
 
     - pulling out the version: `flask version <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L45-L58>`_
     - using it to instrument a later-added feature `flask version usage <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask/patch.py#L149-L151>`_
+
 
 Exceptions/Errors
 ~~~~~~~~~~~~~~~~~
@@ -156,19 +160,19 @@ dealing with exceptions in ``ddtrace``:
       application, so exceptions must be re-raised. See the `bottle exception handling <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/bottle/trace.py#L50-L69>`_
       instrumentation for an example.
 
-    - Gathering relevant information: exceptions usually contain a lot of
-      relevant information for tracking down a bug. ``ddtrace`` provides
-      a helper for pulling out this information and adding it to a span.
-      See the `cassandra exception handling <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/cassandra/session.py#L117-L122>`_
+    - Gathering relevant information: ``ddtrace`` provides a helper for pulling
+      out this information and adding it to a span.  See the `cassandra
+      exception handling
+      <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/cassandra/session.py#L117-L122>`_
       instrumentation for an example.
+
 
 Distributed Tracing
 ~~~~~~~~~~~~~~~~~~~
 
-Some integrations pass information across application boundaries to other
-applications where the request is continued. Datadog and ``ddtrace`` provide
-support for continuing a trace in another application. Distributed tracing only makes
-sense for libraries that send or receive requests across application boundaries.
+Some integrations can propagate a trace across application boundaries to other
+applications where the trace is continued. Datadog and ``ddtrace`` provide
+support for continuing a trace in another application.
 
     - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/requests/connection.py#L85-L88>`_
     - Receiving a propagated trace example: `Django <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/django/middleware.py#L116-L121>`_
@@ -176,8 +180,8 @@ sense for libraries that send or receive requests across application boundaries.
 
 Web frameworks
 ++++++++++++++
-Web frameworks centre around web requests and hence so does the tracing. A
-web framework integration must do the following if possible:
+
+A web framework integration must do the following if possible:
 
     - Trace the duration of the request.
     - Report HTTP status codes.
@@ -194,6 +198,7 @@ Some example web framework integrations::
 
 Database libraries
 ++++++++++++++++++
+
 ``ddtrace`` already provides base instrumentation for the Python database API
 (PEP 249) which most database client libraries implement in the
 `ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/dbapi/__init__.py>`_
@@ -204,8 +209,11 @@ Check out some of our existing database integrations for how to use the `dbapi`:
     - `psycopg <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/psycopg>`_
     - `mysql <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/mysql>`_
 
+
 Testing
 +++++++
+
+The tests must be defined in its own module in ``tests/contrib/<integration>/``.
 
 Testing is the most important part of the integration. We have to be certain
 that the integration:
@@ -215,57 +223,13 @@ that the integration:
     2) is invisible: does not impact the library or application by disturbing state,
        performance or raising exceptions
 
-  *Notes*:
-    - Each integration tests must be defined in it's own folder in ``ddtrace/tests/contrib/{module}/``.
-
-Testing integrations is hard. There are often many versions of the library to go
-along with the different versions of Python.
-
-
-Testing checklist (with the ``redis`` integration as an example):
-
-    - [ ] `tox.ini configuration <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/tox.ini#L97>`_
-    - [ ] `docker-compose.yml configuration (if applicable) <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/docker-compose.yml#L37-L40>`_
-    - [ ] `.circleci/config.yml <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/.circleci/config.yml#L614-L624>`_
-    - [ ] Integration is configurable and all the configuration options are
-      hooked up and functional
-    - [ ] Spans contain meaningful/correct data
-
-        **Note**:
-          - By default, ``query_string`` is not shown unless user defines in the configuration e.g: `example <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/ddtrace/contrib/sanic/patch.py#L27>`_.
-
-    - [ ] No uncaught exceptions are raised from the integration: 
-          - `sanic_ <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/tests/contrib/sanic/test_sanic.py#L43>`_ && `asgi_ <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/tests/contrib/asgi/test_asgi.py#L56>`_ examples.
-
-    - [ ] Distributed tracing (if applicable):
-          - `sanic example <https://github.com/DataDog/dd-trace-py/blob/sadip/sanic2/tests/contrib/sanic/test_sanic.py#L100>`_ && `asgi example <https://github.com/DataDog/dd-trace-py/blob/majorgreys-sadipgiri/asgi/tests/contrib/asgi/test_asgi.py#L176>`_
-
-
-Docs
-++++
-
-There is `ddtrace-py api documentation <http://pypi.datadoghq.com/trace/docs/>`_ where we add information about supported libraries with versions as well as other integration notes. 
-After adding new integration, you could add info about the integration by updating ``docs`` folder within ``ddtrace-py`` repo. 
-
-  *For instance*: if you are adding new web framework integration, update two ``docs`` files such as:
-
-  - `docs/index.rst <https://github.com/DataDog/dd-trace-py/blob/master/docs/index.rst>`_
-
-  - `docs/web_integrations.rst <https://github.com/DataDog/dd-trace-py/blob/master/docs/web_integrations.rst>`_
-
-    **For example**: this is how we did on adding ``asgi`` && ``sanic`` info on docs:
-
-      - `sanic <https://github.com/DataDog/dd-trace-py/pull/1572/commits/e40834e97c498bdae84e774b6aeab5d17b881090>`_
-      - `asgi <https://github.com/DataDog/dd-trace-py/pull/1567/files#diff-caf2a6b8f4947d018f68893c695b5202>`_ 
-
 
 Trace Examples
 ++++++++++++++
 
-Optional! But it would be great if you have a sample app that you could add to `trace examples repository <https://github.com/Datadog/trace-examples>`_ along with screenshots of some example traces in the PR description.
+Optional! But it would be great if you have a sample app that you could add to
+`trace examples repository <https://github.com/Datadog/trace-examples>`_ along
+with screenshots of some example traces in the PR description.
 
-**For example**:
-  - `ASGI integration example app <https://github.com/DataDog/trace-examples/tree/master/python/asgi>`_
-  - `Sanic Integration example app <https://github.com/DataDog/trace-examples/tree/master/python/sanic>`_
-
-  *Note*: this will be helpful to quickly spin up example app to test as well as see how traces look like for that integration you added.
+These applications are helpful to quickly spin up example app to test as well
+as see how traces look like for that integration you added.

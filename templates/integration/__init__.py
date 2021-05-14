@@ -2,8 +2,10 @@
 The foo integration instruments the bar and baz features of the
 foo library.
 
+
 Enabling
 ~~~~~~~~
+
 The foo integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
 
@@ -24,6 +26,7 @@ Global Configuration
    variable.
 
    Default: ``"foo"``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~

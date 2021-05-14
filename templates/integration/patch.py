@@ -2,7 +2,7 @@ from ddtrace import config
 
 
 config._add("foo", {
-    "distributed_tracing": True
+    "distributed_tracing": True,
 })
 
 
