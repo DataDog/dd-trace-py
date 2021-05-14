@@ -4,7 +4,11 @@ prelude: >
     active span management out of this class.
 deprecations:
   - |
+    ``Context.clone`` is deprecated. It will not be required in 0.50.
+  - |
     ``Context.add_span`` is deprecated and will be removed in 0.50.
+  - |
+    `Context.add_span` is deprecated and will be removed in 0.50.
   - |
     ``Context.close_span`` is deprecated and will be removed in 0.50.
   - |
