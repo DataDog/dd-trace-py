@@ -45,6 +45,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         )
 
     def do_POST(self):
+        assert self.path.startswith("/profiling/v")
         api_key = self.headers["DD-API-KEY"]
         if api_key != _API_KEY:
             self.send_error(400, "Wrong API Key")
@@ -210,6 +211,12 @@ def test_export_404_agentless(endpoint_test_unknown_server):
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "HTTP Error 404"
+
+
+def test_export_tracer_base_path(endpoint_test_server):
+    # Base path is ignored by the profiling HTTP exporter
+    exp = http.PprofHTTPExporter(_ENDPOINT + "/test/", _API_KEY)
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def _check_tags_types(tags):
