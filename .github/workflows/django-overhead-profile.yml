@@ -44,7 +44,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: P403n1x87/austin
-          ref: d28108ac30d67c9eb4375e52e93dd0fcf0e75a0d
+          ref: b029cb7728783cc1035a032c9689f272e6ca2de6
           path: austin
 
       - name: Compile Austin on Linux
@@ -56,7 +56,7 @@ jobs:
       - name: Install diff tool dependencies
         run: |
           pip install rich
-          pip install austin-python==0.3.2
+          pip install git+git://github.com/p403n1x87/austin-python.git@acf3f3d3263a583c30f5c95e4b3ad337a6793aa3
 
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
@@ -64,18 +64,17 @@ jobs:
           mkdir artifacts
           DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py -k base &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.ddtrace.austin -p $!
+          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o artifacts/django_base.ddtrace.austin -sp $!
 
           tests/runtests.py -k base &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -o artifacts/django_base.austin -p $!
+          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o artifacts/django_base.austin -sp $!
 
       - name: Compute diff
         run: |
           cd artifacts
-          python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py django_base.ddtrace.austin django_base.austin > django_base.diff.austin
-          python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py -T django_base.ddtrace.austin django_base.austin > django_base.diff.top
-          cat django_base.diff.top
+          python $GITHUB_WORKSPACE/ddtrace/scripts/diff.py django_base.ddtrace.austin django_base.austin -o django_base.diff
+          head -n 25 django_base.diff.top
           austin2pprof django_base.diff.austin django_base.diff.pprof
           ls -alh
           cd -

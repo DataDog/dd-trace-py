@@ -1,19 +1,20 @@
-import sys
 from argparse import ArgumentParser
 from io import StringIO
 from itertools import product
-from typing import List, TextIO, Tuple
+import sys
+from typing import List
+from typing import TextIO
+from typing import Tuple
 
-from austin.stats import (
-    ZERO,
-    AustinStats,
-    Frame,
-    InvalidSample,
-    Metrics,
-    Sample,
-)
+from austin.stats import AustinStats
+from austin.stats import Frame
+from austin.stats import InvalidSample
+from austin.stats import Metrics
+from austin.stats import Sample
+from austin.stats import ZERO
 from rich.console import Console
 from rich.progress import track
+
 
 FoldedStack = List[Frame]
 CONSOLE = Console(file=sys.stderr)
@@ -63,16 +64,13 @@ def _match(x: List[FoldedStack], y: List[FoldedStack], threshold: float = 0.5) -
     return matches
 
 
-def diff(a: TextIO, b: TextIO, threshold: float = 1e-3, top: bool = False) -> str:
+def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
     """Compare stacks and return a - b.
 
     The algorithm attempts to match stacks that look similar and returns
     only positive time differences (that is, stacks of b that took longer
     than those in a are not reported), plus any new stacks that are not in
     b.
-
-    The return value is a string with collapsed stacks followed by the delta
-    of the metrics on each line.
     """
 
     def compressed(source: TextIO) -> str:
@@ -84,6 +82,8 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3, top: bool = False) -> st
             console=CONSOLE,
             transient=True,
         ):
+            if line.startswith("# "):
+                continue
             stats.update(Sample.parse(line))
 
         buffer = StringIO()
@@ -134,38 +134,39 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3, top: bool = False) -> st
         delta = m.time / tb
         stacks.append((f, delta))
 
-    if top:
-        top_map = {}
+    top_map = {}
 
-        def _k(f):
-            return "%s (%s)" % (
-                "%s:%d" % (f.function, f.line) if f.function[0] == "<" else f.function,
-                f.filename,
-            )
-
-        for fs, delta in stacks:
-            seen_fs = set()
-            for f in fs:
-                key = _k(f)
-                if key in seen_fs:
-                    continue
-                top_map.setdefault(key, {"own": 0, "total": 0})["total"] += delta
-                seen_fs.add(key)
-            if fs:
-                top_map[key]["own"] += delta
-
-        return "\n".join(
-            [
-                "{:6.2f}%  {:6.2f}%  {}".format(v["total"] * 100, v["own"] * 100, f)
-                for f, v in sorted(
-                    ((k, v) for k, v in top_map.items()),
-                    key=lambda e: e[1]["own"],
-                    reverse=True,
-                )[:25]
-            ]
+    def _k(f):
+        return "%s (%s)" % (
+            "%s:%d" % (f.function, f.line) if f.function[0] == "<" else f.function,
+            f.filename,
         )
 
-    return "\n".join([";".join(["P0", "T0"] + [str(_) for _ in f]) + " %d" % int(delta * 1e8) for f, delta in stacks])
+    for fs, delta in stacks:
+        seen_fs = set()
+        for f in fs:
+            key = _k(f)
+            if key in seen_fs:
+                continue
+            top_map.setdefault(key, {"own": 0, "total": 0})["total"] += delta
+            seen_fs.add(key)
+        if fs:
+            top_map[key]["own"] += delta
+
+    top = "\n".join(
+        [
+            "{:6.2f}%  {:6.2f}%  {}".format(v["total"] * 100, v["own"] * 100, f)
+            for f, v in sorted(
+                ((k, v) for k, v in top_map.items()),
+                key=lambda e: e[1]["own"],
+                reverse=True,
+            )
+        ]
+    )
+
+    stacks = "\n".join([";".join(["P0", "T0"] + [str(_) for _ in f]) + " %d" % int(delta * 1e8) for f, delta in stacks])
+
+    return top, stacks
 
 
 def main() -> None:
@@ -192,13 +193,6 @@ def main() -> None:
         help="The output file",
     )
     argp.add_argument(
-        "-T",
-        "--top",
-        action="store_true",
-        default=False,
-        help="Give a top-like result instead of folded stacks",
-    )
-    argp.add_argument(
         "-t",
         "--threshold",
         type=float,
@@ -215,12 +209,15 @@ def main() -> None:
     args = argp.parse_args()
 
     with open(args.a) as a, open(args.b) as b:
-        result = diff(a, b, threshold=args.threshold, top=args.top)
+        top, stacks = diff(a, b, threshold=args.threshold)
         if args.output is not None:
-            with open(args.output, "w") as fout:
-                fout.write(result)
+            with open(args.output + ".austin", "w") as fout:
+                fout.write(stacks)
+            with open(args.output + ".top", "w") as fout:
+                fout.write(top)
         else:
-            print(result)
+            print(top)
+            print(stacks)
 
 
 if __name__ == "__main__":
