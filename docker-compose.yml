@@ -25,8 +25,6 @@ services:
             - POSTGRES_DB=postgres
         ports:
             - "127.0.0.1:5432:5432"
-    version: '3.1'
-
     mariadb:
         image: mariadb
         environment:
@@ -36,7 +34,6 @@ services:
             - MYSQL_PASSWORD=test
         ports:
             - "127.0.0.1:3306:3306"
-
     mysql:
         image: mysql:5.7
         environment:
@@ -150,6 +147,12 @@ services:
         volumes:
           - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
           - "/var/run/docker.sock:/var/run/docker.sock"
+
+    httpbin_local:
+      image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+      ports:
+        - "127.0.0.1:8001:80"
+
 
 volumes:
     ddagent:

@@ -795,18 +795,13 @@ venv = Venv(
         ),
         Venv(
             name="mariadb",
-            command="pytest {cmdargs} tests/contrib/mariadb",
+            command="python -m pytest {cmdargs} tests/contrib/mariadb",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="1.0.6"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "pymongo": [
-                            ">=1.0.0,<1.0.1",
-                            ">=1.0.1,<1.0.2",
-                            ">=1.0.2,<1.0.3",
-                            ">=1.0.3,<1.0.4",
-                            ">=1.0.4,<1.0.5",
-                            ">=1.0.5,<1.0.6",
+                        "mariadb": [
+                            ">=1.0.0,<1.1.0",
                             latest,
                         ],
                     },
