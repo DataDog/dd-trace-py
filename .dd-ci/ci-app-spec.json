@@ -12,8 +12,12 @@
   "git.commit.sha",
   "git.repository.url",
   "git.tag",
+  "pytest.result",
+  "pytest.xfail.reason",
   "test.framework",
   "test.name",
+  "test.skip_reason",
+  "test.status",
   "test.suite",
   "test.type"
 ]
