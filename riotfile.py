@@ -666,7 +666,7 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
-                "werkzeug": "<2.0",
+                "werkzeug": "<1.0",
             },
             venvs=[
                 Venv(
