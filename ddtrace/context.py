@@ -1,12 +1,11 @@
 import threading
-from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
-from typing import Tuple
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
+from .utils.deprecation import deprecated
 from .utils.formats import asbool
 from .utils.formats import get_env
 
@@ -50,14 +49,13 @@ class Context(object):
         :param int trace_id: trace_id of parent span
         :param int span_id: span_id of parent span
         """
-        self._trace = []  # type: List[Span]
-        self._finished_spans = 0
         self._current_span = None  # type: Optional[Span]
         self._lock = threading.Lock()
 
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
         self._sampling_priority = sampling_priority
+        self._local_root_span = None  # type: Optional[Span]
         self.dd_origin = dd_origin
 
     @property
@@ -85,12 +83,8 @@ class Context(object):
         with self._lock:
             self._sampling_priority = value
 
-    def clone(self):
+    def _clone(self):
         # type: () -> Context
-        """
-        Partially clones the current context.
-        It copies everything EXCEPT the registered and finished spans.
-        """
         with self._lock:
             new_ctx = Context(
                 trace_id=self._parent_trace_id,
@@ -100,13 +94,34 @@ class Context(object):
             new_ctx._current_span = self._current_span
             return new_ctx
 
+    @deprecated("Cloning contexts will no longer be required in 0.50", version="0.50")
+    def clone(self):
+        # type: () -> Context
+        """
+        Partially clones the current context.
+        It copies everything EXCEPT the registered and finished spans.
+        """
+        return self._clone()
+
+    def _get_current_root_span(self):
+        # type: () -> Optional[Span]
+        with self._lock:
+            return self._local_root_span
+
+    @deprecated("Please use tracer.current_root_span() instead", version="0.50")
     def get_current_root_span(self):
         # type: () -> Optional[Span]
         """
         Return the root span of the context or None if it does not exist.
         """
-        return self._trace[0] if len(self._trace) > 0 else None
+        return self._get_current_root_span()
 
+    def _get_current_span(self):
+        # type: () -> Optional[Span]
+        with self._lock:
+            return self._current_span
+
+    @deprecated("Please use tracer.current_span() instead", version="0.50")
     def get_current_span(self):
         # type: () -> Optional[Span]
         """
@@ -115,8 +130,7 @@ class Context(object):
         span in asynchronous environments, because some spans can be closed
         earlier while child spans still need to finish their traced execution.
         """
-        with self._lock:
-            return self._current_span
+        return self._get_current_span()
 
     def _set_current_span(self, span):
         # type: (Optional[Span]) -> None
@@ -132,78 +146,61 @@ class Context(object):
         else:
             self._parent_span_id = None
 
-    def add_span(self, span):
+    def _add_span(self, span):
         # type: (Span) -> None
-        """
-        Add a span to the context trace list, keeping it as the last active span.
-        """
         with self._lock:
+            # Assume the first span added to the context is the local root
+            if self._local_root_span is None:
+                self._local_root_span = span
             self._set_current_span(span)
-            self._trace.append(span)
             span._context = self
 
-    def close_span(self, span):
-        # type: (Span) -> Tuple[Optional[List[Span]], Optional[bool]]
-        """
-        Mark a span as a finished, increasing the internal counter to prevent
-        cycles inside _trace list.
-        """
+    @deprecated("Context will no longer support active span management in a later version.", version="0.50")
+    def add_span(self, span):
+        # type: (Span) -> None
+        """Activates span in the context."""
+        return self._add_span(span)
+
+    def _close_span(self, span):
+        # type: (Span) -> None
         with self._lock:
-            self._finished_spans += 1
+            if span == self._local_root_span:
+                if self.dd_origin is not None:
+                    span.meta[ORIGIN_KEY] = self.dd_origin
+                if self._sampling_priority is not None:
+                    span.metrics[SAMPLING_PRIORITY_KEY] = self._sampling_priority
 
-            # Safe-guard: prevent the last current span from being set to the parent
-            # of any span but the top-level span.
-            # The situation this avoids is when a parent closes before a child
-            # and the child is the last to close in the trace. When this happens
-            # the current_span would otherwise be set to the child's parent which
-            # has already closed. The context will be reset but the current_span
-            # will still point to that child's parent which would cause subsequent
-            # spans to be parented incorrectly.
-            if self._finished_spans != len(self._trace) or span == self._trace[0]:
+            # If a parent exists to the closing span and it is unfinished, then
+            # activate it next.
+            if span._parent and not span._parent.finished:
                 self._set_current_span(span._parent)
-
-            if self._finished_spans == len(self._trace):
-                # get the trace
-                trace = self._trace
-                sampled = self._is_sampled()
-                sampling_priority = self._sampling_priority
-                # attach the sampling priority to the context root span
-                if sampled and sampling_priority is not None and trace:
-                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                origin = self.dd_origin
-                # attach the origin to the root span tag
-                if sampled and origin is not None and trace:
-                    trace[0].meta[ORIGIN_KEY] = str(origin)
-
-                # clean the current state
-                self._trace = []
-                self._finished_spans = 0
+            # Else if the span is the local root of this context, then clear the
+            # context so the next trace can be started.
+            elif span == self._local_root_span:
+                self._set_current_span(span._parent)
+                self._local_root_span = None
                 self._parent_trace_id = None
                 self._parent_span_id = None
                 self._sampling_priority = None
-                return trace, sampled
-            elif self._partial_flush_enabled:
-                finished_spans = [t for t in self._trace if t.finished]
-                if len(finished_spans) >= self._partial_flush_min_spans:
-                    # partial flush when enabled and we have more than the minimal required spans
-                    trace = self._trace
-                    sampled = self._is_sampled()
-                    sampling_priority = self._sampling_priority
-                    # attach the sampling priority to the context root span
-                    if sampled and sampling_priority is not None and trace:
-                        trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                    origin = self.dd_origin
-                    # attach the origin to the root span tag
-                    if sampled and origin is not None and trace:
-                        trace[0].meta[ORIGIN_KEY] = str(origin)
+            # Else the span that is closing is closing after its parent.
+            # This is most likely an error. To ensure future traces are not
+            # affected clear out the context and set the current span to
+            # ``None``.
+            else:
+                log.debug(
+                    "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+                )
+                self._set_current_span(None)
+                self._local_root_span = None
+                self._parent_trace_id = None
+                self._parent_span_id = None
+                self._sampling_priority = None
 
-                    self._finished_spans = 0
+    @deprecated(message="Context will no longer support active span management in a later version.", version="0.50")
+    def close_span(self, span):
+        # type: (Span) -> None
+        """Updates the context after a span has finished.
 
-                    # Any open spans will remain as `self._trace`
-                    # Any finished spans will get returned to be flushed
-                    self._trace = [t for t in self._trace if not t.finished]
-                    return finished_spans, sampled
-            return None, None
-
-    def _is_sampled(self):
-        return any(span.sampled for span in self._trace)
+        The next active span becomes `span`'s parent.
+        """
+        return self._close_span(span)

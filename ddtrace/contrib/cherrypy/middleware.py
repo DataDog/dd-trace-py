@@ -13,9 +13,9 @@ from cherrypy.lib.httputil import valid_status
 from ddtrace import config
 
 from .. import trace_utils
-from ... import compat
 from ...ext import SpanTypes
 from ...ext import errors
+from ...internal import compat
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 

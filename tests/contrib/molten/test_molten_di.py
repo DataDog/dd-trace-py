@@ -78,7 +78,7 @@ class AccountsComponent:
 
 
 class TestMoltenDI(TracerTestCase):
-    """"Ensures Molten dependency injection is properly instrumented."""
+    """Ensures Molten dependency injection is properly instrumented."""
 
     TEST_SERVICE = "molten-patch-di"
 

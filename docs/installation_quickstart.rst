@@ -23,6 +23,18 @@ Install with :code:`pip`::
 
     It is strongly suggested to pin the version of the library you deploy.
 
+
+Installation on Alpine
+~~~~~~~~~~~~~~~~~~~~~~
+
+Binary distributions are not available for Alpine so build dependencies must be installed first.
+
+.. code-block:: bash
+
+    apk add gcc musl-dev linux-headers
+    pip install ddtrace
+
+
 Quickstart
 ----------
 

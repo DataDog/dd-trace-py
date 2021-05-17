@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CGroup file parsing was fixed to correctly parse container ID with preceding characters.

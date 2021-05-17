@@ -69,7 +69,7 @@ class TestSpan(object):
         nop_span.log_kv({"myval": 2})
 
     def test_log_dd_kv(self, nop_span):
-        """Ensure keys that can be handled by our impl. are indeed handled. """
+        """Ensure keys that can be handled by our impl. are indeed handled."""
         import traceback
 
         from ddtrace.ext import errors

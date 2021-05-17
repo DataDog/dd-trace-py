@@ -6,11 +6,11 @@ import sys
 import pytest
 
 # Project
-from ddtrace.compat import PY3
-from ddtrace.compat import get_connection_response
-from ddtrace.compat import is_integer
-from ddtrace.compat import reraise
-from ddtrace.compat import to_unicode
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import get_connection_response
+from ddtrace.internal.compat import is_integer
+from ddtrace.internal.compat import reraise
+from ddtrace.internal.compat import to_unicode
 
 
 if PY3:
@@ -121,3 +121,14 @@ class TestPy2Py3Compat(object):
 )
 def test_is_integer(obj, expected):
     assert is_integer(obj) is expected
+
+
+def test_pep562():
+    with pytest.raises(RuntimeError):
+        from tests.pep562_test import deprecated
+
+        print(deprecated)
+
+    from tests.pep562_test import whatever
+
+    assert whatever == "good module attribute"

@@ -15,13 +15,10 @@ import ddtrace
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
+from . import compat
 from . import periodic
 from . import service
-from .. import compat
-from ..compat import httplib
 from ..constants import KEEP_SPANS_RATE_KEY
-from ..encoding import Encoder
-from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.time import StopWatch
@@ -29,6 +26,8 @@ from .agent import get_connection
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
 from .buffer import TraceBuffer
+from .encoding import Encoder
+from .encoding import JSONEncoderV2
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
@@ -111,7 +110,10 @@ class Response(object):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug("Cannot parse Datadog Agent response. This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set")
+                log.debug(
+                    "Cannot parse Datadog Agent response. "
+                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
+                )
                 return
 
             return loads(body)
@@ -416,7 +418,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             encoded = self._encoder.join_encoded(enc_traces)
             try:
                 self._send_payload(encoded, len(enc_traces))
-            except (httplib.HTTPException, OSError, IOError):
+            except (compat.httplib.HTTPException, OSError, IOError):
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))
