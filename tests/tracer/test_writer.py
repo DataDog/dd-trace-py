@@ -11,7 +11,6 @@ from six.moves import BaseHTTPServer
 from six.moves import socketserver
 
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
-from ddtrace.internal import service
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
@@ -488,14 +487,3 @@ def test_racing_start():
         t.join()
 
     assert len(writer._buffer) == 100
-
-
-def test_double_stop():
-    # Ensure double stopping doesn't result in an exception.
-    writer = AgentWriter(agent_url="http://dne:1234")
-    writer.write([])
-    assert writer.status == service.ServiceStatus.RUNNING
-    writer.stop()
-    assert writer.status == service.ServiceStatus.STOPPED
-    writer.stop()
-    assert writer.status == service.ServiceStatus.STOPPED
