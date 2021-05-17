@@ -25,12 +25,24 @@ def parse_method_path(method_path):
 def set_grpc_method_meta(span, method, method_kind):
     method_path = method
     method_package, method_service, method_name = parse_method_path(method_path)
-    span._set_str_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
+    if method_path is not None:
+        span._set_str_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
     if method_package is not None:
         span._set_str_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
-    span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
-    span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
-    span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+    if method_service is not None:
+        span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+    if method_name is not None:
+        span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
+    if method_kind is not None:
+        span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+
+
+def set_grpc_client_meta(span, host, port):
+    if host:
+        span._set_str_tag(constants.GRPC_HOST_KEY, host)
+    if port:
+        span._set_str_tag(constants.GRPC_PORT_KEY, str(port))
+    span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
 
 def _parse_target_from_args(args, kwargs):
@@ -51,6 +63,11 @@ def _parse_target_from_args(args, kwargs):
             port = parsed.port
         except ValueError:
             log.warning("Non-integer port in target '%s'", target)
-        return parsed.hostname, port
+
+        # an empty hostname in Python 2.7 will be an empty string rather than
+        # None
+        hostname = parsed.hostname if parsed.hostname is not None and len(parsed.hostname) > 0 else None
+
+        return hostname, port
     except ValueError:
         log.warning("Malformed target '%s'.", target)
