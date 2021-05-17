@@ -947,6 +947,7 @@ def call_program(*args):
     subp = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         close_fds=True,
     )
     stdout, stderr = subp.communicate()

@@ -35,6 +35,7 @@ datadoghq
 datastore
 dbapi
 ddtrace
+deprecations
 django
 dogpile
 dogstatsd
@@ -107,6 +108,7 @@ sqlite
 starlette
 stringable
 subdomains
+submodule
 submodules
 timestamp
 tweens

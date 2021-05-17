@@ -152,6 +152,7 @@ venv = Venv(
                     pkgs={
                         "msgpack": latest,
                         "attrs": ["==19.2.0", latest],
+                        "packaging": ["==17.1", latest],
                     },
                 )
             ],
@@ -179,6 +180,80 @@ venv = Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),
+        ),
+        Venv(
+            name="falcon",
+            command="pytest {cmdargs} --ignore tests/contrib/falcon/test_autopatch.py tests/contrib/falcon",
+            venvs=[
+                # Falcon 1.x
+                # Python 2.7+
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "falcon": [
+                            "~=1.4.1",
+                            "~=1.4",  # latest 1.x
+                        ]
+                    },
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
+                    pys=select_pys(),
+                    pkgs={
+                        "falcon": [
+                            "~=1.4.1",
+                            "~=1.4",  # latest 1.x
+                        ]
+                    },
+                    env={"DD_SERVICE": "my-falcon"},
+                ),
+                # Falcon 2.x
+                # Python 3.5+
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                        ]
+                    },
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                        ]
+                    },
+                    env={"DD_SERVICE": "my-falcon"},
+                ),
+                # Falcon 3.x
+                # Python 3.5+
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=3.0.0",
+                            "~=3.0",  # latest 3.x
+                            latest,
+                        ]
+                    },
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=3.0.0",
+                            "~=3.0",  # latest 3.x
+                            latest,
+                        ]
+                    },
+                    env={"DD_SERVICE": "my-falcon"},
+                ),
+            ],
         ),
         Venv(
             name="celery",
@@ -556,7 +631,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask": ["~=1.0.0", "~=1.1.0", "<2.0.0"],
                     },
                 ),
                 Venv(
@@ -567,7 +642,7 @@ venv = Venv(
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask": ["~=1.0.0", "~=1.1.0", "<2.0.0"],
                     },
                 ),
             ],

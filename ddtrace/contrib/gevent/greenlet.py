@@ -19,7 +19,7 @@ class TracingMixin(object):
         # the context is always available made exception of the main greenlet
         if ctx:
             # create a new context that inherits the current active span
-            new_ctx = ctx.clone()
+            new_ctx = ctx._clone()
             setattr(self, CONTEXT_ATTR, new_ctx)
 
 
