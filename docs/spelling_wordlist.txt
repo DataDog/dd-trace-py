@@ -123,3 +123,4 @@ versioned
 vertica
 whitelist
 wsgi
+XFail
