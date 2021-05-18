@@ -105,7 +105,6 @@ def pytest_runtest_protocol(item, nextitem):
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
             span.set_tags(tags)
-
         _store_span(item, span)
 
         yield
@@ -132,8 +131,27 @@ def pytest_runtest_makereport(item, call):
 
     try:
         result = outcome.get_result()
+
+        if hasattr(result, "wasxfail") or "xfail" in result.keywords:
+            if result.skipped:
+                # XFail tests that fail are recorded skipped by pytest
+                span.set_tag(test.RESULT, test.Status.XFAIL.value)
+                span.set_tag(test.XFAIL_REASON, result.wasxfail)
+            else:
+                span.set_tag(test.RESULT, test.Status.XPASS.value)
+                if result.passed:
+                    # XPass (strict=False) are recorded passed by pytest
+                    span.set_tag(test.XFAIL_REASON, result.wasxfail)
+                else:
+                    # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
+                    span.set_tag(test.XFAIL_REASON, result.longrepr)
+
         if result.skipped:
-            span.set_tag(test.STATUS, test.Status.SKIP.value)
+            if hasattr(result, "wasxfail"):
+                # XFail tests that fail are recorded skipped by pytest, should be passed instead
+                span.set_tag(test.STATUS, test.Status.PASS.value)
+            else:
+                span.set_tag(test.STATUS, test.Status.SKIP.value)
             reason = _extract_reason(call)
             if reason is not None:
                 span.set_tag(test.SKIP_REASON, reason)
