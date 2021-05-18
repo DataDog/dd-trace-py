@@ -1,0 +1,23 @@
+[
+  "ci.job.name",
+  "ci.job.url",
+  "ci.pipeline.id",
+  "ci.pipeline.name",
+  "ci.pipeline.number",
+  "ci.pipeline.url",
+  "ci.provider.name",
+  "ci.stage.name",
+  "ci.workspace_path",
+  "git.branch",
+  "git.commit.sha",
+  "git.repository.url",
+  "git.tag",
+  "pytest.result",
+  "pytest.xfail.reason",
+  "test.framework",
+  "test.name",
+  "test.skip_reason",
+  "test.status",
+  "test.suite",
+  "test.type"
+]
