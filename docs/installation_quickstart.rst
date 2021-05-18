@@ -58,9 +58,9 @@ can be used::
 
     from ddtrace import config, patch_all
 
-    config.env = "dev"
-    config.service = "app"  # replace with the name of your application
-    config.version = "0.1"
+    config.env = "dev"      # the environment the application is in
+    config.service = "app"  # name of your application
+    config.version = "0.1"  # version of your application
     patch_all()
 
 
@@ -68,7 +68,12 @@ Service names also need to be configured for libraries that query other
 services (``requests``, ``grpc``, database libraries, etc).  Check out the
 :ref:`integration documentation<integrations>` for each to set them up.
 
-To begin learn more about adding manual instrumentation check out the :ref:`basic usage<basic usage>` page.
+
+For additional configuration see the :ref:`configuration <Configuration>`
+documentation.
+
+To learn how to manually instrument check out the :ref:`basic usage <basic
+usage>` documentation.
 
 
 Profiling
