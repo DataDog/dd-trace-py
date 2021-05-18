@@ -30,6 +30,13 @@ The :class:`Context` object is used to represent the active span of a trace and
 to store trace-level data. It is used to continue a trace across processes in
 :ref:`Distributed Tracing <disttracing>`.
 
+To retrieve a context use::
+
+        context = tracer.current_trace_context()
+
+Note that a context will only be available if a trace is active in the current
+execution.
+
 
 Tracing Context Management
 --------------------------
