@@ -196,6 +196,28 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
+    @deprecated(
+        "Call context has been superseded by trace context. Please use current_trace_context() instead.", "1.0.0"
+    )
+    def get_call_context(self, *args, **kwargs):
+        # type: (...) -> Context
+        """
+        Return the current active ``Context`` for this traced execution. This method is
+        automatically called in the ``tracer.trace()``, but it can be used in the application
+        code during manual instrumentation like::
+
+            from ddtrace import tracer
+
+            async def web_handler(request):
+                context = tracer.get_call_context()
+                # use the context if needed
+                # ...
+
+        This method makes use of a ``ContextProvider`` that is automatically set during the tracer
+        initialization, or while using a library instrumentation.
+        """
+        return self.context_provider.active(*args, **kwargs)  # type: ignore
+
     def current_trace_context(self, *args, **kwargs):
         # type (...) -> Optional[Context]
         """Return the active context for the current trace.
@@ -401,20 +423,18 @@ class Tracer(object):
         To start a new root span, simply::
 
             span = tracer.start_span('web.request')
-            span.finish()
 
         If you want to create a child for a root span, just::
 
             root_span = tracer.start_span('web.request')
             span = tracer.start_span('web.decoder', child_of=root_span)
-            span.finish()
 
         Be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
         self._check_new_process()
 
-        parent = None
+        parent = None  # type: Optional[Span]
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = child_of
@@ -464,7 +484,10 @@ class Tracer(object):
             if parent:
                 span.sampled = parent.sampled
                 span._parent = parent
+                span._local_root = parent._local_root
 
+            if span._local_root is None:
+                span._local_root = span
         else:
             # this is the root span of a new trace
             span = Span(
@@ -477,6 +500,7 @@ class Tracer(object):
                 _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
+            span._local_root = span
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
@@ -687,13 +711,10 @@ class Tracer(object):
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        parent = self.current_span()
-        if not parent:
+        span = self.current_span()
+        if span is None:
             return None
-
-        while parent._parent:
-            parent = parent._parent
-        return parent
+        return span._local_root
 
     def write(self, spans):
         # type: (Optional[List[Span]]) -> None
