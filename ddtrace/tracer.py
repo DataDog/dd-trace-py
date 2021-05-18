@@ -196,6 +196,28 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
+    @deprecated(
+        "Call context has been superseded by trace context. Please use current_trace_context() instead.", "1.0.0"
+    )
+    def get_call_context(self, *args, **kwargs):
+        # type: (...) -> Context
+        """
+        Return the current active ``Context`` for this traced execution. This method is
+        automatically called in the ``tracer.trace()``, but it can be used in the application
+        code during manual instrumentation like::
+
+            from ddtrace import tracer
+
+            async def web_handler(request):
+                context = tracer.get_call_context()
+                # use the context if needed
+                # ...
+
+        This method makes use of a ``ContextProvider`` that is automatically set during the tracer
+        initialization, or while using a library instrumentation.
+        """
+        return self.context_provider.active(*args, **kwargs)  # type: ignore
+
     def current_trace_context(self, *args, **kwargs):
         # type (...) -> Optional[Context]
         """Return the active context for the current trace.
@@ -401,13 +423,11 @@ class Tracer(object):
         To start a new root span, simply::
 
             span = tracer.start_span('web.request')
-            span.finish()
 
         If you want to create a child for a root span, just::
 
             root_span = tracer.start_span('web.request')
             span = tracer.start_span('web.decoder', child_of=root_span)
-            span.finish()
 
         Be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
