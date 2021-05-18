@@ -434,7 +434,7 @@ class Tracer(object):
         """
         self._check_new_process()
 
-        parent = None
+        parent = None  # type: Optional[Span]
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = child_of
@@ -484,7 +484,10 @@ class Tracer(object):
             if parent:
                 span.sampled = parent.sampled
                 span._parent = parent
+                span._local_root = parent._local_root
 
+            if span._local_root is None:
+                span._local_root = span
         else:
             # this is the root span of a new trace
             span = Span(
@@ -497,6 +500,7 @@ class Tracer(object):
                 _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
+            span._local_root = span
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
@@ -707,13 +711,10 @@ class Tracer(object):
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        parent = self.current_span()
-        if not parent:
+        span = self.current_span()
+        if span is None:
             return None
-
-        while parent._parent:
-            parent = parent._parent
-        return parent
+        return span._local_root
 
     def write(self, spans):
         # type: (Optional[List[Span]]) -> None

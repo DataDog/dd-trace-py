@@ -70,6 +70,7 @@ class Span(object):
         "sampled",
         # Internal attributes
         "_context",
+        "_local_root",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -148,6 +149,7 @@ class Span(object):
         self._context = context  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
+        self._local_root = None  # type: Optional[Span]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
