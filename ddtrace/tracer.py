@@ -1,4 +1,3 @@
-import atexit
 import functools
 import json
 import logging
@@ -30,6 +29,7 @@ from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .internal import _rand
 from .internal import agent
+from .internal import atexit
 from .internal import compat
 from .internal import debug
 from .internal import hostname
@@ -230,17 +230,6 @@ class Tracer(object):
         elif isinstance(active, Span):
             return active.context
         return None
-
-    def current_span(self):
-        # type: () -> Optional[Span]
-        """Return the active span in the current execution context.
-
-        Note that there may be an active span represented by a context object
-        (eg. from a distributed trace) which will not be returned by this
-        method.
-        """
-        active = self.context_provider.active()
-        return active if isinstance(active, Span) else None
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
@@ -567,7 +556,7 @@ class Tracer(object):
     def _on_span_finish(self, span):
         # type: (Span) -> None
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %r", span)
+            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
         active = self.current_span()
         # Only set the next active span to the parent if the span is active
@@ -716,6 +705,17 @@ class Tracer(object):
             return None
         return span._local_root
 
+    def current_span(self):
+        # type: () -> Optional[Span]
+        """Return the active span in the current execution context.
+
+        Note that there may be an active span represented by a context object
+        (eg. from a distributed trace) which will not be returned by this
+        method.
+        """
+        active = self.context_provider.active()
+        return active if isinstance(active, Span) else None
+
     def write(self, spans):
         # type: (Optional[List[Span]]) -> None
         """
@@ -857,6 +857,7 @@ class Tracer(object):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         self.writer.stop(timeout=timeout)
+        atexit.unregister(self._atexit)
 
     @staticmethod
     def _use_log_writer():

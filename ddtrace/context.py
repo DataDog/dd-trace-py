@@ -8,6 +8,7 @@ import attr
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
+from .utils.deprecation import deprecated
 
 
 if TYPE_CHECKING:
@@ -85,3 +86,12 @@ class Context(object):
                     del self._meta[ORIGIN_KEY]
                 return
             self._meta[ORIGIN_KEY] = value
+
+    @deprecated("Cloning contexts will no longer be required in 0.50", version="0.50")
+    def clone(self):
+        # type: () -> Context
+        """
+        Partially clones the current context.
+        It copies everything EXCEPT the registered and finished spans.
+        """
+        return self

@@ -359,3 +359,15 @@ def test_error_output_ddtracerun():
     stderr = p.stderr.read()
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
+
+
+def test_debug_span_log():
+    p = subprocess.Popen(
+        ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    stderr = p.stderr.read()
+    assert b"finishing span name='span'" in stderr
