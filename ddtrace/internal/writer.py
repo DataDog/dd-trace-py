@@ -25,7 +25,6 @@ from ..utils.time import StopWatch
 from .agent import get_connection
 from .buffer import BufferFull
 from .buffer import BufferItemTooLarge
-from .buffer import TraceBuffer
 from .encoding import Encoder
 from .encoding import JSONEncoderV2
 from .logger import get_logger
@@ -236,14 +235,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 }
             )
 
-        self._encoder = Encoder()
-        self._headers.update({"Content-Type": self._encoder.content_type})
-        self._buffer = TraceBuffer(
+        self._encoder = Encoder(
             max_size=self._buffer_size,
             max_item_size=self._max_payload_size,
-            meter=self._encoder.trace_size,
         )
-
+        self._headers.update({"Content-Type": self._encoder.content_type})
         self._started_lock = threading.Lock()
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
@@ -381,7 +377,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._set_keep_rate(spans)
 
         try:
-            self._buffer.put(spans)
+            self._encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
             log.warning(
@@ -395,9 +391,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             payload_size = e.args[0]
             log.warning(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
-                len(self._buffer),
-                self._buffer.size,
-                self._buffer.max_size,
+                len(self._encoder),
+                self._encoder.size,
+                self._encoder.max_size,
                 payload_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
@@ -410,23 +406,23 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def flush_queue(self, raise_exc=False):
         # type: (bool) -> None
-        traces = self._buffer.get()
         try:
-            if not traces:
-                return
             try:
-                encoded = self._encoder.encode_traces(traces)
+                n_traces = len(self._encoder)
+                encoded = self._encoder.encode()
+                if not encoded:
+                    return
             except Exception:
                 log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-                self._metrics_dist("encoder.dropped.traces", len(traces))
+                self._metrics_dist("encoder.dropped.traces", n_traces)
                 return
 
             try:
-                self._send_payload(encoded, len(traces))
+                self._send_payload(encoded, n_traces)
             except (compat.httplib.HTTPException, OSError, IOError):
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
-                self._metrics_dist("http.dropped.traces", len(traces))
+                self._metrics_dist("http.dropped.traces", n_traces)
                 if raise_exc:
                     raise
                 else:
@@ -438,7 +434,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
                     self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(traces))
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
                     for name, metric in self._metrics.items():
                         self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
         finally:

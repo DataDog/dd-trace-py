@@ -9,7 +9,7 @@ from tests.tracer.test_encoders import gen_trace
 
 
 msgpack_encoder = RefMsgpackEncoder()
-trace_encoder = MsgpackEncoder()
+trace_encoder = MsgpackEncoder(4 << 20, 4 << 20)
 
 
 class PPMsgpackEncoder(_EncoderBase):
@@ -51,14 +51,27 @@ def test_encode_1000_span_trace_fallback(benchmark):
 
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace_custom(benchmark):
-    benchmark(trace_encoder.encode_traces, [trace_large])
+    def _():
+        trace_encoder.put(trace_large)
+        trace_encoder.encode()
+
+    benchmark(_)
 
 
 @pytest.mark.benchmark(group="encoding.small", min_time=0.005)
 def test_encode_trace_small_custom(benchmark):
-    benchmark(trace_encoder.encode_traces, [trace_small])
+    def _():
+        trace_encoder.put(trace_small)
+        trace_encoder.encode()
+
+    benchmark(_)
 
 
 @pytest.mark.benchmark(group="encoding.small.multi", min_time=0.005)
 def test_encode_trace_small_multi_custom(benchmark):
-    benchmark(trace_encoder.encode_traces, [trace_small for _ in range(50)])
+    def _():
+        for _ in range(50):
+            trace_encoder.put(trace_small)
+        trace_encoder.encode()
+
+    benchmark(_)

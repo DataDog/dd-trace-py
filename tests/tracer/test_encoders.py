@@ -4,6 +4,12 @@ import random
 import string
 from unittest import TestCase
 
+from hypothesis import given
+from hypothesis import settings
+from hypothesis.strategies import dictionaries
+from hypothesis.strategies import floats
+from hypothesis.strategies import integers
+from hypothesis.strategies import text
 import msgpack
 import pytest
 
@@ -134,22 +140,21 @@ class TestEncoders(TestCase):
 
     def test_encode_traces_msgpack(self):
         # test encoding for MsgPack format
-        traces = []
-        traces.append(
+        encoder = MsgpackEncoder(2 << 10, 2 << 10)
+        encoder.put(
             [
                 Span(name="client.testing", tracer=None),
                 Span(name="client.testing", tracer=None),
             ]
         )
-        traces.append(
+        encoder.put(
             [
                 Span(name="client.testing", tracer=None),
                 Span(name="client.testing", tracer=None),
             ]
         )
 
-        encoder = MsgpackEncoder()
-        spans = encoder.encode_traces(traces)
+        spans = encoder.encode()
         items = encoder._decode(spans)
 
         # test the encoded output that should be a string
@@ -170,27 +175,32 @@ def decode(obj):
 
 
 def test_custom_msgpack_encode():
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoder(1 << 20, 1 << 20)
     refencoder = RefMsgpackEncoder()
 
     trace = gen_trace(nspans=50)
 
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode_traces([trace]))
+    encoder.put(trace)
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
     ref_encoded = refencoder.encode_traces([trace, trace])
-    encoded = encoder.encode_traces([trace, trace])
+    encoder.put(trace)
+    encoder.put(trace)
+    encoded = encoder.encode()
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
-    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode_traces([[]]))
+    encoder.put([])
+    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode())
 
     s = Span(None, None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
-    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode_traces([[s]]))
+    encoder.put([s])
+    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode())
 
 
 def span_type_span():
@@ -210,13 +220,14 @@ def span_type_span():
 )
 def test_msgpack_span_property_variations(span):
     refencoder = RefMsgpackEncoder()
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoder(1 << 10, 1 << 10)
 
     # Finish the span to ensure a duration exists.
     span.finish()
 
     trace = [span]
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode_traces([trace]))
+    encoder.put(trace)
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
 
 class SubString(str):
@@ -243,7 +254,7 @@ class SubFloat(float):
 )
 def test_span_types(span, tags):
     refencoder = RefMsgpackEncoder()
-    encoder = MsgpackEncoder()
+    encoder = MsgpackEncoder(1 << 10, 1 << 10)
 
     span.set_tags(tags)
 
@@ -251,16 +262,28 @@ def test_span_types(span, tags):
     span.finish()
 
     trace = [span]
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode_traces([trace]))
+    encoder.put(trace)
+    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
 
-def test_custom_msgpack_encode_trace_size():
-    encoder = MsgpackEncoder()
-    span = Span(tracer=None, name="test", service="foo", resource="GET")
-    span.meta = {"foo": "bar"}
-    span.metrics = {"cpu": 10.4}
-    span.error = 0
-    span.span_type = "boo"
+@given(
+    name=text(),
+    service=text(),
+    resource=text(),
+    meta=dictionaries(text(), text()),
+    metrics=dictionaries(text(), floats()),
+    error=integers(),
+    span_type=text(),
+)
+@settings(max_examples=200)
+def test_custom_msgpack_encode_trace_size(name, service, resource, meta, metrics, error, span_type):
+    encoder = MsgpackEncoder(1 << 20, 1 << 20)
+    span = Span(tracer=None, name=name, service=service, resource=resource)
+    span.meta = meta
+    span.metrics = metrics
+    span.error = error
+    span.span_type = span_type
     trace = [span, span, span]
 
-    assert len(encoder.encode_traces([trace])) == encoder.trace_size(trace) + 1
+    encoder.put(trace)
+    assert encoder.size + 1 == len(encoder.encode())

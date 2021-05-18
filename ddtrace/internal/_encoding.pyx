@@ -1,8 +1,11 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 import struct
+import threading
 
 from ..span import Span
+from .buffer import BufferFull
+from .buffer import BufferItemTooLarge
 
 
 cdef extern from "Python.h":
@@ -64,7 +67,6 @@ cdef class Packer(object):
     """
     cdef msgpack_packer pk
     cdef object _default
-    cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
     cdef int ticker
@@ -315,8 +317,11 @@ cdef inline unsigned int _str_len(text):
     cdef int n = len(text) if isinstance(text, bytes) else len(text.encode())
     if n < 32:
         return 1 + n
-    if n < 256:
-        return 2 + n
+    # DEV: This is what the docs say:
+    # https://github.com/msgpack/msgpack/blob/master/spec.md#str-format-family
+    # but the tests tell a different story :(
+    # if n < 256:
+    #     return 2 + n
     if n < 2**16:
         return 3 + n
     return 5 + n
@@ -337,8 +342,31 @@ cdef inline unsigned int _num_size(n):
     return 9
 
 
-cdef class MsgpackEncoder(object):
+cdef class BufferedEncoder(object):
+    content_type: str = None
+    def __init__(self, max_size, max_item_size): ...
+    def __len__(self): ...
+    def put(self, trace): ...
+    def encode(self): ...
+
+
+cdef class MsgpackEncoder(BufferedEncoder):
     content_type = "application/msgpack"
+    cdef int _max_size
+    cdef int _max_item_size
+    cdef int _size
+    cdef object _lock
+    cdef list _traces
+
+    def __cinit__(self, max_size, max_item_size):
+        self._max_size = max_size
+        self._max_item_size = max_item_size
+        self._size = 0
+        self._lock = threading.Lock()
+        self._traces = []
+
+    def __len__(self):
+        return len(self._traces)
 
     cpdef _decode(self, data):
         import msgpack
@@ -346,7 +374,35 @@ cdef class MsgpackEncoder(object):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
-    cpdef trace_size(self, list trace):
+    @property
+    def max_size(self):
+        return self._max_size
+
+    @property
+    def max_item_size(self):
+        return self._max_item_size
+
+    @property
+    def size(self):
+        """Return the size in bytes of the encoder buffer."""
+        with self._lock:
+            return self._size
+
+    cpdef put(self, list trace):
+        """Put a trace (i.e. a list of spans) in the buffer."""
+        cdef int item_len = self._trace_size(trace)
+
+        if item_len > self.max_item_size or item_len > self.max_size:
+            raise BufferItemTooLarge(item_len)
+
+        with self._lock:
+            if self._size + item_len <= self.max_size:
+                self._traces.append(trace)
+                self._size += item_len
+            else:
+                raise BufferFull(item_len)
+
+    cpdef _trace_size(self, list trace):
         """Determine the size of a trace in bytes."""
         cdef int n = len(trace)
         cdef int size = _prefix_size(n) + n * 72
@@ -359,7 +415,7 @@ cdef class MsgpackEncoder(object):
             size += _str_len(span.name)
             size += _str_len(span.resource)
             size += _str_len(span.service)
-            if span._span_type:
+            if span._span_type is not None:
                 size += 5 + _str_len(span._span_type)
             if span.meta:
                 size += 5
@@ -371,5 +427,14 @@ cdef class MsgpackEncoder(object):
                 size += sum([_str_len(k) + _num_size(v) for k, v in span.metrics.items()])
         return size
 
-    cpdef encode_traces(self, traces):
-        return Packer().pack(traces)
+    cpdef _clear(self):
+        self._traces.clear()
+        self._size = 0
+
+    cpdef encode(self):
+        if not self._traces:
+            return None
+        try:
+            return Packer().pack(self._traces)
+        finally:
+            self._clear()
