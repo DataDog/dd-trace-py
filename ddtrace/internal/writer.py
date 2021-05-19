@@ -281,7 +281,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             priority_sampler=self._priority_sampler,
             sync_mode=self._sync_mode,
         )
-        writer._encoder = self._encoder
         writer._headers = self._headers
         writer._endpoint = self._endpoint
         return writer
@@ -410,7 +409,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             try:
                 n_traces = len(self._encoder)
                 encoded = self._encoder.encode()
-                if not encoded:
+                if encoded is None:
                     return
             except Exception:
                 log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)

@@ -156,6 +156,8 @@ cdef class Packer(object):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
+        cdef object k
+        cdef object v
 
         if meta is None:
             ret = msgpack_pack_nil(&self.pk)
@@ -182,6 +184,8 @@ cdef class Packer(object):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
+        cdef object k
+        cdef object v
 
         if metrics is None:
             ret = msgpack_pack_nil(&self.pk)
@@ -337,49 +341,6 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
-# -- msgpack helpers for payload size calculation --
-
-cdef inline unsigned int _prefix_size(int n):
-    """Prefix size for complex types (arrays, maps, ...)."""
-    if n < 16:
-        return 1
-    if n < 2**16:
-        return 3
-    return 5
-
-
-cdef inline unsigned int _str_len(text):
-    """msgpack string length, including prefix."""
-    if text is None:
-        return 1
-    cdef int n = len(text) if isinstance(text, bytes) else len(text.encode())
-    if n < 32:
-        return 1 + n
-    # DEV: This is what the docs say:
-    # https://github.com/msgpack/msgpack/blob/master/spec.md#str-format-family
-    # but the tests tell a different story :(
-    # if n < 256:
-    #     return 2 + n
-    if n < 2**16:
-        return 3 + n
-    return 5 + n
-    
-
-cdef inline unsigned int _num_size(n):
-    """msgpack number size, including prefix."""
-    if isinstance(n, float):
-        return 9
-    if n is None or n < 128:
-        return 1
-    if n < 256:
-        return 2
-    if n < 2**16:
-        return 3
-    if n < 2**32:
-        return 5
-    return 9
-
-
 cdef class BufferedEncoder(object):
     content_type: str = None
     def __init__(self, max_size, max_item_size): ...
@@ -428,51 +389,42 @@ cdef class MsgpackEncoder(BufferedEncoder):
 
     cpdef put(self, list trace):
         """Put a trace (i.e. a list of spans) in the buffer."""
-        cdef int item_len = self._trace_size(trace)
+        cdef int item_len
+        
+        encoded_trace = Packer().pack(trace)
+        item_len = len(encoded_trace)
 
         if item_len > self.max_item_size or item_len > self.max_size:
             raise BufferItemTooLarge(item_len)
 
         with self._lock:
             if self._size + item_len <= self.max_size:
-                self._traces.append(trace)
+                self._traces.append(encoded_trace)
                 self._size += item_len
             else:
                 raise BufferFull(item_len)
-
-    cpdef _trace_size(self, list trace):
-        """Determine the size of a trace in bytes."""
-        cdef int n = len(trace)
-        cdef int size = _prefix_size(n) + n * 72
-        for span in trace:
-            size += _num_size(span.trace_id)
-            size += _num_size(span.span_id)
-            size += _num_size(span.parent_id)
-            size += _num_size(span.start_ns)
-            size += _num_size(span.duration_ns)
-            size += _str_len(span.name)
-            size += _str_len(span.resource)
-            size += _str_len(span.service)
-            if span._span_type is not None:
-                size += 5 + _str_len(span._span_type)
-            if span.meta:
-                size += 5
-                size += _prefix_size(len(span.meta))
-                size += sum([_str_len(k) + _str_len(v) for k, v in span.meta.items()])
-            if span.metrics:
-                size += 8
-                size += _prefix_size(len(span.metrics))
-                size += sum([_str_len(k) + _num_size(v) for k, v in span.metrics.items()])
-        return size
 
     cpdef _clear(self):
         self._traces[:] = []
         self._size = 0
 
+    cdef inline _join(self):
+        """Join a list of encoded objects together as a msgpack array"""
+        cdef Py_ssize_t count = len(self._traces)
+        cdef bytes buf = b''.join(self._traces)
+
+        if count <= 0xf:
+            return struct.pack("B", 0x90 + count) + buf
+        elif count <= 0xffff:
+            return struct.pack(">BH", 0xdc, count) + buf
+        else:
+            return struct.pack(">BI", 0xdd, count) + buf
+
     cpdef encode(self):
         if not self._traces:
             return None
+
         try:
-            return Packer().pack(self._traces)
+            return self._join()
         finally:
             self._clear()

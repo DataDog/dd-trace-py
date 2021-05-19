@@ -326,8 +326,17 @@ def test_bad_payload():
     t = Tracer()
 
     class BadEncoder:
+        def __len__(self):
+            return 0
+
+        def put(self, trace):
+            pass
+
+        def encode(self):
+            return ""
+
         def encode_traces(self, traces):
-            return []
+            return ""
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -348,6 +357,15 @@ def test_bad_encoder():
     t = Tracer()
 
     class BadEncoder:
+        def __len__(self):
+            return 0
+
+        def put(self, trace):
+            pass
+
+        def encode(self):
+            raise Exception()
+
         def encode_traces(self, traces):
             raise Exception()
 
