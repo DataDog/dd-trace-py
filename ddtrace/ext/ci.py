@@ -1,3 +1,6 @@
+"""
+Tags for common CI attributes
+"""
 import os
 import re
 from typing import MutableMapping
@@ -5,10 +8,6 @@ from typing import Optional
 
 from . import git
 
-
-"""
-tags for common CI attributes
-"""
 
 # Stage Name
 STAGE_NAME = "ci.stage.name"
@@ -53,14 +52,6 @@ def _filter_sensitive_info(url):
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
-def resolve_relative_workspace_path(filepath, env):
-    # type: (str, MutableMapping[str, str]) -> str
-    """Expand ~ in path to include home directory."""
-    if filepath.startswith("~") and (len(filepath) == 1 or filepath[1] == "/"):
-        return filepath.replace("~", env["HOME"])
-    return filepath
-
-
 def tags(env=None):
     # type: (Optional[MutableMapping[str, str]]) -> MutableMapping[str, str]
     """Extract and set tags from provider environ."""
@@ -79,7 +70,7 @@ def tags(env=None):
 
     workspace_path = tags.get(WORKSPACE_PATH)
     if workspace_path:
-        tags[WORKSPACE_PATH] = resolve_relative_workspace_path(workspace_path, env)
+        tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
 
     return {k: v for k, v in tags.items() if v is not None}
 
