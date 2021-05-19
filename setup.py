@@ -159,6 +159,7 @@ setup(
         long_description_content_type="text/markdown",
         license="BSD",
         packages=find_packages(exclude=["tests*"]),
+        py_modules=["ddtrace_gevent_check"],
         python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
         # enum34 is an enum backport for earlier versions of python
         # funcsigs backport required for vendored debtcollector
@@ -187,7 +188,7 @@ setup(
             ],
             "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
             "gevent.plugins.monkey.did_patch_all": [
-                "ddtrace.profiling.profiler = ddtrace.profiling.profiler:gevent_patch_all",
+                "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
             ],
         },
         classifiers=[
