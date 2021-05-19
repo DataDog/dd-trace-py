@@ -48,13 +48,6 @@ async def test_trace_multiple_coroutines(tracer):
     assert traces[0][0].trace_id == traces[0][1].trace_id
 
 
-def test_event_loop_exception(tracer):
-    # it should handle a loop exception
-    asyncio.set_event_loop(None)
-    ctx = tracer.current_trace_context()
-    assert ctx is not None
-
-
 def test_context_task_none(tracer):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -66,7 +59,7 @@ def test_context_task_none(tracer):
     assert task is None
     # but a new Context is still created making the operation safe
     ctx = tracer.current_trace_context()
-    assert ctx is not None
+    assert ctx is None
 
 
 @pytest.mark.asyncio

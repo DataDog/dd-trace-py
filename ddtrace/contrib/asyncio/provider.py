@@ -33,7 +33,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         return context
 
     def _get_loop(self, loop=None):
-        """Helper to try and resolve the current loop."""
+        """Helper to try and resolve the current loop"""
         try:
             return loop or asyncio.get_event_loop()
         except RuntimeError:
@@ -45,7 +45,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         return None
 
     def _has_active_context(self, loop=None):
-        """Helper to determine if we have a currently active context."""
+        """Helper to determine if we have a currently active context"""
         loop = self._get_loop(loop=loop)
         if loop is None:
             return super(AsyncioContextProvider, self)._has_active_context()
