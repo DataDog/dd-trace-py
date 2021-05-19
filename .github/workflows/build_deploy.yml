@@ -98,3 +98,4 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
           # To test: repository_url: https://test.pypi.org/legacy/
+          skip_existing: true
