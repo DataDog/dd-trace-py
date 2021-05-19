@@ -1,10 +1,8 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import sys
 from typing import List
 from typing import Optional
-import warnings
 
 import attr
 
@@ -34,15 +32,6 @@ def _get_service_name():
         service_name = os.environ.get(service_name_var)
         if service_name is not None:
             return service_name
-
-
-def gevent_patch_all(event):
-    if "ddtrace.profiling.auto" in sys.modules:
-        warnings.warn(
-            "Starting the profiler before using gevent monkey patching is not supported "
-            "and is likely to break the application. Use DD_GEVENT_PATCH_ALL=true to avoid this.",
-            RuntimeWarning,
-        )
 
 
 class Profiler(object):
