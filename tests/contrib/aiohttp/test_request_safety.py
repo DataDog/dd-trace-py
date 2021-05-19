@@ -1,89 +1,72 @@
+"""
+Ensure that if the ``AsyncioTracer`` is not properly configured,
+bad traces are produced but the ``Context`` object will not
+leak memory.
+"""
 import asyncio
 import threading
 from urllib import request
 
-from aiohttp.test_utils import unittest_run_loop
-import aiohttp_jinja2
-
-from ddtrace.contrib.aiohttp.middlewares import trace_app
-from ddtrace.contrib.aiohttp.patch import patch
-from ddtrace.contrib.aiohttp.patch import unpatch
-from ddtrace.pin import Pin
 from ddtrace.provider import DefaultContextProvider
 from tests.utils import assert_is_measured
 
-from .utils import TraceTestCase
+
+async def test_full_request(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    tracer.configure(context_provider=DefaultContextProvider())
+    client = await aiohttp_client(app)
+    # it should create a root span when there is a handler hit
+    # with the proper tags
+    request = await client.request("GET", "/template/")
+    assert 200 == request.status
+    await request.text()
+    # the trace is created
+    traces = tracer.pop_traces()
+    assert 1 == len(traces)
+    assert 2 == len(traces[0])
+    request_span = traces[0][0]
+    template_span = traces[0][1]
+    # request
+    assert_is_measured(request_span)
+    assert "aiohttp-web" == request_span.service
+    assert "aiohttp.request" == request_span.name
+    assert "GET /template/" == request_span.resource
+    # template
+    assert "aiohttp-web" == template_span.service
+    assert "aiohttp.template" == template_span.name
+    assert "aiohttp.template" == template_span.resource
 
 
-class TestAiohttpSafety(TraceTestCase):
-    """
-    Ensure that if the ``AsyncioTracer`` is not properly configured,
-    bad traces are produced but the ``Context`` object will not
-    leak memory.
-    """
+async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+    NUMBER_REQUESTS = 10
+    responses = []
 
-    def enable_tracing(self):
-        # aiohttp TestCase with the wrong context provider
-        trace_app(self.app, self.tracer)
-        patch()
-        Pin.override(aiohttp_jinja2, tracer=self.tracer)
-        self.tracer.configure(context_provider=DefaultContextProvider())
+    app, tracer = patched_app_tracer
+    tracer.configure(context_provider=DefaultContextProvider())
+    client = await aiohttp_client(app)
 
-    def disable_tracing(self):
-        unpatch()
+    # it should produce a wrong trace, but the Context must
+    # be finished
+    def make_requests():
+        url = client.make_url("/delayed/")
+        response = request.urlopen(str(url)).read().decode("utf-8")
+        responses.append(response)
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_full_request(self):
-        # it should create a root span when there is a handler hit
-        # with the proper tags
-        request = yield from self.client.request("GET", "/template/")
-        assert 200 == request.status
-        yield from request.text()
-        # the trace is created
-        traces = self.pop_traces()
-        assert 1 == len(traces)
-        assert 2 == len(traces[0])
-        request_span = traces[0][0]
-        template_span = traces[0][1]
-        # request
-        assert_is_measured(request_span)
-        assert "aiohttp-web" == request_span.service
-        assert "aiohttp.request" == request_span.name
-        assert "GET /template/" == request_span.resource
-        # template
-        assert "aiohttp-web" == template_span.service
-        assert "aiohttp.template" == template_span.name
-        assert "aiohttp.template" == template_span.resource
+    # blocking call executed in different threads
+    threads = [threading.Thread(target=make_requests) for _ in range(NUMBER_REQUESTS)]
+    for t in threads:
+        t.start()
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_multiple_full_request(self):
-        NUMBER_REQUESTS = 10
-        responses = []
+    # yield back to the event loop until all requests are processed
+    while len(responses) < NUMBER_REQUESTS:
+        await asyncio.sleep(0.001)
 
-        # it should produce a wrong trace, but the Context must
-        # be finished
-        def make_requests():
-            url = self.client.make_url("/delayed/")
-            response = request.urlopen(str(url)).read().decode("utf-8")
-            responses.append(response)
+    for response in responses:
+        assert "Done" == response
 
-        # blocking call executed in different threads
-        threads = [threading.Thread(target=make_requests) for _ in range(NUMBER_REQUESTS)]
-        for t in threads:
-            t.start()
+    for t in threads:
+        t.join()
 
-        # yield back to the event loop until all requests are processed
-        while len(responses) < NUMBER_REQUESTS:
-            yield from asyncio.sleep(0.001)
-
-        for response in responses:
-            assert "Done" == response
-
-        for t in threads:
-            t.join()
-
-        # the trace is wrong but the spans are finished and written
-        spans = self.pop_spans()
-        assert NUMBER_REQUESTS == len(spans)
+    # the trace is wrong but the spans are finished and written
+    spans = tracer.pop()
+    assert NUMBER_REQUESTS == len(spans)
