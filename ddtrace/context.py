@@ -50,7 +50,7 @@ class Context(object):
         :param int span_id: span_id of parent span
         """
         self._current_span = None  # type: Optional[Span]
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
