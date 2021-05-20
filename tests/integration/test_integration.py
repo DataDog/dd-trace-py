@@ -451,5 +451,9 @@ s2.finish()
             DD_TRACE_DEBUG=str(debug_mode).lower(),
         ),
     )
-    p.wait(timeout=2)
+    try:
+        p.wait(timeout=2)
+    except TypeError:
+        # timeout argument added in Python 3.3
+        p.wait()
     assert p.returncode == 0
