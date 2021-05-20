@@ -34,6 +34,8 @@ async def _response_json(response):
 
 async def _response_text(response):
     resp_text = response.text
+    if callable(resp_text):
+        resp_text = resp_text()
     if asyncio.iscoroutine(resp_text):
         resp_text = await resp_text
     return resp_text
@@ -44,11 +46,12 @@ def app(tracer):
     # Sanic 20.12 and newer prevent loading multiple applications
     # with the same name if register is True.
     DEFAULT_CONFIG["REGISTER"] = False
+    DEFAULT_CONFIG["RESPONSE_TIMEOUT"] = 1.0
     app = Sanic(__name__)
 
     @tracer.wrap()
     async def random_sleep():
-        await asyncio.sleep(random.random())
+        await asyncio.sleep(random.random() * 0.1)
 
     @app.route("/hello")
     async def hello(request):

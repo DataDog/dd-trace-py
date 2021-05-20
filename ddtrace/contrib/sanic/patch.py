@@ -104,16 +104,16 @@ def patch():
     SANIC_PRE_21 = sanic.__version__[:2] < "21"
 
     _w("sanic", "Sanic.handle_request", patch_handle_request)
-    _w("sanic", "Sanic._run_request_middleware", patch_run_request_middleware)
     if not SANIC_PRE_21:
+        _w("sanic", "Sanic._run_request_middleware", patch_run_request_middleware)
         _w(sanic.request, "Request.respond", patch_request_respond)
 
 
 def unpatch():
     """Unpatch the instrumented methods."""
     _u(sanic.Sanic, "handle_request")
-    _u(sanic.Sanic, "_run_request_middleware")
     if not SANIC_PRE_21:
+        _u(sanic.Sanic, "_run_request_middleware")
         _u(sanic.request.Request, "respond")
     if not getattr(sanic, "__datadog_patch", False):
         return
@@ -132,7 +132,14 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
         return await wrapped(*args, **kwargs)
 
     pin = Pin()
-    pin.onto(request.ctx)
+    if SANIC_PRE_21:
+        # Set span resource from the framework request
+        resource = "{} {}".format(request.method, _get_path(request))
+    else:
+        # The path is not available anymore in 21.x. Get it from
+        # the _run_request_middleware instrumented method.
+        resource = None
+        pin.onto(request.ctx)
 
     headers = request.headers.copy()
 
@@ -141,6 +148,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     with pin.tracer.trace(
         "sanic.request",
         service=trace_utils.int_service(None, config.sanic),
+        resource=resource,
         span_type=SpanTypes.WEB,
     ) as span:
         sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
