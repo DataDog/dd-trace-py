@@ -432,7 +432,7 @@ def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch
     f.write(
         """
 import ddtrace
-ddtrace.patch(logging="%s")
+ddtrace.patch(logging=%s)
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
