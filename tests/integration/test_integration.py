@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import subprocess
@@ -420,7 +421,8 @@ def test_flush_log(caplog):
         log.log.assert_has_calls(calls)
 
 
-def test_regression_logging_in_context(tmpdir):
+@pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
+def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
     """
     When logs injection is enabled and the logger is patched
         When a parent span closes before a child
@@ -430,13 +432,14 @@ def test_regression_logging_in_context(tmpdir):
     f.write(
         """
 import ddtrace
-ddtrace.patch(logging=True)
+ddtrace.patch(logging="%s")
 
 s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
 """.lstrip()
+        % str(patch_logging)
     )
     p = subprocess.Popen(
         [sys.executable, "test.py"],
@@ -444,11 +447,11 @@ s2.finish()
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
         env=dict(
-            DD_TRACE_LOGS_INJECTION="true",
-            DD_TRACE_DEBUG="true",
+            DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
+            DD_TRACE_DEBUG=str(debug_mode).lower(),
         ),
     )
-    p.wait()
+    p.wait(timeout=2)
     assert p.stderr.read() == six.b("")
     assert p.stdout.read() == six.b("")
     assert p.returncode == 0
