@@ -452,6 +452,4 @@ s2.finish()
         ),
     )
     p.wait(timeout=2)
-    assert p.stderr.read() == six.b("")
-    assert p.stdout.read() == six.b("")
     assert p.returncode == 0
