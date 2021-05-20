@@ -68,6 +68,15 @@ def tags(env=None):
     tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
+    author_name, author_email, author_date = git.extract_git_info(author=True)
+    committer_name, committer_email, committer_date = git.extract_git_info(author=False)
+    tags[git.COMMIT_AUTHOR_NAME] = author_name
+    tags[git.COMMIT_AUTHOR_EMAIL] = author_email
+    tags[git.COMMIT_AUTHOR_DATE] = author_date
+    tags[git.COMMIT_COMMITTER_NAME] = committer_name
+    tags[git.COMMIT_COMMITTER_EMAIL] = committer_email
+    tags[git.COMMIT_COMMITTER_DATE] = committer_date
+
     workspace_path = tags.get(WORKSPACE_PATH)
     if workspace_path:
         tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)

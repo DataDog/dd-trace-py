@@ -24,4 +24,6 @@ def _updateenv(monkeypatch, env):
 @pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
 def test_ci_providers(monkeypatch, name, environment, tags):
     _updateenv(monkeypatch, environment)
-    assert tags == ci.tags(environment), "wrong tags in {0} for {1}".format(name, environment)
+    extracted_tags = ci.tags(environment)
+    for key, value in tags.items():
+        assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
