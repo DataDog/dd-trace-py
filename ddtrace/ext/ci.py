@@ -82,12 +82,14 @@ def extract_appveyor(env):
         env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
     )
     if env.get("APPVEYOR_REPO_PROVIDER") == "github":
-        repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))
-        commit = env.get("APPVEYOR_REPO_COMMIT")
-        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH")
-        tag = env.get("APPVEYOR_REPO_TAG_NAME")
+        repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))  # type: Optional[str]
+        commit = env.get("APPVEYOR_REPO_COMMIT")  # type: Optional[str]
+        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get(
+            "APPVEYOR_REPO_BRANCH"
+        )  # type: Optional[str]
+        tag = env.get("APPVEYOR_REPO_TAG_NAME")  # type: Optional[str]
     else:
-        repository = commit = branch = tag = None  # type: ignore[assignment]
+        repository = commit = branch = tag = None
 
     return {
         PROVIDER_NAME: "appveyor",
@@ -114,20 +116,24 @@ def extract_azure_pipelines(env):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
-        pipeline_url = base_url
-        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))
+        pipeline_url = base_url  # type: Optional[str]
+        job_url = base_url + "&view=logs&j={0}&t={1}".format(
+            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
+        )  # type: Optional[str]
     else:
-        pipeline_url = job_url = None  # type: ignore[assignment]
+        pipeline_url = job_url = None
 
     branch_or_tag = (
-        env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH") or env.get("BUILD_SOURCEBRANCH") or env.get("BUILD_SOURCEBRANCHNAME")
+        env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
+        or env.get("BUILD_SOURCEBRANCH")
+        or env.get("BUILD_SOURCEBRANCHNAME")
+        or ""
     )
-    if "tags/" in branch_or_tag:  # type: ignore[operator]
-        branch = None
+    branch = tag = None  # type: Optional[str]
+    if "tags/" in branch_or_tag:
         tag = branch_or_tag
     else:
         branch = branch_or_tag
-        tag = None
 
     return {
         PROVIDER_NAME: "azurepipelines",
@@ -176,9 +182,9 @@ def extract_bitrise(env):
     if env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT") or env.get("GIT_CLONE_COMMIT_MESSAGE_BODY"):
         message = "{0}:\n{1}".format(
             env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT"), env.get("GIT_CLONE_COMMIT_MESSAGE_BODY")
-        )
+        )  # type: Optional[str]
     else:
-        message = None  # type: ignore[assignment]
+        message = None
 
     return {
         PROVIDER_NAME: "bitrise",
@@ -243,9 +249,9 @@ def extract_circle_ci(env):
 def extract_github_actions(env):
     # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
     """Extract CI tags from Github environ."""
-    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF")
-    branch = tag = None
-    if "tags/" in branch_or_tag:  # type: ignore[operator]
+    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF") or ""
+    branch = tag = None  # type: Optional[str]
+    if "tags/" in branch_or_tag:
         tag = branch_or_tag
     else:
         branch = branch_or_tag
@@ -293,9 +299,9 @@ def extract_gitlab(env):
 def extract_jenkins(env):
     # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
     """Extract CI tags from Jenkins environ."""
-    branch_or_tag = env.get("GIT_BRANCH")
-    branch = tag = None
-    if "tags/" in branch_or_tag:  # type: ignore[operator]
+    branch_or_tag = env.get("GIT_BRANCH", "")
+    branch = tag = None  # type: Optional[str]
+    if "tags/" in branch_or_tag:
         tag = branch_or_tag
     else:
         branch = branch_or_tag
