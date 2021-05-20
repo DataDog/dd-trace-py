@@ -22,7 +22,7 @@ from tests.utils import override_http_config
 
 
 def _response_status(response):
-    return getattr(response, "status_code", getattr(response, "status"))
+    return getattr(response, "status_code", getattr(response, "status", None))
 
 
 async def _response_json(response):
@@ -33,7 +33,7 @@ async def _response_json(response):
 
 
 async def _response_text(response):
-    resp_text = response.text()
+    resp_text = response.text
     if asyncio.iscoroutine(resp_text):
         resp_text = await resp_text
     return resp_text
