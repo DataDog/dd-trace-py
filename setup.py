@@ -181,7 +181,7 @@ setup(
         },
         # plugin tox
         tests_require=["tox", "flake8"],
-        cmdclass={"test": Tox, "build_ext": Cython.Distutils.build_ext},
+        cmdclass={"test": Tox},
         entry_points={
             "console_scripts": [
                 "ddtrace-run = ddtrace.commands.ddtrace_run:main",
