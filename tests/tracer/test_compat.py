@@ -2,13 +2,16 @@
 # Define source file encoding to support raw unicode characters in Python 2
 import sys
 
-# Third party
+from hypothesis import given
+from hypothesis import settings
+import hypothesis.strategies as st
 import pytest
+import six
 
-# Project
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import is_integer
+from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import reraise
 from ddtrace.internal.compat import to_unicode
 
@@ -132,3 +135,21 @@ def test_pep562():
     from tests.pep562_test import whatever
 
     assert whatever == "good module attribute"
+
+
+@given(
+    obj=st.one_of(
+        st.none(),
+        st.booleans(),
+        st.text(),
+        st.complex_numbers(),
+        st.dates(),
+        st.integers(),
+        st.decimals(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+    )
+)
+@settings(max_examples=100)
+def test_maybe_stringify(obj):
+    assert type(maybe_stringify(obj)) is (obj is not None and six.text_type or type(None))
