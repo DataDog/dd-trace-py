@@ -1,14 +1,15 @@
-import falcon as falcon
 from falcon import testing
 
 from ddtrace import config
+from ddtrace.contrib.falcon.patch import FALCON_VERSION
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 from .app import get_app
+from .test_suite import FalconTestMixin
 
 
-class DistributedTracingTestCase(testing.TestCase, TracerTestCase):
+class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCase):
     """Executes tests using the manual instrumentation so a middleware
     is explicitly added.
     """
@@ -18,9 +19,10 @@ class DistributedTracingTestCase(testing.TestCase, TracerTestCase):
         self._service = "falcon"
         self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
-        self.version = falcon.__version__
-        if self.version[0] != "1":
+        if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
+        else:
+            self.client = self
 
     def test_distributed_tracing_enabled(self):
         config.falcon["distributed_tracing"] = True
@@ -28,12 +30,7 @@ class DistributedTracingTestCase(testing.TestCase, TracerTestCase):
             "x-datadog-trace-id": "100",
             "x-datadog-parent-id": "42",
         }
-        if self.version[0] == "1":
-            out = self.simulate_get("/200", headers=headers)
-            assert out.status_code == 200
-        else:
-            out = self.client.simulate_get("/200", headers=headers)
-            assert out.status[:3] == "200"
+        out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
         traces = self.tracer.writer.pop_traces()
@@ -48,18 +45,13 @@ class DistributedTracingTestCase(testing.TestCase, TracerTestCase):
         config.falcon["distributed_tracing"] = False
         self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
-        if self.version[0] != "1":
+        if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
         headers = {
             "x-datadog-trace-id": "100",
             "x-datadog-parent-id": "42",
         }
-        if self.version[0] == "1":
-            out = self.simulate_get("/200", headers=headers)
-            assert out.status_code == 200
-        else:
-            out = self.client.simulate_get("/200", headers=headers)
-            assert out.status[:3] == "200"
+        out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
         traces = self.tracer.writer.pop_traces()
@@ -75,18 +67,13 @@ class DistributedTracingTestCase(testing.TestCase, TracerTestCase):
         self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
 
-        if self.version[0] != "1":
+        if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
         headers = {
             "x-datadog-trace-id": "100",
             "x-datadog-parent-id": "42",
         }
-        if self.version[0] == "1":
-            out = self.simulate_get("/200", headers=headers)
-            assert out.status_code == 200
-        else:
-            out = self.client.simulate_get("/200", headers=headers)
-            assert out.status[:3] == "200"
+        out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
         traces = self.tracer.writer.pop_traces()

@@ -1,16 +1,14 @@
 # -*- encoding: utf-8 -*-
-import atexit
 import logging
 import os
-import sys
 from typing import List
 from typing import Optional
-import warnings
 
 import attr
 
 import ddtrace
 from ddtrace.internal import agent
+from ddtrace.internal import atexit
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
@@ -34,15 +32,6 @@ def _get_service_name():
         service_name = os.environ.get(service_name_var)
         if service_name is not None:
             return service_name
-
-
-def gevent_patch_all(event):
-    if "ddtrace.profiling.auto" in sys.modules:
-        warnings.warn(
-            "Starting the profiler before using gevent monkey patching is not supported "
-            "and is likely to break the application. Use DD_GEVENT_PATCH_ALL=true to avoid this.",
-            RuntimeWarning,
-        )
 
 
 class Profiler(object):
@@ -276,9 +265,6 @@ class _ProfilerInstance(service.Service):
         for col in reversed(self._collectors):
             col.join()
 
-        # Python 2 does not have unregister
-        if hasattr(atexit, "unregister"):
-            # You can unregister a method that was not registered, so no need to do any other check
-            atexit.unregister(self.stop)
+        atexit.unregister(self.stop)
 
         super(_ProfilerInstance, self).stop()

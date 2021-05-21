@@ -1,7 +1,7 @@
-import falcon as falcon
 from falcon import testing
 
 import ddtrace
+from ddtrace.contrib.falcon.patch import FALCON_VERSION
 from tests.utils import TracerTestCase
 
 from .app import get_app
@@ -31,9 +31,10 @@ class AutoPatchTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         # uses it
         self.api = get_app(tracer=None)
 
-        self.version = falcon.__version__
-        if self.version[0] != "1":
+        if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
+        else:
+            self.client = self
 
     def tearDown(self):
         super(AutoPatchTestCase, self).tearDown()

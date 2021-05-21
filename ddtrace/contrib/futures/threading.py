@@ -24,7 +24,7 @@ def _wrap_submit(func, instance, args, kwargs):
         # If we have a context then make sure we clone it
         # DEV: We don't know if the future will finish executing before the parent span finishes
         #      so we clone to ensure we properly collect/report the future's spans
-        current_ctx = current_ctx.clone()
+        current_ctx = current_ctx._clone()
 
     # extract the target function that must be executed in
     # a new thread and the `target` arguments
