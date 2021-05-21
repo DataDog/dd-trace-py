@@ -32,7 +32,7 @@ def test_ci_providers(monkeypatch, name, environment, tags):
         assert extracted_tags[key] == value, "wrong tags in {0} for {1}".format(name, environment)
 
 
-def test_git_extract_info_author():
+def test_git_extract_user_info_author():
     """Make sure that git commit author name, email, and date are extracted and tagged correctly."""
     expected_author = ("John Doe", "john@doe.com", "2021-02-19T08:24:53Z")
     mock_author_output = b"John Doe,john@doe.com,2021-02-19T08:24:53Z"
@@ -40,7 +40,7 @@ def test_git_extract_info_author():
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
         mock_subprocess_popen.return_value.returncode = 0
         mock_subprocess_popen.return_value.communicate.return_value = (mock_author_output, b"")
-        extracted_author = git.extract_git_info(author=True)
+        extracted_author = git.extract_user_info(author=True)
         assert mock_subprocess_popen.call_args[0][0] == [
             "git",
             "show",
@@ -56,7 +56,7 @@ def test_git_extract_info_author():
     assert extracted_tags["git.commit.author.date"] == expected_author[2]
 
 
-def test_git_extract_info_committer():
+def test_git_extract_user_info_committer():
     """Make sure that git commit committer name, email, and date are extracted and tagged correctly."""
     expected_committer = ("Jane Doe", "jane@doe.com", "2021-01-19T09:24:53Z")
     mock_committer_output = b"Jane Doe,jane@doe.com,2021-01-19T09:24:53Z"
@@ -64,7 +64,7 @@ def test_git_extract_info_committer():
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
         mock_subprocess_popen.return_value.returncode = 0
         mock_subprocess_popen.return_value.communicate.return_value = (mock_committer_output, b"")
-        extracted_committer = git.extract_git_info(author=False)
+        extracted_committer = git.extract_user_info(author=False)
         assert mock_subprocess_popen.call_args[0][0] == [
             "git",
             "show",
@@ -80,15 +80,55 @@ def test_git_extract_info_committer():
     assert extracted_tags["git.commit.committer.date"] == expected_committer[2]
 
 
-def test_git_extract_error():
+def test_git_extract_user_info_error():
     """On error, the author/committer tags should be empty strings."""
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
         mock_subprocess_popen.return_value.returncode = -1
         mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
-        extracted_committer = git.extract_git_info(author=False)
+        extracted_committer = git.extract_user_info(author=False)
         extracted_tags = ci.tags({})
 
     assert extracted_committer == ("", "", "")
     assert extracted_tags["git.commit.committer.name"] == ""
     assert extracted_tags["git.commit.committer.email"] == ""
     assert extracted_tags["git.commit.committer.date"] == ""
+
+
+def test_git_extract_repository_url():
+    expected_repository_url = "https://github.com/scope-demo/scopeagent-reference-springboot2.git"
+    mock_repository_url_output = b"https://github.com/scope-demo/scopeagent-reference-springboot2.git"
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.return_value.returncode = 0
+        mock_subprocess_popen.return_value.communicate.return_value = (mock_repository_url_output, b"")
+        extracted_repository_url = git.extract_repository_url()
+
+    assert extracted_repository_url == expected_repository_url
+
+
+def test_git_extract_repository_url_error():
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.return_value.returncode = 0
+        mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
+        extracted_repository_url = git.extract_repository_url()
+
+    assert extracted_repository_url == ""
+
+
+def test_git_extract_commit_message():
+    expected_msg = "Update README.md"
+    mock_output = b"Update README.md"
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.return_value.returncode = 0
+        mock_subprocess_popen.return_value.communicate.return_value = (mock_output, b"")
+        extracted_msg = git.extract_commit_message()
+
+    assert extracted_msg == expected_msg
+
+
+def test_git_extract_commit_message_error():
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.return_value.returncode = 0
+        mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
+        extracted_msg = git.extract_commit_message()
+
+    assert extracted_msg == ""

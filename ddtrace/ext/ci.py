@@ -62,20 +62,13 @@ def tags(env=None):
             tags = extract(env)
             break
 
+    git_info = git.extract_git_metadata(tags)
+    tags.update(git_info)
     tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
         del tags[git.BRANCH]
     tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
-
-    author_name, author_email, author_date = git.extract_git_info(author=True)
-    committer_name, committer_email, committer_date = git.extract_git_info(author=False)
-    tags[git.COMMIT_AUTHOR_NAME] = author_name
-    tags[git.COMMIT_AUTHOR_EMAIL] = author_email
-    tags[git.COMMIT_AUTHOR_DATE] = author_date
-    tags[git.COMMIT_COMMITTER_NAME] = committer_name
-    tags[git.COMMIT_COMMITTER_EMAIL] = committer_email
-    tags[git.COMMIT_COMMITTER_DATE] = committer_date
 
     workspace_path = tags.get(WORKSPACE_PATH)
     if workspace_path:
