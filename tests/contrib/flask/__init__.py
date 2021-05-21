@@ -18,9 +18,7 @@ class BaseFlaskTestCase(TracerTestCase):
         Pin.override(self.app, tracer=self.tracer)
 
     def tearDown(self):
-        # Remove any remaining spans
-        self.tracer.pop()
-
+        super(BaseFlaskTestCase, self).tearDown()
         # Unpatch Flask
         unpatch()
 
