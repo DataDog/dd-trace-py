@@ -7,12 +7,12 @@ import attr
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
+from .internal.compat import NumericType
 from .internal.logger import get_logger
 from .utils.deprecation import deprecated
 
 
 if TYPE_CHECKING:
-    from .internal.compat import NumericType
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
@@ -26,11 +26,11 @@ class Context(object):
     boundaries.
     """
 
-    trace_id = attr.ib(default=None)  # type: Optional[int]
-    span_id = attr.ib(default=None)  # type: Optional[int]
-    _dd_origin = attr.ib(default=None)  # type: Optional[str]
-    _sampling_priority = attr.ib(default=None)  # type: Optional[NumericType]
-    _lock = attr.ib(factory=threading.RLock, eq=False)  # type: threading.RLock
+    trace_id = attr.ib(default=None, type=Optional[int])
+    span_id = attr.ib(default=None, type=Optional[int])
+    _dd_origin = attr.ib(default=None, type=Optional[str])
+    _sampling_priority = attr.ib(default=None, type=Optional[NumericType])
+    _lock = attr.ib(factory=threading.RLock, eq=False, type=threading.RLock)
     _meta = attr.ib(factory=dict)  # type: _MetaDictType
     _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
