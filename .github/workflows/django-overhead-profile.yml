@@ -60,13 +60,15 @@ jobs:
         run: |
           mkdir ${{ github.workspace }}/artifacts
 
-          gunicorn config.wsgi &
+          gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
           sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $! -x 120
+          kill $(cat gunicorn.pid)
 
-          ddtrace-run gunicorn config.wsgi &
+          ddtrace-run gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
           sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $! -x 120
+          kill $(cat gunicorn.pid)
 
       - name: Compute diff
         run: |
