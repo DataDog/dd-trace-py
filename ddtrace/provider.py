@@ -74,5 +74,4 @@ class DefaultContextProvider(BaseContextProvider):
 
         If none is available then a new empty context is activated and returned.
         """
-        ctx = _DD_CONTEXTVAR.get()
-        return ctx
+        return _DD_CONTEXTVAR.get()
