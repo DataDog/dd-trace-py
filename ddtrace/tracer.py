@@ -220,7 +220,7 @@ class Tracer(object):
 
     def current_trace_context(self, *args, **kwargs):
         # type (...) -> Optional[Context]
-        """Return the active context for the current trace.
+        """Return the context for the current trace.
 
         If there is no active trace then None is returned.
         """

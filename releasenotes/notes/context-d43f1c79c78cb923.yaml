@@ -9,7 +9,7 @@ features:
     allow manual context management.
   - |
     ``tracer.get_call_context()`` has been removed as this functionality no
-    longer exists. The replacement API is not ``tracer.current_trace_context()``.
+    longer exists. The replacement API is ``tracer.current_trace_context()``.
 upgrade:
   - |
     ``ddtrace.span.Span``
