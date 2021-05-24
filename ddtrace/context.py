@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-@attr.s(eq=True, slots=True)
+@attr.s(eq=False, slots=True)
 class Context(object):
     """Represents the state required to propagate a trace across execution
     boundaries.
@@ -30,13 +30,24 @@ class Context(object):
     span_id = attr.ib(default=None, type=Optional[int])
     _dd_origin = attr.ib(default=None, type=Optional[str])
     _sampling_priority = attr.ib(default=None, type=Optional[NumericType])
-    _lock = attr.ib(factory=threading.RLock, eq=False, type=threading.RLock)
+    _lock = attr.ib(factory=threading.RLock, type=threading.RLock)
     _meta = attr.ib(factory=dict)  # type: _MetaDictType
     _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
     def __attrs_post_init__(self):
         self.dd_origin = self._dd_origin
         self.sampling_priority = self._sampling_priority
+        del self._dd_origin
+        del self._sampling_priority
+
+    def __eq__(self, other):
+        with self._lock:
+            return (
+                self.trace_id == other.trace_id
+                and self.span_id == other.span_id
+                and self._meta == other._meta
+                and self._metrics == other._metrics
+            )
 
     def _with_span(self, span):
         # type: (Span) -> Context
