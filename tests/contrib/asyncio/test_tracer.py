@@ -8,6 +8,7 @@ from ddtrace.contrib.asyncio.compat import asyncio_current_task
 
 def test_get_call_context_twice(tracer):
     # it should return the same Context if called twice
+    assert tracer.get_call_context() == tracer.get_call_context()
     assert tracer.current_trace_context() == tracer.current_trace_context()
 
 
@@ -47,6 +48,12 @@ async def test_trace_multiple_coroutines(tracer):
     assert traces[0][0] == traces[0][1]._parent
     assert traces[0][0].trace_id == traces[0][1].trace_id
 
+
+def test_event_loop_exception(tracer):
+    # it should handle a loop exception
+    asyncio.set_event_loop(None)
+    ctx = tracer.get_call_context()
+    assert ctx is not None
 
 def test_context_task_none(tracer):
     loop = asyncio.new_event_loop()

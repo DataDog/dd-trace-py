@@ -216,7 +216,10 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self.context_provider.active(*args, **kwargs)  # type: ignore
+        ctx = self.current_trace_context(*args, **kwargs)
+        if ctx is None:
+            ctx = Context()
+        return ctx
 
     def current_trace_context(self, *args, **kwargs):
         # type (...) -> Optional[Context]
