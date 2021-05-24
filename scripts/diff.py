@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
 from io import StringIO
 from itertools import product
+from os.path import isabs
+from os.path import relpath
 import sys
 from typing import List
 from typing import TextIO
@@ -164,7 +166,15 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
         ]
     )
 
-    stacks = "\n".join([";".join(["P0", "T0"] + [str(_) for _ in f]) + " %d" % int(delta * 1e8) for f, delta in stacks])
+    def repr_frame(frame: Frame) -> str:
+        filename = frame.filename
+        if isabs(filename):
+            filename = relpath(filename)
+        return "%s:%s:%d" % (filename, frame.function, frame.line)
+
+    stacks = "\n".join(
+        [";".join(["P0", "T0"] + [repr_frame(f) for f in fs]) + " %d" % int(delta * 1e8) for fs, delta in stacks]
+    )
 
     return top, stacks
 
