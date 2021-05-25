@@ -140,7 +140,7 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
 
     def _k(f):
         return "%s (%s)" % (
-            "%s:%d" % (f.function, f.line) if f.function[0] == "<" else f.function,
+            "%s:%d" % (f.function, f.line),
             f.filename,
         )
 
