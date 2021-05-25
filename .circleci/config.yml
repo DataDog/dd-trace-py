@@ -374,6 +374,7 @@ jobs:
           docker_layer_caching: true
       - run: |
           docker build .
+          docker build -f Dockerfile.buster .
 
   # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
