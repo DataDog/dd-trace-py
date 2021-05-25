@@ -68,7 +68,7 @@ jobs:
 
           gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
-          $GITHUB_WORKSPACE/k6/k6 run --summary-export $GITHUB_WORKSPACE/artifacts/baseline-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
+          $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/baseline-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
           sleep 1
           sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $(cat gunicorn.pid) -x 30
           pkill k6
@@ -76,7 +76,7 @@ jobs:
 
           ddtrace-run gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
-          $GITHUB_WORKSPACE/k6/k6 run --summary-export $GITHUB_WORKSPACE/artifacts/head-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
+          $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/head-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
           sleep 1
           sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $(cat gunicorn.pid) -x 30
           pkill k6
