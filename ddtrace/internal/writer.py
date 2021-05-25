@@ -373,16 +373,14 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
-        # Start the AgentWriter on first write.
-        # Starting it earlier might be an issue with gevent, see:
-        # https://github.com/DataDog/dd-trace-py/issues/1192
         if spans is None:
             return
 
         if self._sync_mode is False:
+            # Start the AgentWriter on first write.
             try:
                 self.start()
-            except service.ServiceAlreadyRunning:
+            except service.ServiceStatusError:
                 pass
 
         self._metrics_dist("writer.accepted.traces")
@@ -455,10 +453,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
+    def _stop_service(  # type: ignore[override]
+        self,
+        timeout=None,  # type: Optional[float]
+    ):
+        # type: (...) -> None
         # FIXME: don't join() on stop(), let the caller handle this
-        super(AgentWriter, self).stop()
+        super(AgentWriter, self)._stop_service()
         self.join(timeout=timeout)
 
     on_shutdown = periodic
