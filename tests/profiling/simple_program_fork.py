@@ -21,11 +21,6 @@ parent_recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 
 child_pid = os.fork()
 if child_pid == 0:
-    # Child
-    # This is the first thing done on Python 3.7 and later, so mimic it here
-    if sys.version_info[:2] < (3, 7):
-        ddtrace.profiling.auto.start_profiler()
-
     recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 
     assert recorder is not parent_recorder
@@ -38,7 +33,7 @@ if child_pid == 0:
 
     # We track this one though
     lock = threading.Lock()
-    test_lock_name = "simple_program_fork.py:40"
+    test_lock_name = "simple_program_fork.py:35"
     assert test_lock_name not in set(e.lock_name for e in recorder.reset()[cthreading.LockAcquireEvent])
     lock.acquire()
     events = recorder.reset()

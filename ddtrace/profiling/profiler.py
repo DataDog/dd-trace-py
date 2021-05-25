@@ -9,6 +9,7 @@ import attr
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
@@ -65,13 +66,7 @@ class Profiler(object):
             atexit.register(self.stop)
 
         if profile_children:
-            if hasattr(os, "register_at_fork"):
-                os.register_at_fork(after_in_child=self._restart_on_fork)
-            else:
-                LOG.warning(
-                    "Your Python version does not have `os.register_at_fork`. "
-                    "You have to start a new Profiler after fork() manually."
-                )
+            forksafe.register(self._restart_on_fork)
 
     def stop(self, flush=True):
         """Stop the profiler.
@@ -79,6 +74,12 @@ class Profiler(object):
         :param flush: Flush last profile.
         """
         atexit.unregister(self.stop)
+
+        try:
+            forksafe.unregister(self._restart_on_fork)
+        except ValueError:
+            pass
+
         try:
             self._profiler.stop(flush)
         except service.ServiceStatusError:

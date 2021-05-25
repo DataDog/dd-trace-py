@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    On Python < 3.7, the Profiler now automatically restart in subprocesses
+    when `os.fork` is used. There's no need for manual instrumentation.
+upgrade:
+  - |
+    On Python < 3.7, the Profiler now automatically restart in subprocesses
+    when `os.fork` is used. If you used to manually instrumented the Profiler,
+    you must remove your manual instrumentation or use the
+    ``profile_children=False`` flag.
