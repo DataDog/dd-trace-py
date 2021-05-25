@@ -689,8 +689,8 @@ jobs:
   pytest:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^pytest_contrib'
+      - run_test:
+          pattern: 'pytest'
 
   pymemcache:
     <<: *contrib_job
