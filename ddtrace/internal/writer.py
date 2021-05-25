@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from typing import TextIO
 
 import six
+import tenacity
 
 import ddtrace
 from ddtrace.vendor.dogstatsd import DogStatsd
@@ -193,6 +194,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     should be in the same trace.
     """
 
+    RETRY_ATTEMPTS = 3
+
     def __init__(
         self,
         agent_url,  # type: str
@@ -246,6 +249,15 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
+        self._retry_upload = tenacity.Retrying(
+            # Retry RETRY_ATTEMPTS times within the first half of the processing
+            # interval, using a Fibonacci policy with jitter
+            wait=tenacity.wait_random_exponential(
+                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+            ),
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
+        )
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -417,13 +429,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
             encoded = self._encoder.join_encoded(enc_traces)
             try:
-                self._send_payload(encoded, len(enc_traces))
-            except (compat.httplib.HTTPException, OSError, IOError):
+                self._retry_upload(self._send_payload, encoded, len(enc_traces))
+            except tenacity.RetryError as e:
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))
                 if raise_exc:
-                    raise
+                    e.reraise()
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:
