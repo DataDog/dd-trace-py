@@ -56,18 +56,28 @@ jobs:
           pip install rich
           pip install git+git://github.com/p403n1x87/austin-python.git@acf3f3d3263a583c30f5c95e4b3ad337a6793aa3
 
+      - name: Install k6
+        run: |
+          mkdir $GITHUB_WORKSPACE/k6
+          cd $GITHUB_WORKSPACE/k6
+          curl https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-linux64.tar.gz -L | tar xvz --strip-components 1
+
       - name: Collect profiles
         run: |
           mkdir ${{ github.workspace }}/artifacts
 
           gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $! -x 120
+          $GITHUB_WORKSPACE/k6/k6 run --out json=artifacts/baseline-load.json scripts/django-overhead-profile-load.js &
+          sleep 1
+          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $! -x 60
           kill $(cat gunicorn.pid)
 
           ddtrace-run gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $! -x 120
+          $GITHUB_WORKSPACE/k6/k6 run --out json=artifacts/head-load.json scripts/django-overhead-profile-load.js &
+          sleep 1
+          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $! -x 60
           kill $(cat gunicorn.pid)
 
       - name: Compute diff
