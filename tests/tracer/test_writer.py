@@ -65,7 +65,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -91,7 +91,7 @@ class AgentWriterTests(BaseTestCase):
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
                 mock.call("datadog.tracer.buffer.dropped.traces", 1, tags=["reason:t_too_big"]),
                 mock.call("datadog.tracer.buffer.dropped.bytes", AnyInt(), tags=["reason:t_too_big"]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -110,7 +110,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -130,7 +130,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -145,7 +145,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 5, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
