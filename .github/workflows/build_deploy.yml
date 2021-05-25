@@ -98,3 +98,7 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
           # To test: repository_url: https://test.pypi.org/legacy/
+          # Setting skip_existing will prevent the deploy from erring out early
+          # due to a duplicate wheel being present which will ensure that the rest
+          # of the wheels will be uploaded if some are uploaded manually.
+          skip_existing: true
