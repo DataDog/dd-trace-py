@@ -142,10 +142,11 @@ class RuntimeWorker(periodic.PeriodicService):
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.gauge(key, value)
 
-    def stop(self):
+    def _stop_service(self):  # type: ignore[override]
+        # type: (...) -> None
         # De-register span hook
+        super(RuntimeWorker, self)._stop_service()
         self.tracer.deregister_on_start_span(self._set_language_on_span)
-        super(RuntimeWorker, self).stop()
 
     def update_runtime_tags(self):
         # type: () -> None

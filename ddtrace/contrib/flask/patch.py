@@ -74,7 +74,10 @@ def patch():
     _w("flask", "Flask.preprocess_request", request_tracer("preprocess_request"))
     _w("flask", "Flask.add_url_rule", traced_add_url_rule)
     _w("flask", "Flask.endpoint", traced_endpoint)
-    _w("flask", "Flask._register_error_handler", traced_register_error_handler)
+    if flask_version >= (2, 0, 0):
+        _w("flask", "Flask.register_error_handler", traced_register_error_handler)
+    else:
+        _w("flask", "Flask._register_error_handler", traced__register_error_handler)
 
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
     _w("flask", "Blueprint.register", traced_blueprint_register)
@@ -175,7 +178,6 @@ def unpatch():
         "Flask.dispatch_request",
         "Flask.add_url_rule",
         "Flask.endpoint",
-        "Flask._register_error_handler",
         "Flask.preprocess_request",
         "Flask.process_response",
         "Flask.handle_exception",
@@ -217,6 +219,11 @@ def unpatch():
         "render_template_string",
         "templating._render",
     ]
+
+    if flask_version >= (2, 0, 0):
+        props.append("Flask.register_error_handler")
+    else:
+        props.append("Flask._register_error_handler")
 
     # These were added in 0.11.0
     if flask_version >= (0, 11):
@@ -429,11 +436,20 @@ def traced_render(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def traced_register_error_handler(wrapped, instance, args, kwargs):
-    """Wrapper to trace all functions registered with flask.app.register_error_handler"""
+def traced__register_error_handler(wrapped, instance, args, kwargs):
+    """Wrapper to trace all functions registered with flask.app._register_error_handler"""
 
     def _wrap(key, code_or_exception, f):
         return wrapped(key, code_or_exception, wrap_function(instance, f))
+
+    return _wrap(*args, **kwargs)
+
+
+def traced_register_error_handler(wrapped, instance, args, kwargs):
+    """Wrapper to trace all functions registered with flask.app.register_error_handler"""
+
+    def _wrap(code_or_exception, f):
+        return wrapped(code_or_exception, wrap_function(instance, f))
 
     return _wrap(*args, **kwargs)
 

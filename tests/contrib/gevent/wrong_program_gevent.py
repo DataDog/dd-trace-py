@@ -1,6 +1,6 @@
 from gevent import monkey
 
-import ddtrace.profiling.auto  # noqa
+import ddtrace  # noqa
 
 
 monkey.patch_all()
