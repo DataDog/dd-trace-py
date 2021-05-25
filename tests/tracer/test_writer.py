@@ -11,7 +11,6 @@ from six.moves import BaseHTTPServer
 from six.moves import socketserver
 
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
-from ddtrace.internal import service
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
@@ -66,7 +65,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -92,7 +91,7 @@ class AgentWriterTests(BaseTestCase):
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
                 mock.call("datadog.tracer.buffer.dropped.traces", 1, tags=["reason:t_too_big"]),
                 mock.call("datadog.tracer.buffer.dropped.bytes", AnyInt(), tags=["reason:t_too_big"]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -111,7 +110,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -131,7 +130,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 10, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 50, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -146,7 +145,7 @@ class AgentWriterTests(BaseTestCase):
             [
                 mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=[]),
                 mock.call("datadog.tracer.buffer.accepted.spans", 5, tags=[]),
-                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.requests", writer.RETRY_ATTEMPTS, tags=[]),
                 mock.call("datadog.tracer.http.errors", 1, tags=["type:err"]),
                 mock.call("datadog.tracer.http.dropped.bytes", AnyInt(), tags=[]),
             ],
@@ -530,14 +529,3 @@ def test_racing_start():
         t.join()
 
     assert len(writer._buffer) == 100
-
-
-def test_double_stop():
-    # Ensure double stopping doesn't result in an exception.
-    writer = AgentWriter(agent_url="http://dne:1234")
-    writer.write([])
-    assert writer.status == service.ServiceStatus.RUNNING
-    writer.stop()
-    assert writer.status == service.ServiceStatus.STOPPED
-    writer.stop()
-    assert writer.status == service.ServiceStatus.STOPPED
