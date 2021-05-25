@@ -70,14 +70,14 @@ jobs:
           sleep 1
           $GITHUB_WORKSPACE/k6/k6 run --out json=artifacts/baseline-load.json scripts/django-overhead-profile-load.js &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $! -x 60
+          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $(cat gunicorn.pid) -x 60
           kill $(cat gunicorn.pid)
 
           ddtrace-run gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
           $GITHUB_WORKSPACE/k6/k6 run --out json=artifacts/head-load.json scripts/django-overhead-profile-load.js &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $! -x 60
+          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $(cat gunicorn.pid) -x 60
           kill $(cat gunicorn.pid)
 
       - name: Compute diff
