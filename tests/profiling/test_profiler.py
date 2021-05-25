@@ -31,11 +31,7 @@ def test_restart():
 
 
 def test_multiple_stop():
-    """Check that the profiler can be stopped twice.
-
-    This is useful since the atexit.unregister call might not exist on Python 2,
-    therefore the profiler can be stopped twice (once per the user, once at exit).
-    """
+    """Check that the profiler can be stopped twice."""
     p = profiler.Profiler()
     p.start()
     p.stop(flush=False)
@@ -252,6 +248,12 @@ def test_snapshot(monkeypatch):
         def snapshot():
             return [[event.Event()]]
 
+        def _start_service(self):
+            pass
+
+        def _stop_service(self):
+            pass
+
     all_events = {}
 
     class Exporter(exporter.Exporter):
@@ -273,8 +275,11 @@ def test_snapshot(monkeypatch):
 
 def test_failed_start_collector(caplog, monkeypatch):
     class ErrCollect(collector.Collector):
-        def start(self):
+        def _start_service(self):
             raise RuntimeError("could not import required module")
+
+        def _stop_service(self):
+            pass
 
         @staticmethod
         def collect():

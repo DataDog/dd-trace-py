@@ -78,12 +78,21 @@ class Profiler(object):
 
         :param flush: Flush last profile.
         """
-        self._profiler.stop(flush)
+        atexit.unregister(self.stop)
+        try:
+            self._profiler.stop(flush)
+        except service.ServiceStatusError:
+            # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
+            pass
 
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
-        self.stop(flush=False)
+        try:
+            self._profiler.stop(flush=False)
+        except service.ServiceStatusError:
+            # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
+            pass
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
@@ -224,8 +233,8 @@ class _ProfilerInstance(service.Service):
             service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
         )
 
-    def _start(self):
-        # type: () -> None
+    def _start_service(self):  # type: ignore[override]
+        # type: (...) -> None
         """Start the profiler."""
         collectors = []
         for col in self._collectors:
@@ -242,15 +251,15 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             self._scheduler.start()
 
-    def stop(self, flush=True):
+    def _stop_service(  # type: ignore[override]
+        self, flush=True  # type: bool
+    ):
+        # type: (...) -> None
         """Stop the profiler.
 
         :param flush: Flush a last profile.
         """
-        if self.status != service.ServiceStatus.RUNNING:
-            return
-
-        if self._scheduler:
+        if self._scheduler is not None:
             self._scheduler.stop()
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
             # collectors before the possibly running flush is finished.
@@ -260,11 +269,11 @@ class _ProfilerInstance(service.Service):
                 self._scheduler.flush()
 
         for col in reversed(self._collectors):
-            col.stop()
+            try:
+                col.stop()
+            except service.ServiceStatusError:
+                # It's possible some collector failed to start, ignore failure to stop
+                pass
 
         for col in reversed(self._collectors):
             col.join()
-
-        atexit.unregister(self.stop)
-
-        super(_ProfilerInstance, self).stop()
