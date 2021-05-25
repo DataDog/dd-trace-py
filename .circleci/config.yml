@@ -2,8 +2,8 @@ version: 2.1
 
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
-python38-alpine_image: &python38-alpine_image python:3.8-alpine
-python38_image: &python38_image circleci/python:3.8
+python39-alpine_image: &python39-alpine_image python:3.9-alpine
+python39_image: &python39_image circleci/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
@@ -240,13 +240,13 @@ executors:
     docker:
       - image: *cimg_base_image
     resource_class: small
-  python38-alpine:
+  python39-alpine:
     docker:
-      - image: *python38-alpine_image
+      - image: *python39-alpine_image
     resource_class: small
-  python38:
+  python39:
     docker:
-      - image: *python38_image
+      - image: *python39_image
     resource_class: small
   ddtrace_dev:
     docker:
@@ -289,7 +289,7 @@ postgres_server: &postgres_server
 
 jobs:
   pre_check:
-    executor: python38
+    executor: python39
     steps:
       - checkout
       - setup_riot
@@ -313,7 +313,7 @@ jobs:
       - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   coverage_report:
-    executor: python38
+    executor: python39
     steps:
       - checkout
       - attach_workspace:
@@ -377,7 +377,7 @@ jobs:
 
   # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
-    executor: python38-alpine
+    executor: python39-alpine
     steps:
       - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
       - test_build
