@@ -1,11 +1,6 @@
-from functools import wraps
 import sys
 
-import ddtrace
-
 from .constants import FUTURE_SPAN_KEY
-from .constants import PARENT_SPAN_KEY
-from .stack_context import TracerStackContext
 
 
 def _finish_span(future):
