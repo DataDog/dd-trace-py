@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
-from io import StringIO
 from itertools import product
+from logging import getLogger
 from os.path import isabs
 from os.path import relpath
 import sys
@@ -8,12 +8,10 @@ from typing import List
 from typing import TextIO
 from typing import Tuple
 
-from austin.stats import AustinStats
 from austin.stats import Frame
 from austin.stats import InvalidSample
 from austin.stats import Metrics
 from austin.stats import Sample
-from austin.stats import ZERO
 from rich.console import Console
 from rich.progress import track
 
@@ -22,10 +20,15 @@ FoldedStack = List[Frame]
 CONSOLE = Console(file=sys.stderr)
 
 
-def _similarities(x: List[FoldedStack], y: List[FoldedStack]) -> List[Tuple[Tuple[int, int], float]]:
+LOGGER = getLogger(__name__)
+
+
+def _similarities(
+    x: List[Tuple[FoldedStack, Metrics]], y: List[Tuple[FoldedStack, Metrics]]
+) -> List[Tuple[Tuple[int, int], float]]:
     """O(n * log(n)), n = len(x) * len(y)."""
 
-    def score(a: List[Frame], b: List[Frame]) -> float:
+    def score(a: Tuple[FoldedStack, Metrics], b: Tuple[FoldedStack, Metrics]) -> float:
         """Score two folded stacks (modulo frames contributed by ddtrace).
 
         For multiple matches, prioritise those with similar metrics.
@@ -52,16 +55,25 @@ def _similarities(x: List[FoldedStack], y: List[FoldedStack]) -> List[Tuple[Tupl
     )
 
 
-def _match(x: List[FoldedStack], y: List[FoldedStack], threshold: float = 0.5) -> List[Tuple[int, int]]:
+def _match(
+    x: List[Tuple[FoldedStack, Metrics]],
+    y: List[Tuple[FoldedStack, Metrics]],
+) -> List[Tuple[int, int]]:
     """O(len(x) * len(y))."""
     ss = _similarities(x, y)
     mx, my = set(), set()
     matches = set()
     for (i, j), s in ss:
-        if i in mx or j in my or s <= threshold:
+        if i in mx or j in my or s == 0:
             continue
         mx.add(i)
         my.add(j)
+
+        LOGGER.debug(":".join([_.function + ":" + str(_.line) for _ in x[i][0] if "ddtrace" not in _.filename]))
+        LOGGER.debug(":".join([_.function + ":" + str(_.line) for _ in y[j][0] if "ddtrace" not in _.filename]))
+        LOGGER.debug("Score", s, "(", x[i][1], y[j][1], ")")
+        LOGGER.debug()
+
         matches.add((i, j))
     return matches
 
@@ -77,7 +89,8 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
 
     def compressed(source: TextIO) -> str:
         """Compress the source."""
-        stats = AustinStats()
+        stats = {}
+        total_time = 0
         for line in track(
             source.read().splitlines(keepends=False),
             description="Compressing",
@@ -86,13 +99,12 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
         ):
             if line.startswith("# "):
                 continue
-            stats.update(Sample.parse(line))
+            stack, _, metric = line.rpartition(" ")
+            v = int(metric)
+            stats[stack] = stats.setdefault(stack, 0) + v
+            total_time += v
 
-        buffer = StringIO()
-        stats.dump(buffer)
-
-        total_time = sum(t.total.time for p in stats.processes.values() for t in p.threads.values())
-        return buffer.getvalue(), total_time
+        return "\n".join([stack + " " + str(t) for stack, t in stats.items()]), total_time
 
     def get_frames(text: str, threshold: float = 1e-3) -> List[Tuple[FoldedStack, Metrics]]:
         """Get the folded stacks and metrics from a string of samples."""
@@ -115,6 +127,8 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
 
     ca, ta = compressed(a)
     cb, tb = compressed(b)
+    overhead = (ta - tb) / tb
+
     fa = get_frames(ca, threshold)
     fb = get_frames(cb, threshold)
     ms = _match(fa, fb)
@@ -139,10 +153,7 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
     top_map = {}
 
     def _k(f):
-        return "%s (%s)" % (
-            "%s:%d" % (f.function, f.line) if f.function[0] == "<" else f.function,
-            f.filename,
-        )
+        return "%s (%s:%d)" % (f.function, f.filename, f.line)
 
     for fs, delta in stacks:
         seen_fs = set()
@@ -157,7 +168,7 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
 
     top = "\n".join(
         [
-            "{:6.2f}%  {:6.2f}%  {}".format(v["total"] * 100, v["own"] * 100, f)
+            "{} {:6.2f}%  {:6.2f}%  {}".format("*" if "ddtrace" in f else " ", v["total"] * 100, v["own"] * 100, f)
             for f, v in sorted(
                 ((k, v) for k, v in top_map.items()),
                 key=lambda e: e[1]["own"],
@@ -172,11 +183,12 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
             filename = relpath(filename)
         return "%s:%s:%d" % (filename, frame.function, frame.line)
 
+    M = 1e8
     stacks = "\n".join(
-        [";".join(["P0", "T0"] + [repr_frame(f) for f in fs]) + " %d" % int(delta * 1e8) for fs, delta in stacks]
+        [";".join(["P0", "T0"] + [repr_frame(f) for f in fs]) + " %d" % int(delta * M) for fs, delta in stacks]
     )
 
-    return top, stacks
+    return overhead, top, stacks
 
 
 def main() -> None:
@@ -219,11 +231,13 @@ def main() -> None:
     args = argp.parse_args()
 
     with open(args.a) as a, open(args.b) as b:
-        top, stacks = diff(a, b, threshold=args.threshold)
+        overhead, top, stacks = diff(a, b, threshold=args.threshold)
         if args.output is not None:
             with open(args.output + ".austin", "w") as fout:
                 fout.write(stacks)
             with open(args.output + ".top", "w") as fout:
+                fout.write("Total overhead: %0.2f%%\n\n" % (overhead * 100))
+                fout.write("     %TOT   * %OWN  FUNCTION\n")
                 fout.write(top)
         else:
             print(top)
