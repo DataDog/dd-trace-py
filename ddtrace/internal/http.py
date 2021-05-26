@@ -1,13 +1,8 @@
-from typing import TYPE_CHECKING
-
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 
 
-BaseConnectionMixin = httplib.HTTPConnection if TYPE_CHECKING else object
-
-
-class BasePathMixin(BaseConnectionMixin):
+class BasePathMixin(httplib.HTTPConnection, object):
     """
     Mixin for HTTPConnection to insert a base path to requested URLs
     """
