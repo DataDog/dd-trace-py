@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes double patching of ``pymongo`` client topology.
+    Fix double patching of ``pymongo`` client topology.
