@@ -380,7 +380,8 @@ jobs:
   test_build_alpine:
     executor: python39-alpine
     steps:
-      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
+      # Rust + Cargo are needed for Cryptography
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
       - test_build
 
   tracer:
