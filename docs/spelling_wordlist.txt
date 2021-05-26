@@ -35,6 +35,7 @@ datadoghq
 datastore
 dbapi
 ddtrace
+deprecations
 django
 dogpile
 dogstatsd
@@ -124,3 +125,4 @@ versioned
 vertica
 whitelist
 wsgi
+xfail

@@ -585,28 +585,6 @@ venv = Venv(
                 "blinker": latest,
             },
             venvs=[
-                # Flask 0.10, 0.11
-                Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "flask": ["~=0.10.0", "~=0.11.0"],
-                        "pytest": "~=3.0",
-                        "Werkzeug": "<1.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
-                    env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
-                    },
-                    pkgs={
-                        "flask": ["~=0.10.0", "~=0.11.0"],
-                        "pytest": "~=3.0",
-                        "Werkzeug": "<1.0",
-                    },
-                ),
                 # Flask == 0.12.0
                 Venv(
                     pys=select_pys(),
@@ -627,11 +605,15 @@ venv = Venv(
                         "pytest": "~=3.0",
                     },
                 ),
-                # Flask >= 1.0.0
+                # Flask 1.x.x
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", "<2.0.0"],
+                        "flask": [
+                            "~=1.0.0",
+                            "~=1.1.0",
+                            "~=1.0",  # latest 1.x
+                        ],
                     },
                 ),
                 Venv(
@@ -642,7 +624,37 @@ venv = Venv(
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", "<2.0.0"],
+                        "flask": [
+                            "~=1.0.0",
+                            "~=1.1.0",
+                            "~=1.0",  # latest 1.x
+                        ],
+                    },
+                ),
+                # Flask >= 2.0.0
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DATADOG_SERVICE_NAME": "test.flask.service",
+                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
                     },
                 ),
             ],
@@ -654,6 +666,7 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
+                "werkzeug": "<1.0",
             },
             venvs=[
                 Venv(
@@ -879,6 +892,29 @@ venv = Venv(
                         "pytest-asyncio": latest,
                         "requests": latest,
                         "aiofiles": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest",
+            command="pytest {cmdargs} tests/contrib/pytest",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest==4.6 is last to support python 2.7
+                    pkgs={"pytest": ">=4.0,<4.6"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "pytest": [
+                            ">=3.0,<4.0",
+                            ">=4.0,<5.0",
+                            ">=5.0,<6.0",
+                            ">=6.0,<7.0",
+                            latest,
+                        ],
                     },
                 ),
             ],

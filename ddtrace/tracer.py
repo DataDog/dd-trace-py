@@ -33,6 +33,7 @@ from .internal import atexit
 from .internal import compat
 from .internal import debug
 from .internal import hostname
+from .internal import service
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
@@ -312,7 +313,11 @@ class Tracer(object):
             # get the URL from.
             url = None  # type: ignore
 
-        self.writer.stop()
+        try:
+            self.writer.stop()
+        except service.ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass
 
         if writer is not None:
             self.writer = writer
@@ -409,7 +414,7 @@ class Tracer(object):
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = new_ctx or child_of
-                parent = child_of.get_current_span()
+                parent = child_of._get_current_span()
             else:
                 context = child_of.context
                 parent = child_of
@@ -519,7 +524,7 @@ class Tracer(object):
                 span._set_str_tag(VERSION_KEY, config.version)
 
         # add it to the current context
-        context.add_span(span)
+        context._add_span(span)
 
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
@@ -674,7 +679,7 @@ class Tracer(object):
         """
         ctx = self.get_call_context()
         if ctx:
-            return ctx.get_current_root_span()
+            return ctx._get_current_root_span()
         return None
 
     def current_span(self):
@@ -685,7 +690,7 @@ class Tracer(object):
         """
         ctx = self.get_call_context()
         if ctx:
-            return ctx.get_current_span()
+            return ctx._get_current_span()
         return None
 
     def write(self, spans):
@@ -828,7 +833,11 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        self.writer.stop(timeout=timeout)
+        try:
+            self.writer.stop(timeout=timeout)
+        except service.ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass
         atexit.unregister(self._atexit)
 
     @staticmethod

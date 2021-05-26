@@ -224,7 +224,7 @@ class Span(object):
             self.duration_ns = ft - (self.start_ns or ft)
 
         if self._context:
-            self._context.close_span(self)
+            self._context._close_span(self)
         for cb in self._on_finish_callbacks:
             cb(self)
 
