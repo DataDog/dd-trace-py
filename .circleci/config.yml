@@ -374,12 +374,14 @@ jobs:
           docker_layer_caching: true
       - run: |
           docker build .
+          docker build -f Dockerfile.buster .
 
   # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
     executor: python39-alpine
     steps:
-      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
+      # Rust + Cargo are needed for Cryptography
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
       - test_build
 
   tracer:
@@ -688,8 +690,8 @@ jobs:
   pytest:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^pytest_contrib'
+      - run_test:
+          pattern: 'pytest'
 
   pymemcache:
     <<: *contrib_job
