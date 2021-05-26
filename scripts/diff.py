@@ -72,7 +72,7 @@ def _match(
         LOGGER.debug(":".join([_.function + ":" + str(_.line) for _ in x[i][0] if "ddtrace" not in _.filename]))
         LOGGER.debug(":".join([_.function + ":" + str(_.line) for _ in y[j][0] if "ddtrace" not in _.filename]))
         LOGGER.debug("Score", s, "(", x[i][1], y[j][1], ")")
-        LOGGER.debug()
+        LOGGER.debug("")
 
         matches.add((i, j))
     return matches

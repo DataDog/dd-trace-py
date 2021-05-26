@@ -4,41 +4,39 @@ on:
     branches: [master]
   pull_request:
 jobs:
-  django-overhead-profile-3_1_7:
+  django-overhead-profile:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: django
+        working-directory: trace-examples/python/django/django-simple
+    env:
+      DJANGO_ALLOWED_HOSTS: 127.0.0.1
+      DJANGO_SECRET_KEY: vNIF0IeM1IN9YAOOB8yEmNddSvnnXxx7E7D3TwWsdno
+      DATABASE_URL: sqlite:///django.db
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      USE_DOCKER: false
     steps:
       - uses: actions/checkout@v2
         with:
           path: ddtrace
+
       - uses: actions/checkout@v2
         with:
-          repository: django/django
-          ref: 3.1.7
-          path: django
+          repository: DataDog/trace-examples
+          ref: 760deae1fd2f2371cf813d3ff3ca9f0e040e8c60
+          path: trace-examples
+
       - uses: actions/setup-python@v2
         with:
           python-version: "3.8"
-      - name: Install pylibmc's libmemcached package
-        # Django-specific: pylibmc in Ubuntu requires libmemcached package
-        run: sudo apt install libmemcached-dev zlib1g
-      - name: Install dependencies
-        # Django-specific: separate dependencies for tests
-        run: pip install -r tests/requirements/py3.txt
-      - name: Install ddtrace
-        run: pip install -e ../ddtrace
-      - name: Install django
-        run: pip install .
-      - name: Set Pythonpath
-        run: echo "PYTHONPATH=." >> $GITHUB_ENV
-      - name: Disable unsupported tests
+
+      - name: Prepare Django app
         run: |
-          # Note: test_supports_json_field_operational_error will fail with the tracer
-          # DEV: Insert @skipUnless before the test definition
-          # DEV: We need to escape the space indenting
-          sed -i'' '/def test_supports_json_field_operational_error/i \ \ \ \ @skipUnless(False, "test not supported by dd-trace-py")' tests/backends/sqlite/test_features.py
+          pip install -r requirements/production.txt
+          python manage.py migrate
+
+      - name: Install ddtrace
+        run: pip install -e $GITHUB_WORKSPACE/ddtrace
 
       - name: Checkout Austin development branch
         uses: actions/checkout@v2
@@ -58,30 +56,43 @@ jobs:
           pip install rich
           pip install git+git://github.com/p403n1x87/austin-python.git@acf3f3d3263a583c30f5c95e4b3ad337a6793aa3
 
-      - name: Run tests
-        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+      - name: Install k6
+        run: |
+          mkdir $GITHUB_WORKSPACE/k6
+          cd $GITHUB_WORKSPACE/k6
+          curl https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-linux64.tar.gz -L | tar xvz --strip-components 1
+
+      - name: Collect profiles
         run: |
           mkdir ${{ github.workspace }}/artifacts
 
-          DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py -k base &
+          gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/django_base.ddtrace.austin -sp $!
+          $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/baseline-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
+          sleep 1
+          sudo $GITHUB_WORKSPACE/austin/src/austin -C -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $(cat gunicorn.pid) -x 10
+          pkill k6
+          kill $(cat gunicorn.pid)
 
-          tests/runtests.py -k base &
+          ddtrace-run gunicorn config.wsgi --pid gunicorn.pid &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -i 200 -o ${{ github.workspace }}/artifacts/django_base.austin -sp $!
+          $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/head-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
+          sleep 1
+          sudo $GITHUB_WORKSPACE/austin/src/austin -C -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $(cat gunicorn.pid) -x 10
+          pkill k6
+          kill $(cat gunicorn.pid)
 
       - name: Compute diff
         run: |
           cd ${{ github.workspace }}/ddtrace
-          python scripts/diff.py ${{ github.workspace }}/artifacts/django_base.ddtrace.austin ${{ github.workspace }}/artifacts/django_base.austin -o ${{ github.workspace }}/artifacts/django_base.diff
-          head -n 25 ${{ github.workspace }}/artifacts/django_base.diff.top
-          austin2pprof ${{ github.workspace }}/artifacts/django_base.diff.austin ${{ github.workspace }}/artifacts/django_base.diff.pprof
+          python scripts/diff.py ${{ github.workspace }}/artifacts/head.austin ${{ github.workspace }}/artifacts/baseline.austin -o ${{ github.workspace }}/artifacts/baseline_head.diff
+          head -n 25 ${{ github.workspace }}/artifacts/baseline_head.diff.top
+          austin2pprof ${{ github.workspace }}/artifacts/baseline_head.diff.austin ${{ github.workspace }}/artifacts/baseline_head.diff.pprof
           ls -alh
           cd -
 
       - uses: actions/upload-artifact@v2
         with:
-          name: overhead-profile
+          name: django-overhead-profile
           path: ${{ github.workspace }}/artifacts
 
