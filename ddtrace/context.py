@@ -28,9 +28,9 @@ class Context(object):
 
     trace_id = attr.ib(default=None, type=Optional[int])
     span_id = attr.ib(default=None, type=Optional[int])
-    _dd_origin = attr.ib(default=None, type=Optional[str])
-    _sampling_priority = attr.ib(default=None, type=Optional[NumericType])
-    _lock = attr.ib(factory=threading.RLock, type=threading.RLock)
+    _dd_origin = attr.ib(default=None, type=Optional[str], repr=False)
+    _sampling_priority = attr.ib(default=None, type=Optional[NumericType], repr=False)
+    _lock = attr.ib(factory=threading.RLock, type=threading.RLock, repr=False)
     _meta = attr.ib(factory=dict)  # type: _MetaDictType
     _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
