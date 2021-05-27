@@ -228,9 +228,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._timeout = timeout
 
         if priority_sampler is not None:
-            self._endpoint = "/v0.4/traces"
+            self._endpoint = "v0.4/traces"
         else:
-            self._endpoint = "/v0.3/traces"
+            self._endpoint = "v0.3/traces"
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -316,8 +316,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 conn.close()
 
     def _downgrade(self, payload, response):
-        if self._endpoint == "/v0.4/traces":
-            self._endpoint = "/v0.3/traces"
+        if self._endpoint == "v0.4/traces":
+            self._endpoint = "v0.3/traces"
             return payload
         raise ValueError
 
