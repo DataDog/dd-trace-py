@@ -2,9 +2,10 @@ import socket
 from typing import Any
 
 from .compat import httplib
+from .http import BasePathMixin
 
 
-class UDSHTTPConnection(httplib.HTTPConnection):
+class UDSHTTPConnection(BasePathMixin, httplib.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 
     # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
@@ -16,7 +17,7 @@ class UDSHTTPConnection(httplib.HTTPConnection):
         **kwargs  # type: Any
     ):
         # type: (...) -> None
-        httplib.HTTPConnection.__init__(self, *args, **kwargs)
+        super(UDSHTTPConnection, self).__init__(*args, **kwargs)
         self.path = path
 
     def connect(self):
