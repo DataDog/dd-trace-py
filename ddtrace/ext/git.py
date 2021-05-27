@@ -6,8 +6,15 @@ from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
 
+import six
+
 from ddtrace.internal import compat
 
+
+if six.PY2:
+    GitNotFoundError = OSError
+else:
+    GitNotFoundError = FileNotFoundError
 
 # Git Branch
 BRANCH = "git.branch"
@@ -84,24 +91,24 @@ def extract_git_metadata(tags):
     """Extract git commit metadata. Tags already present take precedence."""
     try:
         extracted_repository_url = extract_repository_url()
-    except (OSError, FileNotFoundError):
+    except GitNotFoundError:
         extracted_repository_url = ""
 
     try:
         extracted_commit_message = extract_commit_message()
-    except (OSError, FileNotFoundError):
+    except GitNotFoundError:
         extracted_commit_message = ""
 
     try:
         author = extract_user_info(author=True)
-    except (OSError, FileNotFoundError):
+    except GitNotFoundError:
         author = "", "", ""
     author_name = tags.get(COMMIT_AUTHOR_NAME, author[0])
     author_email = tags.get(COMMIT_AUTHOR_EMAIL, author[1])
 
     try:
         committer = extract_user_info(author=False)
-    except (OSError, FileNotFoundError):
+    except GitNotFoundError:
         committer = "", "", ""
     committer_name = tags.get(COMMIT_COMMITTER_NAME, committer[0])
     committer_email = tags.get(COMMIT_COMMITTER_EMAIL, committer[1])
