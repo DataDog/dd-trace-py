@@ -4,6 +4,7 @@ import os
 
 import mock
 import pytest
+import six
 
 from ddtrace.ext import ci
 from ddtrace.ext import git
@@ -94,16 +95,11 @@ def test_git_extract_user_info_error():
     assert extracted_tags["git.commit.committer.date"] == ""
 
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.side_effect = FileNotFoundError()
+        if six.PY2:
+            mock_subprocess_popen.side_effect = OSError()
+        else:
+            mock_subprocess_popen.side_effect = FileNotFoundError()
         extracted_tags = git.extract_git_metadata(tags={})
-
-    assert extracted_tags["git.commit.committer.name"] == ""
-    assert extracted_tags["git.commit.committer.email"] == ""
-    assert extracted_tags["git.commit.committer.date"] == ""
-
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.side_effect = OSError()
-        extracted_tags = git.extract_git_metadata({})
 
     assert extracted_tags["git.commit.committer.name"] == ""
     assert extracted_tags["git.commit.committer.email"] == ""
@@ -132,14 +128,11 @@ def test_git_extract_repository_url_error():
     assert extracted_repository_url == ""
 
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.side_effect = FileNotFoundError()
-        extracted_tags = git.extract_git_metadata({})
-
-    assert extracted_tags["git.repository_url"] == ""
-
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.side_effect = OSError()
-        extracted_tags = git.extract_git_metadata({})
+        if six.PY2:
+            mock_subprocess_popen.side_effect = OSError()
+        else:
+            mock_subprocess_popen.side_effect = FileNotFoundError()
+        extracted_tags = git.extract_git_metadata(tags={})
 
     assert extracted_tags["git.repository_url"] == ""
 
@@ -166,13 +159,10 @@ def test_git_extract_commit_message_error():
     assert extracted_msg == ""
 
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.side_effect = FileNotFoundError()
-        extracted_tags = git.extract_git_metadata({})
-
-    assert extracted_tags["git.commit.message"] == ""
-
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.side_effect = OSError()
-        extracted_tags = git.extract_git_metadata({})
+        if six.PY2:
+            mock_subprocess_popen.side_effect = OSError()
+        else:
+            mock_subprocess_popen.side_effect = FileNotFoundError()
+        extracted_tags = git.extract_git_metadata(tags={})
 
     assert extracted_tags["git.commit.message"] == ""
