@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from itertools import product
-from logging import getLogger
+import logging
+import os
 from os.path import isabs
 from os.path import relpath
 import sys
@@ -20,7 +21,21 @@ FoldedStack = List[Frame]
 CONSOLE = Console(file=sys.stderr)
 
 
-LOGGER = getLogger(__name__)
+if os.environ.get("DD_TRACE_DEBUG_ENABLE", False):
+    logging.basicConfig(level=logging.DEBUG)
+    LOGGER = logging.getLogger()
+else:
+    LOGGER = None
+
+CACHED_STACKS = {}
+
+
+def _normalized_stack(stack):
+    try:
+        return CACHED_STACKS[id(stack)]
+    except KeyError:
+        CACHED_STACKS[id(stack)] = [_ for _ in stack if "ddtrace" not in _.filename]
+    return CACHED_STACKS[id(stack)]
 
 
 def _similarities(
@@ -35,7 +50,7 @@ def _similarities(
         """
         fa, ma = a
         fb, mb = b
-        if [_ for _ in fa if "ddtrace" not in _.filename] == [_ for _ in fb if "ddtrace" not in _.filename]:
+        if _normalized_stack(fa) == _normalized_stack(fb):
             return 1 - abs(ma.time - mb.time) / (ma.time + mb.time)
         return 0
 
@@ -69,10 +84,10 @@ def _match(
         mx.add(i)
         my.add(j)
 
-        LOGGER.debug(":".join([_.function + ":" + str(_.line) for _ in x[i][0] if "ddtrace" not in _.filename]))
-        LOGGER.debug(":".join([_.function + ":" + str(_.line) for _ in y[j][0] if "ddtrace" not in _.filename]))
-        LOGGER.debug("Score", s, "(", x[i][1], y[j][1], ")")
-        LOGGER.debug("")
+        if LOGGER:
+            stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(x[i][0])])
+            LOGGER.debug("Match: %f (%r | %r)  %s", s, x[i][1].time, y[j][1].time, stack)
+            LOGGER.debug("")
 
         matches.add((i, j))
     return matches
@@ -134,7 +149,8 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
     ms = _match(fa, fb)
 
     matched = set()
-    stacks = []
+    matched_stacks = []
+    new_stacks = []
 
     # Matched stacks
     for i, j in ms:
@@ -142,20 +158,28 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
         delta = (fa[i][1].time - fb[j][1].time) / tb
 
         if delta > 0:
-            stacks.append((fa[i][0], delta))
+            matched_stacks.append((fa[i][0], delta))
 
     # New stacks
-    for i in [_ for _ in range(len(fa)) if _ not in matched]:
+    for i in range(len(fa)):
+        if i in matched:
+            continue
         f, m = fa[i]
         delta = m.time / tb
-        stacks.append((f, delta))
+
+        if LOGGER:
+            stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
+            LOGGER.debug("NO Match (%r)  %s", m.time, stack)
+            LOGGER.debug("")
+
+        new_stacks.append((f, delta))
 
     top_map = {}
 
     def _k(f):
         return "%s (%s:%d)" % (f.function, f.filename, f.line)
 
-    for fs, delta in stacks:
+    for fs, delta in matched_stacks + new_stacks:
         seen_fs = set()
         for f in fs:
             key = _k(f)
@@ -184,9 +208,16 @@ def diff(a: TextIO, b: TextIO, threshold: float = 1e-3) -> str:
         return "%s:%s:%d" % (filename, frame.function, frame.line)
 
     M = 1e8
-    stacks = "\n".join(
-        [";".join(["P0", "T0"] + [repr_frame(f) for f in fs]) + " %d" % int(delta * M) for fs, delta in stacks]
-    )
+
+    def join_stacks(stacks, prefix):
+        return "\n".join(
+            [
+                ";".join(["P0", "T" + prefix] + [repr_frame(f) for f in fs]) + " %d" % int(delta * M)
+                for fs, delta in stacks
+            ]
+        )
+
+    stacks = "\n".join([join_stacks(s, p) for s, p in [(matched_stacks, "M"), (new_stacks, "N")]])
 
     return overhead, top, stacks
 
