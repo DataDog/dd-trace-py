@@ -457,3 +457,54 @@ s2.finish()
         # timeout argument added in Python 3.3
         p.wait()
     assert p.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "call_basic_config,debug_mode",
+    itertools.permutations((True, False, None), 2),
+)
+def test_call_basic_config(tmpdir, call_basic_config, debug_mode):
+    """
+    When setting DD_CALL_BASIC_CONFIG env variable
+        When true
+            We call logging.basicConfig()
+        When false
+            We do not call logging.basicConfig()
+        When not set
+            We call logging.basicConfig()
+    """
+    f = tmpdir.join("test.py")
+    f.write(
+        """
+import logging
+root = logging.getLogger()
+print(len(root.handlers))
+""".lstrip()
+    )
+    env = {}
+    if debug_mode is not None:
+        env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
+    if call_basic_config is not None:
+        env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
+        has_root_handlers = call_basic_config
+    else:
+        has_root_handlers = True
+
+    p = subprocess.Popen(
+        ["ddtrace-run", sys.executable, "test.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmpdir),
+        env=env,
+    )
+    try:
+        p.wait(timeout=2)
+    except TypeError:
+        # timeout argument added in Python 3.3
+        p.wait()
+    assert p.returncode == 0
+
+    if has_root_handlers:
+        assert p.stdout.read() == six.b("1")
+    else:
+        assert p.stdout.read() == six.b("0")
