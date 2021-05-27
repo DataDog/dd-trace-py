@@ -72,7 +72,7 @@ below:
    * - ``DD_CALL_BASIC_CONFIG``
      - Boolean
      - True
-     - Controls whether ``ddtrace-run`` calls ``logging.basicConfig``, or when running in debug mode.
+     - Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
    * - ``DD_TRACE_AGENT_URL``
      - URL
      - ``http://localhost:8126``
