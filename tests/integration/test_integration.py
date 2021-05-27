@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import subprocess
@@ -418,3 +419,41 @@ def test_flush_log(caplog):
             )
         ]
         log.log.assert_has_calls(calls)
+
+
+@pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
+def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
+    """
+    When logs injection is enabled and the logger is patched
+        When a parent span closes before a child
+            The application does not deadlock due to context lock acquisition
+    """
+    f = tmpdir.join("test.py")
+    f.write(
+        """
+import ddtrace
+ddtrace.patch(logging=%s)
+
+s1 = ddtrace.tracer.trace("1")
+s2 = ddtrace.tracer.trace("2")
+s1.finish()
+s2.finish()
+""".lstrip()
+        % str(patch_logging)
+    )
+    p = subprocess.Popen(
+        [sys.executable, "test.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmpdir),
+        env=dict(
+            DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
+            DD_TRACE_DEBUG=str(debug_mode).lower(),
+        ),
+    )
+    try:
+        p.wait(timeout=2)
+    except TypeError:
+        # timeout argument added in Python 3.3
+        p.wait()
+    assert p.returncode == 0
