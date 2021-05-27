@@ -118,26 +118,6 @@ propagate a `rpc_metadata` dictionary over the wire::
             span.set_meta('my_rpc_method', method)
 
 
-Sampling
---------
-
-Client Sampling
-^^^^^^^^^^^^^^^
-
-Client sampling enables the sampling of traces before they are sent to the
-Agent. This can provide some performance benefit as the traces will be
-dropped in the client.
-
-The ``RateSampler`` randomly samples a percentage of traces::
-
-    from ddtrace.sampler import RateSampler
-
-    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
-    # Keep 20% of the traces.
-    sample_rate = 0.2
-    tracer.sampler = RateSampler(sample_rate)
-
-
 Resolving deprecation warnings
 ------------------------------
 Before upgrading, it’s a good idea to resolve any deprecation warnings raised by your project.
@@ -327,8 +307,6 @@ for usage.
 | `agent_port`        | port the Datadog agent is listening on | `8126`        |
 +---------------------+----------------------------------------+---------------+
 | `global_tags`       | tags that will be applied to each span | `{}`          |
-+---------------------+----------------------------------------+---------------+
-| `sampler`           | see `Sampling`_                        | `AllSampler`  |
 +---------------------+----------------------------------------+---------------+
 | `uds_path`          | unix socket of agent to connect to     | `None`        |
 +---------------------+----------------------------------------+---------------+
