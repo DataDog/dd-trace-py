@@ -93,8 +93,21 @@ def test_git_extract_user_info_error():
     assert extracted_tags["git.commit.committer.email"] == ""
     assert extracted_tags["git.commit.committer.date"] == ""
 
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.side_effect = FileNotFoundError()
+        extracted_committer = git.extract_user_info(author=False)
+
+    assert extracted_committer == ("", "", "")
+
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.side_effect = OSError()
+        extracted_committer = git.extract_user_info(author=False)
+
+    assert extracted_committer == ("", "", "")
+
 
 def test_git_extract_repository_url():
+    """Make sure that the git repository url is extracted properly."""
     expected_repository_url = "https://github.com/scope-demo/scopeagent-reference-springboot2.git"
     mock_repository_url_output = b"https://github.com/scope-demo/scopeagent-reference-springboot2.git"
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
@@ -106,15 +119,29 @@ def test_git_extract_repository_url():
 
 
 def test_git_extract_repository_url_error():
+    """On error, the repository url tag should be an empty string."""
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = 0
+        mock_subprocess_popen.return_value.returncode = -1
         mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
+        extracted_repository_url = git.extract_repository_url()
+
+    assert extracted_repository_url == ""
+
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.side_effect = FileNotFoundError()
+        extracted_repository_url = git.extract_repository_url()
+
+    assert extracted_repository_url == ""
+
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.side_effect = OSError()
         extracted_repository_url = git.extract_repository_url()
 
     assert extracted_repository_url == ""
 
 
 def test_git_extract_commit_message():
+    """Make sure that the git commit message is extracted properly."""
     expected_msg = "Update README.md"
     mock_output = b"Update README.md"
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
@@ -126,9 +153,22 @@ def test_git_extract_commit_message():
 
 
 def test_git_extract_commit_message_error():
+    """On error, the commit message tag should be an empty string."""
     with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = 0
+        mock_subprocess_popen.return_value.returncode = -1
         mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
+        extracted_msg = git.extract_commit_message()
+
+    assert extracted_msg == ""
+
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.side_effect = FileNotFoundError()
+        extracted_msg = git.extract_commit_message()
+
+    assert extracted_msg == ""
+
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
+        mock_subprocess_popen.side_effect = OSError()
         extracted_msg = git.extract_commit_message()
 
     assert extracted_msg == ""

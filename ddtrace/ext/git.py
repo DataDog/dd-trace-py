@@ -47,36 +47,45 @@ def extract_user_info(author=True):
     # type: (bool) -> Tuple[str, str, str]
     """Extract git commit author/committer info."""
     formatting = "--format=%an,%ae,%ad" if author else "--format=%cn,%ce,%cd"
-    cmd = subprocess.Popen(
-        ["git", "show", "-s", formatting, "--date=format:%Y-%m-%dT%H:%M:%S%z"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        name, email, date = compat.ensure_text(stdout).strip().split(",")
-        return name, email, date
-    return "", "", ""
+    try:
+        cmd = subprocess.Popen(
+            ["git", "show", "-s", formatting, "--date=format:%Y-%m-%dT%H:%M:%S%z"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = cmd.communicate()
+        if cmd.returncode == 0:
+            name, email, date = compat.ensure_text(stdout).strip().split(",")
+            return name, email, date
+        return "", "", ""
+    except (FileNotFoundError, OSError):
+        return "", "", ""
 
 
 def extract_repository_url():
     # type: () -> str
-    cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        repository_url = compat.ensure_text(stdout).strip()
-        return repository_url
-    return ""
+    try:
+        cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = cmd.communicate()
+        if cmd.returncode == 0:
+            repository_url = compat.ensure_text(stdout).strip()
+            return repository_url
+        return ""
+    except (FileNotFoundError, OSError):
+        return ""
 
 
 def extract_commit_message():
     # type: () -> str
-    cmd = subprocess.Popen(["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        commit_message = compat.ensure_text(stdout).strip()
-        return commit_message
-    return ""
+    try:
+        cmd = subprocess.Popen(["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = cmd.communicate()
+        if cmd.returncode == 0:
+            commit_message = compat.ensure_text(stdout).strip()
+            return commit_message
+        return ""
+    except (FileNotFoundError, OSError):
+        return ""
 
 
 def extract_git_metadata(tags):
