@@ -481,7 +481,8 @@ root = logging.getLogger()
 print(len(root.handlers))
 """.lstrip()
     )
-    env = {}
+    env = os.environ.copy()
+
     if debug_mode is not None:
         env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
     if call_basic_config is not None:
@@ -505,6 +506,6 @@ print(len(root.handlers))
     assert p.returncode == 0
 
     if has_root_handlers:
-        assert p.stdout.read() == six.b("1")
+        assert p.stdout.read() == six.b("1\n")
     else:
-        assert p.stdout.read() == six.b("0")
+        assert p.stdout.read() == six.b("0\n")
