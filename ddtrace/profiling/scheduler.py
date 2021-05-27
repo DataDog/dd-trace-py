@@ -28,10 +28,11 @@ class Scheduler(periodic.PeriodicService):
         # Copy the value to use it later since we're going to adjust the real interval
         self._configured_interval = self.interval
 
-    def start(self):
+    def _start_service(self):  # type: ignore[override]
+        # type: (...) -> None
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
-        super(Scheduler, self).start()
+        super(Scheduler, self)._start_service()
         self._last_export = compat.time_ns()
         LOG.debug("Scheduler started")
 

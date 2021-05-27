@@ -55,7 +55,8 @@ class TracedMongoClient(ObjectProxy):
         # calls in the trace library. This is good because it measures the
         # actual network time. It's bad because it uses a private API which
         # could change. We'll see how this goes.
-        client._topology = TracedTopology(client._topology)
+        if not isinstance(client._topology, TracedTopology):
+            client._topology = TracedTopology(client._topology)
 
         # Default Pin
         ddtrace.Pin(service=mongox.SERVICE, app=mongox.SERVICE).onto(self)
