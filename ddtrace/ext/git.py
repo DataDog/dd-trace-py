@@ -47,64 +47,68 @@ def extract_user_info(author=True):
     # type: (bool) -> Tuple[str, str, str]
     """Extract git commit author/committer info."""
     formatting = "--format=%an,%ae,%ad" if author else "--format=%cn,%ce,%cd"
-    try:
-        cmd = subprocess.Popen(
-            ["git", "show", "-s", formatting, "--date=format:%Y-%m-%dT%H:%M:%S%z"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, stderr = cmd.communicate()
-        if cmd.returncode == 0:
-            name, email, date = compat.ensure_text(stdout).strip().split(",")
-            return name, email, date
-        return "", "", ""
-    except (FileNotFoundError, OSError):
-        return "", "", ""
+    cmd = subprocess.Popen(
+        ["git", "show", "-s", formatting, "--date=format:%Y-%m-%dT%H:%M:%S%z"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = cmd.communicate()
+    if cmd.returncode == 0:
+        name, email, date = compat.ensure_text(stdout).strip().split(",")
+        return name, email, date
+    return "", "", ""
 
 
 def extract_repository_url():
     # type: () -> str
-    try:
-        cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = cmd.communicate()
-        if cmd.returncode == 0:
-            repository_url = compat.ensure_text(stdout).strip()
-            return repository_url
-        return ""
-    except (FileNotFoundError, OSError):
-        return ""
+    cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = cmd.communicate()
+    if cmd.returncode == 0:
+        repository_url = compat.ensure_text(stdout).strip()
+        return repository_url
+    return ""
 
 
 def extract_commit_message():
     # type: () -> str
-    try:
-        cmd = subprocess.Popen(["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = cmd.communicate()
-        if cmd.returncode == 0:
-            commit_message = compat.ensure_text(stdout).strip()
-            return commit_message
-        return ""
-    except (FileNotFoundError, OSError):
-        return ""
+    cmd = subprocess.Popen(["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = cmd.communicate()
+    if cmd.returncode == 0:
+        commit_message = compat.ensure_text(stdout).strip()
+        return commit_message
+    return ""
 
 
 def extract_git_metadata(tags):
     # type: (MutableMapping[str, Optional[str]]) -> MutableMapping[str, Optional[str]]
     """Extract git commit metadata. Tags already present take precedence."""
-    repository_url = tags.get(REPOSITORY_URL, extract_repository_url())
-    commit_message = tags.get(COMMIT_MESSAGE, extract_commit_message())
+    try:
+        extracted_repository_url = extract_repository_url()
+    except (OSError, FileNotFoundError):
+        extracted_repository_url = ""
 
-    author = extract_user_info(author=True)
+    try:
+        extracted_commit_message = extract_commit_message()
+    except (OSError, FileNotFoundError):
+        extracted_commit_message = ""
+
+    try:
+        author = extract_user_info(author=True)
+    except (OSError, FileNotFoundError):
+        author = "", "", ""
     author_name = tags.get(COMMIT_AUTHOR_NAME, author[0])
     author_email = tags.get(COMMIT_AUTHOR_EMAIL, author[1])
 
-    committer = extract_user_info(author=False)
+    try:
+        committer = extract_user_info(author=False)
+    except (OSError, FileNotFoundError):
+        committer = "", "", ""
     committer_name = tags.get(COMMIT_COMMITTER_NAME, committer[0])
     committer_email = tags.get(COMMIT_COMMITTER_EMAIL, committer[1])
 
     return {
-        REPOSITORY_URL: repository_url,
-        COMMIT_MESSAGE: commit_message,
+        REPOSITORY_URL: tags.get(REPOSITORY_URL, extracted_repository_url),
+        COMMIT_MESSAGE: tags.get(COMMIT_MESSAGE, extracted_commit_message),
         COMMIT_AUTHOR_NAME: author_name,
         COMMIT_AUTHOR_EMAIL: author_email,
         COMMIT_AUTHOR_DATE: author[2],
