@@ -55,6 +55,7 @@ def test_event_loop_exception(tracer):
     ctx = tracer.get_call_context()
     assert ctx is not None
 
+
 def test_context_task_none(tracer):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

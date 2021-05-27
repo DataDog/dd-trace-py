@@ -1,13 +1,14 @@
 import gevent
 
-from ...provider import BaseContextProvider
+from ...provider import DefaultContextProvider
+from ...span import Span
 
 
 # Greenlet attribute used to set/get the context
 CONTEXT_ATTR = "__datadog_context"
 
 
-class GeventContextProvider(BaseContextProvider):
+class GeventContextProvider(DefaultContextProvider):
     """Manages the active context for gevent execution.
 
     This provider depends on corresponding monkey patches to copy the active
@@ -35,4 +36,6 @@ class GeventContextProvider(BaseContextProvider):
     def active(self):
         """Returns the active context for this execution flow."""
         ctx = self._get_current_context()
+        if isinstance(ctx, Span):
+            return self._update_active(ctx)
         return ctx

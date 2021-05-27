@@ -1,7 +1,7 @@
 import asyncio
 
-from ...context import Context
 from ...provider import DefaultContextProvider
+from ...span import Span
 
 
 # Task attribute used to set/get the context
@@ -67,6 +67,8 @@ class AsyncioContextProvider(DefaultContextProvider):
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
         if task is None:
-            return Context()
-
-        return getattr(task, CONTEXT_ATTR, Context())
+            return None
+        ctx = getattr(task, CONTEXT_ATTR, None)
+        if isinstance(ctx, Span):
+            return self._update_active(ctx)
+        return ctx

@@ -6,7 +6,11 @@ import six
 
 from .context import Context
 from .internal.compat import contextvars
+from .internal.logger import get_logger
 from .span import Span
+
+
+log = get_logger(__name__)
 
 
 _DD_CONTEXTVAR = contextvars.ContextVar(
@@ -68,10 +72,20 @@ class DefaultContextProvider(BaseContextProvider):
         """Makes the given context active in the current execution."""
         _DD_CONTEXTVAR.set(ctx)
 
+    def _update_active(self, span):
+        # type: (Span) -> Optional[Span]
+        if span.finished:
+            new_active = span  # type: Optional[Span]
+            while new_active and new_active.finished:
+                new_active = new_active._parent
+            self.activate(new_active)
+            return new_active
+        return span
+
     def active(self):
         # type: () -> Optional[Union[Context, Span]]
-        """Returns the active context for the current execution.
-
-        If none is available then a new empty context is activated and returned.
-        """
-        return _DD_CONTEXTVAR.get()
+        """Returns the active span or context for the current execution."""
+        item = _DD_CONTEXTVAR.get()
+        if isinstance(item, Span):
+            return self._update_active(item)
+        return item
