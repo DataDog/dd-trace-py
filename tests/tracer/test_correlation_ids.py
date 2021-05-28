@@ -1,10 +1,11 @@
 import mock
 
+from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
 class CorrelationIdentifiersTestCase(TracerTestCase):
-    """Test suite for ``ddtrace`` helper get_correlation_ids()"""
+    """Test suite for ``ddtrace.Tracer`` helper get_correlation_ids()"""
 
     def test_correlation_identifiers(self):
         # ensures the right correlation identifiers are
@@ -40,3 +41,13 @@ class CorrelationIdentifiersTestCase(TracerTestCase):
 
         self.assertIsNone(trace_id)
         self.assertIsNone(span_id)
+
+    def test_correlation_identifiers_with_external_tracer(self):
+        dummy_tracer = DummyTracer()
+        span = dummy_tracer.trace("MockSpan")
+        active_trace_id, active_span_id = span.trace_id, span.span_id
+
+        trace_id, span_id = self.tracer.get_correlation_ids(tracer=dummy_tracer)
+
+        self.assertEqual(trace_id, active_trace_id)
+        self.assertEqual(span_id, active_span_id)
