@@ -4,10 +4,10 @@ import tempfile
 import threading
 import time
 
+import flaky
 import mock
 import msgpack
 import pytest
-import flaky
 from six.moves import BaseHTTPServer
 from six.moves import socketserver
 
