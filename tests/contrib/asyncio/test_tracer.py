@@ -66,6 +66,9 @@ def test_context_task_none(tracer):
     # the task is not available
     assert task is None
     # but a new Context is still created making the operation safe
+    ctx = tracer.get_call_context()
+    assert ctx is not None
+
     ctx = tracer.current_trace_context()
     assert ctx is None
 

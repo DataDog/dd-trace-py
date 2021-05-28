@@ -499,6 +499,7 @@ class Span(object):
     @property
     def context(self):
         # type: () -> Context
+        """Return the trace context for this span."""
         if self._context is None:
             ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
         else:

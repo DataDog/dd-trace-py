@@ -26,16 +26,14 @@ You can also use a Unix Domain Socket to connect to the agent::
 Context
 -------
 
-The :class:`Context` object is used to represent the active span of a trace and
-to store trace-level data. It is used to continue a trace across processes in
-:ref:`Distributed Tracing <disttracing>`.
+The :class:`Context` object is used to represent the state of a trace that can
+be used to propagate the trace across processes (:ref:`Distributed Tracing <disttracing>`).
 
-To retrieve a context use::
+To retrieve the context of the currently active trace use::
 
         context = tracer.current_trace_context()
 
-Note that a context will only be available if a trace is active in the current
-execution.
+Note that if there is no active trace then ``None`` will be returned.
 
 
 Tracing Context Management
@@ -43,11 +41,11 @@ Tracing Context Management
 
 In ``ddtrace`` "context management" is the management of which :class:`Span` or
 :class:`Context` is active in an execution (thread, task, etc). There can only be one
-active span or context in an execution.
+active span or context per execution.
 
 Context management enables parenting to be done implicitly when creating new
 spans by using the active span as the parent of a new span. When an active span
-finishes its parent becomes the active span.
+finishes, its parent becomes the active span.
 
 ``tracer.trace()`` automatically creates new spans as the child of the active
 context::
@@ -91,8 +89,8 @@ Context Providers
 ^^^^^^^^^^^^^^^^^
 
 The default context provider used in the tracer uses contextvars_ to store
-the active context per execution. This means that any async library that uses
-contextvars will have support for automatic context management.
+the active context per execution. This means that any asynchronous library
+that uses contextvars will have support for automatic context management.
 
 If there is a case where the default is insufficient then a custom context
 provider can be used. It must implement the

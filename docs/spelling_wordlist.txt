@@ -28,6 +28,8 @@ cgroups
 cherrypy
 compat
 config
+contextvar
+contextvars
 coroutine
 coroutines
 datadog

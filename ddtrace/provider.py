@@ -6,11 +6,7 @@ import six
 
 from .context import Context
 from .internal.compat import contextvars
-from .internal.logger import get_logger
 from .span import Span
-
-
-log = get_logger(__name__)
 
 
 _DD_CONTEXTVAR = contextvars.ContextVar(

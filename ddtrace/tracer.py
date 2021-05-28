@@ -710,7 +710,7 @@ class Tracer(object):
         """Return the active span in the current execution context.
 
         Note that there may be an active span represented by a context object
-        (eg. from a distributed trace) which will not be returned by this
+        (like from a distributed trace) which will not be returned by this
         method.
         """
         active = self.context_provider.active()
