@@ -36,20 +36,15 @@ def test_ci_providers(monkeypatch, name, environment, tags):
 def test_git_extract_user_info_author():
     """Make sure that git commit author name, email, and date are extracted and tagged correctly."""
     expected_author = ("John Doe", "john@doe.com", "2021-02-19T08:24:53Z")
+    expected_call_format = ["git", "show", "-s", "--format=%an,%ae,%ad", "--date=format:%Y-%m-%dT%H:%M:%S%z"]
     mock_author_output = b"John Doe,john@doe.com,2021-02-19T08:24:53Z"
 
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = 0
-        mock_subprocess_popen.return_value.communicate.return_value = (mock_author_output, b"")
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+        mock_popen.return_value.returncode = 0
+        mock_popen.return_value.communicate.return_value = (mock_author_output, b"")
         extracted_author = git.extract_user_info(author=True)
-        assert mock_subprocess_popen.call_args[0][0] == [
-            "git",
-            "show",
-            "-s",
-            "--format=%an,%ae,%ad",
-            "--date=format:%Y-%m-%dT%H:%M:%S%z",
-        ]
-        extracted_tags = ci.tags({})
+        assert mock_popen.call_args[0][0] == expected_call_format
+        extracted_tags = ci.tags()
 
     assert extracted_author == expected_author
     assert extracted_tags["git.commit.author.name"] == expected_author[0]
@@ -60,20 +55,15 @@ def test_git_extract_user_info_author():
 def test_git_extract_user_info_committer():
     """Make sure that git commit committer name, email, and date are extracted and tagged correctly."""
     expected_committer = ("Jane Doe", "jane@doe.com", "2021-01-19T09:24:53Z")
+    expected_call_format = ["git", "show", "-s", "--format=%cn,%ce,%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"]
     mock_committer_output = b"Jane Doe,jane@doe.com,2021-01-19T09:24:53Z"
 
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = 0
-        mock_subprocess_popen.return_value.communicate.return_value = (mock_committer_output, b"")
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+        mock_popen.return_value.returncode = 0
+        mock_popen.return_value.communicate.return_value = (mock_committer_output, b"")
         extracted_committer = git.extract_user_info(author=False)
-        assert mock_subprocess_popen.call_args[0][0] == [
-            "git",
-            "show",
-            "-s",
-            "--format=%cn,%ce,%cd",
-            "--date=format:%Y-%m-%dT%H:%M:%S%z",
-        ]
-        extracted_tags = ci.tags({})
+        assert mock_popen.call_args[0][0] == expected_call_format
+        extracted_tags = ci.tags()
 
     assert extracted_committer == expected_committer
     assert extracted_tags["git.commit.committer.name"] == expected_committer[0]
@@ -82,87 +72,72 @@ def test_git_extract_user_info_committer():
 
 
 def test_git_extract_user_info_error():
-    """On error, the author/committer tags should be empty strings."""
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = -1
-        mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
-        extracted_committer = git.extract_user_info(author=False)
-        extracted_tags = ci.tags({})
-
-    assert extracted_committer == ("", "", "")
-    assert extracted_tags["git.commit.committer.name"] == ""
-    assert extracted_tags["git.commit.committer.email"] == ""
-    assert extracted_tags["git.commit.committer.date"] == ""
-
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        if six.PY2:
-            mock_subprocess_popen.side_effect = OSError()
-        else:
-            mock_subprocess_popen.side_effect = FileNotFoundError()
-        extracted_tags = git.extract_git_metadata(tags={})
-
-    assert extracted_tags["git.commit.committer.name"] == ""
-    assert extracted_tags["git.commit.committer.email"] == ""
-    assert extracted_tags["git.commit.committer.date"] == ""
+    """On error, the author/committer tags should not be extracted, and should internally raise and log the error."""
+    with pytest.raises(ValueError):
+        with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+            mock_popen.return_value.returncode = -1
+            mock_popen.return_value.communicate.return_value = (b"", b"")
+            git.extract_user_info(author=True)
 
 
 def test_git_extract_repository_url():
     """Make sure that the git repository url is extracted properly."""
     expected_repository_url = "https://github.com/scope-demo/scopeagent-reference-springboot2.git"
     mock_repository_url_output = b"https://github.com/scope-demo/scopeagent-reference-springboot2.git"
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = 0
-        mock_subprocess_popen.return_value.communicate.return_value = (mock_repository_url_output, b"")
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+        mock_popen.return_value.returncode = 0
+        mock_popen.return_value.communicate.return_value = (mock_repository_url_output, b"")
         extracted_repository_url = git.extract_repository_url()
 
     assert extracted_repository_url == expected_repository_url
 
 
 def test_git_extract_repository_url_error():
-    """On error, the repository url tag should be an empty string."""
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = -1
-        mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
-        extracted_repository_url = git.extract_repository_url()
-
-    assert extracted_repository_url == ""
-
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        if six.PY2:
-            mock_subprocess_popen.side_effect = OSError()
-        else:
-            mock_subprocess_popen.side_effect = FileNotFoundError()
-        extracted_tags = git.extract_git_metadata(tags={})
-
-    assert extracted_tags["git.repository_url"] == ""
+    """On error, the repository url tag should not be extracted, and should internally raise and log the error."""
+    with pytest.raises(ValueError):
+        with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+            mock_popen.return_value.returncode = -1
+            mock_popen.return_value.communicate.return_value = (b"", b"")
+            git.extract_repository_url()
 
 
 def test_git_extract_commit_message():
     """Make sure that the git commit message is extracted properly."""
     expected_msg = "Update README.md"
     mock_output = b"Update README.md"
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = 0
-        mock_subprocess_popen.return_value.communicate.return_value = (mock_output, b"")
+    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+        mock_popen.return_value.returncode = 0
+        mock_popen.return_value.communicate.return_value = (mock_output, b"")
         extracted_msg = git.extract_commit_message()
 
     assert extracted_msg == expected_msg
 
 
 def test_git_extract_commit_message_error():
-    """On error, the commit message tag should be an empty string."""
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        mock_subprocess_popen.return_value.returncode = -1
-        mock_subprocess_popen.return_value.communicate.return_value = (b"", b"")
-        extracted_msg = git.extract_commit_message()
+    """On error, the commit message tag should not be extracted, and should internally raise and log the error."""
+    with pytest.raises(ValueError):
+        with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+            mock_popen.return_value.returncode = -1
+            mock_popen.return_value.communicate.return_value = (b"", b"")
+            git.extract_commit_message()
 
-    assert extracted_msg == ""
 
-    with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_subprocess_popen:
-        if six.PY2:
-            mock_subprocess_popen.side_effect = OSError()
-        else:
-            mock_subprocess_popen.side_effect = FileNotFoundError()
-        extracted_tags = git.extract_git_metadata(tags={})
+def test_git_executable_not_found_error():
+    """If git executable not available, should raise internally, log, and not extract any tags."""
+    with mock.patch("ddtrace.ext.ci.git.log") as log:
+        with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
+            if six.PY2:
+                mock_popen.side_effect = OSError()
+            else:
+                mock_popen.side_effect = FileNotFoundError()
+            extracted_tags = git.extract_git_metadata()
+        log.error.assert_called_with("Git executable not found, cannot extract git metadata.")
 
-    assert extracted_tags["git.commit.message"] == ""
+    assert "git.repository_url" not in extracted_tags
+    assert "git.commit.message" not in extracted_tags
+    assert "git.commit.author.name" not in extracted_tags
+    assert "git.commit.author.email" not in extracted_tags
+    assert "git.commit.author.date" not in extracted_tags
+    assert "git.commit.committer.name" not in extracted_tags
+    assert "git.commit.committer.email" not in extracted_tags
+    assert "git.commit.committer.date" not in extracted_tags

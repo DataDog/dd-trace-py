@@ -1,9 +1,9 @@
 """
 tags for common git attributes
 """
+import logging
 import subprocess
 from typing import MutableMapping
-from typing import Optional
 from typing import Tuple
 
 import six
@@ -49,6 +49,8 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
+log = logging.getLogger(__name__)
+
 
 def extract_user_info(author=True):
     # type: (bool) -> Tuple[str, str, str]
@@ -63,7 +65,7 @@ def extract_user_info(author=True):
     if cmd.returncode == 0:
         name, email, date = compat.ensure_text(stdout).strip().split(",")
         return name, email, date
-    return "", "", ""
+    raise ValueError(stderr)
 
 
 def extract_repository_url():
@@ -73,7 +75,7 @@ def extract_repository_url():
     if cmd.returncode == 0:
         repository_url = compat.ensure_text(stdout).strip()
         return repository_url
-    return ""
+    raise ValueError(stderr)
 
 
 def extract_commit_message():
@@ -83,43 +85,27 @@ def extract_commit_message():
     if cmd.returncode == 0:
         commit_message = compat.ensure_text(stdout).strip()
         return commit_message
-    return ""
+    raise ValueError(stderr)
 
 
-def extract_git_metadata(tags):
-    # type: (MutableMapping[str, Optional[str]]) -> MutableMapping[str, Optional[str]]
-    """Extract git commit metadata. Tags already present take precedence."""
+def extract_git_metadata():
+    # type: () -> MutableMapping[str, str]
+    """Extract git commit metadata."""
+    tags = {}
     try:
-        extracted_repository_url = extract_repository_url()
-    except GitNotFoundError:
-        extracted_repository_url = ""
-
-    try:
-        extracted_commit_message = extract_commit_message()
-    except GitNotFoundError:
-        extracted_commit_message = ""
-
-    try:
+        tags[REPOSITORY_URL] = extract_repository_url()
+        tags[COMMIT_MESSAGE] = extract_commit_message()
         author = extract_user_info(author=True)
-    except GitNotFoundError:
-        author = "", "", ""
-    author_name = tags.get(COMMIT_AUTHOR_NAME, author[0])
-    author_email = tags.get(COMMIT_AUTHOR_EMAIL, author[1])
-
-    try:
+        tags[COMMIT_AUTHOR_NAME] = author[0]
+        tags[COMMIT_AUTHOR_EMAIL] = author[1]
+        tags[COMMIT_AUTHOR_DATE] = author[2]
         committer = extract_user_info(author=False)
+        tags[COMMIT_COMMITTER_NAME] = committer[0]
+        tags[COMMIT_COMMITTER_EMAIL] = committer[1]
+        tags[COMMIT_COMMITTER_DATE] = committer[2]
     except GitNotFoundError:
-        committer = "", "", ""
-    committer_name = tags.get(COMMIT_COMMITTER_NAME, committer[0])
-    committer_email = tags.get(COMMIT_COMMITTER_EMAIL, committer[1])
+        log.error("Git executable not found, cannot extract git metadata.")
+    except ValueError:
+        log.error("Error extracting git metadata, received non-zero return code: %s", exc_info=True)
 
-    return {
-        REPOSITORY_URL: tags.get(REPOSITORY_URL, extracted_repository_url),
-        COMMIT_MESSAGE: tags.get(COMMIT_MESSAGE, extracted_commit_message),
-        COMMIT_AUTHOR_NAME: author_name,
-        COMMIT_AUTHOR_EMAIL: author_email,
-        COMMIT_AUTHOR_DATE: author[2],
-        COMMIT_COMMITTER_NAME: committer_name,
-        COMMIT_COMMITTER_EMAIL: committer_email,
-        COMMIT_COMMITTER_DATE: committer[2],
-    }
+    return tags

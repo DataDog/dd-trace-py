@@ -62,8 +62,10 @@ def tags(env=None):
             tags = extract(env)
             break
 
-    git_info = git.extract_git_metadata(tags)
-    tags.update(git_info)
+    git_info = git.extract_git_metadata()
+    # Tags collected from CI providers takes precedence over extracted git metadata
+    tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
+
     tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
         del tags[git.BRANCH]
