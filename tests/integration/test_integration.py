@@ -370,7 +370,7 @@ def test_bad_encoder():
 def test_downgrade():
     t = Tracer()
     t.writer._downgrade(None, None)
-    assert t.writer._endpoint == "/v0.3/traces"
+    assert t.writer._endpoint == "v0.3/traces"
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
