@@ -463,7 +463,7 @@ s2.finish()
     "call_basic_config,debug_mode",
     itertools.permutations((True, False, None), 2),
 )
-def test_call_basic_config(tmpdir, call_basic_config, debug_mode):
+def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_config, debug_mode):
     """
     When setting DD_CALL_BASIC_CONFIG env variable
         When true
@@ -473,14 +473,6 @@ def test_call_basic_config(tmpdir, call_basic_config, debug_mode):
         When not set
             We call logging.basicConfig()
     """
-    f = tmpdir.join("test.py")
-    f.write(
-        """
-import logging
-root = logging.getLogger()
-print(len(root.handlers))
-""".lstrip()
-    )
     env = os.environ.copy()
 
     if debug_mode is not None:
@@ -491,21 +483,17 @@ print(len(root.handlers))
     else:
         has_root_handlers = True
 
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+root = logging.getLogger()
+print(len(root.handlers))
+""",
         env=env,
     )
-    try:
-        p.wait(timeout=2)
-    except TypeError:
-        # timeout argument added in Python 3.3
-        p.wait()
-    assert p.returncode == 0
 
+    assert status == 0
     if has_root_handlers:
-        assert p.stdout.read() == six.b("1\n")
+        assert out == six.b("1\n")
     else:
-        assert p.stdout.read() == six.b("0\n")
+        assert out == six.b("0\n")
