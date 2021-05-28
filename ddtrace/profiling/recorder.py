@@ -42,7 +42,7 @@ class Recorder(object):
 
     def _after_fork(self):
         # type: (...) -> None
-        # NOTE: do not try to push events if the current PID has changed
+        # NOTE: do not try to push events if the process forked
         # This means:
         # 1. the process has forked
         # 2. we don't know the state of _events_lock and it might be unusable — we'd deadlock
