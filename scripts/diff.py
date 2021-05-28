@@ -79,6 +79,7 @@ def score_stacks(
 def match_folded_stacks(
     x: List[Tuple[FoldedStack, Metrics]],
     y: List[Tuple[FoldedStack, Metrics]],
+    scale: float,
 ) -> List[Tuple[int, int]]:
     """O(len(x) * len(y))."""
     ss = score_stacks(x, y)
@@ -96,7 +97,54 @@ def match_folded_stacks(
             LOGGER.debug("")
 
         matches.append((i, j))
-    return matches
+
+    matched_x = set()
+    matched_y = set()
+    matched_stacks_plus = []
+    matched_stacks_minus = []
+    new_stacks = []
+    old_stacks = []
+
+    # Matched stacks
+    for i, j in matches:
+        matched_x.add(i)
+        matched_y.add(j)
+        delta = (x[i][1].time - y[j][1].time) / scale
+
+        if delta > 0:
+            matched_stacks_plus.append((x[i][0], delta))
+        elif delta < 0:
+            matched_stacks_minus.append((y[j][0], -delta))
+
+    # New stacks
+    for i in range(len(x)):
+        if i in matched_x:
+            continue
+        f, m = x[i]
+        delta = m.time / scale
+
+        if LOGGER:
+            stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
+            LOGGER.debug("NO Match (%r)  %s", m.time, stack)
+            LOGGER.debug("")
+
+        new_stacks.append((f, delta))
+
+    # Old stacks
+    for j in range(len(y)):
+        if j in matched_y:
+            continue
+        f, m = y[j]
+        delta = m.time / scale
+
+        if LOGGER:
+            stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
+            LOGGER.debug("NO Match (%r)  %s", m.time, stack)
+            LOGGER.debug("")
+
+        old_stacks.append((f, delta))
+
+    return matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks
 
 
 def compressed(source: TextIO) -> Tuple[str, int]:
@@ -179,7 +227,7 @@ def make_top(stacks, overhead, output):
     )
 
 
-def make_stacks(matched_stacks, new_stacks, stacks_stream):
+def make_stacks(matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks, stacks_stream):
     def repr_frame(frame: Frame) -> str:
         filename = frame.filename
         if isabs(filename):
@@ -196,7 +244,19 @@ def make_stacks(matched_stacks, new_stacks, stacks_stream):
             ]
         )
 
-    stacks_stream.write("\n".join([join_stacks(s, p) for s, p in [(matched_stacks, "-MATCHED"), (new_stacks, "-NEW")]]))
+    stacks_stream.write(
+        "\n".join(
+            [
+                join_stacks(s, p)
+                for s, p in [
+                    (matched_stacks_plus, "-MATCHED+"),
+                    (new_stacks, "-NEW"),
+                    (matched_stacks_minus, "-MATCHED-"),
+                    (old_stacks, "-OLD"),
+                ]
+            ]
+        )
+    )
 
 
 # -- CONTROLLER --
@@ -216,38 +276,12 @@ def diff(a: TextIO, b: TextIO, output_prefix: str, threshold: float = 1e-3) -> N
 
     fa = get_folded_stacks(ca, threshold)
     fb = get_folded_stacks(cb, threshold)
-    ms = match_folded_stacks(fa, fb)
-
-    matched = set()
-    matched_stacks = []
-    new_stacks = []
-
-    # Matched stacks
-    for i, j in ms:
-        matched.add(i)
-        delta = (fa[i][1].time - fb[j][1].time) / tb
-
-        if delta > 0:
-            matched_stacks.append((fa[i][0], delta))
-
-    # New stacks
-    for i in range(len(fa)):
-        if i in matched:
-            continue
-        f, m = fa[i]
-        delta = m.time / tb
-
-        if LOGGER:
-            stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
-            LOGGER.debug("NO Match (%r)  %s", m.time, stack)
-            LOGGER.debug("")
-
-        new_stacks.append((f, delta))
+    matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks = match_folded_stacks(fa, fb, tb)
 
     with open(output_prefix + ".austin", "w") as stacks_stream:
-        make_stacks(matched_stacks, new_stacks, stacks_stream)
+        make_stacks(matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks, stacks_stream)
     with open(output_prefix + ".top", "w") as top_stream:
-        make_top(matched_stacks + new_stacks, overhead, top_stream)
+        make_top(matched_stacks_plus + new_stacks, overhead, top_stream)
 
 
 def main() -> None:
