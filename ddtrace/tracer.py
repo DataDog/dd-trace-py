@@ -841,8 +841,8 @@ class Tracer(object):
             pass
         atexit.unregister(self._atexit)
 
-    def get_correlation_ids(self, tracer=None):
-        # type: (Optional[Tracer]) -> Tuple[Optional[int], Optional[int]]
+    def get_correlation_ids(self):
+        # type: () -> Tuple[Optional[int], Optional[int]]
         """Retrieves the Correlation Identifiers for the current active ``Trace``.
         This helper method can be achieved manually and should be considered
         only a shortcut. The main reason is to abstract the current ``Tracer``
@@ -856,21 +856,11 @@ class Tracer(object):
 
         :returns: a tuple containing the trace_id and span_id
         """
-        # Consideration: currently we don't have another way to "define" a
-        # GlobalTracer. In the case of OpenTracing, ``opentracing.tracer`` is exposed
-        # and we're doing the same here for ``ddtrace.tracer``. Because this helper
-        # must work also with OpenTracing, we should take the right used ``Tracer``.
-        # At the time of writing, it's enough to support our Datadog Tracer.
-
-        # If no tracer passed in, use self
-        if tracer is None:
-            tracer = self
-
         # If tracer is disabled, skip
-        if not tracer.enabled:
+        if not self.enabled:
             return None, None
 
-        span = tracer.current_span()
+        span = self.current_span()
         if not span:
             return None, None
         return span.trace_id, span.span_id

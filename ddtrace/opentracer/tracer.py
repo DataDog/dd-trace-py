@@ -1,3 +1,6 @@
+from typing import Optional
+from typing import Tuple
+
 import opentracing
 from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
@@ -330,3 +333,25 @@ class Tracer(opentracing.Tracer):
         dd_span_ctx = ot_span_ctx._dd_context
         self._dd_tracer.context_provider.activate(dd_span_ctx)
         return ot_span_ctx
+
+    def get_correlation_ids(self):
+        # type: () -> Tuple[Optional[int], Optional[int]]
+        """Retrieves the Correlation Identifiers for the current active ``Trace``.
+        This helper method can be achieved manually and should be considered
+        only a shortcut.
+
+        OpenTracing users can still extract these values using the ``ScopeManager``
+        API, though this shortcut is a simple one-liner. The usage is:
+
+                trace_id, span_id = tracer.get_correlation_ids()
+
+        :returns: a tuple containing the trace_id and span_id
+        """
+        # If tracer is disabled, skip
+        if not self._enabled:
+            return None, None
+
+        span = self._dd_tracer.current_span()
+        if not span:
+            return None, None
+        return span.trace_id, span.span_id

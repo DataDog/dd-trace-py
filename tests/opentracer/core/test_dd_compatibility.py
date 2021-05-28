@@ -186,3 +186,21 @@ class TestTracerCompatibility(object):
 
         spans = test_spans.pop()
         assert len(spans) == 1
+
+    def test_correlation_identifiers(self, ot_tracer, dd_tracer):
+        """Ensure that get_correlation_ids returns the same data as in dd_tracer."""
+        span = ot_tracer.start_span("ot_tracer_span")
+
+        trace_id, span_id = ot_tracer.get_correlation_ids()
+        dd_trace_id, dd_span_id = ot_tracer._dd_tracer.get_correlation_ids()
+
+        assert trace_id == dd_trace_id == span._dd_span.trace_id
+        assert span_id == dd_span_id == span._dd_span.span_id
+
+    def test_correlation_identifiers_with_tracer_disabled(self, ot_tracer):
+        ot_tracer._enabled = False
+        ot_tracer.start_span("ot_tracer_span")
+
+        trace_id, span_id = ot_tracer.get_correlation_ids()
+        assert trace_id is None
+        assert span_id is None
