@@ -175,7 +175,9 @@ class _ProfilerInstance(service.Service):
             endpoint_path = "/v1/input"
         else:
             # Agent mode
-            endpoint_path = "/profiling/v1/input"
+            # path is relative because it is appended
+            # to the agent base path.
+            endpoint_path = "profiling/v1/input"
 
         return [
             http.PprofHTTPExporter(
