@@ -95,14 +95,14 @@ def extract_appveyor(env):
 
     return {
         PROVIDER_NAME: "appveyor",
+        git.REPOSITORY_URL: repository,
+        git.COMMIT_SHA: commit,
+        WORKSPACE_PATH: env.get("APPVEYOR_BUILD_FOLDER"),
         PIPELINE_ID: env.get("APPVEYOR_BUILD_ID"),
         PIPELINE_NAME: env.get("APPVEYOR_REPO_NAME"),
         PIPELINE_NUMBER: env.get("APPVEYOR_BUILD_NUMBER"),
         PIPELINE_URL: url,
         JOB_URL: url,
-        WORKSPACE_PATH: env.get("APPVEYOR_BUILD_FOLDER"),
-        git.REPOSITORY_URL: repository,
-        git.COMMIT_SHA: commit,
         git.BRANCH: branch,
         git.TAG: tag,
         git.COMMIT_MESSAGE: env.get("APPVEYOR_REPO_COMMIT_MESSAGE"),
@@ -139,12 +139,12 @@ def extract_azure_pipelines(env):
 
     return {
         PROVIDER_NAME: "azurepipelines",
+        WORKSPACE_PATH: env.get("BUILD_SOURCESDIRECTORY"),
         PIPELINE_ID: env.get("BUILD_BUILDID"),
         PIPELINE_NAME: env.get("BUILD_DEFINITIONNAME"),
         PIPELINE_NUMBER: env.get("BUILD_BUILDID"),
         PIPELINE_URL: pipeline_url,
         JOB_URL: job_url,
-        WORKSPACE_PATH: env.get("BUILD_SOURCESDIRECTORY"),
         git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or env.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
         git.BRANCH: branch,
@@ -162,17 +162,174 @@ def extract_bitbucket(env):
         env.get("BITBUCKET_REPO_FULL_NAME"), env.get("BITBUCKET_BUILD_NUMBER")
     )
     return {
-        PROVIDER_NAME: "bitbucket",
+        git.BRANCH: env.get("BITBUCKET_BRANCH"),
+        git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
+        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
+        git.TAG: env.get("BITBUCKET_TAG"),
+        JOB_URL: url,
         PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,
         PIPELINE_NAME: env.get("BITBUCKET_REPO_FULL_NAME"),
         PIPELINE_NUMBER: env.get("BITBUCKET_BUILD_NUMBER"),
         PIPELINE_URL: url,
-        JOB_URL: url,
+        PROVIDER_NAME: "bitbucket",
         WORKSPACE_PATH: env.get("BITBUCKET_CLONE_DIR"),
-        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN"),
-        git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
-        git.BRANCH: env.get("BITBUCKET_BRANCH"),
-        git.TAG: env.get("BITBUCKET_TAG"),
+    }
+
+
+def extract_buildkite(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from Buildkite environ."""
+    return {
+        git.BRANCH: env.get("BUILDKITE_BRANCH"),
+        git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
+        git.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
+        git.TAG: env.get("BUILDKITE_TAG"),
+        PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
+        PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
+        PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
+        PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
+        JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
+        PROVIDER_NAME: "buildkite",
+        WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
+        git.COMMIT_MESSAGE: env.get("BUILDKITE_MESSAGE"),
+        git.COMMIT_AUTHOR_NAME: env.get("BUILDKITE_BUILD_AUTHOR"),
+        git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
+        git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
+        git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
+    }
+
+
+def extract_circle_ci(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from CircleCI environ."""
+    return {
+        git.BRANCH: env.get("CIRCLE_BRANCH"),
+        git.COMMIT_SHA: env.get("CIRCLE_SHA1"),
+        git.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
+        git.TAG: env.get("CIRCLE_TAG"),
+        PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
+        PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
+        PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
+        PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
+        JOB_URL: env.get("CIRCLE_BUILD_URL"),
+        PROVIDER_NAME: "circleci",
+        WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
+    }
+
+
+def extract_github_actions(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from Github environ."""
+    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF") or ""
+    branch = tag = None  # type: Optional[str]
+    if "tags/" in branch_or_tag:
+        tag = branch_or_tag
+    else:
+        branch = branch_or_tag
+    return {
+        git.BRANCH: branch,
+        git.COMMIT_SHA: env.get("GITHUB_SHA"),
+        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("GITHUB_REPOSITORY")),
+        git.TAG: tag,
+        JOB_URL: "https://github.com/{0}/commit/{1}/checks".format(env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")),
+        PIPELINE_ID: env.get("GITHUB_RUN_ID"),
+        PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
+        PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
+        PIPELINE_URL: "https://github.com/{0}/commit/{1}/checks".format(
+            env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
+        ),
+        PROVIDER_NAME: "github",
+        WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
+    }
+
+
+def extract_gitlab(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from Gitlab environ."""
+    url = env.get("CI_PIPELINE_URL")
+    if url:
+        url = re.sub("/-/pipelines/", "/pipelines/", url)
+    return {
+        git.BRANCH: env.get("CI_COMMIT_BRANCH"),
+        git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
+        git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
+        git.TAG: env.get("CI_COMMIT_TAG"),
+        STAGE_NAME: env.get("CI_JOB_STAGE"),
+        JOB_NAME: env.get("CI_JOB_NAME"),
+        JOB_URL: env.get("CI_JOB_URL"),
+        PIPELINE_ID: env.get("CI_PIPELINE_ID"),
+        PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
+        PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
+        PIPELINE_URL: url,
+        PROVIDER_NAME: "gitlab",
+        WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
+        git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
+    }
+
+
+def extract_jenkins(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from Jenkins environ."""
+    branch_or_tag = env.get("GIT_BRANCH", "")
+    branch = tag = None  # type: Optional[str]
+    if "tags/" in branch_or_tag:
+        tag = branch_or_tag
+    else:
+        branch = branch_or_tag
+    name = env.get("JOB_NAME")
+    if name and branch:
+        name = re.sub("/" + _normalize_ref(branch), "", name)  # type: ignore[operator]
+    if name:
+        name = "/".join((v for v in name.split("/") if v and "=" not in v))
+
+    return {
+        git.BRANCH: branch,
+        git.COMMIT_SHA: env.get("GIT_COMMIT"),
+        git.REPOSITORY_URL: env.get("GIT_URL"),
+        git.TAG: tag,
+        PIPELINE_ID: env.get("BUILD_TAG"),
+        PIPELINE_NAME: name,
+        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
+        PIPELINE_URL: env.get("BUILD_URL"),
+        PROVIDER_NAME: "jenkins",
+        WORKSPACE_PATH: env.get("WORKSPACE"),
+    }
+
+
+def extract_teamcity(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from Teamcity environ."""
+    return {
+        git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
+        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
+        PIPELINE_ID: env.get("BUILD_ID"),
+        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
+        PIPELINE_URL: (
+            "{0}/viewLog.html?buildId={1}".format(env.get("SERVER_URL"), env.get("BUILD_ID"))
+            if env.get("SERVER_URL") and env.get("BUILD_ID")
+            else None
+        ),
+        PROVIDER_NAME: "teamcity",
+        WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
+    }
+
+
+def extract_travis(env):
+    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
+    """Extract CI tags from Travis environ."""
+    return {
+        git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
+        git.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
+        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("TRAVIS_REPO_SLUG")),
+        git.TAG: env.get("TRAVIS_TAG"),
+        JOB_URL: env.get("TRAVIS_JOB_WEB_URL"),
+        PIPELINE_ID: env.get("TRAVIS_BUILD_ID"),
+        PIPELINE_NAME: env.get("TRAVIS_REPO_SLUG"),
+        PIPELINE_NUMBER: env.get("TRAVIS_BUILD_NUMBER"),
+        PIPELINE_URL: env.get("TRAVIS_BUILD_WEB_URL"),
+        PROVIDER_NAME: "travisci",
+        WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
+        git.COMMIT_MESSAGE: env.get("TRAVIS_COMMIT_MESSAGE"),
     }
 
 
@@ -207,168 +364,10 @@ def extract_bitrise(env):
     }
 
 
-def extract_buildkite(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from Buildkite environ."""
-    return {
-        PROVIDER_NAME: "buildkite",
-        PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
-        PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
-        PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
-        PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
-        JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
-        WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
-        git.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
-        git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
-        git.BRANCH: env.get("BUILDKITE_BRANCH"),
-        git.TAG: env.get("BUILDKITE_TAG"),
-        git.COMMIT_MESSAGE: env.get("BUILDKITE_MESSAGE"),
-        git.COMMIT_AUTHOR_NAME: env.get("BUILDKITE_BUILD_AUTHOR"),
-        git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
-        git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
-        git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
-    }
-
-
-def extract_circle_ci(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from CircleCI environ."""
-    return {
-        PROVIDER_NAME: "circleci",
-        PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
-        PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
-        PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
-        PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
-        JOB_URL: env.get("CIRCLE_BUILD_URL"),
-        WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
-        git.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
-        git.COMMIT_SHA: env.get("CIRCLE_SHA1"),
-        git.BRANCH: env.get("CIRCLE_BRANCH"),
-        git.TAG: env.get("CIRCLE_TAG"),
-    }
-
-
-def extract_github_actions(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from Github environ."""
-    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF") or ""
-    branch = tag = None  # type: Optional[str]
-    if "tags/" in branch_or_tag:
-        tag = branch_or_tag
-    else:
-        branch = branch_or_tag
-    return {
-        PROVIDER_NAME: "github",
-        PIPELINE_ID: env.get("GITHUB_RUN_ID"),
-        PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
-        PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        PIPELINE_URL: "https://github.com/{0}/commit/{1}/checks".format(
-            env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
-        ),
-        JOB_URL: "https://github.com/{0}/commit/{1}/checks".format(env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")),
-        WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
-        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("GITHUB_REPOSITORY")),
-        git.COMMIT_SHA: env.get("GITHUB_SHA"),
-        git.BRANCH: branch,
-        git.TAG: tag,
-    }
-
-
-def extract_gitlab(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from Gitlab environ."""
-    url = env.get("CI_PIPELINE_URL")
-    if url:
-        url = re.sub("/-/pipelines/", "/pipelines/", url)
-    return {
-        PROVIDER_NAME: "gitlab",
-        PIPELINE_ID: env.get("CI_PIPELINE_ID"),
-        PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
-        PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
-        PIPELINE_URL: url,
-        STAGE_NAME: env.get("CI_JOB_STAGE"),
-        JOB_NAME: env.get("CI_JOB_NAME"),
-        JOB_URL: env.get("CI_JOB_URL"),
-        WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
-        git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
-        git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
-        git.BRANCH: env.get("CI_COMMIT_BRANCH"),
-        git.TAG: env.get("CI_COMMIT_TAG"),
-        git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
-    }
-
-
-def extract_jenkins(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from Jenkins environ."""
-    branch_or_tag = env.get("GIT_BRANCH", "")
-    branch = tag = None  # type: Optional[str]
-    if "tags/" in branch_or_tag:
-        tag = branch_or_tag
-    else:
-        branch = branch_or_tag
-    name = env.get("JOB_NAME")
-    if name and branch:
-        name = re.sub("/" + _normalize_ref(branch), "", name)  # type: ignore[operator]
-    if name:
-        name = "/".join((v for v in name.split("/") if v and "=" not in v))
-
-    return {
-        PROVIDER_NAME: "jenkins",
-        PIPELINE_ID: env.get("BUILD_TAG"),
-        PIPELINE_NAME: name,
-        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
-        PIPELINE_URL: env.get("BUILD_URL"),
-        WORKSPACE_PATH: env.get("WORKSPACE"),
-        git.REPOSITORY_URL: env.get("GIT_URL"),
-        git.COMMIT_SHA: env.get("GIT_COMMIT"),
-        git.BRANCH: branch,
-        git.TAG: tag,
-    }
-
-
-def extract_teamcity(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from Teamcity environ."""
-    return {
-        git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
-        git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
-        PIPELINE_ID: env.get("BUILD_ID"),
-        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
-        PIPELINE_URL: (
-            "{0}/viewLog.html?buildId={1}".format(env.get("SERVER_URL"), env.get("BUILD_ID"))
-            if env.get("SERVER_URL") and env.get("BUILD_ID")
-            else None
-        ),
-        PROVIDER_NAME: "teamcity",
-        WORKSPACE_PATH: env.get("BUILD_CHECKOUTDIR"),
-    }
-
-
-def extract_travis(env):
-    # type: (MutableMapping[str, str]) -> MutableMapping[str, Optional[str]]
-    """Extract CI tags from Travis environ."""
-    return {
-        PROVIDER_NAME: "travisci",
-        PIPELINE_ID: env.get("TRAVIS_BUILD_ID"),
-        PIPELINE_NAME: env.get("TRAVIS_REPO_SLUG"),
-        PIPELINE_NUMBER: env.get("TRAVIS_BUILD_NUMBER"),
-        PIPELINE_URL: env.get("TRAVIS_BUILD_WEB_URL"),
-        JOB_URL: env.get("TRAVIS_JOB_WEB_URL"),
-        WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
-        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("TRAVIS_REPO_SLUG")),
-        git.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
-        git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
-        git.TAG: env.get("TRAVIS_TAG"),
-        git.COMMIT_MESSAGE: env.get("TRAVIS_COMMIT_MESSAGE"),
-    }
-
-
 PROVIDERS = (
     ("APPVEYOR", extract_appveyor),
     ("TF_BUILD", extract_azure_pipelines),
     ("BITBUCKET_COMMIT", extract_bitbucket),
-    ("BITRISE_BUILD_SLUG", extract_bitrise),
     ("BUILDKITE", extract_buildkite),
     ("CIRCLECI", extract_circle_ci),
     ("GITHUB_SHA", extract_github_actions),
@@ -376,4 +375,5 @@ PROVIDERS = (
     ("JENKINS_URL", extract_jenkins),
     ("TEAMCITY_VERSION", extract_teamcity),
     ("TRAVIS", extract_travis),
+    ("BITRISE_BUILD_SLUG", extract_bitrise),
 )
