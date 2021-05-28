@@ -459,16 +459,19 @@ def test_agent_url_path(endpoint_assert_path):
     # test without base path
     endpoint_assert_path("/v0.")
     writer = AgentWriter(agent_url="http://%s:%s/" % (_HOST, _PORT))
-    writer._send_payload("foobar", 12)
+    writer._buffer.put(b"foobar")
+    writer.flush_queue(raise_exc=True)
 
     # test without base path nor trailing slash
     writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _PORT))
-    writer._send_payload("foobar", 12)
+    writer._buffer.put(b"foobar")
+    writer.flush_queue(raise_exc=True)
 
     # test with a base path
     endpoint_assert_path("/test/v0.")
     writer = AgentWriter(agent_url="http://%s:%s/test/" % (_HOST, _PORT))
-    writer._send_payload("foobar", 12)
+    writer._buffer.put(b"foobar")
+    writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_timeout_connect():
@@ -478,13 +481,15 @@ def test_flush_connection_timeout_connect():
     else:
         exc_type = socket.error
     with pytest.raises(exc_type):
-        writer._send_payload("foobar", 12)
+        writer._buffer.put(b"foobar")
+        writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
     writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
-        writer._send_payload("foobar", 12)
+        writer._buffer.put(b"foobar")
+        writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_reset(endpoint_test_reset_server):
@@ -494,12 +499,14 @@ def test_flush_connection_reset(endpoint_test_reset_server):
     else:
         exc_types = (httplib.BadStatusLine,)
     with pytest.raises(exc_types):
-        writer._send_payload("foobar", 12)
+        writer._buffer.put(b"foobar")
+        writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_uds(endpoint_uds_server):
     writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
-    writer._send_payload("foobar", 12)
+    writer._buffer.put(b"foobar")
+    writer.flush_queue(raise_exc=True)
 
 
 def test_flush_queue_raise():
