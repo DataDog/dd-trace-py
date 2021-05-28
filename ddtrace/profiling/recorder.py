@@ -43,9 +43,7 @@ class Recorder(object):
     def _after_fork(self):
         # type: (...) -> None
         # NOTE: do not try to push events if the process forked
-        # This means:
-        # 1. the process has forked
-        # 2. we don't know the state of _events_lock and it might be unusable — we'd deadlock
+        # This means we don't know the state of _events_lock and it might be unusable — we'd deadlock
         self.push_events = self._push_events_noop  # type: ignore[assignment]
 
     def _push_events_noop(self, events):
