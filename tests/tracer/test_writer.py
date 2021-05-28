@@ -7,6 +7,7 @@ import time
 import mock
 import msgpack
 import pytest
+import flaky
 from six.moves import BaseHTTPServer
 from six.moves import socketserver
 
@@ -497,6 +498,8 @@ def test_flush_connection_reset(endpoint_test_reset_server):
         writer._send_payload("foobar", 12)
 
 
+# This test is flaky on CircleCI and raises a BrokenPipeError.
+@flaky.flaky(max_runs=5)
 def test_flush_connection_uds(endpoint_uds_server):
     writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
     writer._send_payload("foobar", 12)
