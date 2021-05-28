@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    `ddtrace.helpers.get_correlation_ids` was moved to be an instance method in `ddtrace.Tracer`. It no longer
+    looks at the global tracer instance by default.
