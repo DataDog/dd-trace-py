@@ -194,13 +194,13 @@ class TestTracerCompatibility(object):
         trace_id, span_id = ot_tracer.get_correlation_ids()
         dd_trace_id, dd_span_id = ot_tracer._dd_tracer.get_correlation_ids()
 
-        assert trace_id == dd_trace_id == span._dd_span.trace_id
-        assert span_id == dd_span_id == span._dd_span.span_id
+        assert trace_id == dd_trace_id == str(span._dd_span.trace_id)
+        assert span_id == dd_span_id == str(span._dd_span.span_id)
 
     def test_correlation_identifiers_with_tracer_disabled(self, ot_tracer):
         ot_tracer._enabled = False
         ot_tracer.start_span("ot_tracer_span")
 
         trace_id, span_id = ot_tracer.get_correlation_ids()
-        assert trace_id is None
-        assert span_id is None
+        assert trace_id == "0"
+        assert span_id == "0"

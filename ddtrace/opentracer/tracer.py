@@ -1,4 +1,3 @@
-from typing import Optional
 from typing import Tuple
 
 import opentracing
@@ -335,7 +334,7 @@ class Tracer(opentracing.Tracer):
         return ot_span_ctx
 
     def get_correlation_ids(self):
-        # type: () -> Tuple[Optional[int], Optional[int]]
+        # type: () -> Tuple[str, str]
         """Retrieves the Correlation Identifiers for the current active ``Trace``.
         This helper method can be achieved manually and should be considered
         only a shortcut.
@@ -345,13 +344,13 @@ class Tracer(opentracing.Tracer):
 
                 trace_id, span_id = tracer.get_correlation_ids()
 
-        :returns: a tuple containing the trace_id and span_id
+        :returns: a tuple of strings containing the trace_id and span_id. Defaults to "0" if not found.
         """
         # If tracer is disabled, skip
         if not self._enabled:
-            return None, None
+            return "0", "0"
 
         span = self._dd_tracer.current_span()
         if not span:
-            return None, None
-        return span.trace_id, span.span_id
+            return "0", "0"
+        return str(span.trace_id), str(span.span_id)

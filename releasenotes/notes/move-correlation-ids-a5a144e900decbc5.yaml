@@ -2,4 +2,5 @@
 other:
   - |
     `ddtrace.helpers.get_correlation_ids` was moved to be a method in both `ddtrace.Tracer` and
-    `ddtrace.opentracer.Tracer`. It no longer looks at the global tracer instance by default.
+    `ddtrace.opentracer.Tracer`. It no longer looks at the global tracer instance by default,
+     and now returns a tuple of string types (defaults to "0" instead of None).
