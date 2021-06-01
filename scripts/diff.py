@@ -56,8 +56,16 @@ def score_stacks(
         """
         fa, ma = a
         fb, mb = b
-        if _normalized_stack(fa) == _normalized_stack(fb):
-            return 1 - abs(ma.time - mb.time) / (ma.time + mb.time)
+        na = _normalized_stack(fa)
+        nb = _normalized_stack(fb)
+
+        if na == nb:
+            try:
+                # Reward stacks that have exact endings
+                bonus = na[-1] == fa[-1] and nb[-1] == fb[-1]
+            except IndexError:
+                bonus = 0
+            return 0.5 - abs(ma.time - mb.time) / (ma.time + mb.time) + 0.5 * bonus
         return 0
 
     return sorted(
@@ -249,10 +257,10 @@ def make_stacks(matched_stacks_plus, matched_stacks_minus, new_stacks, old_stack
             [
                 join_stacks(s, p)
                 for s, p in [
-                    (matched_stacks_plus, "-MATCHED+"),
-                    (new_stacks, "-NEW"),
-                    (matched_stacks_minus, "-MATCHED-"),
-                    (old_stacks, "-OLD"),
+                    (matched_stacks_plus, "-GROWN"),
+                    (new_stacks, "-APPEARED"),
+                    (matched_stacks_minus, "-SHRUNK"),
+                    (old_stacks, "-DISAPPEARED"),
                 ]
             ]
         )
@@ -262,7 +270,7 @@ def make_stacks(matched_stacks_plus, matched_stacks_minus, new_stacks, old_stack
 # -- CONTROLLER --
 
 
-def diff(a: TextIO, b: TextIO, output_prefix: str, threshold: float = 1e-3) -> None:
+def diff(a: str, b: str, output_prefix: str, threshold: float = 1e-3) -> None:
     """Compare stacks and return a - b.
 
     The algorithm attempts to match stacks that look similar and returns
@@ -270,8 +278,15 @@ def diff(a: TextIO, b: TextIO, output_prefix: str, threshold: float = 1e-3) -> N
     than those in a are not reported), plus any new stacks that are not in
     b.
     """
-    ca, ta = compressed(a)
-    cb, tb = compressed(b)
+    with open(a) as ain, open(b) as bin:
+        ca, ta = compressed(ain)
+        cb, tb = compressed(bin)
+
+    with open(a, "w") as aout, open(b, "w") as bout:
+        # overwrite files with compressed result
+        aout.write(ca)
+        bout.write(cb)
+
     overhead = (ta - tb) / tb
 
     fa = get_folded_stacks(ca, threshold)
@@ -322,8 +337,7 @@ def main() -> None:
 
     args = argp.parse_args()
 
-    with open(args.a) as a, open(args.b) as b:
-        diff(a, b, args.output_prefix, args.threshold)
+    diff(args.a, args.b, args.output_prefix, args.threshold)
 
 
 if __name__ == "__main__":

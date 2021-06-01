@@ -85,6 +85,7 @@ jobs:
       - name: Compute diff
         run: |
           cd ${{ github.workspace }}/ddtrace
+          sudo chown `whoami`:`whoami` ${{ github.workspace }}/artifacts/*
           python scripts/diff.py ${{ github.workspace }}/artifacts/head.austin ${{ github.workspace }}/artifacts/baseline.austin ${{ github.workspace }}/artifacts/baseline_head.diff
           head -n 25 ${{ github.workspace }}/artifacts/baseline_head.diff.top
           austin2pprof ${{ github.workspace }}/artifacts/baseline_head.diff.austin ${{ github.workspace }}/artifacts/baseline_head.diff.pprof
