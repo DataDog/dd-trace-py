@@ -198,12 +198,90 @@ cdef class Packer(object):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef int _pack(self, object o) except -1:
+    cdef inline int _pack_span(self, object span):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
         cdef int has_meta
         cdef int has_metrics
+
+        has_span_type = <bint> (span.span_type is not None)
+        has_meta = <bint> (len(span.meta) > 0)
+        has_metrics = <bint> (len(span.metrics) > 0)
+
+        L = 9 + has_span_type + has_meta + has_metrics
+
+        ret = msgpack_pack_map(&self.pk, L)
+
+        if ret == 0:
+            ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
+            if ret != 0: return ret
+            ret = self._pack_number(span.trace_id)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
+            if ret != 0: return ret
+            ret = self._pack_number(span.parent_id)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
+            if ret != 0: return ret
+            ret = self._pack_number(span.span_id)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"service", 7)
+            if ret != 0: return ret
+            ret = self._pack_text(span.service)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"resource", 8)
+            if ret != 0: return ret
+            ret = self._pack_text(span.resource)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"name", 4)
+            if ret != 0: return ret
+            ret = self._pack_text(span.name)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"error", 5)
+            if ret != 0: return ret
+            ret = msgpack_pack_long(&self.pk, <long> (1 if span.error else 0))
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"start", 5)
+            if ret != 0: return ret
+            ret = self._pack_number(span.start_ns)
+            if ret != 0: return ret
+
+            ret = pack_bytes(&self.pk, <char *> b"duration", 8)
+            if ret != 0: return ret
+            ret = self._pack_number(span.duration_ns)
+            if ret != 0: return ret
+
+            if has_span_type:
+                ret = pack_bytes(&self.pk, <char *> b"type", 4)
+                if ret != 0: return ret
+                ret = self._pack_text(span.span_type)
+                if ret != 0: return ret
+
+            if has_meta:
+                ret = pack_bytes(&self.pk, <char *> b"meta", 4)
+                if ret != 0: return ret
+                ret = self._pack_meta(span.meta)
+                if ret != 0: return ret
+
+            if has_metrics:
+                ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
+                if ret != 0: return ret
+                ret = self._pack_metrics(span.metrics)
+                if ret != 0: return ret
+
+        return ret
+
+    cdef int _pack(self, object o) except -1:
+        cdef int ret
+        cdef Py_ssize_t L
 
         if o is None:
             ret = msgpack_pack_nil(&self.pk)
@@ -222,77 +300,7 @@ cdef class Packer(object):
                 if ret != 0: break
 
         elif isinstance(o, Span):
-            has_span_type = <bint> (o.span_type is not None)
-            has_meta = <bint> (len(o.meta) > 0)
-            has_metrics = <bint> (len(o.metrics) > 0)
-
-            L = 9 + has_span_type + has_meta + has_metrics
-
-            ret = msgpack_pack_map(&self.pk, L)
-
-            if ret == 0:
-                ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
-                if ret != 0: return ret
-                ret = self._pack_number(o.trace_id)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
-                if ret != 0: return ret
-                ret = self._pack_number(o.parent_id)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
-                if ret != 0: return ret
-                ret = self._pack_number(o.span_id)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"service", 7)
-                if ret != 0: return ret
-                ret = self._pack_text(o.service)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"resource", 8)
-                if ret != 0: return ret
-                ret = self._pack_text(o.resource)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"name", 4)
-                if ret != 0: return ret
-                ret = self._pack_text(o.name)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"error", 5)
-                if ret != 0: return ret
-                ret = msgpack_pack_long(&self.pk, <long> (1 if o.error else 0))
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"start", 5)
-                if ret != 0: return ret
-                ret = self._pack_number(o.start_ns)
-                if ret != 0: return ret
-
-                ret = pack_bytes(&self.pk, <char *> b"duration", 8)
-                if ret != 0: return ret
-                ret = self._pack_number(o.duration_ns)
-                if ret != 0: return ret
-
-                if has_span_type:
-                    ret = pack_bytes(&self.pk, <char *> b"type", 4)
-                    if ret != 0: return ret
-                    ret = self._pack_text(o._span_type)
-                    if ret != 0: return ret
-
-                if has_meta:
-                    ret = pack_bytes(&self.pk, <char *> b"meta", 4)
-                    if ret != 0: return ret
-                    ret = self._pack_meta(o.meta)
-                    if ret != 0: return ret
-
-                if has_metrics:
-                    ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
-                    if ret != 0: return ret
-                    ret = self._pack_metrics(o.metrics)
-                    if ret != 0: return ret
+            ret = self._pack_span(o)
         else:
             PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
         return ret
