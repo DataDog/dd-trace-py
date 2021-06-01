@@ -139,7 +139,7 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
         self.span_id = span_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self.tracer = tracer
+        self.tracer = tracer  # type: Optional[Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
