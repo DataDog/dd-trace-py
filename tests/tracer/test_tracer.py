@@ -1514,3 +1514,39 @@ def test_spans_sampled_all(tracer, test_spans):
 
     spans = test_spans.pop()
     assert len(spans) == 3
+
+
+def test_closing_other_context_spans_single_span(tracer, test_spans):
+    def _target(span):
+        assert tracer.current_span() is None
+        span.finish()
+        assert tracer.current_span() is None
+
+    span = tracer.trace("main thread")
+    assert tracer.current_span() is span
+    t1 = threading.Thread(target=_target, args=(span,))
+    t1.start()
+    t1.join()
+    assert tracer.current_span() is None
+
+    spans = test_spans.pop()
+    assert len(spans) == 1
+
+
+def test_closing_other_context_spans_multi_spans(tracer, test_spans):
+    def _target(span):
+        assert tracer.current_span() is None
+        span.finish()
+        assert tracer.current_span() is None
+
+    root = tracer.trace("root span")
+    span = tracer.trace("child span")
+    assert tracer.current_span() is span
+    t1 = threading.Thread(target=_target, args=(span,))
+    t1.start()
+    t1.join()
+    assert tracer.current_span() is root
+    root.finish()
+
+    spans = test_spans.pop()
+    assert len(spans) == 2
