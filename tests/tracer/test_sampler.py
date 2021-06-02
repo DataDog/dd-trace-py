@@ -465,6 +465,13 @@ def test_datadog_sampler_init():
         assert isinstance(sampler.default_sampler, SamplingRule)
         assert sampler.default_sampler.sample_rate == 0.5
 
+    # DD_TRACE_SAMPLE_RATE=0
+    with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
+        sampler = DatadogSampler()
+        assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+        assert isinstance(sampler.default_sampler, SamplingRule)
+        assert sampler.default_sampler.sample_rate == 0
+
     # Invalid env vars
     with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
         with pytest.raises(ValueError):
@@ -608,6 +615,14 @@ class MatchNoSample(SamplingRule):
             ),
             AUTO_REJECT,
             0.5,
+            None,
+        ),
+        (
+            DatadogSampler(
+                default_sample_rate=0,
+            ),
+            AUTO_REJECT,
+            0,
             None,
         ),
     ],

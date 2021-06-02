@@ -55,7 +55,7 @@ def _filter_sensitive_info(url):
 
 def tags(env=None):
     # type: (Optional[MutableMapping[str, str]]) -> Dict[str, str]
-    """Extract and set tags from provider environ."""
+    """Extract and set tags from provider environ, as well as git metadata."""
     env = os.environ if env is None else env
     tags = {}  # type: Dict[str, Optional[str]]
     ci_tags = {}  # type: Dict[str, Optional[str]]

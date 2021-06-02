@@ -56,6 +56,7 @@ log = get_logger(__name__)
 def extract_user_info(author=True):
     # type: (bool) -> Tuple[str, str, str]
     """Extract git commit author/committer info."""
+    # Note: `git show -s --format... --date...` is suported since git 2.1.4 onwards
     formatting = "--format=%an,%ae,%ad" if author else "--format=%cn,%ce,%cd"
     cmd = subprocess.Popen(
         ["git", "show", "-s", formatting, "--date=format:%Y-%m-%dT%H:%M:%S%z"],
@@ -71,6 +72,7 @@ def extract_user_info(author=True):
 
 def extract_repository_url():
     # type: () -> str
+    # Note: `git show ls-remote --get-url` is suported since git 2.6.7 onwards
     cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = cmd.communicate()
     if cmd.returncode == 0:
@@ -81,6 +83,7 @@ def extract_repository_url():
 
 def extract_commit_message():
     # type: () -> str
+    # Note: `git show -s --format... --date...` is suported since git 2.1.4 onwards
     cmd = subprocess.Popen(["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = cmd.communicate()
     if cmd.returncode == 0:
