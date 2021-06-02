@@ -943,12 +943,7 @@ class AnyFloat(object):
         return isinstance(other, float)
 
 
-def call_program(*args):
-    subp = subprocess.Popen(
-        args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-    )
+def call_program(*args, **kwargs):
+    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, **kwargs)
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid

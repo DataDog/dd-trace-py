@@ -33,6 +33,7 @@ from .internal import atexit
 from .internal import compat
 from .internal import debug
 from .internal import hostname
+from .internal import service
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
@@ -59,12 +60,13 @@ from .utils.formats import get_env
 log = get_logger(__name__)
 
 debug_mode = asbool(get_env("trace", "debug", default=False))
+call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
-if debug_mode and not hasHandlers(log):
+if debug_mode and not hasHandlers(log) and call_basic_config:
     if config.logs_injection:
         logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
     else:
@@ -312,7 +314,11 @@ class Tracer(object):
             # get the URL from.
             url = None  # type: ignore
 
-        self.writer.stop()
+        try:
+            self.writer.stop()
+        except service.ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass
 
         if writer is not None:
             self.writer = writer
@@ -828,7 +834,11 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        self.writer.stop(timeout=timeout)
+        try:
+            self.writer.stop(timeout=timeout)
+        except service.ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass
         atexit.unregister(self._atexit)
 
     @staticmethod

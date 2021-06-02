@@ -897,6 +897,29 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest",
+            command="pytest {cmdargs} tests/contrib/pytest",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest==4.6 is last to support python 2.7
+                    pkgs={"pytest": ">=4.0,<4.6"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "pytest": [
+                            ">=3.0,<4.0",
+                            ">=4.0,<5.0",
+                            ">=5.0,<6.0",
+                            ">=6.0,<7.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="grpc",
             command="pytest {cmdargs} tests/contrib/grpc",
             pkgs={
