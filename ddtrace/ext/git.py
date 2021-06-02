@@ -1,14 +1,15 @@
 """
 tags for common git attributes
 """
-import logging
 import subprocess
-from typing import MutableMapping
+from typing import Dict
+from typing import Optional
 from typing import Tuple
 
 import six
 
 from ddtrace.internal import compat
+from ddtrace.internal.logger import get_logger
 
 
 if six.PY2:
@@ -49,7 +50,7 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def extract_user_info(author=True):
@@ -89,9 +90,9 @@ def extract_commit_message():
 
 
 def extract_git_metadata():
-    # type: () -> MutableMapping[str, str]
+    # type: () -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
-    tags = {}
+    tags = {}  # type: Dict[str, Optional[str]]
     try:
         tags[REPOSITORY_URL] = extract_repository_url()
         tags[COMMIT_MESSAGE] = extract_commit_message()
@@ -106,6 +107,6 @@ def extract_git_metadata():
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
-        log.error("Error extracting git metadata, received non-zero return code: %s", exc_info=True)
+        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
 
     return tags
