@@ -1,0 +1,20 @@
+[[{"name" "postgres.query"
+   "service" "postgresdb"
+   "resource" "select 'one' as x"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1622754955215917340
+   "duration" 685901
+   "meta" {"runtime-id" "cfa048a477224d65afc0e9d89c1bef72"
+           "django.db.vendor" "postgresql"
+           "django.db.alias" "postgres"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 307
+              "db.rowcount" 1
+              "sql.rows" 1
+              "_dd.tracer_kr" 1.0}}]]
