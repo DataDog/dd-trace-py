@@ -58,16 +58,15 @@ def tags(env=None):
     """Extract and set tags from provider environ, as well as git metadata."""
     env = os.environ if env is None else env
     tags = {}  # type: Dict[str, Optional[str]]
-    ci_tags = {}  # type: Dict[str, Optional[str]]
     for key, extract in PROVIDERS:
         if key in env:
-            ci_tags = extract(env)
+            tags = extract(env)
             break
 
     git_info = git.extract_git_metadata()
-    # Tags collected from CI provider take precedence over extracted git metadata
-    tags.update(git_info)
-    tags.update(ci_tags)
+    # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
+    # is None or "" should be overwritten.
+    tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
 
     tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
