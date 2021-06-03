@@ -1517,6 +1517,11 @@ def test_spans_sampled_all(tracer, test_spans):
 
 
 def test_closing_other_context_spans_single_span(tracer, test_spans):
+    """
+    Ensure that a span created in one thread can be finished in another without
+    breaking the active span management.
+    """
+
     def _target(span):
         assert tracer.current_span() is None
         span.finish()
@@ -1534,6 +1539,11 @@ def test_closing_other_context_spans_single_span(tracer, test_spans):
 
 
 def test_closing_other_context_spans_multi_spans(tracer, test_spans):
+    """
+    Ensure that spans created in one thread can be finished in another without
+    breaking the active span management.
+    """
+
     def _target(span):
         assert tracer.current_span() is None
         span.finish()
