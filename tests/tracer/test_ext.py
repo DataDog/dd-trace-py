@@ -141,3 +141,72 @@ def test_git_executable_not_found_error():
     assert "git.commit.committer.name" not in extracted_tags
     assert "git.commit.committer.email" not in extracted_tags
     assert "git.commit.committer.date" not in extracted_tags
+
+
+def test_ci_provider_tags_not_overwritten_by_git_executable():
+    """If non-Falsey values from CI provider env, should not be overwritten by extracted git metadata."""
+    ci_provider_env = {
+        "APPVEYOR": "true",
+        "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+        "APPVEYOR_BUILD_ID": "appveyor-build-id",
+        "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+        "APPVEYOR_REPO_BRANCH": "master",
+        "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+        "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+        "APPVEYOR_REPO_PROVIDER": "github",
+        "APPVEYOR_REPO_COMMIT_MESSAGE": "this is the correct commit message",
+        "APPVEYOR_REPO_COMMIT_AUTHOR": "John Doe",
+        "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "jdoe@gmail.com",
+    }
+
+    with mock.patch("ddtrace.ext.ci.git.extract_git_metadata") as mock_git_data:
+        mock_git_data.return_value = {
+            "git.repository_url": "clearly-wrong-repository-url",
+            "git.commit.message": "clearly-wrong-commit-message",
+            "git.commit.author.name": "clearly-wrong-commit-author-name",
+            "git.commit.author.email": "clearly-wrong-commit-author-email",
+            "git.commit.author.date": "2021-01-19T09:24:53Z",
+            "git.commit.committer.name": "Jane Doe",
+            "git.commit.committer.email": "jane_doe@gmail.com",
+            "git.commit.committer.date": "2021-01-19T09:24:53Z",
+        }
+        extracted_tags = ci.tags(ci_provider_env)
+
+    assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
+    assert extracted_tags["git.commit.message"] == "this is the correct commit message"
+    assert extracted_tags["git.commit.author.name"] == "John Doe"
+    assert extracted_tags["git.commit.author.email"] == "jdoe@gmail.com"
+
+
+def test_falsey_ci_provider_values_overwritten_by_git_executable():
+    """If no or None or empty string values from CI provider env, should be overwritten by extracted git metadata."""
+    ci_provider_env = {
+        "APPVEYOR": "true",
+        "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+        "APPVEYOR_BUILD_ID": "appveyor-build-id",
+        "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+        "APPVEYOR_REPO_BRANCH": "master",
+        "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+        "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+        "APPVEYOR_REPO_PROVIDER": "not-github",
+        "APPVEYOR_REPO_COMMIT_MESSAGE": None,
+        "APPVEYOR_REPO_COMMIT_AUTHOR": "",
+    }
+
+    with mock.patch("ddtrace.ext.ci.git.extract_git_metadata") as mock_git_data:
+        mock_git_data.return_value = {
+            "git.repository_url": "https://github.com/appveyor-repo-name.git",
+            "git.commit.message": "this is the correct commit message",
+            "git.commit.author.name": "John Doe",
+            "git.commit.author.email": "jdoe@gmail.com",
+            "git.commit.author.date": "2021-01-19T09:24:53Z",
+            "git.commit.committer.name": "Jane Doe",
+            "git.commit.committer.email": "jane_doe@gmail.com",
+            "git.commit.committer.date": "2021-01-19T09:24:53Z",
+        }
+        extracted_tags = ci.tags(ci_provider_env)
+
+    assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
+    assert extracted_tags["git.commit.message"] == "this is the correct commit message"
+    assert extracted_tags["git.commit.author.name"] == "John Doe"
+    assert extracted_tags["git.commit.author.email"] == "jdoe@gmail.com"
