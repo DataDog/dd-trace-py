@@ -2,6 +2,7 @@
 Variety of test cases ensuring that ddtrace does not leak memory.
 """
 import gc
+import os
 from threading import Thread
 from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
@@ -103,3 +104,35 @@ def test_multithread_trace(tracer):
     del span
     gc.collect()
     assert len(wd) == 0
+
+
+def test_fork_open_span(tracer):
+    wd = WeakValueDictionary()
+    span = trace(wd, tracer, "span")
+    pid = os.fork()
+
+    if pid == 0:
+        assert len(wd) == 1
+        del span
+        gc.collect()
+        # span is still open an in the context
+        assert len(wd) == 1
+        span2 = trace(wd, tracer, "span2")
+        assert span2._parent is None
+        assert len(wd) == 2
+        span2.finish()
+
+        del span2
+        gc.collect()
+        assert len(wd) == 0
+        os._exit(12)
+
+    assert len(wd) == 1
+    span.finish()
+    del span
+    gc.collect()
+    assert len(wd) == 0
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
