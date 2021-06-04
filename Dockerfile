@@ -13,20 +13,16 @@ ENV NODE_VERSION=node_16.x
 
 
 RUN \
-  # Install cURL first
-  apt-get update \
-  && apt-get install -y --no-install-recommends apt-transport-https ca-certificates curl gnupg \
-  # Setup Node.js package repository
-  # https://github.com/nodesource/distributions/blob/025fe79908872abd39c590a45893b59929cb91e6/README.md#debmanual
-  && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - \
-  && echo "deb https://deb.nodesource.com/${NODE_VERSION} stretch main" | tee /etc/apt/sources.list.d/nodesource.list \
-  && echo "deb-src https://deb.nodesource.com/${NODE_VERSION} stretch main" | tee -a /etc/apt/sources.list.d/nodesource.list \
   # Install system dependencies
   && apt-get update \
   && apt-get install -y --no-install-recommends \
+      apt-transport-https \
       build-essential \
+      ca-certificates \
       clang-format \
+      curl \
       git \
+      gnupg \
       jq \
       libbz2-dev \
       libenchant-dev \
@@ -45,13 +41,19 @@ RUN \
       libsqliteodbc \
       libssh-dev \
       libssl1.0-dev \
-      nodejs \
       patch \
       python-openssl\
       unixodbc-dev \
       valgrind \
       wget \
       zlib1g-dev \
+  # Setup Node.js package repository
+  # https://github.com/nodesource/distributions/blob/025fe79908872abd39c590a45893b59929cb91e6/README.md#debmanual
+  && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - \
+  && echo "deb https://deb.nodesource.com/${NODE_VERSION} stretch main" | tee /etc/apt/sources.list.d/nodesource.list \
+  && echo "deb-src https://deb.nodesource.com/${NODE_VERSION} stretch main" | tee -a /etc/apt/sources.list.d/nodesource.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends nodejs \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
