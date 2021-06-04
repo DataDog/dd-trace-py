@@ -35,6 +35,10 @@ def trace(weakdict, tracer, *args, **kwargs):
 
 
 def test_leak(tracer):
+    """
+    Ensure that our testing strategy actually works for catching leaked span
+    objects.
+    """
     wd = WeakValueDictionary()
     span = trace(wd, tracer, "span1")
     span2 = trace(wd, tracer, "span2")
@@ -49,6 +53,10 @@ def test_leak(tracer):
 
 
 def test_fork_open_span(tracer):
+    """
+    When a fork occurs with an open span then the child process should not have
+    a strong reference to the span because it might never be closed.
+    """
     wd = WeakValueDictionary()
     span = trace(wd, tracer, "span")
     pid = os.fork()
