@@ -14,7 +14,7 @@ ENV NODE_VERSION=node_16.x
 
 RUN \
   # Install system dependencies
-  && apt-get update \
+  apt-get update \
   && apt-get install -y --no-install-recommends \
       apt-transport-https \
       build-essential \
