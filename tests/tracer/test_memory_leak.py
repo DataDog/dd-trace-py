@@ -23,30 +23,31 @@ def tracer():
 
 def trace(weakdict, tracer, *args, **kwargs):
     # type: (WeakValueDictionary, Tracer, ...) -> Span
-    """Return a reference to a span created from ``tracer.trace(*args, **kwargs)``
-    and adds it to the given weak dictionary.
+    """Return a span created from ``tracer`` and add it to the given weak
+    dictionary.
 
     Note: ensure to delete the returned reference from this function to ensure
     no additional references are kept to the span.
-    """  # noqa: D402
+    """
     s = tracer.trace(*args, **kwargs)
     weakdict[s.span_id] = s
     return s
 
 
 def test_leak(tracer):
-    """
-    Ensure that our testing strategy actually works for catching leaked span
-    objects.
-    """
     wd = WeakValueDictionary()
     span = trace(wd, tracer, "span1")
     span2 = trace(wd, tracer, "span2")
     assert len(wd) == 2
+
+    # The spans are still open and referenced so they should not be gc'd
     gc.collect()
     assert len(wd) == 2
     span2.finish()
     span.finish()
+
+    # Once these references are deleted then the spans should no longer be
+    # referenced by anything and should be gc'd.
     del span, span2
     gc.collect()
     assert len(wd) == 0
@@ -63,9 +64,8 @@ def test_fork_open_span(tracer):
 
     if pid == 0:
         assert len(wd) == 1
-        del span
         gc.collect()
-        # span is still open an in the context
+        # span is still open and in the context
         assert len(wd) == 1
         span2 = trace(wd, tracer, "span2")
         assert span2._parent is None
@@ -73,6 +73,18 @@ def test_fork_open_span(tracer):
         span2.finish()
 
         del span2
+
+        # Expect there to be one span left (the original from before the fork)
+        # which is inherited into the child process but will never be closed.
+        # The important thing in this test case is all new spans created in the
+        # child will be gc'd.
+        gc.collect()
+        assert len(wd) == 1
+
+        # Normally, if the child process leaves this function frame the span
+        # reference would be lost and it would be free to be gc'd. We delete
+        # the reference explicitly here to mimic this scenario.
+        del span
         gc.collect()
         assert len(wd) == 0
         os._exit(12)
