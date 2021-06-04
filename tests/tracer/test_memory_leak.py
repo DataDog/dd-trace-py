@@ -34,15 +34,28 @@ def trace(weakdict, tracer, *args, **kwargs):
     return s
 
 
+def test_leak(tracer):
+    wd = WeakValueDictionary()
+    span = trace(wd, tracer, "span1")
+    span2 = trace(wd, tracer, "span2")
+    assert len(wd) == 2
+    gc.collect()
+    assert len(wd) == 2
+    span2.finish()
+    span.finish()
+    del span, span2
+    gc.collect()
+    assert len(wd) == 0
+
+
 def test_single_thread_single_trace(tracer):
     """
     Ensure a simple trace doesn't leak span objects.
     """
     wd = WeakValueDictionary()
     with trace(wd, tracer, "span1"):
-        assert len(wd) == 1
         with trace(wd, tracer, "span2"):
-            assert len(wd) == 2
+            pass
 
     # Spans are serialized and unreferenced when traces are finished
     # so gc-ing right away should delete all span objects.
