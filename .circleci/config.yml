@@ -3,7 +3,7 @@ version: 2.1
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python39-alpine_image: &python39-alpine_image python:3.9-alpine
-python39_image: &python39_image circleci/python:3.9
+python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
@@ -920,17 +920,6 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  build_wheels:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - run: pip install cython
-      - run: scripts/build-dist-cp27
-      - run: scripts/build-dist
-      - store_artifacts:
-          path: dist
-
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
@@ -1008,14 +997,6 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-  build_wheels_workflow:
-    jobs:
-      - request_build:
-          type: approval
-      - build_wheels:
-          requires:
-            - request_build
-      
   test:
     jobs:
       # Pre-checking before running all jobs
