@@ -411,10 +411,12 @@ class Tracer(object):
             span = tracer.start_span('web.worker', child_of=context)
         """
         new_ctx = self._check_new_process()
+        if new_ctx:
+            child_of = new_ctx
 
         if child_of is not None:
             if isinstance(child_of, Context):
-                context = new_ctx or child_of
+                context = child_of
                 parent = child_of._get_current_span()
             else:
                 context = child_of.context
