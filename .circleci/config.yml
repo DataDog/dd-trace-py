@@ -585,7 +585,7 @@ jobs:
       - run_test:
           pattern: 'django$'
           snapshot: true
-          docker_services: "memcached redis"
+          docker_services: "memcached redis postgres"
 
   djangorestframework:
     <<: *machine_executor
