@@ -8,8 +8,9 @@ from tests.utils import TracerTestCase
 from ddtrace.contrib.mariadb import patch
 from ddtrace.contrib.mariadb import unpatch
 from ddtrace import Pin
+from ddtrace import tracer as global_tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-
+from tests.utils import snapshot
 import unittest
 
 
@@ -340,3 +341,11 @@ class TestMariadbPatch(TracerTestCase):
         assert len(rows) == 1
         spans = self.tracer.pop()
         assert spans[0].service == "mysvc"
+
+@snapshot(include_tracer=True)
+def test_simple_query_snapshot(tracer):
+    connection = get_connection(tracer)
+    cursor = connection.cursor()
+    cursor.execute("SELECT 1")
+    rows = cursor.fetchall()
+    assert len(rows) == 1
