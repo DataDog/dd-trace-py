@@ -7,20 +7,19 @@ from ddtrace.vendor import wrapt
 from ...ext import db
 from ...ext import net
 
+from ...utils.formats import asbool
+from ...utils.formats import get_env
+
 
 config._add(
     "mariadb",
     dict(
+        trace_fetch_methods=asbool(get_env("mariadb", "trace_fetch_methods", default=False)),
         _default_service="mariadb",
     ),
 )
 
-CONN_ATTR_BY_TAG = {
-    net.TARGET_HOST: "server_host",
-    net.TARGET_PORT: "server_port",
-    db.USER: "user",
-    db.NAME: "database",
-}
+
 
 
 def patch():
@@ -36,12 +35,13 @@ def unpatch():
 
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
-    return patch_conn(conn)
+    ##need to pull from args as well at some point
+    tags = {net.TARGET_HOST: kwargs["host"],
+    net.TARGET_PORT: kwargs["port"],
+    db.USER: kwargs["user"],
+    db.NAME: kwargs["database"],
+        }
 
-
-def patch_conn(conn):
-
-    tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     pin = Pin(app="mariadb", tags=tags)
 
     # grab the metadata from the conn
