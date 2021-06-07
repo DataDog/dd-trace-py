@@ -9,6 +9,7 @@ from typing import Optional
 import attr
 import six
 
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.writer import TraceWriter
@@ -64,6 +65,27 @@ class TraceSamplingProcessor(TraceProcessor):
             return None
 
         log.info("trace %d sampled (%d/%d spans sampled)", trace[0].trace_id, len(sampled_spans), len(trace))
+        return trace
+
+
+@attr.s
+class TraceTagsProcessor(TraceProcessor):
+    """Processor that applies trace-level tags to the trace."""
+
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        if not trace:
+            return trace
+
+        chunk_root = trace[0]
+        ctx = chunk_root._context
+        if not ctx:
+            return trace
+
+        if ctx.dd_origin is not None:
+            for span in trace:
+                span.meta[ORIGIN_KEY] = ctx.dd_origin
+
         return trace
 
 

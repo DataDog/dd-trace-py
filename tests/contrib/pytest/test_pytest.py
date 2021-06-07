@@ -4,7 +4,9 @@ import sys
 import pytest
 
 from ddtrace import Pin
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import test
+from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from tests.utils import TracerTestCase
 
 
@@ -290,3 +292,28 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
+
+    def test_dd_origin_tag_on_every_span(self):
+        """Test that every span in generated trace has the dd_origin tag."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+            import ddtrace
+            from ddtrace import Pin
+
+            def test_service(ddspan, pytestconfig):
+                tracer = Pin.get_from(pytestconfig).tracer
+                with tracer.trace("SPAN2") as span2:
+                    with tracer.trace("SPAN3") as span3:
+                        with tracer.trace("SPAN4") as span4:
+                            assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+
+        spans = self.pop_spans()
+        assert len(spans) == 4
+        for span in spans:
+            assert span.meta[ORIGIN_KEY] == CI_APP_TEST_ORIGIN

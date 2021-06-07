@@ -7,6 +7,9 @@ import re
 from . import git
 
 
+# CI app dd_origin tag
+CI_APP_TEST_ORIGIN = "ciapp-test"
+
 # Stage Name
 STAGE_NAME = "ci.stage.name"
 

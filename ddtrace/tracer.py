@@ -41,6 +41,7 @@ from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
+from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -549,6 +550,7 @@ class Tracer(object):
     def _initialize_span_processors(self):
         # type: () -> None
         trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
         trace_processors += self._filters
 
