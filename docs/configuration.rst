@@ -69,6 +69,10 @@ below:
      - Boolean
      - True
      - Enables :ref:`Logs Injection`.
+   * - ``DD_CALL_BASIC_CONFIG``
+     - Boolean
+     - True
+     - Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
    * - ``DD_TRACE_AGENT_URL``
      - URL
      - ``http://localhost:8126``
