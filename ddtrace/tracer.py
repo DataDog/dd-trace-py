@@ -410,11 +410,30 @@ class Tracer(object):
             context = tracer.get_call_context()
             span = tracer.start_span('web.worker', child_of=context)
         """
-        new_ctx = self._check_new_process()
+        is_new_process = self._check_new_process()
+        if is_new_process:
+            # The spans remaining in the context can not and will not be finished
+            # in this new process. So we need to copy out the trace metadata needed
+            # to continue the trace.
+            if isinstance(child_of, Context):
+                new_ctx = Context(
+                    sampling_priority=child_of._sampling_priority,
+                    span_id=child_of._parent_span_id,
+                    trace_id=child_of._parent_trace_id,
+                )
+                self.context_provider.activate(new_ctx)
+                child_of = new_ctx
+            elif isinstance(child_of, Span):
+                new_ctx = Context(
+                    sampling_priority=child_of.context.sampling_priority,
+                    span_id=child_of.span_id,
+                    trace_id=child_of.trace_id,
+                )
+                child_of = new_ctx
 
         if child_of is not None:
             if isinstance(child_of, Context):
-                context = new_ctx or child_of
+                context = child_of
                 parent = child_of._get_current_span()
             else:
                 context = child_of.context
@@ -563,31 +582,19 @@ class Tracer(object):
         ]  # type: List[SpanProcessor]
 
     def _check_new_process(self):
+        # type: () -> bool
         """Checks if the tracer is in a new process (was forked) and performs
         the necessary updates if it is a new process
         """
         pid = getpid()
         if self._pid == pid:
-            return
+            return False
 
         self._pid = pid
 
         # We have to reseed the RNG or we will get collisions between the processes as
         # they will share the seed and generate the same random numbers.
         _rand.seed()
-
-        ctx = self.get_call_context()
-        # The spans remaining in the context can not and will not be finished
-        # in this new process. So we need to copy out the trace metadata needed
-        # to continue the trace.
-        # Also, note that because we're in a forked process, the lock that the
-        # context has might be permanently locked so we can't use ctx.clone().
-        new_ctx = Context(
-            sampling_priority=ctx._sampling_priority,
-            span_id=ctx._parent_span_id,
-            trace_id=ctx._parent_trace_id,
-        )
-        self.context_provider.activate(new_ctx)
 
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
@@ -596,7 +603,7 @@ class Tracer(object):
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
         self._initialize_span_processors()
-        return new_ctx
+        return True
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
