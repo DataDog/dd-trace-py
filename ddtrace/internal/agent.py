@@ -33,6 +33,11 @@ def get_stats_port():
     return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))  # type: ignore[arg-type]
 
 
+def get_trace_url_timeout():
+    # type: () -> float
+    return float(os.environ.get("DD_TRACE_URL_TIMEOUT", default=DEFAULT_TIMEOUT))
+
+
 def get_trace_url():
     # type: () -> str
     """Return the Agent URL computed from the environment.
