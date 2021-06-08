@@ -94,7 +94,11 @@ def patch_conn(django, conn):
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
-        if Psycopg2TracedCursor is not None and isinstance(cursor.cursor, psycopg_cursor_cls):
+        if (
+            Psycopg2TracedCursor is not None
+            and hasattr(cursor, "cursor")
+            and isinstance(cursor.cursor, psycopg_cursor_cls)
+        ):
             traced_cursor_cls = Psycopg2TracedCursor
         return traced_cursor_cls(cursor, pin, config.django)
 
