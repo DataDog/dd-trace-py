@@ -112,7 +112,8 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="mypy",
+            # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
+            name="mypy<0.900",
             command="mypy {cmdargs}",
             pkgs={
                 "mypy": latest,
