@@ -89,19 +89,18 @@ def patch_conn(django, conn):
 
 
 def instrument_dbs(django):
-    def set_connection(wrapped, instance, args, kwargs):
-        _, conn = args
+    def get_connection(wrapped, instance, args, kwargs):
+        conn = wrapped(*args, **kwargs)
         try:
             patch_conn(django, conn)
         except Exception:
             log.debug("Error instrumenting database connection %r", conn, exc_info=True)
-        return wrapped(*args, **kwargs)
+        return conn
 
-    if not isinstance(django.db.connections.__setitem__, wrapt.ObjectProxy):
-        django.db.connections.__setitem__ = wrapt.FunctionWrapper(django.db.connections.__setitem__, set_connection)
-
-    if hasattr(django.db, "connection") and not isinstance(django.db.connection.cursor, wrapt.ObjectProxy):
-        patch_conn(django, django.db.connection)
+    if not isinstance(django.db.utils.ConnectionHandler.__getitem__, wrapt.ObjectProxy):
+        django.db.utils.ConnectionHandler.__getitem__ = wrapt.FunctionWrapper(
+            django.db.utils.ConnectionHandler.__getitem__, get_connection
+        )
 
 
 def _set_request_tags(django, span, request):
@@ -617,7 +616,7 @@ def _unpatch(django):
     trace_utils.unwrap(django.views.generic.base.View, "as_view")
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
-    trace_utils.unwrap(django.db.connections, "all")
+    trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
 
 def unpatch():
