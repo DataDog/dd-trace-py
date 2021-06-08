@@ -95,8 +95,7 @@ def patch_conn(django, conn):
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
         if (
-            psycopg_cursor_cls is not None
-            and Psycopg2TracedCursor is not None
+            Psycopg2TracedCursor is not None
             and isinstance(cursor.cursor, psycopg_cursor_cls)
         ):
             traced_cursor_cls = Psycopg2TracedCursor
