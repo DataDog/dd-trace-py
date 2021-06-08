@@ -5,12 +5,9 @@ import mock
 import pytest
 
 from ddtrace import Span
-from ddtrace.constants import ORIGIN_KEY
-from ddtrace.context import Context
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import TraceProcessor
-from ddtrace.internal.processor.trace import TraceTagsProcessor
 from tests.utils import DummyWriter
 
 
@@ -219,89 +216,3 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [child1, child2]
     parent.finish()
     assert writer.pop() == [parent]
-
-
-def test_trace_tags_processor_applies_dd_origin_tags_to_each_span():
-    writer = DummyWriter()
-    aggr = SpanAggregator(
-        partial_flush_enabled=True, partial_flush_min_spans=2, trace_processors=[TraceTagsProcessor()], writer=writer
-    )
-
-    # Normal usage
-    ctx = Context(dd_origin="testing_origin")
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
-    parent._context = ctx
-    aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    child._context = ctx
-    aggr.on_span_start(child)
-
-    assert writer.pop() == []
-    child.finish()
-    assert writer.pop() == []
-    parent.finish()
-    assert writer.pop() == [parent, child]
-    assert parent.meta[ORIGIN_KEY] == "testing_origin"
-    assert child.meta[ORIGIN_KEY] == "testing_origin"
-
-    # No dd_origin in context
-    ctx = Context()
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
-    parent._context = ctx
-    aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    child._context = ctx
-    aggr.on_span_start(child)
-
-    assert writer.pop() == []
-    child.finish()
-    assert writer.pop() == []
-    parent.finish()
-    assert writer.pop() == [parent, child]
-    assert parent.meta.get(ORIGIN_KEY) is None
-    assert child.meta.get(ORIGIN_KEY) is None
-
-    # No context
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    aggr.on_span_start(child)
-
-    assert writer.pop() == []
-    child.finish()
-    assert writer.pop() == []
-    parent.finish()
-    assert writer.pop() == [parent, child]
-    assert parent.meta.get(ORIGIN_KEY) is None
-    assert child.meta.get(ORIGIN_KEY) is None
-
-
-def test_trace_tags_processor_dd_origin_with_partial_flushing():
-    writer = DummyWriter()
-    aggr = SpanAggregator(
-        partial_flush_enabled=True, partial_flush_min_spans=0, trace_processors=[TraceTagsProcessor()], writer=writer
-    )
-
-    ctx = Context(dd_origin="testing_origin")
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
-    parent._context = ctx
-    aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    child._context = ctx
-    aggr.on_span_start(child)
-
-    assert writer.pop() == []
-    child.finish()
-    assert writer.pop() == [child]
-    assert child.meta[ORIGIN_KEY] == "testing_origin"
-    parent.finish()
-    assert writer.pop() == [parent]
-    assert parent.meta[ORIGIN_KEY] == "testing_origin"

@@ -31,6 +31,7 @@ from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import DummyWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -1191,6 +1192,27 @@ class TestPartialFlush(TracerTestCase):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
 
+    def test_partial_flush_dd_origin_propagation(self):
+        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=3)
+        root = self.tracer.trace("root")
+        root.context.dd_origin = "testing_origin"
+        for i in range(3):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 3
+        assert [s.name for s in traces[0]] == ["child0", "child1", "child2"]
+        for span in traces[0]:
+            assert span.meta.get(ORIGIN_KEY) == "testing_origin"
+
+        root.finish()
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "root"
+        assert traces[0][0].meta.get(ORIGIN_KEY) == "testing_origin"
+
 
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
@@ -1514,3 +1536,35 @@ def test_spans_sampled_all(tracer, test_spans):
 
     spans = test_spans.pop()
     assert len(spans) == 3
+
+
+def test_tracer_tag_processor_tags_dd_origin_on_each_span():
+    """Integration test for ensuring dd_origin gets propagated to every span in a trace."""
+    tracer = Tracer()
+    writer = DummyWriter()
+    tracer.configure(writer=writer)
+
+    # Normal propagation
+    with tracer.trace("parent") as parent:
+        parent.context.dd_origin = "testing_origin"
+        with tracer.trace("child") as child:
+            pass
+
+    assert writer.pop() == [parent, child]
+    assert parent.meta.get(ORIGIN_KEY) == "testing_origin"
+    assert parent.meta.get(ORIGIN_KEY) == "testing_origin"
+
+
+def test_tracer_does_not_propagate_dd_origin_if_not_present():
+    """No dd_origin in context to be propagated"""
+    tracer = Tracer()
+    writer = DummyWriter()
+    tracer.configure(writer=writer)
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("child") as child:
+            pass
+
+    assert writer.pop() == [parent, child]
+    assert parent.meta.get(ORIGIN_KEY) is None
+    assert parent.meta.get(ORIGIN_KEY) is None

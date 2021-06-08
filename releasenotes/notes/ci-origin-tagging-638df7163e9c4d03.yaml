@@ -1,4 +1,0 @@
----
-features:
-  - |
-    The pytest plugin now adds a `_dd.origin` tag to every test span for the CI app.
