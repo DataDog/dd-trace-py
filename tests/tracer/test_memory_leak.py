@@ -24,12 +24,12 @@ def tracer():
 
 def trace(weakdict, tracer, *args, **kwargs):
     # type: (WeakValueDictionary, Tracer, ...) -> Span
-    """Return a reference to a span created from ``tracer.trace(*args, **kwargs)``
-    and adds it to the given weak dictionary.
+    """Return a span created from ``tracer`` and add it to the given weak
+    dictionary.
 
     Note: ensure to delete the returned reference from this function to ensure
     no additional references are kept to the span.
-    """  # noqa: D402
+    """
     s = tracer.trace(*args, **kwargs)
     weakdict[s.span_id] = s
     return s
@@ -40,6 +40,8 @@ def test_leak(tracer):
     span = trace(wd, tracer, "span1")
     span2 = trace(wd, tracer, "span2")
     assert len(wd) == 2
+
+    # The spans are still open and referenced so they should not be gc'd
     gc.collect()
     assert len(wd) == 2
     span2.finish()
@@ -76,6 +78,8 @@ def test_single_thread_multi_trace(tracer):
             with trace(wd, tracer, "span3"):
                 pass
 
+    # Once these references are deleted then the spans should no longer be
+    # referenced by anything and should be gc'd.
     gc.collect()
     assert len(wd) == 0
 
@@ -107,6 +111,10 @@ def test_multithread_trace(tracer):
 
 
 def test_fork_open_span(tracer):
+    """
+    When a fork occurs with an open span then the child process should not have
+    a strong reference to the span because it might never be closed.
+    """
     wd = WeakValueDictionary()
     span = trace(wd, tracer, "span")
     pid = os.fork()
@@ -115,7 +123,7 @@ def test_fork_open_span(tracer):
         assert len(wd) == 1
         del span
         gc.collect()
-        # span is still open an in the context
+        # span is still open in the context
         assert len(wd) == 1
         span2 = trace(wd, tracer, "span2")
         assert span2._parent is None
@@ -124,6 +132,7 @@ def test_fork_open_span(tracer):
 
         del span2
         gc.collect()
+
         assert len(wd) == 0
         os._exit(12)
 

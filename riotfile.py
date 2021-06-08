@@ -714,7 +714,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
+                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
                     pys=["3.7"],
