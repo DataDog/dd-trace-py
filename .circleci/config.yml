@@ -660,16 +660,6 @@ jobs:
           wait: mysql
           pattern: '^mysqldb_contrib-.*-mysqlclient'
 
-  mysqldb:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-    steps:
-      - run_tox_scenario:
-          wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqldb'
-
   pymysql:
     <<: *contrib_job
     docker:
@@ -968,7 +958,6 @@ requires_tests: &requires_tests
     - molten
     - mongoengine
     - mysqlconnector
-    - mysqldb
     - mysqlpython
     - opentracer
     - psycopg
@@ -1053,7 +1042,6 @@ workflows:
       - molten: *requires_base_venvs
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
-      - mysqldb: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - psycopg: *requires_base_venvs
