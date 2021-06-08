@@ -19,6 +19,16 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
+
+
+try:
+    from psycopg2._psycopg import cursor as psycopg_cursor_cls
+
+    from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+except ImportError:
+    psycopg_cursor_cls = None
+    Psycopg2TracedCursor = None
+
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
@@ -82,7 +92,15 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
+        cursor = func(*args, **kwargs)
+        traced_cursor_cls = dbapi.TracedCursor
+        if (
+            Psycopg2TracedCursor is not None
+            and hasattr(cursor, "cursor")
+            and isinstance(cursor.cursor, psycopg_cursor_cls)
+        ):
+            traced_cursor_cls = Psycopg2TracedCursor
+        return traced_cursor_cls(cursor, pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))

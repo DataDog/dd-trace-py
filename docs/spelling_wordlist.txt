@@ -27,6 +27,7 @@ CGroup
 cgroups
 cherrypy
 compat
+composable
 config
 coroutine
 coroutines
@@ -103,6 +104,7 @@ respawn
 runnable
 runtime
 sanic
+sql
 sqlalchemy
 sqlite
 starlette
