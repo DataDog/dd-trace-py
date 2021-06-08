@@ -97,7 +97,7 @@ def patch_conn(django, conn):
         if (
             psycopg_cursor_cls is not None
             and Psycopg2TracedCursor is not None
-            and isinstance(cursor, psycopg_cursor_cls)
+            and isinstance(cursor.cursor, psycopg_cursor_cls)
         ):
             traced_cursor_cls = Psycopg2TracedCursor
         return traced_cursor_cls(cursor, pin, config.django)

@@ -70,20 +70,35 @@ def test_404_exceptions(client):
     assert client.get("/404-view/").status_code == 404
 
 
+@pytest.fixture()
+def psycopg2_patched(transactional_db):
+    from django.db import connections
+
+    from ddtrace.contrib.psycopg.patch import patch
+    from ddtrace.contrib.psycopg.patch import unpatch
+
+    patch()
+
+    # # force recreate connection to ensure psycopg2 patching has occurred
+    del connections["postgres"]
+    connections["postgres"].close()
+    connections["postgres"].connect()
+
+    yield
+
+    unpatch()
+
+
 @snapshot(ignores=["meta.out.host"])
 @pytest.mark.django_db
-def test_psycopg_query_default(client):
+def test_psycopg_query_default(client, psycopg2_patched):
     """Execute a psycopg2 query on a Django database wrapper"""
     from django.db import connections
     from psycopg2.sql import SQL
 
-    from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
-
     query = SQL("""select 'one' as x""")
     conn = connections["postgres"]
     with conn.cursor() as cur:
-        # ensure django db instrumentation patches cursor with psycopg tracer
-        assert isinstance(cur, Psycopg2TracedCursor)
         cur.execute(query)
         rows = cur.fetchall()
         assert len(rows) == 1, rows
