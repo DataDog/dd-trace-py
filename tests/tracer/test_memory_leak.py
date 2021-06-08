@@ -121,9 +121,8 @@ def test_fork_open_span(tracer):
 
     if pid == 0:
         assert len(wd) == 1
-        del span
         gc.collect()
-        # span is still open in the context
+        # span is still open and in the context
         assert len(wd) == 1
         span2 = trace(wd, tracer, "span2")
         assert span2._parent is None
@@ -131,8 +130,18 @@ def test_fork_open_span(tracer):
         span2.finish()
 
         del span2
+        # Expect there to be one span left (the original from before the fork)
+        # which is inherited into the child process but will never be closed.
+        # The important thing in this test case is all new spans created in the
+        # child will be gc'd.
         gc.collect()
+        assert len(wd) == 1
 
+        # Normally, if the child process leaves this function frame the span
+        # reference would be lost and it would be free to be gc'd. We delete
+        # the reference explicitly here to mimic this scenario.
+        del span
+        gc.collect()
         assert len(wd) == 0
         os._exit(12)
 
