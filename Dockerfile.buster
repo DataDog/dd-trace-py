@@ -47,6 +47,7 @@ RUN \
       wget \
       zlib1g-dev \
   # Setup Node.js package repository
+  # DEV: The nodejs available with the main repo doesn't install npm
   # https://github.com/nodesource/distributions/blob/025fe79908872abd39c590a45893b59929cb91e6/README.md#debmanual
   && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - \
   && echo "deb https://deb.nodesource.com/${NODE_VERSION} buster main" | tee /etc/apt/sources.list.d/nodesource.list \
