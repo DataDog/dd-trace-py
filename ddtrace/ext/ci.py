@@ -1,8 +1,11 @@
 """
-tags for common CI attributes
+Tags for common CI attributes
 """
 import os
 import re
+from typing import Dict
+from typing import MutableMapping
+from typing import Optional
 
 from . import git
 
@@ -41,16 +44,20 @@ _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
 def _normalize_ref(name):
+    # type: (Optional[str]) -> Optional[str]
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
 def _filter_sensitive_info(url):
+    # type: (Optional[str]) -> Optional[str]
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
 def tags(env=None):
+    # type: (Optional[MutableMapping[str, str]]) -> Dict[str, str]
+    """Extract and set tags from provider environ, as well as git metadata."""
     env = os.environ if env is None else env
-    tags = {}
+    tags = {}  # type: Dict[str, Optional[str]]
     for key, extract in PROVIDERS:
         if key in env:
             tags = extract(env)
@@ -62,7 +69,6 @@ def tags(env=None):
     tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
-    # Expand ~
     workspace_path = tags.get(WORKSPACE_PATH)
     if workspace_path:
         tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
@@ -71,15 +77,18 @@ def tags(env=None):
 
 
 def extract_appveyor(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Appveyor environ."""
     url = "https://ci.appveyor.com/project/{0}/builds/{1}".format(
         env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
     )
-
     if env.get("APPVEYOR_REPO_PROVIDER") == "github":
-        repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))
-        commit = env.get("APPVEYOR_REPO_COMMIT")
-        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH")
-        tag = env.get("APPVEYOR_REPO_TAG_NAME")
+        repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))  # type: Optional[str]
+        commit = env.get("APPVEYOR_REPO_COMMIT")  # type: Optional[str]
+        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get(
+            "APPVEYOR_REPO_BRANCH"
+        )  # type: Optional[str]
+        tag = env.get("APPVEYOR_REPO_TAG_NAME")  # type: Optional[str]
     else:
         repository = commit = branch = tag = None
 
@@ -95,21 +104,38 @@ def extract_appveyor(env):
         JOB_URL: url,
         git.BRANCH: branch,
         git.TAG: tag,
+        git.COMMIT_MESSAGE: env.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED"),
+        git.COMMIT_AUTHOR_NAME: env.get("APPVEYOR_REPO_COMMIT_AUTHOR"),
+        git.COMMIT_AUTHOR_EMAIL: env.get("APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL"),
     }
 
 
 def extract_azure_pipelines(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Azure pipelines environ."""
     if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECTID") and env.get("BUILD_BUILDID"):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
-        pipeline_url = base_url
-        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))
+        pipeline_url = base_url  # type: Optional[str]
+        job_url = base_url + "&view=logs&j={0}&t={1}".format(
+            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
+        )  # type: Optional[str]
     else:
         pipeline_url = job_url = None
+
     branch_or_tag = (
-        env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH") or env.get("BUILD_SOURCEBRANCH") or env.get("BUILD_SOURCEBRANCHNAME")
+        env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
+        or env.get("BUILD_SOURCEBRANCH")
+        or env.get("BUILD_SOURCEBRANCHNAME")
+        or ""
     )
+    branch = tag = None  # type: Optional[str]
+    if "tags/" in branch_or_tag:
+        tag = branch_or_tag
+    else:
+        branch = branch_or_tag
+
     return {
         PROVIDER_NAME: "azurepipelines",
         WORKSPACE_PATH: env.get("BUILD_SOURCESDIRECTORY"),
@@ -120,12 +146,17 @@ def extract_azure_pipelines(env):
         JOB_URL: job_url,
         git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or env.get("BUILD_REPOSITORY_URI"),
         git.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
-        git.BRANCH: branch_or_tag if "tags/" not in branch_or_tag else None,
-        git.TAG: branch_or_tag if "tags/" in branch_or_tag else None,
+        git.BRANCH: branch,
+        git.TAG: tag,
+        git.COMMIT_MESSAGE: env.get("BUILD_SOURCEVERSIONMESSAGE"),
+        git.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
+        git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
     }
 
 
 def extract_bitbucket(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Bitbucket environ."""
     url = "https://bitbucket.org/{0}/addon/pipelines/home#!/results/{1}".format(
         env.get("BITBUCKET_REPO_FULL_NAME"), env.get("BITBUCKET_BUILD_NUMBER")
     )
@@ -145,6 +176,8 @@ def extract_bitbucket(env):
 
 
 def extract_buildkite(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Buildkite environ."""
     return {
         git.BRANCH: env.get("BUILDKITE_BRANCH"),
         git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
@@ -157,10 +190,17 @@ def extract_buildkite(env):
         JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
         PROVIDER_NAME: "buildkite",
         WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
+        git.COMMIT_MESSAGE: env.get("BUILDKITE_MESSAGE"),
+        git.COMMIT_AUTHOR_NAME: env.get("BUILDKITE_BUILD_AUTHOR"),
+        git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
+        git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
+        git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
     }
 
 
 def extract_circle_ci(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from CircleCI environ."""
     return {
         git.BRANCH: env.get("CIRCLE_BRANCH"),
         git.COMMIT_SHA: env.get("CIRCLE_SHA1"),
@@ -177,8 +217,10 @@ def extract_circle_ci(env):
 
 
 def extract_github_actions(env):
-    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF")
-    branch = tag = None
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Github environ."""
+    branch_or_tag = env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF") or ""
+    branch = tag = None  # type: Optional[str]
     if "tags/" in branch_or_tag:
         tag = branch_or_tag
     else:
@@ -201,6 +243,8 @@ def extract_github_actions(env):
 
 
 def extract_gitlab(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Gitlab environ."""
     url = env.get("CI_PIPELINE_URL")
     if url:
         url = re.sub("/-/pipelines/", "/pipelines/", url)
@@ -218,19 +262,22 @@ def extract_gitlab(env):
         PIPELINE_URL: url,
         PROVIDER_NAME: "gitlab",
         WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
+        git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
     }
 
 
 def extract_jenkins(env):
-    branch_or_tag = env.get("GIT_BRANCH")
-    branch = tag = None
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Jenkins environ."""
+    branch_or_tag = env.get("GIT_BRANCH", "")
+    branch = tag = None  # type: Optional[str]
     if "tags/" in branch_or_tag:
         tag = branch_or_tag
     else:
         branch = branch_or_tag
     name = env.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/" + _normalize_ref(branch), "", name)
+        name = re.sub("/{0}".format(_normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
 
@@ -249,6 +296,8 @@ def extract_jenkins(env):
 
 
 def extract_teamcity(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Teamcity environ."""
     return {
         git.COMMIT_SHA: env.get("BUILD_VCS_NUMBER"),
         git.REPOSITORY_URL: env.get("BUILD_VCS_URL"),
@@ -265,6 +314,8 @@ def extract_teamcity(env):
 
 
 def extract_travis(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Travis environ."""
     return {
         git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
         git.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
@@ -277,12 +328,24 @@ def extract_travis(env):
         PIPELINE_URL: env.get("TRAVIS_BUILD_WEB_URL"),
         PROVIDER_NAME: "travisci",
         WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
+        git.COMMIT_MESSAGE: env.get("TRAVIS_COMMIT_MESSAGE"),
     }
 
 
 def extract_bitrise(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
+    """Extract CI tags from Bitrise environ."""
     commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
     branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
+    if env.get("BITRISE_GIT_MESSAGE"):
+        message = env.get("BITRISE_GIT_MESSAGE")  # type: Optional[str]
+    elif env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT") or env.get("GIT_CLONE_COMMIT_MESSAGE_BODY"):
+        message = "{0}:\n{1}".format(
+            env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT"), env.get("GIT_CLONE_COMMIT_MESSAGE_BODY")
+        )
+    else:
+        message = None
+
     return {
         PROVIDER_NAME: "bitrise",
         PIPELINE_ID: env.get("BITRISE_BUILD_SLUG"),
@@ -294,6 +357,11 @@ def extract_bitrise(env):
         git.COMMIT_SHA: commit,
         git.BRANCH: branch,
         git.TAG: env.get("BITRISE_GIT_TAG"),
+        git.COMMIT_MESSAGE: message,
+        git.COMMIT_AUTHOR_NAME: env.get("GIT_CLONE_COMMIT_AUTHOR_NAME"),
+        git.COMMIT_AUTHOR_EMAIL: env.get("GIT_CLONE_COMMIT_AUTHOR_EMAIL"),
+        git.COMMIT_COMMITTER_NAME: env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
+        git.COMMIT_COMMITTER_EMAIL: env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
     }
 
 
