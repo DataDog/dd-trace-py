@@ -16,6 +16,7 @@ analytics
 api
 app
 asgi
+asyncio
 attrs
 autodetected
 autopatching
@@ -30,6 +31,8 @@ cherrypy
 compat
 composable
 config
+contextvar
+contextvars
 coroutine
 coroutines
 datadog
