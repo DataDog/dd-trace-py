@@ -502,6 +502,7 @@ class Span(object):
         """Return the trace context for this span."""
         if self._context is None:
             ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
+            self._context = ctx
         else:
             ctx = self._context._with_span(self)
         return ctx
