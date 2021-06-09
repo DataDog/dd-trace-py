@@ -26,9 +26,11 @@ You can also use a Unix Domain Socket to connect to the agent::
 Context
 -------
 
-The :class:`Context` object is used to represent the state of a trace at a
-point in time. It is used to propagate the trace across execution boundaries
-like processes (:ref:`Distributed Tracing <disttracing>`), threads and tasks.
+The :class:`ddtrace.context.Context` object is used to represent the state of
+a trace at a point in time. This state includes the trace id, active span id,
+distributed sampling decision and more. It is used to propagate the trace
+across execution boundaries like processes
+(:ref:`Distributed Tracing <disttracing>`), threads and tasks.
 
 To retrieve the context of the currently active trace use::
 
