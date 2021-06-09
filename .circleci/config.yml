@@ -4,7 +4,7 @@ default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py@sha256:eeb144838c6077de4ccf8968422ffc5c11dcad976681f7dadc5025d48cbeaebe
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
