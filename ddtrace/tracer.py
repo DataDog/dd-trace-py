@@ -448,13 +448,16 @@ class Tracer(object):
             # strong span reference (which will never be finished) is replaced
             # with a context representing the span.
             if isinstance(child_of, Span):
-                active = self.context_provider.active()
                 new_ctx = Context(
                     sampling_priority=child_of.context.sampling_priority,
                     span_id=child_of.span_id,
                     trace_id=child_of.trace_id,
                 )
-                if active is child_of:
+
+                # If the child_of span was active then activate the new context
+                # containing it so that the strong span referenced is removed
+                # from the execution.
+                if self.context_provider.active() is child_of:
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
