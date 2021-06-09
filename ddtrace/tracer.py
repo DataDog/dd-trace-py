@@ -61,12 +61,13 @@ from .utils.formats import get_env
 log = get_logger(__name__)
 
 debug_mode = asbool(get_env("trace", "debug", default=False))
+call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
-if debug_mode and not hasHandlers(log):
+if debug_mode and not hasHandlers(log) and call_basic_config:
     if config.logs_injection:
         logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
     else:
@@ -429,7 +430,21 @@ class Tracer(object):
         Be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
-        self._check_new_process()
+        is_new_process = self._check_new_process()
+        if is_new_process:
+            # The spans remaining in the context can not and will not be finished
+            # in this new process. So we need to copy out the trace metadata needed
+            # to continue the trace.
+            if isinstance(child_of, Span):
+                active = self.context_provider.active()
+                new_ctx = Context(
+                    sampling_priority=child_of.context.sampling_priority,
+                    span_id=child_of.span_id,
+                    trace_id=child_of.trace_id,
+                )
+                if active is child_of:
+                    self.context_provider.activate(new_ctx)
+                child_of = new_ctx
 
         parent = None  # type: Optional[Span]
         if child_of is not None:
@@ -598,12 +613,13 @@ class Tracer(object):
         ]  # type: List[SpanProcessor]
 
     def _check_new_process(self):
+        # type: () -> bool
         """Checks if the tracer is in a new process (was forked) and performs
         the necessary updates if it is a new process
         """
         pid = getpid()
         if self._pid == pid:
-            return
+            return False
 
         self._pid = pid
 
@@ -618,6 +634,7 @@ class Tracer(object):
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
         self._initialize_span_processors()
+        return True
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
