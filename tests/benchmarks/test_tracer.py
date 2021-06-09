@@ -101,16 +101,19 @@ def dd_origin_tracing_scenario(tracer, num_spans):
                 pass
 
 
+def assert_dd_origin_present_in_all_spans(dummy_tracer):
+    spans = dummy_tracer.writer.pop()
+    for span in spans:
+        assert span.meta.get(ORIGIN_KEY) == CI_APP_TEST_ORIGIN
+
+
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
 def test_dd_origin_tagging_with_processor_1_span(benchmark):
     """Propagate dd_origin tags to all spans in 1-span trace via TraceTagsProcessor"""
     tracer = DummyTracer()
     # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
     benchmark(dd_origin_tracing_scenario, tracer, 1)
-
-    spans = tracer.writer.pop()
-    for span in spans:
-        assert span.meta[ORIGIN_KEY] == CI_APP_TEST_ORIGIN
+    assert_dd_origin_present_in_all_spans(tracer)
 
 
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
@@ -119,10 +122,7 @@ def test_dd_origin_tagging_with_processor_50_spans(benchmark):
     tracer = DummyTracer()
     # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
     benchmark(dd_origin_tracing_scenario, tracer, 50)
-
-    spans = tracer.writer.pop()
-    for span in spans:
-        assert span.meta[ORIGIN_KEY] == CI_APP_TEST_ORIGIN
+    assert_dd_origin_present_in_all_spans(tracer)
 
 
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
@@ -131,10 +131,7 @@ def test_dd_origin_tagging_with_processor_200_spans(benchmark):
     tracer = DummyTracer()
     # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
     benchmark(dd_origin_tracing_scenario, tracer, 200)
-
-    spans = tracer.writer.pop()
-    for span in spans:
-        assert span.meta[ORIGIN_KEY] == CI_APP_TEST_ORIGIN
+    assert_dd_origin_present_in_all_spans(tracer)
 
 
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
@@ -143,7 +140,4 @@ def test_dd_origin_tagging_with_processor_2000_spans(benchmark):
     tracer = DummyTracer()
     # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
     benchmark(dd_origin_tracing_scenario, tracer, 2000)
-
-    spans = tracer.writer.pop()
-    for span in spans:
-        assert span.meta[ORIGIN_KEY] == CI_APP_TEST_ORIGIN
+    assert_dd_origin_present_in_all_spans(tracer)
