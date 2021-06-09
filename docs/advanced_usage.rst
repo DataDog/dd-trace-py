@@ -26,8 +26,9 @@ You can also use a Unix Domain Socket to connect to the agent::
 Context
 -------
 
-The :class:`Context` object is used to represent the state of a trace that can
-be used to propagate the trace across processes (:ref:`Distributed Tracing <disttracing>`).
+The :class:`Context` object is used to represent the state of a trace at a
+point in time. It is used to propagate the trace across execution boundaries
+like processes (:ref:`Distributed Tracing <disttracing>`), threads and tasks.
 
 To retrieve the context of the currently active trace use::
 
@@ -39,13 +40,22 @@ Note that if there is no active trace then ``None`` will be returned.
 Tracing Context Management
 --------------------------
 
-In ``ddtrace`` "context management" is the management of which :class:`Span` or
-:class:`Context` is active in an execution (thread, task, etc). There can only be one
-active span or context per execution.
+In ``ddtrace`` "context management" is the management of which
+:class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
+execution (thread, task, etc). There can only be one active span or context
+per execution.
 
 Context management enables parenting to be done implicitly when creating new
 spans by using the active span as the parent of a new span. When an active span
-finishes, its parent becomes the active span.
+finishes its parent becomes the active span.
+
+
+.. important::
+
+    Span objects are owned by the execution in which they are created and must
+    be finished in the same execution. See the sections below for how to
+    propagate spans and traces across task, thread or process boundaries.
+
 
 ``tracer.trace()`` automatically creates new spans as the child of the active
 context::
@@ -69,6 +79,66 @@ context::
     assert tracer.current_span() is None
 
 
+Tracing Across Threads
+^^^^^^^^^^^^^^^^^^^^^^
+
+To continue a trace across threads the context needs to be passed between
+threads::
+
+    import threading, time
+    from ddtrace import tracer
+
+    def _target(trace_ctx):
+        tracer.context_provider.activate(trace_ctx)
+        with tracer.trace("second_thread") as span2:
+            # span2's parent will be the main_thread span
+            time.sleep(1)
+
+    with tracer.trace("main_thread") as span:
+        thread = threading.Thread(target=_target, args=(span.context,))
+        thread.start()
+        thread.join()
+
+
+Tracing Across Processes
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**fork**: any open spans from the parent process must be finished by the
+parent. Any active spans from the original process will be converted to
+contexts to avoid memory leaks.
+
+Here's an example of tracing some work done in a child process::
+
+    import os, sys, time
+    from ddtrace import tracer
+
+    span = tracer.trace("work")
+
+    pid = os.fork()
+
+    if pid == 0:
+        with tracer.trace("child_work"):
+            time.sleep(1)
+        sys.exit(0)
+
+    # Do some other work in the parent
+    time.sleep(1)
+    span.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 0
+
+
+Tracing Across Asyncio Tasks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default the active context will by propagated across tasks on creation as
+the `contextvars`_ context is copied between tasks. If this is not desirable
+then ``None`` can be activated in the new task::
+
+    tracer.context_provider.activate(None)
+
+
 Manual Management
 ^^^^^^^^^^^^^^^^^
 
@@ -90,7 +160,7 @@ Context Providers
 
 The default context provider used in the tracer uses contextvars_ to store
 the active context per execution. This means that any asynchronous library
-that uses contextvars will have support for automatic context management.
+that uses `contextvars`_ will have support for automatic context management.
 
 If there is a case where the default is insufficient then a custom context
 provider can be used. It must implement the
@@ -605,6 +675,13 @@ API
 ``Span``
 ^^^^^^^^
 .. autoclass:: ddtrace.Span
+    :members:
+    :special-members: __init__
+
+
+``Context``
+^^^^^^^^^^^
+.. autoclass:: ddtrace.context.Context
     :members:
     :special-members: __init__
 
