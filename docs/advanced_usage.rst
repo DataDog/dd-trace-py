@@ -43,19 +43,11 @@ Tracing Context Management
 In ``ddtrace`` "context management" is the management of which
 :class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
 execution (thread, task, etc). There can only be one active span or context
-per execution.
+per execution at a time.
 
 Context management enables parenting to be done implicitly when creating new
 spans by using the active span as the parent of a new span. When an active span
-finishes its parent becomes the active span.
-
-
-.. important::
-
-    Span objects are owned by the execution in which they are created and must
-    be finished in the same execution. See the sections below for how to
-    propagate spans and traces across task, thread or process boundaries.
-
+finishes its parent becomes the new active span.
 
 ``tracer.trace()`` automatically creates new spans as the child of the active
 context::
@@ -77,6 +69,15 @@ context::
 
     # Here no span is active again
     assert tracer.current_span() is None
+
+
+.. important::
+
+    Span objects are owned by the execution in which they are created and must
+    be finished in the same execution. To continue a trace in a different
+    execution then the ``span.context`` can be passed between executions and
+    activated. See the sections below for how to propagate spans and traces
+    across task, thread or process boundaries.
 
 
 Tracing Across Threads
@@ -103,9 +104,30 @@ threads::
 Tracing Across Processes
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-**fork**: any open spans from the parent process must be finished by the
-parent. Any active spans from the original process will be converted to
-contexts to avoid memory leaks.
+Just like the threading case, if tracing across processes is desired then the
+span has to be propagated as a context::
+
+    from multiprocessing import Process
+    import time
+    from ddtrace import tracer
+
+    def _target(ctx):
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("proc"):
+            time.sleep(1)
+        tracer.shutdown()
+
+    with tracer.trace("work") as span:
+        proc = Process(target=_target, args=(span.context,))
+        proc.start()
+        time.sleep(1)
+        proc.join()
+
+fork
+****
+If using `fork()`, any open spans from the parent process must be finished by
+the parent process. Any active spans from the original process will be converted
+to contexts to avoid memory leaks.
 
 Here's an example of tracing some work done in a child process::
 
@@ -143,16 +165,8 @@ Manual Management
 ^^^^^^^^^^^^^^^^^
 
 Parenting can be managed manually by using ``tracer.start_span()`` which by
-default does not activate spans when they are created::
-
-    with tracer.start_span("parent") as parent:
-        # Here no span is active
-        with tracer.start_span("parent", child_of=parent):
-            # Still no span active
-    # Still no span active
-
-    new_parent = tracer.start_span("new_parent", activate=True)
-    # new_parent is active
+default does not activate spans when they are created. See the documentation
+for :meth:`ddtrace.Tracer.start_span`.
 
 
 Context Providers

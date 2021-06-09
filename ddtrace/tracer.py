@@ -406,10 +406,11 @@ class Tracer(object):
         activate=False,  # type: bool
     ):
         # type: (...) -> Span
-        """
-        Return a span that will trace an operation called `name`. This method allows
-        parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
-        root span.
+        """Return a span that represents an operation called ``name``.
+
+        Note that the :meth:`.trace` method will almost always be preferred
+        over this method as it provides automatic span parenting. This method
+        should only be used if manual parenting is desired.
 
         :param str name: the name of the operation being traced.
         :param object child_of: a ``Span`` or a ``Context`` instance representing the parent for this span.
@@ -418,23 +419,34 @@ class Tracer(object):
         :param str span_type: an optional operation type.
         :param activate: activate the span once it is created.
 
-        To start a new root span, simply::
+        To start a new root span::
 
-            span = tracer.start_span('web.request')
+            span = tracer.start_span("web.request")
 
-        If you want to create a child for a root span, just::
+        To create a child for a root span::
 
-            root_span = tracer.start_span('web.request')
-            span = tracer.start_span('web.decoder', child_of=root_span)
+            root_span = tracer.start_span("web.request")
+            span = tracer.start_span("web.decoder", child_of=root_span)
 
-        Be sure to finish all spans to avoid memory leaks and incorrect
+        Spans from ``start_span`` are not activated by default::
+
+            with tracer.start_span("parent") as parent:
+                assert tracer.current_span() is None
+                with tracer.start_span("child", child_of=parent):
+                    assert tracer.current_span() is None
+
+            new_parent = tracer.start_span("new_parent", activate=True)
+            assert tracer.current_span() is new_parent
+
+        Note: be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
         is_new_process = self._check_new_process()
         if is_new_process:
-            # The spans remaining in the context can not and will not be finished
-            # in this new process. So we need to copy out the trace metadata needed
-            # to continue the trace.
+            # The spans remaining in the context can not and will not be
+            # finished in this new process. So to avoid memory leaks the
+            # strong span reference (which will never be finished) is replaced
+            # with a context representing the span.
             if isinstance(child_of, Span):
                 active = self.context_provider.active()
                 new_ctx = Context(
@@ -654,10 +666,7 @@ class Tracer(object):
 
     def trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
-        """Activate and return a new span that inherits from the active span.
-
-        The returned span will automatically be activated in the current
-        execution and will inherit from the previously active span or context.
+        """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
         :param str service: the name of the service being traced. If not set,
@@ -665,31 +674,36 @@ class Tracer(object):
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 
-        The returned span *must* be `finish`'d or it will remain in memory
+        The returned span *must* be ``finish``'d or it will remain in memory
         indefinitely::
 
-            >>> span = tracer.trace('web.request')
+            >>> span = tracer.trace("web.request")
                 try:
                     # do something
                 finally:
                     span.finish()
 
-            >>> with tracer.trace('web.request') as span:
+            >>> with tracer.trace("web.request") as span:
                     # do something
 
         Example of the automatic parenting::
 
-            parent = tracer.trace('parent')     # has no parent span
-            # parent is now the active span
-            child  = tracer.trace('child')      # is a child of parent
-            # child is now the active span
+            parent = tracer.trace("parent")     # has no parent span
+            assert tracer.current_span() is parent
+
+            child  = tracer.trace("child")
+            assert child.parent_id == parent.span_id
+            assert tracer.current_span() is child
             child.finish()
-            # parent is now the active span
+
+            # parent is now the active span again
+            assert tracer.current_span() is parent
             parent.finish()
 
-            # no span is active now
+            assert tracer.current_span() is None
 
-            parent2 = tracer.trace('parent2')   # has no parent span as parent and child have finished
+            parent2 = tracer.trace("parent2")
+            assert parent2.parent_id is None
             parent2.finish()
         """
         return self.start_span(
