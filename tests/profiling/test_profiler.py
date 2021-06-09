@@ -152,7 +152,7 @@ def test_url():
     _check_url(prof, "https://foobar:123")
 
 
-def _check_url(prof, url, api_key=None, endpoint_path="/profiling/v1/input"):
+def _check_url(prof, url, api_key=None, endpoint_path="profiling/v1/input"):
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.api_key == api_key
