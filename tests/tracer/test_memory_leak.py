@@ -3,6 +3,7 @@ Variety of test cases ensuring that ddtrace does not leak memory.
 """
 import gc
 import os
+from threading import Thread
 from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
 
@@ -45,10 +46,66 @@ def test_leak(tracer):
     assert len(wd) == 2
     span2.finish()
     span.finish()
+    del span, span2
+    gc.collect()
+    assert len(wd) == 0
+
+
+def test_single_thread_single_trace(tracer):
+    """
+    Ensure a simple trace doesn't leak span objects.
+    """
+    wd = WeakValueDictionary()
+    with trace(wd, tracer, "span1"):
+        with trace(wd, tracer, "span2"):
+            pass
+
+    # Spans are serialized and unreferenced when traces are finished
+    # so gc-ing right away should delete all span objects.
+    gc.collect()
+    assert len(wd) == 0
+
+
+def test_single_thread_multi_trace(tracer):
+    """
+    Ensure a trace in a thread is properly garbage collected.
+    """
+    wd = WeakValueDictionary()
+    for _ in range(1000):
+        with trace(wd, tracer, "span1"):
+            with trace(wd, tracer, "span2"):
+                pass
+            with trace(wd, tracer, "span3"):
+                pass
 
     # Once these references are deleted then the spans should no longer be
     # referenced by anything and should be gc'd.
-    del span, span2
+    gc.collect()
+    assert len(wd) == 0
+
+
+def test_multithread_trace(tracer):
+    """
+    Ensure a trace that crosses thread boundaries is properly garbage collected.
+    """
+    wd = WeakValueDictionary()
+    state = []
+
+    def _target(ctx):
+        tracer.context_provider.activate(ctx)
+        with trace(wd, tracer, "thread"):
+            assert len(wd) == 2
+        state.append(1)
+
+    span = trace(wd, tracer, "")
+    t = Thread(target=_target, args=(span.context,))
+    t.start()
+    t.join()
+    # Ensure thread finished successfully
+    assert state == [1]
+
+    span.finish()
+    del span
     gc.collect()
     assert len(wd) == 0
 
@@ -73,7 +130,6 @@ def test_fork_open_span(tracer):
         span2.finish()
 
         del span2
-
         # Expect there to be one span left (the original from before the fork)
         # which is inherited into the child process but will never be closed.
         # The important thing in this test case is all new spans created in the
