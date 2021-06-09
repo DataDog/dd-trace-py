@@ -45,7 +45,7 @@ class HelpersTestCase(TracerTestCase):
 
     def test_correlation_identifiers_missing_context(self):
         # ensures we return `None` if there is no current context
-        self.tracer.get_call_context = mock.MagicMock(return_value=None)
+        self.tracer.current_trace_context = mock.MagicMock(return_value=None)
 
         with override_global_tracer(self.tracer):
             trace_id, span_id = helpers.get_correlation_ids()

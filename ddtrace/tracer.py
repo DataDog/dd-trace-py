@@ -41,6 +41,7 @@ from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
+from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -197,6 +198,9 @@ class Tracer(object):
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
+    @deprecated(
+        "Call context has been superseded by trace context. Please use current_trace_context() instead.", "1.0.0"
+    )
     def get_call_context(self, *args, **kwargs):
         # type: (...) -> Context
         """
@@ -214,7 +218,23 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self.context_provider.active(*args, **kwargs)  # type: ignore
+        ctx = self.current_trace_context(*args, **kwargs)
+        if ctx is None:
+            ctx = Context()
+        return ctx
+
+    def current_trace_context(self, *args, **kwargs):
+        # type (...) -> Optional[Context]
+        """Return the context for the current trace.
+
+        If there is no active trace then None is returned.
+        """
+        active = self.context_provider.active(*args, **kwargs)
+        if isinstance(active, Context):
+            return active
+        elif isinstance(active, Span):
+            return active.context
+        return None
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
@@ -383,71 +403,80 @@ class Tracer(object):
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[str]
+        activate=False,  # type: bool
     ):
         # type: (...) -> Span
-        """
-        Return a span that will trace an operation called `name`. This method allows
-        parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
-        root span.
+        """Return a span that represents an operation called ``name``.
+
+        Note that the :meth:`.trace` method will almost always be preferred
+        over this method as it provides automatic span parenting. This method
+        should only be used if manual parenting is desired.
 
         :param str name: the name of the operation being traced.
         :param object child_of: a ``Span`` or a ``Context`` instance representing the parent for this span.
         :param str service: the name of the service being traced.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
+        :param activate: activate the span once it is created.
 
-        To start a new root span, simply::
+        To start a new root span::
 
-            span = tracer.start_span('web.request')
+            span = tracer.start_span("web.request")
 
-        If you want to create a child for a root span, just::
+        To create a child for a root span::
 
-            root_span = tracer.start_span('web.request')
-            span = tracer.start_span('web.decoder', child_of=root_span)
+            root_span = tracer.start_span("web.request")
+            span = tracer.start_span("web.decoder", child_of=root_span)
 
-        Or if you have a ``Context`` object::
+        Spans from ``start_span`` are not activated by default::
 
-            context = tracer.get_call_context()
-            span = tracer.start_span('web.worker', child_of=context)
+            with tracer.start_span("parent") as parent:
+                assert tracer.current_span() is None
+                with tracer.start_span("child", child_of=parent):
+                    assert tracer.current_span() is None
+
+            new_parent = tracer.start_span("new_parent", activate=True)
+            assert tracer.current_span() is new_parent
+
+        Note: be sure to finish all spans to avoid memory leaks and incorrect
+        parenting of spans.
         """
         is_new_process = self._check_new_process()
         if is_new_process:
-            # The spans remaining in the context can not and will not be finished
-            # in this new process. So we need to copy out the trace metadata needed
-            # to continue the trace.
-            if isinstance(child_of, Context):
-                new_ctx = Context(
-                    sampling_priority=child_of._sampling_priority,
-                    span_id=child_of._parent_span_id,
-                    trace_id=child_of._parent_trace_id,
-                )
-                self.context_provider.activate(new_ctx)
-                child_of = new_ctx
-            elif isinstance(child_of, Span):
+            # The spans remaining in the context can not and will not be
+            # finished in this new process. So to avoid memory leaks the
+            # strong span reference (which will never be finished) is replaced
+            # with a context representing the span.
+            if isinstance(child_of, Span):
                 new_ctx = Context(
                     sampling_priority=child_of.context.sampling_priority,
                     span_id=child_of.span_id,
                     trace_id=child_of.trace_id,
                 )
+
+                # If the child_of span was active then activate the new context
+                # containing it so that the strong span referenced is removed
+                # from the execution.
+                if self.context_provider.active() is child_of:
+                    self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
+        parent = None  # type: Optional[Span]
         if child_of is not None:
             if isinstance(child_of, Context):
                 context = child_of
-                parent = child_of._get_current_span()
             else:
                 context = child_of.context
                 parent = child_of
         else:
             context = Context()
-            parent = None
 
         if parent:
-            trace_id = parent.trace_id
-            parent_span_id = parent.span_id
+            trace_id = parent.trace_id  # type: Optional[int]
+            parent_id = parent.span_id  # type: Optional[int]
         else:
             trace_id = context.trace_id
-            parent_span_id = context.span_id
+            parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -468,8 +497,9 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
+                context=context,
                 trace_id=trace_id,
-                parent_id=parent_span_id,
+                parent_id=parent_id,
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
@@ -481,18 +511,23 @@ class Tracer(object):
             if parent:
                 span.sampled = parent.sampled
                 span._parent = parent
+                span._local_root = parent._local_root
 
+            if span._local_root is None:
+                span._local_root = span
         else:
             # this is the root span of a new trace
             span = Span(
                 self,
                 name,
+                context=context,
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
                 _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
+            span._local_root = span
             span.metrics[system.PID] = self._pid or getpid()
             span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
@@ -543,8 +578,8 @@ class Tracer(object):
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
 
-        # add it to the current context
-        context._add_span(span)
+        if activate:
+            self.context_provider.activate(span)
 
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
@@ -557,11 +592,20 @@ class Tracer(object):
         return span
 
     def _on_span_finish(self, span):
-        if not self.enabled:
-            return  # nothing to do
-
+        # type: (Span) -> None
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
+
+        active = self.current_span()
+        # Debug check: if the finishing span has a parent and its parent
+        # is not the next active span then this is an error in synchronous tracing.
+        if span._parent is not None and active is not span._parent:
+            self.log.debug(
+                "span %r closing after its parent %r, this is an error when not using async", span, span._parent
+            )
+
+        if not self.enabled:
+            return  # nothing to do
 
         for p in self._span_processors:
             p.on_span_finish(span)
@@ -569,6 +613,7 @@ class Tracer(object):
     def _initialize_span_processors(self):
         # type: () -> None
         trace_processors = []  # type: List[TraceProcessor]
+        trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
         trace_processors += self._filters
 
@@ -624,10 +669,7 @@ class Tracer(object):
 
     def trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
-        """
-        Return a span that will trace an operation called `name`. The context that created
-        the span as well as the span parenting, are automatically handled by the tracing
-        function.
+        """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
         :param str service: the name of the service being traced. If not set,
@@ -635,49 +677,55 @@ class Tracer(object):
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 
-        You must call `finish` on all spans, either directly or with a context
-        manager::
+        The returned span *must* be ``finish``'d or it will remain in memory
+        indefinitely::
 
-            >>> span = tracer.trace('web.request')
+            >>> span = tracer.trace("web.request")
                 try:
                     # do something
                 finally:
                     span.finish()
 
-            >>> with tracer.trace('web.request') as span:
+            >>> with tracer.trace("web.request") as span:
                     # do something
 
-        Trace will store the current active span and subsequent child traces will
-        become its children::
+        Example of the automatic parenting::
 
-            parent = tracer.trace('parent')     # has no parent span
-            child  = tracer.trace('child')      # is a child of a parent
+            parent = tracer.trace("parent")     # has no parent span
+            assert tracer.current_span() is parent
+
+            child  = tracer.trace("child")
+            assert child.parent_id == parent.span_id
+            assert tracer.current_span() is child
             child.finish()
+
+            # parent is now the active span again
+            assert tracer.current_span() is parent
             parent.finish()
 
-            parent2 = tracer.trace('parent2')   # has no parent span
+            assert tracer.current_span() is None
+
+            parent2 = tracer.trace("parent2")
+            assert parent2.parent_id is None
             parent2.finish()
         """
-
-        # retrieve the Context using the context provider and create
-        # a new Span that could be a root or a nested span
-        context = self.get_call_context()
         return self.start_span(
             name,
-            child_of=context,
+            child_of=self.context_provider.active(),
             service=service,
             resource=resource,
             span_type=span_type,
+            activate=True,
         )
 
     def current_root_span(self):
         # type: () -> Optional[Span]
-        """Returns the root span of the current context.
+        """Returns the root span of the current execution.
 
         This is useful for attaching information related to the trace as a
         whole without needing to add to child spans.
 
-        Usage is simple, for example::
+        For example::
 
             # get the root span
             root_span = tracer.current_root_span()
@@ -685,21 +733,21 @@ class Tracer(object):
             if root_span:
                 root_span.set_tag('host', '127.0.0.1')
         """
-        ctx = self.get_call_context()
-        if ctx:
-            return ctx._get_current_root_span()
-        return None
+        span = self.current_span()
+        if span is None:
+            return None
+        return span._local_root
 
     def current_span(self):
         # type: () -> Optional[Span]
+        """Return the active span in the current execution context.
+
+        Note that there may be an active span represented by a context object
+        (like from a distributed trace) which will not be returned by this
+        method.
         """
-        Return the active span for the current call context or ``None``
-        if no spans are available.
-        """
-        ctx = self.get_call_context()
-        if ctx:
-            return ctx._get_current_span()
-        return None
+        active = self.context_provider.active()
+        return active if isinstance(active, Span) else None
 
     def write(self, spans):
         # type: (Optional[List[Span]]) -> None

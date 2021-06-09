@@ -368,14 +368,6 @@ jobs:
           paths:
             - "."
 
-  build-docker-ci-image:
-    executor: cimg_base
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - run: |
-          docker build -f Dockerfile.buster .
 
   # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
@@ -996,9 +988,6 @@ workflows:
 
       # Build necessary base venvs for integration tests
       - build_base_venvs: *requires_pre_check
-
-      # Building CI docker image
-      - build-docker-ci-image: *requires_pre_check
 
       # Test building the package
       - test_build_alpine: *requires_pre_check

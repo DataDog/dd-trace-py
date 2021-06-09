@@ -68,6 +68,24 @@ class TraceSamplingProcessor(TraceProcessor):
 
 
 @attr.s
+class TraceTagsProcessor(TraceProcessor):
+    """Processor that applies trace-level tags to the trace."""
+
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        if not trace:
+            return trace
+
+        chunk_root = trace[0]
+        ctx = chunk_root._context
+        if not ctx:
+            return trace
+
+        ctx._update_tags(chunk_root)
+        return trace
+
+
+@attr.s
 class SpanAggregator(SpanProcessor):
     """Processor that aggregates spans together by trace_id and writes the
     spans to the provided writer when:
