@@ -581,17 +581,16 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
-        if not self.enabled:
-            return  # nothing to do
-
         active = self.current_span()
-
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
             self.log.debug(
                 "span %r closing after its parent %r, this is an error when not using async", span, span._parent
             )
+
+        if not self.enabled:
+            return  # nothing to do
 
         for p in self._span_processors:
             p.on_span_finish(span)
