@@ -287,14 +287,14 @@ class PprofExporter(exporter.Exporter):
 
     @staticmethod
     def _get_trace_id(event):
-        if event.trace_ids:
-            return str(list(sorted(event.trace_ids))[0])
+        if event.trace_id:
+            return str(event.trace_id)
         return ""
 
     @staticmethod
     def _get_span_id(event):
-        if event.span_ids:
-            return str(list(sorted(event.span_ids))[0])
+        if event.span_id:
+            return str(event.span_id)
         return ""
 
     @staticmethod
