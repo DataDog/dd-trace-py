@@ -37,8 +37,7 @@
                "grpc.method.name" "Handler"
                "grpc.method.kind" "unary"
                "span.kind" "server"}
-       "metrics" {"_dd.measured" 1
-                  "_sampling_priority_v1" 1}}]
+       "metrics" {"_dd.measured" 1}}]
  [{"name" "grpc"
    "service" "grpc-client"
    "resource" "/pkg.Servicer/Handler"
@@ -80,5 +79,4 @@
                "grpc.method.name" "Handler"
                "grpc.method.kind" "unary"
                "span.kind" "server"}
-       "metrics" {"_dd.measured" 1
-                  "_sampling_priority_v1" 1}}]]
+       "metrics" {"_dd.measured" 1}}]]
