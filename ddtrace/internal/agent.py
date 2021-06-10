@@ -35,7 +35,7 @@ def get_stats_port():
 
 def get_trace_url_timeout():
     # type: () -> float
-    return float(os.environ.get("DD_TRACE_URL_TIMEOUT", default=DEFAULT_TIMEOUT))
+    return float(get_env("trace", "url", "timeout", default=DEFAULT_TIMEOUT))
 
 
 def get_trace_url():
