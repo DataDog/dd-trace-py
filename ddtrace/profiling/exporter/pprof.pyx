@@ -359,7 +359,7 @@ class PprofExporter(exporter.Exporter):
     ):
         # type: (...) -> _stack_event_group_key_T
 
-        if event.trace_type == ext.SpanTypes.WEB.value:
+        if event.trace_type == ext.SpanTypes.WEB:
             trace_resource = self._none_to_str(event.trace_resource)
         else:
             # Do not export trace_resource for privacy concerns.
@@ -390,7 +390,7 @@ class PprofExporter(exporter.Exporter):
     def _lock_event_group_key(
         self, event  # type: lock.LockEventBase
     ):
-        if event.trace_type == ext.SpanTypes.WEB.value:
+        if event.trace_type == ext.SpanTypes.WEB:
             trace_resource = self._none_to_str(event.trace_resource)
         else:
             # Do not export trace_resource for privacy concerns.

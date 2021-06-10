@@ -13,6 +13,7 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
@@ -23,7 +24,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoder
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
-from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
 

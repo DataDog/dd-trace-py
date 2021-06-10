@@ -331,7 +331,7 @@ TEST_EVENTS = {
             thread_name="MainThread",
             trace_id=1322219321,
             trace_resource="myresource",
-            trace_type=ext.SpanTypes.WEB.value,
+            trace_type=ext.SpanTypes.WEB,
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -456,7 +456,7 @@ TEST_EVENTS = {
             trace_id=23435,
             span_id=345432,
             trace_resource="myresource",
-            trace_type=ext.SpanTypes.WEB.value,
+            trace_type=ext.SpanTypes.WEB,
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
