@@ -13,6 +13,7 @@ from typing import Union
 
 import six
 
+from . import config
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
@@ -320,7 +321,12 @@ class Span(object):
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
         """
-        self.meta[key] = ensure_text(value, errors="replace")
+        try:
+            self.meta[key] = ensure_text(value, errors="replace")
+        except Exception as e:
+            if config._raise:
+                raise e
+            log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
     def _remove_tag(self, key):
         # type: (_TagNameType) -> None
