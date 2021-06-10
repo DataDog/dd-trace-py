@@ -8,6 +8,8 @@ on:
 jobs:
   bottle-testsuite-0_12_19:
     runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
     defaults:
       run:
         working-directory: bottle
