@@ -11,6 +11,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
@@ -75,6 +76,9 @@ if debug_mode and not hasHandlers(log) and call_basic_config:
 
 
 _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
+
+
+AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
 class Tracer(object):
@@ -781,7 +785,7 @@ class Tracer(object):
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[str]
     ):
-        # type: (...) -> Callable[[Callable[..., Any]], Callable[..., Any]]
+        # type: (...) -> Callable[[AnyCallable], AnyCallable]
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
@@ -825,6 +829,7 @@ class Tracer(object):
         """
 
         def wrap_decorator(f):
+            # type: (AnyCallable) -> AnyCallable
             # FIXME[matt] include the class name for methods.
             span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
 
