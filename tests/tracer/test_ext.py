@@ -122,6 +122,36 @@ def test_git_extract_commit_message_error():
             git.extract_commit_message()
 
 
+def test_extract_git_metadata():
+    """Test that extract_git_metadata() sets all tags correctly."""
+
+    def side_effect(author):
+        if author:
+            return "John Doe", "john@doe.com", "2021-02-19T08:24:53Z"
+        return "Jane Doe", "jane@doe.com", "2021-01-19T09:24:53Z"
+
+    expected_tags = {
+        git.REPOSITORY_URL: "https://github.com/scope-demo/scopeagent-reference-springboot2.git",
+        git.COMMIT_MESSAGE: "Update README.md",
+        git.COMMIT_AUTHOR_NAME: "John Doe",
+        git.COMMIT_AUTHOR_EMAIL: "john@doe.com",
+        git.COMMIT_AUTHOR_DATE: "2021-02-19T08:24:53Z",
+        git.COMMIT_COMMITTER_NAME: "Jane Doe",
+        git.COMMIT_COMMITTER_EMAIL: "jane@doe.com",
+        git.COMMIT_COMMITTER_DATE: "2021-01-19T09:24:53Z",
+    }
+
+    with mock.patch("ddtrace.ext.git.extract_repository_url") as extract_repo_url:
+        with mock.patch("ddtrace.ext.git.extract_commit_message") as extract_commit_message:
+            with mock.patch("ddtrace.ext.git.extract_user_info") as extract_user_info:
+                extract_repo_url.return_value = "https://github.com/scope-demo/scopeagent-reference-springboot2.git"
+                extract_commit_message.return_value = "Update README.md"
+                extract_user_info.side_effect = side_effect
+                tags = git.extract_git_metadata()
+
+    assert tags == expected_tags
+
+
 def test_git_executable_not_found_error():
     """If git executable not available, should raise internally, log, and not extract any tags."""
     with mock.patch("ddtrace.ext.ci.git.log") as log:
