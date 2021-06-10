@@ -3,8 +3,8 @@ import sys
 import tornado
 from tornado.ioloop import IOLoop
 
-from ...context import Context
 from ...provider import DefaultContextProvider
+from ...span import Span
 
 
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
@@ -32,7 +32,7 @@ if _USE_STACK_CONTEXT:
 
         def __init__(self):
             self._active = True
-            self._context = Context()
+            self._context = None
 
         def enter(self):
             """
@@ -84,7 +84,10 @@ if _USE_STACK_CONTEXT:
             # we're inside a Tornado loop so the TracerStackContext is used
             for stack in reversed(_state.contexts[0]):
                 if isinstance(stack, self.__class__) and stack._active:
-                    return stack._context
+                    ctx = stack._context
+                    if isinstance(ctx, Span):
+                        return self._update_active(ctx)
+                    return ctx
             return None
 
         def active(self):

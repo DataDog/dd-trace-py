@@ -86,6 +86,7 @@ class TraceTagsProcessor(TraceProcessor):
             for span in trace:
                 span.meta[ORIGIN_KEY] = ctx.dd_origin
 
+        ctx._update_tags(chunk_root)
         return trace
 
 
