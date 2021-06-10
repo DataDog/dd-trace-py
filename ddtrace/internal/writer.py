@@ -205,7 +205,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # to flush dynamically.
         buffer_size=8 * 1000000,  # type: int
         max_payload_size=8 * 1000000,  # type: int
-        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
