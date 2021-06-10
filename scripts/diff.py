@@ -34,6 +34,7 @@ else:
 # -- MODEL --
 
 CACHED_NORMALIZED_STACKS: Dict[int, FoldedStack] = {}
+DEFAULT_THRESHOLD = 1e-3
 
 
 def _normalized_stack(stack: FoldedStack) -> FoldedStack:
@@ -88,6 +89,7 @@ def match_folded_stacks(
     x: List[Tuple[FoldedStack, Metrics]],
     y: List[Tuple[FoldedStack, Metrics]],
     scale: float,
+    threshold: float = DEFAULT_THRESHOLD,
 ) -> List[Tuple[int, int]]:
     """O(len(x) * len(y))."""
     ss = score_stacks(x, y)
@@ -118,6 +120,8 @@ def match_folded_stacks(
         matched_x.add(i)
         matched_y.add(j)
         delta = (x[i][1].time - y[j][1].time) / scale
+        if abs(delta) < threshold:
+            continue
 
         if delta > 0:
             matched_stacks_plus.append((x[i][0], delta))
@@ -130,6 +134,8 @@ def match_folded_stacks(
             continue
         f, m = x[i]
         delta = m.time / scale
+        if delta < threshold:
+            continue
 
         if LOGGER:
             stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
@@ -144,6 +150,8 @@ def match_folded_stacks(
             continue
         f, m = y[j]
         delta = m.time / scale
+        if delta < threshold:
+            continue
 
         if LOGGER:
             stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
@@ -175,7 +183,7 @@ def compressed(source: TextIO) -> Tuple[str, int]:
     return "\n".join([stack + " " + str(t) for stack, t in stats.items()]), total_time
 
 
-def get_folded_stacks(text: str, threshold: float = 1e-3) -> List[Tuple[FoldedStack, Metrics]]:
+def get_folded_stacks(text: str, threshold: float = DEFAULT_THRESHOLD) -> List[Tuple[FoldedStack, Metrics]]:
     """Get the folded stacks and metrics from a string of samples."""
     x = []
     max_time = 1
@@ -291,7 +299,7 @@ def diff(a: str, b: str, output_prefix: str, threshold: float = 1e-3) -> None:
 
     fa = get_folded_stacks(ca, threshold)
     fb = get_folded_stacks(cb, threshold)
-    matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks = match_folded_stacks(fa, fb, tb)
+    matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks = match_folded_stacks(fa, fb, tb, threshold)
 
     with open(output_prefix + ".austin", "w") as stacks_stream:
         make_stacks(matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks, stacks_stream)
