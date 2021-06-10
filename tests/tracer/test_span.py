@@ -650,3 +650,15 @@ def test_span_pprint():
     root = Span(None, "test.span", service=object())
     actual = root.pprint()
     assert "service=<object object at" in actual
+
+
+def test_manual_context_usage():
+    span1 = Span(None, "span1")
+    span2 = Span(None, "span2", context=span1.context)
+
+    span2.context.sampling_priority = 2
+    assert span1.context.sampling_priority == 2
+
+    span1.context.sampling_priority = 1
+    assert span2.context.sampling_priority == 1
+    assert span1.context.sampling_priority == 1

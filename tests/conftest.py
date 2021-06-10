@@ -21,9 +21,19 @@ def test_spans(tracer):
 
 @pytest.fixture
 def run_python_code_in_subprocess(tmpdir):
-    def _run(code):
+    def _run(code, **kwargs):
         pyfile = tmpdir.join("test.py")
         pyfile.write(code)
-        return call_program(sys.executable, str(pyfile))
+        return call_program(sys.executable, str(pyfile), **kwargs)
+
+    yield _run
+
+
+@pytest.fixture
+def ddtrace_run_python_code_in_subprocess(tmpdir):
+    def _run(code, **kwargs):
+        pyfile = tmpdir.join("test.py")
+        pyfile.write(code)
+        return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
 
     yield _run
