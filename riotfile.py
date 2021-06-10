@@ -80,6 +80,9 @@ venv = Venv(
         "opentracing": latest,
         "hypothesis": latest,
     },
+    env={
+        "DD_TESTING_RAISE": "1",
+    },
     venvs=[
         Venv(
             pys=["3"],

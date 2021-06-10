@@ -424,16 +424,12 @@ def test_activate_distributed_headers_disabled(int_config):
         HTTP_HEADER_TRACE_ID: "678910",
     }
     trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
-    context = tracer.context_provider.active()
-    assert context.trace_id is None
-    assert context.span_id is None
+    assert tracer.context_provider.active() is None
 
     trace_utils.activate_distributed_headers(
         tracer, int_config=int_config.myint, request_headers=headers, override=False
     )
-    context = tracer.context_provider.active()
-    assert context.trace_id is None
-    assert context.span_id is None
+    assert tracer.context_provider.active() is None
 
 
 def test_activate_distributed_headers_no_headers(int_config):
@@ -441,9 +437,7 @@ def test_activate_distributed_headers_no_headers(int_config):
     int_config.myint["distributed_tracing_enabled"] = True
 
     trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None)
-    context = tracer.context_provider.active()
-    assert context.trace_id is None
-    assert context.span_id is None
+    assert tracer.context_provider.active() is None
 
 
 def test_activate_distributed_headers_override_true(int_config):
@@ -471,9 +465,7 @@ def test_activate_distributed_headers_override_false(int_config):
     trace_utils.activate_distributed_headers(
         tracer, int_config=int_config.myint, request_headers=headers, override=False
     )
-    context = tracer.context_provider.active()
-    assert context.trace_id is None
-    assert context.span_id is None
+    assert tracer.context_provider.active() is None
 
 
 def test_sanitized_url_in_http_meta(span, int_config):

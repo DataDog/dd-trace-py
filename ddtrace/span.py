@@ -21,6 +21,7 @@ from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
 from .constants import VERSION_KEY
+from .context import Context
 from .ext import SpanTypes
 from .ext import errors
 from .ext import http
@@ -39,7 +40,6 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:
-    from .context import Context
     from .tracer import Tracer
 
 
@@ -71,6 +71,7 @@ class Span(object):
         "sampled",
         # Internal attributes
         "_context",
+        "_local_root",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -149,6 +150,7 @@ class Span(object):
         self._context = context  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
+        self._local_root = None  # type: Optional[Span]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -224,8 +226,6 @@ class Span(object):
             # be defensive so we don't die if start isn't set
             self.duration_ns = ft - (self.start_ns or ft)
 
-        if self._context:
-            self._context._close_span(self)
         for cb in self._on_finish_callbacks:
             cb(self)
 
@@ -504,12 +504,14 @@ class Span(object):
 
     @property
     def context(self):
-        """
-        Property that provides access to the ``Context`` associated with this ``Span``.
-        The ``Context`` contains state that propagates from span to span in a
-        larger trace.
-        """
-        return self._context
+        # type: () -> Context
+        """Return the trace context for this span."""
+        if self._context is None:
+            ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
+            self._context = ctx
+        else:
+            ctx = self._context._with_span(self)
+        return ctx
 
     def __enter__(self):
         return self
