@@ -87,6 +87,7 @@ def override_global_config(values):
         "env",
         "version",
         "service",
+        "_raise",
     ]
 
     # Grab the current values of all keys
