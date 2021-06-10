@@ -211,20 +211,18 @@ class Span(object):
         self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time=None):
-        # type: (Optional[int]) -> None
+        # type: (Optional[float]) -> None
         """Mark the end time of the span and submit it to the tracer.
-        If the span has already been finished don't do anything
+        If the span has already been finished don't do anything.
 
-        :param int finish_time: The end time of the span in seconds.
-                                Defaults to now.
+        :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
-        if self.finished:
+        if self.duration_ns is not None:
             return
 
-        if self.duration_ns is None:
-            ft = time_ns() if finish_time is None else int(finish_time * 1e9)
-            # be defensive so we don't die if start isn't set
-            self.duration_ns = ft - (self.start_ns or ft)
+        ft = time_ns() if finish_time is None else int(finish_time * 1e9)
+        # be defensive so we don't die if start isn't set
+        self.duration_ns = ft - (self.start_ns or ft)
 
         for cb in self._on_finish_callbacks:
             cb(self)
