@@ -179,6 +179,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -191,6 +192,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -203,6 +205,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(

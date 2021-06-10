@@ -15,6 +15,7 @@ asgi
 autodetected
 autopatching
 backend
+backends
 bikeshedding
 boto
 botocore
