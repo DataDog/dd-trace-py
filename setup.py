@@ -147,111 +147,108 @@ if sys.version_info[:2] >= (3, 4):
 else:
     ext_modules = []
 
-# Base `setup()` kwargs without any C-extension registering
 setup(
-    **dict(
-        name="ddtrace",
-        description="Datadog tracing code",
-        url="https://github.com/DataDog/dd-trace-py",
-        author="Datadog, Inc.",
-        author_email="dev@datadoghq.com",
-        long_description=long_description,
-        long_description_content_type="text/markdown",
-        license="BSD",
-        packages=find_packages(exclude=["tests*"]),
-        py_modules=["ddtrace_gevent_check"],
-        python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
-        # enum34 is an enum backport for earlier versions of python
-        # funcsigs backport required for vendored debtcollector
-        install_requires=[
-            "enum34; python_version<'3.4'",
-            "funcsigs>=1.0.0; python_version=='2.7'",
-            "typing; python_version<'3.5'",
-            "packaging>=17.1",
-            "protobuf>=3",
-            "tenacity>=5",
-            "attrs>=19.2.0",
-            "six>=1.12.0",
-            "pep562; python_version<'3.7'",
+    name="ddtrace",
+    description="Datadog tracing code",
+    url="https://github.com/DataDog/dd-trace-py",
+    author="Datadog, Inc.",
+    author_email="dev@datadoghq.com",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    license="BSD",
+    packages=find_packages(exclude=["tests*"]),
+    py_modules=["ddtrace_gevent_check"],
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
+    # enum34 is an enum backport for earlier versions of python
+    # funcsigs backport required for vendored debtcollector
+    install_requires=[
+        "enum34; python_version<'3.4'",
+        "funcsigs>=1.0.0; python_version=='2.7'",
+        "typing; python_version<'3.5'",
+        "packaging>=17.1",
+        "protobuf>=3",
+        "tenacity>=5",
+        "attrs>=19.2.0",
+        "six>=1.12.0",
+        "pep562; python_version<'3.7'",
+    ],
+    extras_require={
+        # users can include opentracing by having:
+        # install_requires=['ddtrace[opentracing]', ...]
+        "opentracing": ["opentracing>=2.0.0"],
+    },
+    # plugin tox
+    tests_require=["tox", "flake8"],
+    cmdclass={"test": Tox},
+    entry_points={
+        "console_scripts": [
+            "ddtrace-run = ddtrace.commands.ddtrace_run:main",
         ],
-        extras_require={
-            # users can include opentracing by having:
-            # install_requires=['ddtrace[opentracing]', ...]
-            "opentracing": ["opentracing>=2.0.0"],
-        },
-        # plugin tox
-        tests_require=["tox", "flake8"],
-        cmdclass={"test": Tox},
-        entry_points={
-            "console_scripts": [
-                "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-            ],
-            "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
-            "gevent.plugins.monkey.did_patch_all": [
-                "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
-            ],
-        },
-        classifiers=[
-            "Programming Language :: Python",
-            "Programming Language :: Python :: 2.7",
-            "Programming Language :: Python :: 3.5",
-            "Programming Language :: Python :: 3.6",
-            "Programming Language :: Python :: 3.7",
-            "Programming Language :: Python :: 3.8",
-            "Programming Language :: Python :: 3.9",
+        "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
+        "gevent.plugins.monkey.did_patch_all": [
+            "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
         ],
-        use_scm_version=True,
-        setup_requires=["setuptools_scm[toml]>=4", "cython"],
-        ext_modules=ext_modules
-        + cythonize(
-            [
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._rand",
-                    sources=["ddtrace/internal/_rand.pyx"],
-                    language="c",
-                ),
-                Extension(
-                    "ddtrace.internal._encoding",
-                    ["ddtrace/internal/_encoding.pyx"],
-                    include_dirs=["."],
-                    libraries=encoding_libraries,
-                    define_macros=encoding_macros,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector.stack",
-                    sources=["ddtrace/profiling/collector/stack.pyx"],
-                    language="c",
-                    extra_compile_args=extra_compile_args,
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._traceback",
-                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._threading",
-                    sources=["ddtrace/profiling/collector/_threading.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.exporter.pprof",
-                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling._build",
-                    sources=["ddtrace/profiling/_build.pyx"],
-                    language="c",
-                ),
-            ],
-            compile_time_env={
-                "PY_MAJOR_VERSION": sys.version_info.major,
-                "PY_MINOR_VERSION": sys.version_info.minor,
-                "PY_MICRO_VERSION": sys.version_info.micro,
-            },
-            force=True,
-        )
-        + get_exts_for("wrapt")
-        + get_exts_for("psutil"),
+    },
+    classifiers=[
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+    ],
+    use_scm_version=True,
+    setup_requires=["setuptools_scm[toml]>=4", "cython"],
+    ext_modules=ext_modules
+    + cythonize(
+        [
+            Cython.Distutils.Extension(
+                "ddtrace.internal._rand",
+                sources=["ddtrace/internal/_rand.pyx"],
+                language="c",
+            ),
+            Extension(
+                "ddtrace.internal._encoding",
+                ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=encoding_macros,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                extra_compile_args=extra_compile_args,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._threading",
+                sources=["ddtrace/profiling/collector/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.exporter.pprof",
+                sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._build",
+                sources=["ddtrace/profiling/_build.pyx"],
+                language="c",
+            ),
+        ],
+        compile_time_env={
+            "PY_MAJOR_VERSION": sys.version_info.major,
+            "PY_MINOR_VERSION": sys.version_info.minor,
+            "PY_MICRO_VERSION": sys.version_info.micro,
+        },
+        force=True,
     )
+    + get_exts_for("wrapt")
+    + get_exts_for("psutil"),
 )

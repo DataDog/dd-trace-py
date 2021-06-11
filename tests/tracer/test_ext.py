@@ -42,7 +42,7 @@ def git_repo(tmpdir):
         cwd=tmpdir,
         shell=True,
     )
-    yield tmpdir
+    yield str(tmpdir)
 
 
 @pytest.fixture

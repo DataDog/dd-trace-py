@@ -19,6 +19,16 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
+
+
+try:
+    from psycopg2._psycopg import cursor as psycopg_cursor_cls
+
+    from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+except ImportError:
+    psycopg_cursor_cls = None
+    Psycopg2TracedCursor = None
+
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
@@ -82,26 +92,33 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return dbapi.TracedCursor(func(*args, **kwargs), pin, config.django)
+        cursor = func(*args, **kwargs)
+        traced_cursor_cls = dbapi.TracedCursor
+        if (
+            Psycopg2TracedCursor is not None
+            and hasattr(cursor, "cursor")
+            and isinstance(cursor.cursor, psycopg_cursor_cls)
+        ):
+            traced_cursor_cls = Psycopg2TracedCursor
+        return traced_cursor_cls(cursor, pin, config.django)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
 
 
 def instrument_dbs(django):
-    def set_connection(wrapped, instance, args, kwargs):
-        _, conn = args
+    def get_connection(wrapped, instance, args, kwargs):
+        conn = wrapped(*args, **kwargs)
         try:
             patch_conn(django, conn)
         except Exception:
             log.debug("Error instrumenting database connection %r", conn, exc_info=True)
-        return wrapped(*args, **kwargs)
+        return conn
 
-    if not isinstance(django.db.connections.__setitem__, wrapt.ObjectProxy):
-        django.db.connections.__setitem__ = wrapt.FunctionWrapper(django.db.connections.__setitem__, set_connection)
-
-    if hasattr(django.db, "connection") and not isinstance(django.db.connection.cursor, wrapt.ObjectProxy):
-        patch_conn(django, django.db.connection)
+    if not isinstance(django.db.utils.ConnectionHandler.__getitem__, wrapt.ObjectProxy):
+        django.db.utils.ConnectionHandler.__getitem__ = wrapt.FunctionWrapper(
+            django.db.utils.ConnectionHandler.__getitem__, get_connection
+        )
 
 
 def _set_request_tags(django, span, request):
@@ -617,7 +634,7 @@ def _unpatch(django):
     trace_utils.unwrap(django.views.generic.base.View, "as_view")
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
-    trace_utils.unwrap(django.db.connections, "all")
+    trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
 
 def unpatch():
