@@ -6,6 +6,8 @@ on:
 jobs:
   django-testsuite-3_1_7:
     runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
     defaults:
       run:
         working-directory: django

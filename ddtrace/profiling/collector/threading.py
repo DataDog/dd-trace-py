@@ -3,6 +3,9 @@ from __future__ import absolute_import
 import os.path
 import sys
 import threading
+from typing import Optional
+from typing import Set
+from typing import Tuple
 
 import attr
 from six.moves import _thread
@@ -76,15 +79,16 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
     def _get_trace_and_span_ids(self):
+        # type: (...) -> Tuple[Optional[Set[int]], Optional[Set[int]]]
         """Return current trace and span ids."""
         if self._self_tracer is None:
             return (None, None)
 
-        ctxt = self._self_tracer.get_call_context()
-        return (
-            None if ctxt.trace_id is None else {ctxt.trace_id},
-            None if ctxt.span_id is None else {ctxt.span_id},
-        )
+        ctxt = self._self_tracer.current_trace_context()
+        if ctxt is None:
+            return (None, None)
+
+        return ({ctxt.trace_id}, {ctxt.span_id})
 
     def acquire(self, *args, **kwargs):
         if not self._self_capture_sampler.capture():

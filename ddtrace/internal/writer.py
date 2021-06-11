@@ -3,7 +3,6 @@ from collections import defaultdict
 from json import loads
 import logging
 import sys
-import threading
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -206,7 +205,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # to flush dynamically.
         buffer_size=8 * 1000000,  # type: int
         max_payload_size=8 * 1000000,  # type: int
-        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -243,7 +242,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._encoder = Encoder()
         self._headers.update({"Content-Type": self._encoder.content_type})
 
-        self._started_lock = threading.Lock()
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()

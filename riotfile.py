@@ -1,3 +1,4 @@
+# type: ignore
 from typing import List
 from typing import Tuple
 
@@ -80,6 +81,9 @@ venv = Venv(
         "opentracing": latest,
         "hypothesis": latest,
     },
+    env={
+        "DD_TESTING_RAISE": "1",
+    },
     venvs=[
         Venv(
             pys=["3"],
@@ -97,8 +101,6 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="flake8",
-            command="flake8 {cmdargs} ddtrace/ tests/",
             pkgs={
                 "flake8": ">=3.8,<3.9",
                 "flake8-blind-except": latest,
@@ -109,13 +111,24 @@ venv = Venv(
                 "flake8-isort": latest,
                 "pygments": latest,
             },
+            venvs=[
+                Venv(
+                    name="flake8",
+                    command="flake8 {cmdargs} ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-flake8",
+                    command="flake8 {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             pkgs={
-                "mypy": latest,
+                # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
+                "mypy": "<0.900",
             },
         ),
         Venv(
@@ -427,6 +440,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -439,6 +453,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -451,6 +466,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -711,7 +727,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
+                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
                     pys=["3.7"],
