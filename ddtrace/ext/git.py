@@ -53,27 +53,32 @@ COMMIT_MESSAGE = "git.commit.message"
 log = get_logger(__name__)
 
 
-def extract_user_info(author=True):
-    # type: (bool) -> Tuple[str, str, str]
+def extract_user_info(cwd=None):
+    # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract git commit author/committer info."""
     # Note: `git show -s --format... --date...` is suported since git 2.1.4 onwards
-    formatting = "--format=%an,%ae,%ad" if author else "--format=%cn,%ce,%cd"
     cmd = subprocess.Popen(
-        ["git", "show", "-s", formatting, "--date=format:%Y-%m-%dT%H:%M:%S%z"],
+        ["git", "show", "-s", "--format=%an,%ae,%ad,%cn,%ce,%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        cwd=cwd,
     )
     stdout, stderr = cmd.communicate()
     if cmd.returncode == 0:
-        name, email, date = compat.ensure_text(stdout).strip().split(",")
-        return name, email, date
+        author_name, author_email, author_date, committer_name, committer_email, committer_date = (
+            compat.ensure_text(stdout).strip().split(",")
+        )
+        return {
+            "author": (author_name, author_email, author_date),
+            "committer": (committer_name, committer_email, committer_date),
+        }
     raise ValueError(stderr)
 
 
-def extract_repository_url():
-    # type: () -> str
+def extract_repository_url(cwd=None):
+    # type: (Optional[str]) -> str
     # Note: `git show ls-remote --get-url` is suported since git 2.6.7 onwards
-    cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
     stdout, stderr = cmd.communicate()
     if cmd.returncode == 0:
         repository_url = compat.ensure_text(stdout).strip()
@@ -81,10 +86,12 @@ def extract_repository_url():
     raise ValueError(stderr)
 
 
-def extract_commit_message():
-    # type: () -> str
+def extract_commit_message(cwd=None):
+    # type: (Optional[str]) -> str
     # Note: `git show -s --format... --date...` is suported since git 2.1.4 onwards
-    cmd = subprocess.Popen(["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    cmd = subprocess.Popen(
+        ["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
+    )
     stdout, stderr = cmd.communicate()
     if cmd.returncode == 0:
         commit_message = compat.ensure_text(stdout).strip()
@@ -92,21 +99,20 @@ def extract_commit_message():
     raise ValueError(stderr)
 
 
-def extract_git_metadata():
-    # type: () -> Dict[str, Optional[str]]
+def extract_git_metadata(cwd=None):
+    # type: (Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
     tags = {}  # type: Dict[str, Optional[str]]
     try:
-        tags[REPOSITORY_URL] = extract_repository_url()
-        tags[COMMIT_MESSAGE] = extract_commit_message()
-        author = extract_user_info(author=True)
-        tags[COMMIT_AUTHOR_NAME] = author[0]
-        tags[COMMIT_AUTHOR_EMAIL] = author[1]
-        tags[COMMIT_AUTHOR_DATE] = author[2]
-        committer = extract_user_info(author=False)
-        tags[COMMIT_COMMITTER_NAME] = committer[0]
-        tags[COMMIT_COMMITTER_EMAIL] = committer[1]
-        tags[COMMIT_COMMITTER_DATE] = committer[2]
+        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
+        tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
+        users = extract_user_info(cwd=cwd)
+        tags[COMMIT_AUTHOR_NAME] = users["author"][0]
+        tags[COMMIT_AUTHOR_EMAIL] = users["author"][1]
+        tags[COMMIT_AUTHOR_DATE] = users["author"][2]
+        tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
+        tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
+        tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
