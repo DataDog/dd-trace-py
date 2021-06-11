@@ -140,6 +140,9 @@ class Config(object):
 
         self.health_metrics_enabled = asbool(get_env("trace", "health_metrics_enabled", default=False))
 
+        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)

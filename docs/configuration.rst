@@ -79,6 +79,10 @@ below:
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.
+   * - ``DD_TRACE_AGENT_TIMEOUT_SECONDS``
+     - Float
+     - 2.0
+     - The timeout in float to use to connect to the Datadog agent.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
      - False
