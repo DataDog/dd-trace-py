@@ -4,7 +4,7 @@ default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python39-alpine_image: &python39-alpine_image python:3.9-alpine
 python39_image: &python39_image cimg/python:3.9
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
@@ -127,7 +127,6 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
-                  DD_TESTING_RAISE: true
 
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - unless:
@@ -181,7 +180,6 @@ commands:
           name: "Run scripts/run-tox-scenario"
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
-            DD_TESTING_RAISE: true
           command: ./scripts/ddtest scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
 
@@ -368,15 +366,6 @@ jobs:
           paths:
             - "."
 
-  build-docker-ci-image:
-    executor: cimg_base
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - run: |
-          docker build .
-          docker build -f Dockerfile.buster .
 
   # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
@@ -659,16 +648,6 @@ jobs:
       - run_tox_scenario:
           wait: mysql
           pattern: '^mysqldb_contrib-.*-mysqlclient'
-
-  mysqldb:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-    steps:
-      - run_tox_scenario:
-          wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqldb'
 
   pymysql:
     <<: *contrib_job
@@ -968,7 +947,6 @@ requires_tests: &requires_tests
     - molten
     - mongoengine
     - mysqlconnector
-    - mysqldb
     - mysqlpython
     - opentracer
     - psycopg
@@ -1008,9 +986,6 @@ workflows:
 
       # Build necessary base venvs for integration tests
       - build_base_venvs: *requires_pre_check
-
-      # Building CI docker image
-      - build-docker-ci-image: *requires_pre_check
 
       # Test building the package
       - test_build_alpine: *requires_pre_check
@@ -1053,7 +1028,6 @@ workflows:
       - molten: *requires_base_venvs
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
-      - mysqldb: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - psycopg: *requires_base_venvs

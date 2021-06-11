@@ -16,6 +16,7 @@ analytics
 api
 app
 asgi
+asyncio
 attrs
 autodetected
 autopatching
@@ -28,7 +29,10 @@ CGroup
 cgroups
 cherrypy
 compat
+composable
 config
+contextvar
+contextvars
 coroutine
 coroutines
 datadog
@@ -104,6 +108,7 @@ respawn
 runnable
 runtime
 sanic
+sql
 sqlalchemy
 sqlite
 starlette
