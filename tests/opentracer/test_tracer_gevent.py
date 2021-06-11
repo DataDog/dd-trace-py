@@ -42,7 +42,7 @@ class TestTracerGevent(object):
                 gevent.sleep(0.03)
                 span.set_tag("g", "yes")
 
-        with ot_tracer.start_span("root"):
+        with ot_tracer.start_active_span("root"):
             gevent.joinall([gevent.spawn(f), gevent.spawn(g)])
 
         traces = test_spans.pop_traces()

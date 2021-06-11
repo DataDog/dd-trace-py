@@ -156,4 +156,4 @@ class TestSpanCompatibility(object):
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag("sampling.priority", "2")
-        assert nop_span._dd_span.context._sampling_priority == "2"
+        assert nop_span._dd_span.context.sampling_priority == "2"
