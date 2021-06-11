@@ -1,0 +1,11 @@
+{
+    "name": "django-simple",
+    "variants": {
+        "enabled": {
+            "run": "ddtrace-run gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid"
+        },
+        "disabled": {
+            "run": "gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid"
+        }
+    }
+}

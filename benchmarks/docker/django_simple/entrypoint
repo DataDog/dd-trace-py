@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Install ddtrace
+if [[ -z "${DDTRACE_VERSION}" ]]; then
+    if [[ -d "/wheels" ]]; then
+        pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/*
+    else
+        pip install ddtrace
+    fi
+else
+    pip install ${DDTRACE_VERSION}
+fi
+
+# Run migrations in entrypoint
+python /app/manage.py collectstatic --noinput
+python /app/manage.py migrate
+
+exec "$@"
