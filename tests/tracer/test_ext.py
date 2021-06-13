@@ -129,3 +129,50 @@ def test_git_executable_not_found_error(git_repo_error):
         log.error.assert_called_with("Git executable not found, cannot extract git metadata.")
 
     assert extracted_tags == {}
+
+
+def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
+    """If non-Falsey values from CI provider env, should not be overwritten by extracted git metadata."""
+    ci_provider_env = {
+        "APPVEYOR": "true",
+        "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+        "APPVEYOR_BUILD_ID": "appveyor-build-id",
+        "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+        "APPVEYOR_REPO_BRANCH": "master",
+        "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+        "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+        "APPVEYOR_REPO_PROVIDER": "github",
+        "APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED": "this is the correct commit message",
+        "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
+        "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
+    }
+
+    extracted_tags = ci.tags(env=ci_provider_env, cwd=git_repo)
+
+    assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
+    assert extracted_tags["git.commit.message"] == "this is the correct commit message"
+    assert extracted_tags["git.commit.author.name"] == "John Jack"
+    assert extracted_tags["git.commit.author.email"] == "john@jack.com"
+
+
+def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
+    """If no or None or empty string values from CI provider env, should be overwritten by extracted git metadata."""
+    ci_provider_env = {
+        "APPVEYOR": "true",
+        "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+        "APPVEYOR_BUILD_ID": "appveyor-build-id",
+        "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+        "APPVEYOR_REPO_BRANCH": "master",
+        "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+        "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+        "APPVEYOR_REPO_PROVIDER": "not-github",
+        "APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED": None,
+        "APPVEYOR_REPO_COMMIT_AUTHOR": "",
+    }
+
+    extracted_tags = ci.tags(env=ci_provider_env, cwd=git_repo)
+
+    assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
+    assert extracted_tags["git.commit.message"] == "this is a commit msg"
+    assert extracted_tags["git.commit.author.name"] == "John Doe"
+    assert extracted_tags["git.commit.author.email"] == "john@doe.com"
