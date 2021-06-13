@@ -238,7 +238,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual([s.resource for s in spans], expected)
 
     def test_distributed_tracing(self):
-        """Tests whether span IDs are propogated when distributed tracing is on"""
+        """Tests whether span IDs are propagated when distributed tracing is on"""
         # Default: distributed tracing enabled
         response = molten_client(
             headers={
