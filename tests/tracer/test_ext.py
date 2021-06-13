@@ -27,28 +27,30 @@ def _updateenv(monkeypatch, env):
 
 @pytest.fixture
 def git_repo(tmpdir):
-    subprocess.check_output("git init", cwd=tmpdir, shell=True)
-    subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=tmpdir, shell=True)
-    subprocess.check_output('git config user.name "John Doe"', cwd=tmpdir, shell=True)
-    subprocess.check_output('git config user.email "john@doe.com"', cwd=tmpdir, shell=True)
-    subprocess.check_output("touch tmp.py", cwd=tmpdir, shell=True)
-    subprocess.check_output("git add tmp.py", cwd=tmpdir, shell=True)
+    cwd = str(tmpdir)
+    subprocess.check_output("git init", cwd=cwd, shell=True)
+    subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.name "John Doe"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.email "john@doe.com"', cwd=cwd, shell=True)
+    subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
+    subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
     subprocess.check_output(
-        'git commit --date="2021-01-19T09:24:53-0400" -m "this is a commit msg" --no-edit', cwd=tmpdir, shell=True
+        'git commit --date="2021-01-19T09:24:53-0400" -m "this is a commit msg" --no-edit', cwd=cwd, shell=True
     )
     subprocess.check_output(
         'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git -c user.name="Jane Doe" -c user.email="jane@doe.com" commit '
         "--amend --no-edit",
-        cwd=tmpdir,
+        cwd=cwd,
         shell=True,
     )
-    yield str(tmpdir)
+    yield cwd
 
 
 @pytest.fixture
 def git_repo_error(tmpdir):
-    subprocess.check_output("git init", cwd=tmpdir, shell=True)
-    yield tmpdir
+    cwd = str(tmpdir)
+    subprocess.check_output("git init", cwd=cwd, shell=True)
+    yield cwd
 
 
 @pytest.mark.parametrize("name,environment,tags", _ci_fixtures())
