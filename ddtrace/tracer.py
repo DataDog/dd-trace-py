@@ -884,11 +884,17 @@ class Tracer(object):
         """
         self.tags.update(tags)
 
+    def _shutdown_trace(self, *args, **kwargs):
+        raise RuntimeError(
+            "Tracer has been shutdown and cannot be used for tracing. Please create a new tracer instance."
+        )
+
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
         """Shutdown the tracer.
 
-        This will stop the background writer/worker and flush any finished traces in the buffer.
+        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
+        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
@@ -900,6 +906,8 @@ class Tracer(object):
             # It's possible the writer never got started in the first place :(
             pass
         atexit.unregister(self._atexit)
+
+        self.trace = self._shutdown_trace  # type: ignore[assignment]
 
     @staticmethod
     def _use_log_writer():

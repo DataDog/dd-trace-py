@@ -512,14 +512,22 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    t.writer = mock.Mock(wraps=t.writer)
+    writer = mock.Mock(wraps=t.writer)
+    t.writer = writer
 
     # The writer thread does not start until the first write.
     t.shutdown()
     assert t.writer.stop.called
     assert not t.writer.join.called
 
-    # Do a write to start the writer.
+    # Ensure the tracer is unusable after shutdown.
+    with pytest.raises(RuntimeError):
+        with t.trace("something"):
+            pass
+
+    # Recreate the tracer to keep tracing.
+    t = ddtrace.Tracer()
+    t.writer = writer
     with t.trace("something"):
         pass
 
