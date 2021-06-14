@@ -31,10 +31,12 @@ def git_repo(tmpdir):
     cwd = str(tmpdir)
     subprocess.check_output("git init", cwd=cwd, shell=True)
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
+    # Set committer user to be "Jane Doe"
     subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
     subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
     subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
     subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
+    # Override author to be "John Doe"
     subprocess.check_output(
         'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git commit --date="2021-01-19T09:24:53-0400" '
         '-m "this is a commit msg" --author="John Doe <john@doe.com>" --no-edit',
