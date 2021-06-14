@@ -109,7 +109,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: datadog/dd-trace-py:latest
+        image: datadog/dd-trace-py@sha256:eeb144838c6077de4ccf8968422ffc5c11dcad976681f7dadc5025d48cbeaebe
         command: bash
         environment:
             - TOX_SKIP_DIST=True

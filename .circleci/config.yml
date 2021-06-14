@@ -12,7 +12,7 @@ python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
 python27_image: &python27_image circleci/python:2.7
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py@sha256:eeb144838c6077de4ccf8968422ffc5c11dcad976681f7dadc5025d48cbeaebe
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
@@ -680,7 +680,7 @@ jobs:
       - run_test:
           pattern: 'django$'
           snapshot: true
-          docker_services: "memcached redis"
+          docker_services: "memcached redis postgres"
 
   djangorestframework:
     <<: *machine_executor
