@@ -56,7 +56,7 @@ log = get_logger(__name__)
 def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract git commit author/committer info."""
-    # Note: `git show -s --format... --date...` is suported since git 2.1.4 onwards
+    # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     cmd = subprocess.Popen(
         ["git", "show", "-s", "--format=%an,%ae,%ad,%cn,%ce,%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"],
         stdout=subprocess.PIPE,
@@ -77,7 +77,7 @@ def extract_user_info(cwd=None):
 
 def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
-    # Note: `git show ls-remote --get-url` is suported since git 2.6.7 onwards
+    # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
     cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
     stdout, stderr = cmd.communicate()
     if cmd.returncode == 0:
@@ -88,7 +88,7 @@ def extract_repository_url(cwd=None):
 
 def extract_commit_message(cwd=None):
     # type: (Optional[str]) -> str
-    # Note: `git show -s --format... --date...` is suported since git 2.1.4 onwards
+    # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     cmd = subprocess.Popen(
         ["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
     )
