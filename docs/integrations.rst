@@ -191,6 +191,13 @@ Mako
 .. automodule:: ddtrace.contrib.mako
 
 
+.. _mariadb:
+
+Mariadb
+^^^^^^^
+.. automodule:: ddtrace.contrib.mariadb
+
+
 .. _molten:
 
 Molten
