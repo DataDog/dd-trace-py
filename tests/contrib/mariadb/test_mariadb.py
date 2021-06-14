@@ -349,3 +349,40 @@ def test_simple_query_snapshot(tracer):
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
+
+@snapshot(include_tracer=True)
+def test_simple_query_fetchall( tracer):
+    with override_config("mariadb", dict(trace_fetch_methods=True)):
+        connection = get_connection(tracer)
+        cursor = connection.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+
+
+@snapshot(include_tracer=True)
+def test_commit_snapshot(tracer):
+    connection = get_connection(tracer)
+    connection.commit()
+
+@snapshot(include_tracer=True)
+def test_query_proc(tracer):
+    connection = get_connection(tracer)
+    # create a procedure
+    tracer.enabled = False
+    cursor = connection.cursor()
+    cursor.execute("DROP PROCEDURE IF EXISTS sp_sum")
+    cursor.execute(
+        """
+        CREATE PROCEDURE sp_sum (IN p1 INTEGER, IN p2 INTEGER, OUT p3 INTEGER)
+        BEGIN
+            SET p3 := p1 + p2;
+        END;"""
+    )
+
+    tracer.enabled = True
+    proc = "sp_sum"
+    data = (40, 2, None)
+    cursor.callproc(proc, data)
+
+
