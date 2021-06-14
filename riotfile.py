@@ -133,6 +133,21 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"codespell": "==2.1.0"},
+            venvs=[
+                Venv(
+                    name="codespell",
+                    command="codespell --ignore-words-list='dne,fo,medias,ment,nin,ot,setttings,statics' "
+                    "--skip='ddtrace/vendor' ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-codespell",
+                    command="codespell {cmdargs}",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
