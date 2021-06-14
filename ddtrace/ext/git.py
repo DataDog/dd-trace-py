@@ -23,7 +23,7 @@ COMMIT_AUTHOR_EMAIL = "git.commit.author.email"
 # Git Commit Committer Name
 COMMIT_COMMITTER_NAME = "git.commit.committer.name"
 
-# Git Commit Commiter Email
+# Git Commit Committer Email
 COMMIT_COMMITTER_EMAIL = "git.commit.committer.email"
 
 # Git Commit Message
