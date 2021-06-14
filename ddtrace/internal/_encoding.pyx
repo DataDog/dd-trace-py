@@ -153,9 +153,6 @@ cdef class Packer(object):
         cdef int ret
         cdef dict d
 
-        if meta is None:
-            ret = msgpack_pack_nil(&self.pk)
-
         if PyDict_CheckExact(meta):
             d = <dict> meta
             L = len(d)
@@ -177,9 +174,6 @@ cdef class Packer(object):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
-
-        if metrics is None:
-            ret = msgpack_pack_nil(&self.pk)
 
         if PyDict_CheckExact(metrics):
             d = <dict> metrics
