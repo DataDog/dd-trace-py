@@ -27,19 +27,17 @@ def _updateenv(monkeypatch, env):
 
 @pytest.fixture
 def git_repo(tmpdir):
+    """Create temporary git directory, with one added file commit with a unique author and committer."""
     cwd = str(tmpdir)
     subprocess.check_output("git init", cwd=cwd, shell=True)
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
-    subprocess.check_output('git config --local user.name "John Doe"', cwd=cwd, shell=True)
-    subprocess.check_output('git config --local user.email "john@doe.com"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
+    subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
     subprocess.check_output("touch tmp.py", cwd=cwd, shell=True)
     subprocess.check_output("git add tmp.py", cwd=cwd, shell=True)
     subprocess.check_output(
-        'git commit --date="2021-01-19T09:24:53-0400" -m "this is a commit msg" --no-edit', cwd=cwd, shell=True
-    )
-    subprocess.check_output(
-        'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git -c user.name="Jane Doe" -c user.email="jane@doe.com" commit '
-        "--amend --no-edit",
+        'GIT_COMMITTER_DATE="2021-01-20T04:37:21-0400" git commit --date="2021-01-19T09:24:53-0400" '
+        '-m "this is a commit msg" --author="John Doe <john@doe.com>" --no-edit',
         cwd=cwd,
         shell=True,
     )
@@ -48,6 +46,7 @@ def git_repo(tmpdir):
 
 @pytest.fixture
 def git_repo_error(tmpdir):
+    """Create temporary git directory but leave empty, meaning no commits/users/repository-url to extract (error)"""
     cwd = str(tmpdir)
     subprocess.check_output("git init", cwd=cwd, shell=True)
     yield cwd
