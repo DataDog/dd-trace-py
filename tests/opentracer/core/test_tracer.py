@@ -447,7 +447,7 @@ def nop_span_ctx():
 
 
 class TestTracerSpanContextPropagation(object):
-    """Test the injection and extration of a span context from a tracer."""
+    """Test the injection and extraction of a span context from a tracer."""
 
     def test_invalid_format(self, ot_tracer, nop_span_ctx):
         """An invalid format should raise an UnsupportedFormatException."""

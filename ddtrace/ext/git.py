@@ -41,7 +41,7 @@ COMMIT_AUTHOR_DATE = "git.commit.author.date"
 # Git Commit Committer Name
 COMMIT_COMMITTER_NAME = "git.commit.committer.name"
 
-# Git Commit Commiter Email
+# Git Commit Committer Email
 COMMIT_COMMITTER_EMAIL = "git.commit.committer.email"
 
 # Git Commit Committer Date (UTC)
