@@ -127,8 +127,19 @@ class SpanAggregator(SpanProcessor):
             if trace.num_finished == len(trace.spans) or (
                 self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
             ):
-                finished = [s for s in trace.spans if s.finished]
-                trace.spans = [s for s in trace.spans if not s.finished]
+                trace_spans = trace.spans
+                trace.spans = []
+                if trace.num_finished < len(trace_spans):
+                    finished = []
+                    for s in trace_spans:
+                        if s.finished:
+                            finished.append(s)
+                        else:
+                            trace.spans.append(s)
+
+                else:
+                    finished = trace_spans
+
                 trace.num_finished -= len(finished)
 
                 if len(trace.spans) == 0:
