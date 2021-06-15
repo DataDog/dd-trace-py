@@ -48,7 +48,7 @@ class WrapperComponent(wrapt.ObjectProxy):
         return trace_wrapped(resource, func, *args, **kwargs)
 
     # TODO[tahir]: the signature of a wrapped resolve method causes DIError to
-    # be thrown since paramter types cannot be determined
+    # be thrown since parameter types cannot be determined
 
 
 class WrapperRenderer(wrapt.ObjectProxy):

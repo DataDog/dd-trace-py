@@ -1,12 +1,17 @@
 import abc
+from typing import Optional
+from typing import Union
 
 import six
 
 from .context import Context
 from .internal.compat import contextvars
+from .span import Span
 
 
-_DD_CONTEXTVAR = contextvars.ContextVar("datadog_contextvar", default=None)
+_DD_CONTEXTVAR = contextvars.ContextVar(
+    "datadog_contextvar", default=None
+)  # type: contextvars.ContextVar[Optional[Union[Context, Span]]]
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -24,13 +29,13 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
-    def activate(self, context):
-        # type: (Context) -> None
+    def activate(self, ctx):
+        # type: (Optional[Union[Context, Span]]) -> None
         pass
 
     @abc.abstractmethod
     def active(self):
-        # type: () -> Context
+        # type: () -> Optional[Union[Context, Span]]
         pass
 
     def __call__(self, *args, **kwargs):
@@ -42,9 +47,10 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
 
 class DefaultContextProvider(BaseContextProvider):
     """
-    Default context provider that retrieves all contexts from the current
-    thread-local storage. It is suitable for synchronous programming and
-    Python WSGI frameworks.
+    Default context provider that retrieves all contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
     """
 
     def __init__(self):
@@ -52,31 +58,30 @@ class DefaultContextProvider(BaseContextProvider):
         _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
-        """
-        Check whether we have a currently active context.
-
-        :returns: Whether we have an active context
-        :rtype: bool
-        """
+        # type: () -> bool
+        """Returns whether there is an active context in the current execution."""
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
     def activate(self, ctx):
-        # type: (Context) -> None
-        """Makes the given ``context`` active, so that the provider calls
-        the thread-local storage implementation.
-        """
-        _DD_CONTEXTVAR.set(ctx)  # type: ignore[arg-type]
+        # type: (Optional[Union[Span, Context]]) -> None
+        """Makes the given context active in the current execution."""
+        _DD_CONTEXTVAR.set(ctx)
+
+    def _update_active(self, span):
+        # type: (Span) -> Optional[Span]
+        if span.finished:
+            new_active = span  # type: Optional[Span]
+            while new_active and new_active.finished:
+                new_active = new_active._parent
+            self.activate(new_active)
+            return new_active
+        return span
 
     def active(self):
-        # type: () -> Context
-        """Returns the current active ``Context`` for this tracer. Returned
-        ``Context`` must be thread-safe or thread-local for this specific
-        implementation.
-        """
-        ctx = _DD_CONTEXTVAR.get()
-        if not ctx:
-            ctx = Context()
-            self.activate(ctx)
-
-        return ctx
+        # type: () -> Optional[Union[Context, Span]]
+        """Returns the active span or context for the current execution."""
+        item = _DD_CONTEXTVAR.get()
+        if isinstance(item, Span):
+            return self._update_active(item)
+        return item

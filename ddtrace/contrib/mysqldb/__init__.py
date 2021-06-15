@@ -1,5 +1,4 @@
-"""
-The mysqldb integration instruments the mysqlclient and MySQL-python  libraries to trace MySQL queries.
+"""The mysqldb integration instruments the mysqlclient library to trace MySQL queries.
 
 
 Enabling
@@ -56,12 +55,12 @@ To configure the integration on an per-connection basis use the
     cursor.execute("SELECT 6*7 AS the_answer;")
 
 
-This package works for mysqlclient or MySQL-python. Only the default
-full-Python integration works. The binary C connector provided by
+This package works for mysqlclient. Only the default full-Python integration works. The binary C connector provided by
 _mysql is not supported.
 
 Help on mysqlclient can be found on:
 https://mysqlclient.readthedocs.io/
+
 """
 from ...utils.importlib import require_modules
 
