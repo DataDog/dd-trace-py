@@ -297,9 +297,7 @@ class PsycopgCore(TracerTestCase):
             assert len(spans) == 2
             self.reset()
 
-            query = SQL("""select {}, {} from {}""").format(
-                Identifier("test", "id"), Identifier("test", "name"), Identifier("test")
-            )
+            query = SQL("""select {}, {} from {}""").format(Identifier("id"), Identifier("name"), Identifier("test"))
             cur.execute(query=query)
             rows = cur.fetchall()
             assert rows == [(1, "test_case")]
