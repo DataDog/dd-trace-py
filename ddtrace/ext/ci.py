@@ -69,7 +69,7 @@ def _filter_sensitive_info(url):
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
-def get_runtime_and_os_metadata():
+def _get_runtime_and_os_metadata():
     """Extract configuration facet tags for OS and Python runtime."""
     return {
         OS_ARCHITECTURE: platform.machine(),
@@ -100,7 +100,7 @@ def tags(env=None):
     if workspace_path:
         tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
 
-    tags.update(get_runtime_and_os_metadata())
+    tags.update(_get_runtime_and_os_metadata())
 
     return {k: v for k, v in tags.items() if v is not None}
 
