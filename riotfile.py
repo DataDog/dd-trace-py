@@ -154,7 +154,7 @@ venv = Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest {cmdargs} tests/benchmarks",
+            command="pytest --benchmark-warmup=on --benchmark-autosave {cmdargs} tests/benchmarks",
         ),
         Venv(
             name="tracer",
