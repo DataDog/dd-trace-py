@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The profiler won't be ignoring its own resource usage anymore and will
+    report it in the profiles.
