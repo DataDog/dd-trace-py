@@ -39,7 +39,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
 
             cache_cls = Cache
         except ImportError:
-            # use flask_caching if flask_cache if not
+            # use flask_caching if flask_cache is not present
             from flask_caching import Cache
 
             cache_cls = Cache
