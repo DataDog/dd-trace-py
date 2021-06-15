@@ -30,7 +30,7 @@ def get_env(*parts, **kwargs):
       arguments
     * return `default` otherwise
 
-    :param parts: evironment variable parts that will be joined with ``_`` to generate the name
+    :param parts: environment variable parts that will be joined with ``_`` to generate the name
     :type parts: :obj:`str`
     :param kwargs: ``default`` is the only supported keyword argument which sets the default value
         if no environment variable is found
