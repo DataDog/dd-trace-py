@@ -137,8 +137,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command="codespell --ignore-words-list='dne,fo,medias,ment,nin,ot,setttings,statics' "
-                    "--skip='ddtrace/vendor' ddtrace/ tests/",
+                    command="codespell ddtrace/ tests/",
                 ),
                 Venv(
                     name="hook-codespell",
