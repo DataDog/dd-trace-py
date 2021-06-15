@@ -121,8 +121,8 @@ below:
      - The interval in seconds to wait before flushing out recorded events.
    * - ``DD_PROFILING_IGNORE_PROFILER``
      - Boolean
-     - True
-     - Whether to ignore the profiler in the generated data.
+     - False
+     - **Deprecated**: whether to ignore the profiler in the generated data.
    * - ``DD_PROFILING_TAGS``
      - String
      -
