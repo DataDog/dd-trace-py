@@ -302,6 +302,9 @@ jobs:
       - run:
           name: "Mypy check"
           command: riot run mypy
+      - run:
+          name: "Codespell check"
+          command: riot run -s codespell
 
   ccheck:
     executor: cimg_base
