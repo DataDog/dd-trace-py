@@ -47,8 +47,8 @@ def git_repo(tmpdir):
 
 
 @pytest.fixture
-def git_repo_error(tmpdir):
-    """Create temporary git directory but leave empty, meaning no commits/users/repository-url to extract (error)"""
+def git_repo_empty(tmpdir):
+    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
     cwd = str(tmpdir)
     subprocess.check_output("git init", cwd=cwd, shell=True)
     yield cwd
