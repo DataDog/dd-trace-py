@@ -73,10 +73,10 @@ def test_git_extract_user_info(git_repo):
     assert extracted_users["committer"] == expected_committer
 
 
-def test_git_extract_user_info_error(git_repo_error):
+def test_git_extract_user_info_error(git_repo_empty):
     """On error, the author/committer tags should not be extracted, and should internally raise and log the error."""
     with pytest.raises(ValueError):
-        git.extract_user_info(cwd=git_repo_error)
+        git.extract_user_info(cwd=git_repo_empty)
 
 
 def test_git_extract_repository_url(git_repo):
@@ -85,10 +85,10 @@ def test_git_extract_repository_url(git_repo):
     assert git.extract_repository_url(cwd=git_repo) == expected_repository_url
 
 
-def test_git_extract_repository_url_error(git_repo_error):
+def test_git_extract_repository_url_error(git_repo_empty):
     """On error, the repository url tag should not be extracted, and should internally raise the error."""
     with pytest.raises(ValueError):
-        git.extract_repository_url(cwd=git_repo_error)
+        git.extract_repository_url(cwd=git_repo_empty)
 
 
 def test_git_extract_commit_message(git_repo):
@@ -97,10 +97,10 @@ def test_git_extract_commit_message(git_repo):
     assert git.extract_commit_message(cwd=git_repo) == expected_msg
 
 
-def test_git_extract_commit_message_error(git_repo_error):
+def test_git_extract_commit_message_error(git_repo_empty):
     """On error, the commit message tag should not be extracted, and should internally raise and log the error."""
     with pytest.raises(ValueError):
-        git.extract_commit_message(cwd=git_repo_error)
+        git.extract_commit_message(cwd=git_repo_empty)
 
 
 def test_extract_git_metadata(git_repo):
@@ -118,7 +118,7 @@ def test_extract_git_metadata(git_repo):
     assert git.extract_git_metadata(cwd=git_repo) == expected_tags
 
 
-def test_git_executable_not_found_error(git_repo_error):
+def test_git_executable_not_found_error(git_repo_empty):
     """If git executable not available, should raise internally, log, and not extract any tags."""
     with mock.patch("ddtrace.ext.ci.git.log") as log:
         with mock.patch("ddtrace.ext.ci.git.subprocess.Popen") as mock_popen:
@@ -126,7 +126,7 @@ def test_git_executable_not_found_error(git_repo_error):
                 mock_popen.side_effect = OSError()
             else:
                 mock_popen.side_effect = FileNotFoundError()
-            extracted_tags = git.extract_git_metadata(cwd=git_repo_error)
+            extracted_tags = git.extract_git_metadata(cwd=git_repo_empty)
         log.error.assert_called_with("Git executable not found, cannot extract git metadata.")
 
     assert extracted_tags == {}
