@@ -17,7 +17,6 @@ from ddtrace.vendor.dogstatsd import DogStatsd
 from . import agent
 from . import compat
 from . import periodic
-from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
@@ -257,6 +256,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
 
+        if not self._sync_mode:
+            self.start()
+
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
         if tags:
@@ -373,13 +375,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # type: (Optional[List[Span]]) -> None
         if spans is None:
             return
-
-        if self._sync_mode is False:
-            # Start the AgentWriter on first write.
-            try:
-                self.start()
-            except service.ServiceStatusError:
-                pass
 
         self._metrics_dist("writer.accepted.traces")
         self._set_keep_rate(spans)
