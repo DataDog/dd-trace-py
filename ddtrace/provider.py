@@ -44,6 +44,16 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         """
         return self.active()
 
+    def _update_active(self, span):
+        # type: (Span) -> Optional[Span]
+        if span.finished:
+            new_active = span  # type: Optional[Span]
+            while new_active and new_active.finished:
+                new_active = new_active._parent
+            self.activate(new_active)
+            return new_active
+        return span
+
 
 class DefaultContextProvider(BaseContextProvider):
     """
@@ -67,16 +77,6 @@ class DefaultContextProvider(BaseContextProvider):
         # type: (Optional[Union[Span, Context]]) -> None
         """Makes the given context active in the current execution."""
         _DD_CONTEXTVAR.set(ctx)
-
-    def _update_active(self, span):
-        # type: (Span) -> Optional[Span]
-        if span.finished:
-            new_active = span  # type: Optional[Span]
-            while new_active and new_active.finished:
-                new_active = new_active._parent
-            self.activate(new_active)
-            return new_active
-        return span
 
     def active(self):
         # type: () -> Optional[Union[Context, Span]]

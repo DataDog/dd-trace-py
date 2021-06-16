@@ -1,10 +1,11 @@
 import abc
 import enum
-import threading
 import typing
 
 import attr
 import six
+
+from . import forksafe
 
 
 class ServiceStatus(enum.Enum):
@@ -32,7 +33,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     """A service that can be started or stopped."""
 
     status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False, eq=False)
-    _service_lock = attr.ib(factory=threading.Lock, repr=False, init=False, eq=False)
+    _service_lock = attr.ib(factory=forksafe.Lock, repr=False, init=False, eq=False)
 
     def __enter__(self):
         self.start()
