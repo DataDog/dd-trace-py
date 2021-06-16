@@ -377,7 +377,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode is False:
             # Start the AgentWriter on first write.
             try:
-                self.start()
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
             except service.ServiceStatusError:
                 pass
 
