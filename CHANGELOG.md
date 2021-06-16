@@ -995,7 +995,7 @@ This release includes several core improvements and addresses pain points in our
 - [writer] Enhance Q implementation with a wait based one (#862)
 - [core] Add Span 'manual.keep' and 'manual.drop' tag support (#849)
 - [core] Vendor msgpack dependency (#848)
-- Fix http.url tag inconsitency (#899)
+- Fix http.url tag inconsistency (#899)
 - aiohttp: do not set query string in http.url tag (#923)
 - tornado: do not include query string in the http.url tag (#922)
 - bottle: fix query string embedded in URL (#921)

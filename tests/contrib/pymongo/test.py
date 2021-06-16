@@ -68,7 +68,7 @@ def test_normalize_filter():
 class PymongoCore(object):
     """Test suite for pymongo
 
-    Independant of the way it got instrumented.
+    Independent of the way it got instrumented.
     TODO: merge to a single class when patching is the only way.
     """
 
@@ -480,7 +480,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         patch()
         # Override server pin's tracer with our dummy tracer
         Pin.override(pymongo.server.Server, tracer=self.tracer)
-        # maxPoolSize controls the number of sockets that the client can instanciate
+        # maxPoolSize controls the number of sockets that the client can instantiate
         # and choose from to perform classic operations. For the sake of our tests,
         # let's limit this number to 1
         self.client = pymongo.MongoClient(port=MONGO_CONFIG["port"], maxPoolSize=1)

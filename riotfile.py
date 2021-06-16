@@ -1,3 +1,4 @@
+# type: ignore
 from typing import List
 from typing import Tuple
 
@@ -100,8 +101,6 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="flake8",
-            command="flake8 {cmdargs} ddtrace/ tests/",
             pkgs={
                 "flake8": ">=3.8,<3.9",
                 "flake8-blind-except": latest,
@@ -112,6 +111,16 @@ venv = Venv(
                 "flake8-isort": latest,
                 "pygments": latest,
             },
+            venvs=[
+                Venv(
+                    name="flake8",
+                    command="flake8 {cmdargs} ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-flake8",
+                    command="flake8 {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
@@ -121,6 +130,20 @@ venv = Venv(
                 # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
                 "mypy": "<0.900",
             },
+        ),
+        Venv(
+            pys=["3"],
+            pkgs={"codespell": "==2.1.0"},
+            venvs=[
+                Venv(
+                    name="codespell",
+                    command="codespell ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-codespell",
+                    command="codespell {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
