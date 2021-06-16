@@ -9,6 +9,8 @@ import attr
 from ddtrace.internal import nogevent
 from ddtrace.internal import service
 
+from . import forksafe
+
 
 class PeriodicThread(threading.Thread):
     """Periodic thread.
@@ -39,7 +41,7 @@ class PeriodicThread(threading.Thread):
         self._target = target
         self._on_shutdown = on_shutdown
         self.interval = interval
-        self.quit = threading.Event()
+        self.quit = forksafe.Event()
         self.daemon = True
 
     def stop(self):
