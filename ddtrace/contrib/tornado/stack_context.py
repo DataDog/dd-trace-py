@@ -31,7 +31,6 @@ if _USE_STACK_CONTEXT:
         """
 
         def __init__(self):
-            self._active = True
             self._context = None
 
         def enter(self):
@@ -64,9 +63,6 @@ if _USE_STACK_CONTEXT:
             # break the reference to allow faster GC on CPython
             self.new_contexts = None
 
-        def deactivate(self):
-            self._active = False
-
         def _has_io_loop(self):
             """Helper to determine if we are currently in an IO loop"""
             return getattr(IOLoop._current, "instance", None) is not None
@@ -83,7 +79,7 @@ if _USE_STACK_CONTEXT:
             """Helper to get the currently active context from the TracerStackContext"""
             # we're inside a Tornado loop so the TracerStackContext is used
             for stack in reversed(_state.contexts[0]):
-                if isinstance(stack, self.__class__) and stack._active:
+                if isinstance(stack, self.__class__):
                     ctx = stack._context
                     if isinstance(ctx, Span):
                         return self._update_active(ctx)
@@ -120,7 +116,7 @@ if _USE_STACK_CONTEXT:
             else:
                 # we're inside a Tornado loop so the TracerStackContext is used
                 for stack_ctx in reversed(_state.contexts[0]):
-                    if isinstance(stack_ctx, self.__class__) and stack_ctx._active:
+                    if isinstance(stack_ctx, self.__class__):
                         stack_ctx._context = ctx
             return ctx
 
