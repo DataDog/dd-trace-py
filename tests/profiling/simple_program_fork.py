@@ -22,7 +22,7 @@ parent_recorder = ddtrace.profiling.bootstrap.profiler._profiler._recorder
 child_pid = os.fork()
 if child_pid == 0:
     # Child
-    # This is the first thing done on Python 3.7 and later, so mimick it here
+    # This is the first thing done on Python 3.7 and later, so mimic it here
     if sys.version_info[:2] < (3, 7):
         ddtrace.profiling.auto.start_profiler()
 
