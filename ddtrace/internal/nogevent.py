@@ -6,6 +6,7 @@ import attr
 import six
 
 from ddtrace.internal import compat
+from ddtrace.internal import forksafe
 
 
 try:
@@ -44,8 +45,10 @@ if is_module_patched("threading"):
     class DoubleLock(object):
         """A lock that prevent concurrency from a gevent coroutine and from a threading.Thread at the same time."""
 
-        _lock = attr.ib(factory=threading.Lock, init=False, repr=False)
-        _thread_lock = attr.ib(factory=Lock, init=False, repr=False)
+        # This is a gevent-patched threading.Lock (= a gevent Lock)
+        _lock = attr.ib(factory=forksafe.Lock, init=False, repr=False)
+        # This is a unpatched threading.Lock (= a real threading.Lock)
+        _thread_lock = attr.ib(factory=lambda: forksafe.ResetObject(Lock), init=False, repr=False)
 
         def acquire(self):
             # type: () -> None
