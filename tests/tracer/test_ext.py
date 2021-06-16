@@ -179,3 +179,20 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"
     assert extracted_tags["git.commit.author.email"] == "john@doe.com"
+
+
+def test_os_runtime_metadata_tagging():
+    """Ensure that OS and runtime metadata are added as tags."""
+    os_runtime_tags = ci._get_runtime_and_os_metadata()
+    assert os_runtime_tags.get(ci.OS_ARCHITECTURE) is not None
+    assert os_runtime_tags.get(ci.OS_PLATFORM) is not None
+    assert os_runtime_tags.get(ci.OS_VERSION) is not None
+    assert os_runtime_tags.get(ci.RUNTIME_NAME) is not None
+    assert os_runtime_tags.get(ci.RUNTIME_VERSION) is not None
+
+    extracted_tags = ci.tags()
+    assert extracted_tags.get(ci.OS_ARCHITECTURE) is not None
+    assert extracted_tags.get(ci.OS_PLATFORM) is not None
+    assert extracted_tags.get(ci.OS_VERSION) is not None
+    assert extracted_tags.get(ci.RUNTIME_NAME) is not None
+    assert extracted_tags.get(ci.RUNTIME_VERSION) is not None
