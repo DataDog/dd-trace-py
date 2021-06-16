@@ -5,6 +5,7 @@ import os
 from os import environ
 from os import getpid
 import sys
+from threading import RLock
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -149,6 +150,8 @@ class Tracer(object):
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
+
+        self._shutdown_lock = RLock()
 
     def _atexit(self):
         # type: () -> None
@@ -400,7 +403,7 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
-    def start_span(
+    def _start_span(
         self,
         name,  # type: str
         child_of=None,  # type: Optional[Union[Span, Context]]
@@ -595,6 +598,8 @@ class Tracer(object):
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
+    start_span = _start_span
+
     def _on_span_finish(self, span):
         # type: (Span) -> None
         if self.log.isEnabledFor(logging.DEBUG):
@@ -671,7 +676,7 @@ class Tracer(object):
         else:
             self.log.log(level, msg)
 
-    def trace(self, name, service=None, resource=None, span_type=None):
+    def _trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
         """Activate and return a new span that inherits from the current active span.
 
@@ -721,6 +726,8 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
         )
+
+    trace = _trace
 
     def current_root_span(self):
         # type: () -> Optional[Span]
@@ -884,11 +891,49 @@ class Tracer(object):
         """
         self.tags.update(tags)
 
+    def _restore_from_shutdown(self):
+        with self._shutdown_lock:
+            if self.start_span is self._start_span:
+                # Already restored
+                return
+
+            atexit.register(self._atexit)
+
+            self.start_span = self._start_span
+            self.trace = self._trace
+
+            debtcollector.deprecate(
+                "Tracing with a tracer that has been shut down is being deprecated. "
+                "A new tracer should be created for generating new traces",
+                version="1.0.0",
+            )
+
+    def _shutdown_start_span(
+        self,
+        name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, Context]]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+        activate=False,  # type: bool
+    ):
+        # type: (...) -> Span
+        self._restore_from_shutdown()
+
+        return self.start_span(name, child_of, service, resource, span_type, activate)
+
+    def _shutdown_trace(self, name, service=None, resource=None, span_type=None):
+        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
+        self._restore_from_shutdown()
+
+        return self.trace(name, service, resource, span_type)
+
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
         """Shutdown the tracer.
 
-        This will stop the background writer/worker and flush any finished traces in the buffer.
+        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
+        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
@@ -899,7 +944,12 @@ class Tracer(object):
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
-        atexit.unregister(self._atexit)
+
+        with self._shutdown_lock:
+            atexit.unregister(self._atexit)
+
+            self.start_span = self._shutdown_start_span  # type: ignore[assignment]
+            self.trace = self._shutdown_trace  # type: ignore[assignment]
 
     @staticmethod
     def _use_log_writer():

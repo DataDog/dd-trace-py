@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
@@ -319,3 +321,31 @@ class TestIntegrationConfig(BaseTestCase):
     def test_service_name_env_var_legacy(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
+
+
+@pytest.mark.parametrize(
+    "global_headers,int_headers,expected",
+    (
+        (None, None, (False, False, False)),
+        ([], None, (False, False, False)),
+        (["Header"], None, (True, False, True)),
+        (None, ["Header"], (False, True, True)),
+        (None, [], (False, False, False)),
+        (["Header"], ["Header"], (True, True, True)),
+        ([], [], (False, False, False)),
+    ),
+)
+def test_config_is_header_tracing_configured(global_headers, int_headers, expected):
+    config = Config()
+    integration_config = config.myint
+
+    if global_headers is not None:
+        config.trace_headers(global_headers)
+    if int_headers is not None:
+        integration_config.http.trace_headers(int_headers)
+
+    assert (
+        config.http.is_header_tracing_configured,
+        integration_config.http.is_header_tracing_configured,
+        integration_config.is_header_tracing_configured,
+    ) == expected
