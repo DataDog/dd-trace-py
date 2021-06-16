@@ -53,8 +53,8 @@ def _filter_sensitive_info(url):
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
-def tags(env=None):
-    # type: (Optional[MutableMapping[str, str]]) -> Dict[str, str]
+def tags(env=None, cwd=None):
+    # type: (Optional[MutableMapping[str, str]], Optional[str]) -> Dict[str, str]
     """Extract and set tags from provider environ, as well as git metadata."""
     env = os.environ if env is None else env
     tags = {}  # type: Dict[str, Optional[str]]
@@ -62,6 +62,11 @@ def tags(env=None):
         if key in env:
             tags = extract(env)
             break
+
+    git_info = git.extract_git_metadata(cwd=cwd)
+    # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
+    # is None or "" should be overwritten.
+    tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
 
     tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
