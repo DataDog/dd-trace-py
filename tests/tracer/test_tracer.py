@@ -8,6 +8,7 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
+import warnings
 
 import mock
 import pytest
@@ -520,14 +521,20 @@ def test_tracer_shutdown_no_timeout():
     assert t.writer.stop.called
     assert not t.writer.join.called
 
-    # Ensure the tracer is unusable after shutdown.
-    with pytest.raises(RuntimeError):
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+
+        # Do a write to start the writer.
         with t.trace("something"):
             pass
 
-    # Recreate the tracer to keep tracing.
-    t = ddtrace.Tracer()
-    t.writer = writer
+        (w,) = ws
+        assert issubclass(w.category, DeprecationWarning)
+        assert (
+            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
+            "A new tracer should be created for generating new traces in version '1.0.0'"
+        )
+
     with t.trace("something"):
         pass
 
