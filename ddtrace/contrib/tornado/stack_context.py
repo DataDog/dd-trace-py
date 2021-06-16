@@ -18,11 +18,11 @@ if _USE_STACK_CONTEXT:
     class TracerStackContext(DefaultContextProvider):
         """
         A context manager that manages ``Context`` instances in a thread-local state.
-        It must be used everytime a Tornado's handler or coroutine is used within a
+        It must be used every time a Tornado's handler or coroutine is used within a
         tracing Context. It is meant to work like a traditional ``StackContext``,
         preserving the state across asynchronous calls.
 
-        Everytime a new manager is initialized, a new ``Context()`` is created for
+        Every time a new manager is initialized, a new ``Context()`` is created for
         this execution flow. A context created in a ``TracerStackContext`` is not
         shared between different threads.
 

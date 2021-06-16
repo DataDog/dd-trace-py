@@ -94,7 +94,7 @@ class Jinja2Test(TracerTestCase):
         assert get_def(spans[4]) == ('jinja2.compile', 'base.html')
         assert_is_not_measured(spans[4])
 
-        # additionnal checks for jinja2.load
+        # additional checks for jinja2.load
         assert spans[0].get_tag('jinja2.template_path') == os.path.join(TMPL_DIR, 'template.html')
         assert spans[3].get_tag('jinja2.template_path') == os.path.join(TMPL_DIR, 'base.html')
 

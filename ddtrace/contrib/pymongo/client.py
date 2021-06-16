@@ -154,7 +154,7 @@ class TracedServer(ObjectProxy):
 
     @staticmethod
     def _is_query(op):
-        # NOTE: _Query should alwyas have a spec field
+        # NOTE: _Query should always have a spec field
         return hasattr(op, "spec")
 
 
