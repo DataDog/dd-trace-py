@@ -2,6 +2,7 @@
 Tags for common CI attributes
 """
 import os
+import platform
 import re
 from typing import Dict
 from typing import MutableMapping
@@ -37,6 +38,21 @@ PROVIDER_NAME = "ci.provider.name"
 # Workspace Path
 WORKSPACE_PATH = "ci.workspace_path"
 
+# Architecture
+OS_ARCHITECTURE = "os.architecture"
+
+# Platform
+OS_PLATFORM = "os.platform"
+
+# Version
+OS_VERSION = "os.version"
+
+# Runtime Name
+RUNTIME_NAME = "runtime.name"
+
+# Runtime Version
+RUNTIME_VERSION = "runtime.version"
+
 _RE_REFS = re.compile(r"^refs/(heads/)?")
 _RE_ORIGIN = re.compile(r"^origin/")
 _RE_TAGS = re.compile(r"^tags/")
@@ -51,6 +67,17 @@ def _normalize_ref(name):
 def _filter_sensitive_info(url):
     # type: (Optional[str]) -> Optional[str]
     return _RE_URL.sub("\\1", url) if url is not None else None
+
+
+def _get_runtime_and_os_metadata():
+    """Extract configuration facet tags for OS and Python runtime."""
+    return {
+        OS_ARCHITECTURE: platform.machine(),
+        OS_PLATFORM: platform.system(),
+        OS_VERSION: platform.release(),
+        RUNTIME_NAME: platform.python_implementation(),
+        RUNTIME_VERSION: platform.python_version(),
+    }
 
 
 def tags(env=None, cwd=None):
@@ -77,6 +104,8 @@ def tags(env=None, cwd=None):
     workspace_path = tags.get(WORKSPACE_PATH)
     if workspace_path:
         tags[WORKSPACE_PATH] = os.path.expanduser(workspace_path)
+
+    tags.update(_get_runtime_and_os_metadata())
 
     return {k: v for k, v in tags.items() if v is not None}
 
