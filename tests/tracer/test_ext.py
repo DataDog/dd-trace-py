@@ -31,6 +31,8 @@ def git_repo(tmpdir):
     cwd = str(tmpdir)
     subprocess.check_output("git init", cwd=cwd, shell=True)
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
+    # Set temporary git directory to not require gpg commit signing
+    subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
     # Set committer user to be "Jane Doe"
     subprocess.check_output('git config --local user.name "Jane Doe"', cwd=cwd, shell=True)
     subprocess.check_output('git config --local user.email "jane@doe.com"', cwd=cwd, shell=True)
