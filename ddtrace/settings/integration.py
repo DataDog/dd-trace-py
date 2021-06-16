@@ -108,7 +108,7 @@ class IntegrationConfig(AttrDict):
         Will return true if traced headers are configured for this integration
         or if they are configured globally.
         """
-        return self.http.is_header_tracing_configured() or self.global_config.http.is_header_tracing_configured()
+        return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
 
     def header_is_traced(self, header_name):
         """
