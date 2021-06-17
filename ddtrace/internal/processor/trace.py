@@ -61,10 +61,28 @@ class TraceSamplingProcessor(TraceProcessor):
         # type: (List[Span]) -> Optional[List[Span]]
         sampled_spans = [s for s in trace if s.sampled]
         if len(sampled_spans) == 0:
-            log.info("dropping trace, %d spans unsampled", len(trace))
+            log.debug("dropping trace, %d spans unsampled", len(trace))
             return None
 
-        log.info("trace %d sampled (%d/%d spans sampled)", trace[0].trace_id, len(sampled_spans), len(trace))
+        log.debug("trace %d sampled (%d/%d spans sampled)", trace[0].trace_id, len(sampled_spans), len(trace))
+        return trace
+
+
+@attr.s
+class TraceTagsProcessor(TraceProcessor):
+    """Processor that applies trace-level tags to the trace."""
+
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        if not trace:
+            return trace
+
+        chunk_root = trace[0]
+        ctx = chunk_root._context
+        if not ctx:
+            return trace
+
+        ctx._update_tags(chunk_root)
         return trace
 
 
@@ -131,8 +149,19 @@ class SpanAggregator(SpanProcessor):
             if trace.num_finished == len(trace.spans) or (
                 self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
             ):
-                finished = [s for s in trace.spans if s.finished]
-                trace.spans = [s for s in trace.spans if not s.finished]
+                trace_spans = trace.spans
+                trace.spans = []
+                if trace.num_finished < len(trace_spans):
+                    finished = []
+                    for s in trace_spans:
+                        if s.finished:
+                            finished.append(s)
+                        else:
+                            trace.spans.append(s)
+
+                else:
+                    finished = trace_spans
+
                 trace.num_finished -= len(finished)
 
                 if len(trace.spans) == 0:

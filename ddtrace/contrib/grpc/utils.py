@@ -55,7 +55,7 @@ def _parse_target_from_args(args, kwargs):
         if target is None:
             return
 
-        # ensure URI follows RFC 3986 and is preceeded by double slash
+        # ensure URI follows RFC 3986 and is preceded by double slash
         # https://tools.ietf.org/html/rfc3986#section-3.2
         parsed = parse.urlsplit("//" + target if not target.startswith("//") else target)
         port = None

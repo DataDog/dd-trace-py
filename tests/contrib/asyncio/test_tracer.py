@@ -9,6 +9,7 @@ from ddtrace.contrib.asyncio.compat import asyncio_current_task
 def test_get_call_context_twice(tracer):
     # it should return the same Context if called twice
     assert tracer.get_call_context() == tracer.get_call_context()
+    assert tracer.current_trace_context() == tracer.current_trace_context()
 
 
 def test_trace_coroutine(tracer):
@@ -67,6 +68,9 @@ def test_context_task_none(tracer):
     # but a new Context is still created making the operation safe
     ctx = tracer.get_call_context()
     assert ctx is not None
+
+    ctx = tracer.current_trace_context()
+    assert ctx is None
 
 
 @pytest.mark.asyncio

@@ -7,8 +7,7 @@ import asyncio
 
 import ddtrace
 
-from ...context import Context
-from .provider import CONTEXT_ATTR
+from .provider import AsyncioContextProvider
 from .wrappers import wrapped_create_task
 
 
@@ -20,7 +19,7 @@ def set_call_context(task, ctx):
     This method is available for backward-compatibility. Use the
     ``AsyncioContextProvider`` API to set the current active ``Context``.
     """
-    setattr(task, CONTEXT_ATTR, ctx)
+    setattr(task, AsyncioContextProvider._CONTEXT_ATTR, ctx)
 
 
 def ensure_future(coro_or_future, *, loop=None, tracer=None):
@@ -29,7 +28,7 @@ def ensure_future(coro_or_future, *, loop=None, tracer=None):
     If the current task already has a Context, it will be attached to the new Task so the Trace list will be preserved.
     """
     tracer = tracer or ddtrace.tracer
-    current_ctx = tracer.get_call_context()
+    current_ctx = tracer.current_trace_context()
     task = asyncio.ensure_future(coro_or_future, loop=loop)
     set_call_context(task, current_ctx)
     return task
@@ -53,12 +52,10 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
 
     """
     tracer = tracer or ddtrace.tracer
-    ctx = Context()
-    current_ctx = tracer.get_call_context()
-    ctx._current_span = current_ctx._current_span
+    current_ctx = tracer.current_trace_context()
 
     # prepare the future using an executor wrapper
-    future = loop.run_in_executor(executor, _wrap_executor, func, args, tracer, ctx)
+    future = loop.run_in_executor(executor, _wrap_executor, func, args, tracer, current_ctx)
     return future
 
 
