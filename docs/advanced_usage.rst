@@ -652,7 +652,7 @@ To enable tracing with manual instrumentation and configuration, configure uWSGI
 
 
   patch_all()
-  tracer.configure(collect_metrics=True)
+  tracer.configure()
 
   def application(env, start_response):
       with tracer.trace("uwsgi-app"):
