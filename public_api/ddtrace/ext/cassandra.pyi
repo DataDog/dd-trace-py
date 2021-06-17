@@ -1,6 +1,3 @@
-from typing import Any
-
-TYPE: Any
 CLUSTER: str
 KEYSPACE: str
 CONSISTENCY_LEVEL: str

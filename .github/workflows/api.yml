@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install doxxie
-        run: pip install git+git://github.com/Kyle-Verhoog/doxxie.git@f2ff3d53fea7dd119c4922eac5ddd371f3553539
+        run: pip install git+git://github.com/Kyle-Verhoog/doxxie.git@11408cc4bf17082dd6cff6561d99f90592823c59
       - name: Install mypy
         run: pip install git+git://github.com/python/mypy.git@66c2ac516305f194a9bc37c1ebf7f22d62d6141c
       - name: Generate public API

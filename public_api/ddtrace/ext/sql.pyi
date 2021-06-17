@@ -1,7 +1,5 @@
 from typing import Any
 
-TYPE: Any
-APP_TYPE: Any
 QUERY: str
 ROWS: str
 DB: str

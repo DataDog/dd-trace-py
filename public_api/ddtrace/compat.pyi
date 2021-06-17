@@ -1,14 +1,1 @@
-import random
-from typing import Any, Union
-
-PY2: Any
-StringIO: Any
-httplib: Any
-urlencode: Any
-parse: Any
-Queue: Any
-iteritems: Any
-reraise: Any
-stringify: Any
-NumericType = Union[int, float]
-getrandbits = random.getrandbits
+from .internal.compat import CONTEXTVARS_IS_AVAILABLE as CONTEXTVARS_IS_AVAILABLE, NumericType as NumericType, PY2 as PY2, PY3 as PY3, PYTHON_INTERPRETER as PYTHON_INTERPRETER, PYTHON_VERSION as PYTHON_VERSION, PYTHON_VERSION_INFO as PYTHON_VERSION_INFO, Queue as Queue, StringIO as StringIO, binary_type as binary_type, contextvars as contextvars, ensure_text as ensure_text, get_connection_response as get_connection_response, getrandbits as getrandbits, httplib as httplib, is_integer as is_integer, iscoroutinefunction as iscoroutinefunction, iteritems as iteritems, main_thread as main_thread, make_async_decorator as make_async_decorator, monotonic as monotonic, monotonic_ns as monotonic_ns, msgpack_type as msgpack_type, numeric_types as numeric_types, parse as parse, pattern_type as pattern_type, process_time_ns as process_time_ns, reload_module as reload_module, reraise as reraise, string_type as string_type, stringify as stringify, time_ns as time_ns, to_unicode as to_unicode, urlencode as urlencode

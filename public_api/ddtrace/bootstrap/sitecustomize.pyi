@@ -1,5 +1,6 @@
 from typing import Any
 
+call_basic_config: Any
 log: Any
 EXTRA_PATCHED_MODULES: Any
 

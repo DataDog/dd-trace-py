@@ -1,6 +1,5 @@
 from typing import Any
 
-TYPE: Any
 URL: str
 METHOD: str
 STATUS_CODE: str

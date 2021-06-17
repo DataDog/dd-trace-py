@@ -1,8 +1,5 @@
-from typing import Any
-
 APP: str
 DEFAULT_SERVICE: str
-TYPE: Any
 DB: str
 RAWCMD: str
 CMD: str

@@ -1,6 +1,3 @@
-from typing import Any
-
-TYPE: Any
 SERVICE: str
 VHOST: str
 EXCHANGE: str

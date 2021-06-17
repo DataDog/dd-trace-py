@@ -1,5 +1,5 @@
-import Any
 from ..context import Context
+from typing import Any, Dict
 
 log: Any
 HTTP_HEADER_TRACE_ID: str
@@ -13,6 +13,6 @@ POSSIBLE_HTTP_HEADER_ORIGIN: Any
 
 class HTTPPropagator:
     @staticmethod
-    def inject(span_context: Any, headers: Any) -> None: ...
+    def inject(span_context: Context, headers: Dict[str, str]) -> None: ...
     @staticmethod
-    def extract(headers: builtins.dict[builtins.str, builtins.str]) -> Context: ...
+    def extract(headers: Dict[str, str]) -> Context: ...

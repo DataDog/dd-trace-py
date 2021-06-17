@@ -1,9 +1,1 @@
-from typing import Any
-
-log: Any
-REQUEST: str
-RESPONSE: str
-NORMALIZE_PATTERN: Any
-
-def store_request_headers(headers: builtins.dict[builtins.str, builtins.str], span: ddtrace.span.Span, integration_config: ddtrace.settings.integration.IntegrationConfig) -> None: ...
-def store_response_headers(headers: builtins.dict[builtins.str, builtins.str], span: ddtrace.span.Span, integration_config: ddtrace.settings.integration.IntegrationConfig) -> None: ...
+from ddtrace.contrib.trace_utils import NORMALIZE_PATTERN as NORMALIZE_PATTERN, REQUEST as REQUEST, RESPONSE as RESPONSE, _normalize_tag_name as _normalize_tag_name, _normalized_header_name as _normalized_header_name, _store_headers as _store_headers, _store_request_headers as store_request_headers, _store_response_headers as store_response_headers

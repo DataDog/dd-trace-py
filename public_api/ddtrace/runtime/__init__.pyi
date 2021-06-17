@@ -1,7 +1,8 @@
-import Any
+import ddtrace
+from typing import Optional
 
 class RuntimeMetrics:
     @staticmethod
-    def enable(tracer: Any=..., dogstatsd_url: Any=..., flush_interval: Any=...) -> None: ...
+    def enable(tracer: Optional[ddtrace.Tracer]=..., dogstatsd_url: Optional[str]=..., flush_interval: Optional[float]=...) -> None: ...
     @staticmethod
     def disable() -> None: ...

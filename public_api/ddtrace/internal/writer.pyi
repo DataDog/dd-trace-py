@@ -1,6 +1,7 @@
 import abc
+from ddtrace import Span
 from ddtrace.vendor.dogstatsd import DogStatsd as DogStatsd
-from typing import Any
+from typing import Any, List, Optional
 
 log: Any
 LOG_ERR_INTERVAL: int
@@ -10,6 +11,6 @@ class TraceWriter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def recreate(self) -> TraceWriter: ...
     @abc.abstractmethod
-    def stop(self, timeout: Union[builtins.float, None]=...) -> None: ...
+    def stop(self, timeout: Optional[float]=...) -> None: ...
     @abc.abstractmethod
-    def write(self, spans: Union[builtins.list[ddtrace.span.Span], None]=...) -> None: ...
+    def write(self, spans: Optional[List[Span]]=...) -> None: ...
