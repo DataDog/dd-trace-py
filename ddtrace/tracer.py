@@ -527,7 +527,6 @@ class Tracer(object):
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
-                _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
 
@@ -548,7 +547,6 @@ class Tracer(object):
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
-                _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span

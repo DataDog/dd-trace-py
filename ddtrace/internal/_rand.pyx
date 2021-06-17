@@ -52,6 +52,7 @@ test_rand64bits_pid_check     121.8156 (2.03)     168.9837 (1.71)     130.3854 (
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 import os
+import random
 
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
@@ -60,7 +61,6 @@ cdef extern from "_stdint.h" nogil:
     ctypedef unsigned long long uint64_t
 
 cdef uint64_t state
-cdef object pid = None
 
 
 cpdef _getstate():
@@ -69,6 +69,7 @@ cpdef _getstate():
 
 cpdef seed():
     global state
+    random.seed()
     state = <uint64_t>compat.getrandbits(64) ^ <uint64_t>4101842887655102017
 
 
@@ -79,16 +80,7 @@ cpdef _reseed_on_fork():
     forksafe.register(_reseed_on_fork)
 
 
-cpdef rand64bits(check_pid=True):
-    if check_pid:
-        global pid
-        current_pid = os.getpid()
-
-        if current_pid != pid:
-            seed()
-
-        pid = current_pid
-
+cpdef rand64bits():
     global state
     state ^= state >> 21
     state ^= state << 35

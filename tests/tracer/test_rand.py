@@ -34,7 +34,7 @@ def test_fork_no_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=False) for _ in range(100)}
+        rns = {_rand.rand64bits() for _ in range(100)}
         child_rns = q.get()
 
         assert rns & child_rns == set()
@@ -42,7 +42,7 @@ def test_fork_no_pid_check():
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=False) for _ in range(100)}
+            rngs = {_rand.rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -60,7 +60,7 @@ def test_fork_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=True) for _ in range(100)}
+        rns = {_rand.rand64bits() for _ in range(100)}
         child_rns = q.get()
 
         assert rns & child_rns == set()
@@ -68,7 +68,7 @@ def test_fork_pid_check():
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=True) for _ in range(100)}
+            rngs = {_rand.rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
