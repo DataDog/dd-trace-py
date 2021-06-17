@@ -1,7 +1,4 @@
 import logging
-import os
-import subprocess
-import sys
 import time
 
 import mock
@@ -34,11 +31,7 @@ def test_restart():
 
 
 def test_multiple_stop():
-    """Check that the profiler can be stopped twice.
-
-    This is useful since the atexit.unregister call might not exist on Python 2,
-    therefore the profiler can be stopped twice (once per the user, once at exit).
-    """
+    """Check that the profiler can be stopped twice."""
     p = profiler.Profiler()
     p.start()
     p.stop(flush=False)
@@ -132,14 +125,26 @@ def test_tags_api():
         pytest.fail("Unable to find HTTP exporter")
 
 
-@pytest.mark.parametrize(
-    "name_var",
-    ("DD_API_KEY", "DD_PROFILING_API_KEY"),
-)
-def test_env_api_key(name_var, monkeypatch):
-    monkeypatch.setenv(name_var, "foobar")
+def test_env_agentless(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
+    monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
     _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
+
+
+def test_env_agentless_site(monkeypatch):
+    monkeypatch.setenv("DD_SITE", "datadoghq.eu")
+    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    prof = profiler.Profiler()
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/v1/input")
+
+
+def test_env_no_agentless(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_AGENTLESS", "false")
+    monkeypatch.setenv("DD_API_KEY", "foobar")
+    prof = profiler.Profiler()
+    _check_url(prof, "http://localhost:8126", "foobar")
 
 
 def test_url():
@@ -147,7 +152,7 @@ def test_url():
     _check_url(prof, "https://foobar:123")
 
 
-def _check_url(prof, url, api_key=None, endpoint_path="/profiling/v1/input"):
+def _check_url(prof, url, api_key=None, endpoint_path="profiling/v1/input"):
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.api_key == api_key
@@ -210,7 +215,8 @@ def test_env_no_api_key():
 def test_env_endpoint_url(monkeypatch):
     monkeypatch.setenv("DD_AGENT_HOST", "foobar")
     monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
-    prof = profiler.Profiler()
+    t = ddtrace.Tracer()
+    prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:123")
 
 
@@ -218,7 +224,7 @@ def test_env_endpoint_url_no_agent(monkeypatch):
     monkeypatch.setenv("DD_SITE", "datadoghq.eu")
     monkeypatch.setenv("DD_API_KEY", "123")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu", "123", endpoint_path="/v1/input")
+    _check_url(prof, "http://localhost:8126", "123")
 
 
 def test_copy():
@@ -232,22 +238,6 @@ def test_copy():
     assert p.tags == c.tags
 
 
-@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not support Python 2")
-def test_gevent_warning(monkeypatch):
-    # Set a very short timeout to exit fast
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
-    subp = subprocess.Popen(
-        ("python", os.path.join(os.path.dirname(__file__), "wrong_program_gevent.py")),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-    )
-    assert subp.wait() == 0
-    assert subp.stdout.read() == b""
-    assert b"RuntimeWarning: Starting the profiler before using gevent" in subp.stderr.read()
-
-
 def test_snapshot(monkeypatch):
     class SnapCollect(collector.Collector):
         @staticmethod
@@ -257,6 +247,12 @@ def test_snapshot(monkeypatch):
         @staticmethod
         def snapshot():
             return [[event.Event()]]
+
+        def _start_service(self):
+            pass
+
+        def _stop_service(self):
+            pass
 
     all_events = {}
 
@@ -279,8 +275,11 @@ def test_snapshot(monkeypatch):
 
 def test_failed_start_collector(caplog, monkeypatch):
     class ErrCollect(collector.Collector):
-        def start(self):
+        def _start_service(self):
             raise RuntimeError("could not import required module")
+
+        def _stop_service(self):
+            pass
 
         @staticmethod
         def collect():

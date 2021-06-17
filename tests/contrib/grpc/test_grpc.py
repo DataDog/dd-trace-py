@@ -1,8 +1,11 @@
+import threading
 import time
 
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
+import pytest
+import six
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -12,6 +15,7 @@ from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
 from .hello_pb2 import HelloReply
 from .hello_pb2 import HelloRequest
@@ -234,10 +238,38 @@ class GrpcTestCase(TracerTestCase):
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_server_stream(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="test"))
+            responses_iterator.add_done_callback(callback)
             assert len(list(responses_iterator)) == 2
+            callback_called.wait(timeout=1)
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
+        self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
+
+    def test_server_stream_once(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
+            responses_iterator.add_done_callback(callback)
+            response = six.next(responses_iterator)
+            callback_called.wait(timeout=1)
+            assert response.message == "first response"
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
@@ -258,12 +290,20 @@ class GrpcTestCase(TracerTestCase):
         self._check_server_span(server_span, "grpc-server", "SayHelloLast", "client_streaming")
 
     def test_bidi_stream(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"])
 
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            responses = stub.SayHelloRepeatedly(requests_iterator)
-            messages = [r.message for r in responses]
+            responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
+            responses_iterator.add_done_callback(callback)
+            messages = [r.message for r in responses_iterator]
+            callback_called.wait(timeout=1)
             assert list(messages) == ["first;second", "third;fourth", "fifth"]
 
         spans = self.get_spans_with_sync_and_assert(size=2)
@@ -329,6 +369,12 @@ class GrpcTestCase(TracerTestCase):
         assert server_span.get_tag(errors.ERROR_STACK) is None
 
     def test_client_cancellation(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         # unpatch and restart server since we are only testing here caller cancellation
         self._stop_server()
         _unpatch_server()
@@ -341,9 +387,11 @@ class GrpcTestCase(TracerTestCase):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             with self.assertRaises(grpc.RpcError):
                 stub = HelloStub(channel)
-                responses = stub.SayHelloRepeatedly(requests_iterator)
-                responses.cancel()
-                next(responses)
+                responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
+                responses_iterator.add_done_callback(callback)
+                responses_iterator.cancel()
+                next(responses_iterator)
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=1)
         client_span = spans[0]
@@ -402,10 +450,19 @@ class GrpcTestCase(TracerTestCase):
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(errors.ERROR_STACK)
 
     def test_server_stream_exception(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
-                list(stub.SayHelloTwice(HelloRequest(name="exception")))
+                responses_iterator = stub.SayHelloTwice(HelloRequest(name="exception"))
+                responses_iterator.add_done_callback(callback)
+                list(responses_iterator)
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
@@ -510,6 +567,17 @@ class _HelloServicer(HelloServicer):
         if request.name == "exception":
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "exception")
 
+        if request.name == "once":
+            # Mimic behavior of scenario where only one result is expected from
+            # streaming response and the RPC is successfully terminated, as is
+            # the case with grpc_helpers._StreamingResponseIterator in the
+            # Google API Library wraps a _MultiThreadedRendezvous future. An
+            # example of this iterator only called once is in the Google Cloud
+            # Firestore library.
+            # https://github.com/googleapis/python-api-core/blob/f87bccbfda11d2c2d1a2ddb6611c1209e29289d9/google/api_core/grpc_helpers.py#L80-L116
+            # https://github.com/googleapis/python-firestore/blob/e57258c51e4b4aa664cc927454056412756fc7ac/google/cloud/firestore_v1/document.py#L400-L404
+            return
+
         yield HelloReply(message="secondresponse")
 
     def SayHelloLast(self, request_iterator, context):
@@ -572,3 +640,40 @@ def test_handle_response_future_like():
     assert span.duration is None
     _handle_response(span, FutureLike())
     assert span.duration is not None
+
+
+@pytest.fixture()
+def patch_grpc():
+    patch()
+    try:
+        yield
+    finally:
+        unpatch()
+
+
+class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
+    def __init__(self, handler):
+        self._handler = handler
+
+    def service(self, handler_call_details):
+        return grpc.unary_unary_rpc_method_handler(self._handler)
+
+
+@snapshot(ignores=["meta.grpc.port"])
+def test_method_service(patch_grpc):
+    def handler(request, context):
+        return b""
+
+    server = grpc.server(
+        logging_pool.pool(1),
+        options=(("grpc.so_reuseport", 0),),
+    )
+    port = server.add_insecure_port("[::]:0")
+    channel = grpc.insecure_channel("[::]:{}".format(port))
+    server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
+    try:
+        server.start()
+        channel.unary_unary("/Servicer/Handler")(b"request")
+        channel.unary_unary("/pkg.Servicer/Handler")(b"request")
+    finally:
+        server.stop(None)

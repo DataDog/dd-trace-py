@@ -3,11 +3,14 @@ from __future__ import absolute_import
 import os.path
 import sys
 import threading
+from typing import Optional
+from typing import Set
+from typing import Tuple
 
 import attr
 from six.moves import _thread
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
@@ -76,15 +79,16 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
     def _get_trace_and_span_ids(self):
+        # type: (...) -> Tuple[Optional[Set[int]], Optional[Set[int]]]
         """Return current trace and span ids."""
         if self._self_tracer is None:
             return (None, None)
 
-        ctxt = self._self_tracer.get_call_context()
-        return (
-            None if ctxt.trace_id is None else {ctxt.trace_id},
-            None if ctxt.span_id is None else {ctxt.span_id},
-        )
+        ctxt = self._self_tracer.current_trace_context()
+        if ctxt is None:
+            return (None, None)
+
+        return ({ctxt.trace_id}, {ctxt.span_id})
 
     def acquire(self, *args, **kwargs):
         if not self._self_capture_sampler.capture():
@@ -162,17 +166,20 @@ class LockCollector(collector.CaptureSamplerCollector):
     nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     tracer = attr.ib(default=None)
 
-    def start(self):
+    def _start_service(self):  # type: ignore[override]
+        # type: (...) -> None
         """Start collecting `threading.Lock` usage."""
-        super(LockCollector, self).start()
         self.patch()
+        super(LockCollector, self)._start_service()
 
-    def stop(self):
+    def _stop_service(self):  # type: ignore[override]
+        # type: (...) -> None
         """Stop collecting `threading.Lock` usage."""
+        super(LockCollector, self)._stop_service()
         self.unpatch()
-        super(LockCollector, self).stop()
 
     def patch(self):
+        # type: (...) -> None
         """Patch the threading module for tracking lock allocation."""
         # We only patch the lock from the `threading` module.
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
@@ -182,8 +189,9 @@ class LockCollector(collector.CaptureSamplerCollector):
             lock = wrapped(*args, **kwargs)
             return _ProfiledLock(lock, self.recorder, self.tracer, self.nframes, self._capture_sampler)
 
-        threading.Lock = FunctionWrapper(self.original, _allocate_lock)
+        threading.Lock = FunctionWrapper(self.original, _allocate_lock)  # type: ignore[misc]
 
     def unpatch(self):
+        # type: (...) -> None
         """Unpatch the threading module for tracking lock allocation."""
-        threading.Lock = self.original
+        threading.Lock = self.original  # type: ignore[misc]

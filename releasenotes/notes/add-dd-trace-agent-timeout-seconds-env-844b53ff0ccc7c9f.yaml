@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add new ``DD_TRACE_AGENT_TIMEOUT_SECONDS`` to override the default
+    connection timeout used when sending data to the trace agent.
+    The default is ``2.0`` seconds.

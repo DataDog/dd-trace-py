@@ -11,14 +11,14 @@ from typing import TYPE_CHECKING
 
 import six
 
-from .compat import iteritems
-from .compat import pattern_type
 from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
+from .internal.compat import iteritems
+from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .utils.formats import get_env
@@ -124,7 +124,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
     def sample(self, span):
         # type: (Span) -> bool
-        tags = span.tracer.tags  # type: ignore[union-attr]
+        tags = span.tracer.tags if span.tracer else {}
         env = tags[ENV_KEY] if ENV_KEY in tags else None
         key = self._key(span.service, env)
 
@@ -207,8 +207,7 @@ class DatadogSampler(BasePrioritySampler):
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
-        if span._context:
-            span._context.sampling_priority = priority
+        span.context.sampling_priority = priority
         span.sampled = priority is AUTO_KEEP
 
     def sample(self, span):

@@ -1,3 +1,4 @@
+# type: ignore
 from typing import List
 from typing import Tuple
 
@@ -75,15 +76,18 @@ venv = Venv(
     pkgs={
         "mock": latest,
         "pytest": latest,
-        "coverage": latest,
-        "pytest-cov": latest,
+        # "coverage": latest,
+        # "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": latest,
+    },
+    env={
+        "DD_TESTING_RAISE": "1",
     },
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==20.8b1"},
+            pkgs={"black": "==21.4b2"},
             venvs=[
                 Venv(
                     name="fmt",
@@ -97,8 +101,6 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="flake8",
-            command="flake8 {cmdargs} ddtrace/ tests/",
             pkgs={
                 "flake8": ">=3.8,<3.9",
                 "flake8-blind-except": latest,
@@ -109,14 +111,39 @@ venv = Venv(
                 "flake8-isort": latest,
                 "pygments": latest,
             },
+            venvs=[
+                Venv(
+                    name="flake8",
+                    command="flake8 {cmdargs} ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-flake8",
+                    command="flake8 {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             pkgs={
-                "mypy": latest,
+                # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
+                "mypy": "<0.900",
             },
+        ),
+        Venv(
+            pys=["3"],
+            pkgs={"codespell": "==2.1.0"},
+            venvs=[
+                Venv(
+                    name="codespell",
+                    command="codespell ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-codespell",
+                    command="codespell {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
@@ -141,7 +168,7 @@ venv = Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest --no-cov {cmdargs} tests/benchmarks",
+            command="pytest {cmdargs} tests/benchmarks",
         ),
         Venv(
             name="tracer",
@@ -152,6 +179,7 @@ venv = Venv(
                     pkgs={
                         "msgpack": latest,
                         "attrs": ["==19.2.0", latest],
+                        "packaging": ["==17.1", latest],
                     },
                 )
             ],
@@ -163,7 +191,7 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
+            command="pytest {cmdargs} tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
                 "redis": latest,
@@ -179,6 +207,159 @@ venv = Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),
+        ),
+        Venv(
+            name="falcon",
+            command="pytest {cmdargs} --ignore tests/contrib/falcon/test_autopatch.py tests/contrib/falcon",
+            venvs=[
+                # Falcon 1.x
+                # Python 2.7+
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "falcon": [
+                            "~=1.4.1",
+                            "~=1.4",  # latest 1.x
+                        ]
+                    },
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
+                    pys=select_pys(),
+                    pkgs={
+                        "falcon": [
+                            "~=1.4.1",
+                            "~=1.4",  # latest 1.x
+                        ]
+                    },
+                    env={"DD_SERVICE": "my-falcon"},
+                ),
+                # Falcon 2.x
+                # Python 3.5+
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                        ]
+                    },
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                        ]
+                    },
+                    env={"DD_SERVICE": "my-falcon"},
+                ),
+                # Falcon 3.x
+                # Python 3.5+
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=3.0.0",
+                            "~=3.0",  # latest 3.x
+                            latest,
+                        ]
+                    },
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "falcon": [
+                            "~=3.0.0",
+                            "~=3.0",  # latest 3.x
+                            latest,
+                        ]
+                    },
+                    env={"DD_SERVICE": "my-falcon"},
+                ),
+            ],
+        ),
+        Venv(
+            name="celery",
+            command="pytest {cmdargs} tests/contrib/celery",
+            venvs=[
+                # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "celery": "~=3.0",  # most recent 3.x.x release
+                        "redis": "~=2.10.6",
+                    },
+                ),
+                # 4.x celery bumps kombu to 4.4+, which requires redis 3.2 or later, this tests against
+                # older redis with an older kombu, and newer kombu/newer redis.
+                # https://github.com/celery/kombu/blob/3e60e6503a77b9b1a987cf7954659929abac9bac/Changelog#L35
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "celery": [
+                            "~=4.0.2",
+                            "~=4.1.1",
+                        ],
+                        "redis": "~=2.10.6",
+                        "kombu": "~=4.3.0",
+                        "pytest": "~=3.10",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "celery": [
+                            "~=4.0.2",
+                            "~=4.1.1",
+                        ],
+                        "redis": "~=3.5",
+                        "kombu": "~=4.4.0",
+                    },
+                ),
+                # Celery 4.2 is now limited to Kombu 4.3
+                # https://github.com/celery/celery/commit/1571d414461f01ae55be63a03e2adaa94dbcb15d
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "celery": "~=4.2.2",
+                        "redis": "~=2.10.6",
+                        "kombu": "~=4.3.0",
+                    },
+                ),
+                # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "celery": [
+                            "~=4.3.1",
+                            "~=4.4.7",
+                            "~=4.4",  # most recent 4.x
+                        ],
+                        "redis": "~=3.5",
+                        "kombu": "~=4.4",
+                    },
+                ),
+                # Celery 5.x wants Python 3.6+
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    env={
+                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                        "PYTEST_PLUGINS": "celery.contrib.pytest",
+                    },
+                    pkgs={
+                        "celery": [
+                            "~=5.0.5",
+                            "~=5.0",  # most recent 5.x
+                            latest,
+                        ],
+                        "redis": "~=3.5",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="cherrypy",
@@ -273,6 +454,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -285,6 +467,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -297,6 +480,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -431,28 +615,6 @@ venv = Venv(
                 "blinker": latest,
             },
             venvs=[
-                # Flask 0.10, 0.11
-                Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "flask": ["~=0.10.0", "~=0.11.0"],
-                        "pytest": "~=3.0",
-                        "Werkzeug": "<1.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
-                    env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
-                    },
-                    pkgs={
-                        "flask": ["~=0.10.0", "~=0.11.0"],
-                        "pytest": "~=3.0",
-                        "Werkzeug": "<1.0",
-                    },
-                ),
                 # Flask == 0.12.0
                 Venv(
                     pys=select_pys(),
@@ -473,11 +635,15 @@ venv = Venv(
                         "pytest": "~=3.0",
                     },
                 ),
-                # Flask >= 1.0.0
+                # Flask 1.x.x
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask": [
+                            "~=1.0.0",
+                            "~=1.1.0",
+                            "~=1.0",  # latest 1.x
+                        ],
                     },
                 ),
                 Venv(
@@ -488,7 +654,37 @@ venv = Venv(
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
-                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask": [
+                            "~=1.0.0",
+                            "~=1.1.0",
+                            "~=1.0",  # latest 1.x
+                        ],
+                    },
+                ),
+                # Flask >= 2.0.0
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    env={
+                        "DATADOG_SERVICE_NAME": "test.flask.service",
+                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                    },
+                    pkgs={
+                        "flask": [
+                            "~=2.0.0",
+                            "~=2.0",  # latest 2.x
+                            latest,
+                        ],
                     },
                 ),
             ],
@@ -500,6 +696,7 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
+                "werkzeug": "<1.0",
             },
             venvs=[
                 Venv(
@@ -525,12 +722,26 @@ venv = Venv(
             pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
         ),
         Venv(
+            name="mysql",
+            command="pytest {cmdargs} tests/contrib/mysql",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
+                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
                     pys=["3.7"],
@@ -540,6 +751,26 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"psycopg2": ["~=2.8.0", latest]},
                 ),
+            ],
+        ),
+        Venv(
+            name="pymemcache",
+            pys=select_pys(),
+            pkgs={
+                "pymemcache": [
+                    "~=1.4",  # Most recent 1.x release
+                    "~=2.0",  # Most recent 2.x release
+                    "~=3.0.1",
+                    "~=3.1.1",
+                    "~=3.2.0",
+                    "~=3.3.0",
+                    "~=3.4.2",
+                    latest,
+                ]
+            },
+            venvs=[
+                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
+                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
         ),
         Venv(
@@ -584,11 +815,19 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3"),
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": [">=8,<8.0.24"],
+                        "mysql-connector-python": ["<8.0.24"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                        "psycopg2": ["~=2.8.0"],
+                        "mysql-connector-python": latest,
                     },
                 ),
             ],
@@ -683,6 +922,29 @@ venv = Venv(
                         "pytest-asyncio": latest,
                         "requests": latest,
                         "aiofiles": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest",
+            command="pytest {cmdargs} tests/contrib/pytest",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest==4.6 is last to support python 2.7
+                    pkgs={"pytest": ">=4.0,<4.6"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "pytest": [
+                            ">=3.0,<4.0",
+                            ">=4.0,<5.0",
+                            ">=5.0,<6.0",
+                            ">=6.0,<7.0",
+                            latest,
+                        ],
                     },
                 ),
             ],

@@ -6,7 +6,6 @@ import unittest
 import mock
 import pytest
 
-from ddtrace.compat import iteritems
 from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
 from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
@@ -14,6 +13,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
@@ -83,7 +83,7 @@ class RateSamplerTest(unittest.TestCase):
             assert deviation < 0.05, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
-        """ Test that for a given trace ID, the result is always the same """
+        """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
 
         tracer.sampler = RateSampler(0.5)
@@ -465,6 +465,13 @@ def test_datadog_sampler_init():
         assert isinstance(sampler.default_sampler, SamplingRule)
         assert sampler.default_sampler.sample_rate == 0.5
 
+    # DD_TRACE_SAMPLE_RATE=0
+    with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
+        sampler = DatadogSampler()
+        assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+        assert isinstance(sampler.default_sampler, SamplingRule)
+        assert sampler.default_sampler.sample_rate == 0
+
     # Invalid env vars
     with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
         with pytest.raises(ValueError):
@@ -608,6 +615,14 @@ class MatchNoSample(SamplingRule):
             ),
             AUTO_REJECT,
             0.5,
+            None,
+        ),
+        (
+            DatadogSampler(
+                default_sample_rate=0,
+            ),
+            AUTO_REJECT,
+            0,
             None,
         ),
     ],

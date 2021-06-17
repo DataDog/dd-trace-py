@@ -42,5 +42,5 @@ class ExceptionToClientErrorMiddleware(object):
         except Exception:
             response = Response()
             response.status_int = 404
-            response.body = "An error has occured with proper client error handling"
+            response.body = "An error has occurred with proper client error handling"
         return response(environ, start_response)

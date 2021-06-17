@@ -9,13 +9,13 @@ import cassandra.cluster
 # project
 from ddtrace import config
 
-from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
 from ...ext import errors
 from ...ext import net
+from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...utils.deprecation import deprecated
@@ -35,7 +35,7 @@ _connect = cassandra.cluster.Cluster.connect
 
 
 def patch():
-    """ patch will add tracing to the cassandra library. """
+    """patch will add tracing to the cassandra library."""
     setattr(cassandra.cluster.Cluster, "connect", wrapt.FunctionWrapper(_connect, traced_connect))
     Pin(service=SERVICE, app=SERVICE).onto(cassandra.cluster.Cluster)
 
@@ -60,7 +60,7 @@ def _close_span_on_success(result, future):
     try:
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
     except Exception:
-        log.debug("an exception occured while setting tags", exc_info=True)
+        log.debug("an exception occurred while setting tags", exc_info=True)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)

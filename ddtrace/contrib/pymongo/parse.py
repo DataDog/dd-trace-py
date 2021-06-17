@@ -7,8 +7,8 @@ from bson.codec_options import CodecOptions
 from bson.son import SON
 
 # project
-from ...compat import to_unicode
 from ...ext import net as netx
+from ...internal.compat import to_unicode
 from ...internal.logger import get_logger
 
 
@@ -39,7 +39,7 @@ header_struct = struct.Struct("<iiii")
 
 
 class Command(object):
-    """ Command stores information about a pymongo network command, """
+    """Command stores information about a pymongo network command,"""
 
     __slots__ = ["name", "coll", "db", "tags", "metrics", "query"]
 
@@ -56,7 +56,7 @@ class Command(object):
 
 
 def parse_msg(msg_bytes):
-    """Return a command from a binary mongo db message or None if we shoudln't
+    """Return a command from a binary mongo db message or None if we shouldn't
     trace it. The protocol is documented here:
     http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
     """
@@ -136,14 +136,14 @@ def parse_msg(msg_bytes):
 
 
 def parse_query(query):
-    """ Return a command parsed from the given mongo db query. """
+    """Return a command parsed from the given mongo db query."""
     db, coll = None, None
     ns = getattr(query, "ns", None)
     if ns:
         # version < 3.1 stores the full namespace
         db, coll = _split_namespace(ns)
     else:
-        # version >= 3.1 stores the db and coll seperately
+        # version >= 3.1 stores the db and coll separately
         coll = getattr(query, "coll", None)
         db = getattr(query, "db", None)
 
@@ -188,12 +188,12 @@ def parse_spec(spec, db=None):
 
 
 def _cstring(raw):
-    """ Return the first null terminated cstring from the bufffer. """
+    """Return the first null terminated cstring from the buffer."""
     return ctypes.create_string_buffer(raw).value
 
 
 def _split_namespace(ns):
-    """ Return a tuple of (db, collecton) from the 'db.coll' string. """
+    """Return a tuple of (db, collection) from the 'db.coll' string."""
     if ns:
         # NOTE[matt] ns is unicode or bytes depending on the client version
         # so force cast to unicode

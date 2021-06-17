@@ -6,13 +6,14 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .. import trace_utils
 from ... import Pin
 from ... import config
-from ...compat import urlencode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.compat import urlencode
 from ...utils.formats import asbool
 from ...utils.formats import get_env
 from ...utils.importlib import func_name
+from ...utils.version import parse_version
 from ...utils.wrappers import unwrap as _u
 from .wrappers import MOLTEN_ROUTE
 from .wrappers import WrapperComponent
@@ -21,7 +22,7 @@ from .wrappers import WrapperRenderer
 from .wrappers import WrapperRouter
 
 
-MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split(".")))
+MOLTEN_VERSION = parse_version(molten.__version__)
 
 # Configure default configuration
 config._add(
@@ -95,7 +96,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
-            """ Patch respond handling to set metadata """
+            """Patch respond handling to set metadata"""
 
             pin = Pin.get_from(molten)
             if not pin or not pin.enabled():
