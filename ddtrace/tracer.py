@@ -485,22 +485,15 @@ class Tracer(object):
                     self.context_provider.activate(new_ctx)
                 child_of = new_ctx
 
-        parent = None  # type: Optional[Span]
-        if child_of is not None:
-            if isinstance(child_of, Context):
-                context = child_of
-            else:
-                context = child_of.context
-                parent = child_of
+        parent = child_of
+        if isinstance(child_of, Context):
+            context = child_of
+        elif isinstance(child_of, Span):
+            context = child_of.context
         else:
             context = Context()
-
-        if parent:
-            trace_id = parent.trace_id  # type: Optional[int]
-            parent_id = parent.span_id  # type: Optional[int]
-        else:
-            trace_id = context.trace_id
-            parent_id = context.span_id
+        trace_id = context.trace_id
+        parent_id = context.span_id
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -509,7 +502,7 @@ class Tracer(object):
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
         if service is None:
-            if parent:
+            if isinstance(parent, Span):
                 service = parent.service
             else:
                 service = config.service
@@ -530,10 +523,10 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
 
+            span._parent = parent
             # Extra attributes when from a local parent
-            if parent:
+            if isinstance(parent, Span):
                 span.sampled = parent.sampled
-                span._parent = parent
                 span._local_root = parent._local_root
 
             if span._local_root is None:

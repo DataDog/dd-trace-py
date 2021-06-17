@@ -449,7 +449,7 @@ class TracerTestCases(TracerTestCase):
             name="web.worker",
             parent_id=root.span_id,
             trace_id=root.trace_id,
-            _parent=None,
+            _parent=root.context,
             tracer=self.tracer,
         )
 
@@ -1326,8 +1326,13 @@ def test_ctx_distributed(tracer, test_spans):
         assert tracer.current_trace_context().span_id == s2.span_id
         assert s2.parent_id == 1234
 
+    assert tracer.current_trace_context() == ctx
+    with tracer.trace("test3") as s3:
+        assert s3.trace_id == ctx.trace_id
+        assert s3.parent_id == ctx.span_id
+
     trace = test_spans.pop_traces()
-    assert len(trace) == 1
+    assert len(trace) == 2
     assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
     assert s2.meta[ORIGIN_KEY] == "somewhere"
 
@@ -1617,7 +1622,7 @@ def test_fork_manual_span_same_context(tracer):
     if pid == 0:
         child = tracer.start_span("child", child_of=span)
         assert child.parent_id == span.span_id
-        assert child._parent is None
+        assert child._parent == span.context
         # No more current span strong reference to avoid memory leaks.
         assert tracer.current_span() is None
         child.finish()
@@ -1636,7 +1641,7 @@ def test_fork_manual_span_different_contexts(tracer):
     if pid == 0:
         child = tracer.start_span("child", child_of=span)
         assert child.parent_id == span.span_id
-        assert child._parent is None
+        assert child._parent == span.context
         assert tracer.current_span() is None
         child.finish()
         os._exit(12)
@@ -1645,3 +1650,24 @@ def test_fork_manual_span_different_contexts(tracer):
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_multithreaded_context(tracer, test_spans):
+    def _target(ctx):
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("span2"):
+            pass
+        with tracer.trace("span3"):
+            pass
+
+    with tracer.trace("span1") as span:
+        t = threading.Thread(target=_target, args=(span.context,))
+        t.start()
+        t.join()
+
+    spans = test_spans.pop()
+    assert len(spans) == 3
+    s1, s2, s3 = spans
+    assert s2.parent_id == s1.span_id
+    assert s3.parent_id == s1.span_id
+    assert s1.trace_id == s2.trace_id == s3.trace_id

@@ -45,11 +45,18 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         return self.active()
 
     def _update_active(self, span):
-        # type: (Span) -> Optional[Span]
+        # type: (Span) -> Optional[Union[Context, Span]]
         if span.finished:
-            new_active = span  # type: Optional[Span]
-            while new_active and new_active.finished:
-                new_active = new_active._parent
+            new_active = span  # type: Optional[Union[Context, Span]]
+            while new_active:
+                new_active = getattr(new_active, "_parent", None)
+                if isinstance(new_active, Span):
+                    if not new_active.finished:
+                        break
+                elif isinstance(new_active, Context):
+                    break
+                else:
+                    break
             self.activate(new_active)
             return new_active
         return span
