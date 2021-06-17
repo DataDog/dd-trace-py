@@ -12,7 +12,7 @@ if [[ -z "${DDTRACE_VERSION}" ]]; then
         pip install ddtrace
     fi
 else
-    pip install ${DDTRACE_VERSION}
+    pip install git+https://github.com/Datadog/dd-trace-py@${DDTRACE_VERSION}
 fi
 
 # Run migrations in entrypoint

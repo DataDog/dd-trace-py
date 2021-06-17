@@ -40,6 +40,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # other dependencies
   procps \
   curl \
+  # dependencies for installing Python packages from git
+  build-essential \
+  git \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
