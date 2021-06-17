@@ -60,7 +60,7 @@ def _close_span_on_success(result, future):
     try:
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
     except Exception:
-        log.debug("an exception occured while setting tags", exc_info=True)
+        log.debug("an exception occurred while setting tags", exc_info=True)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)
