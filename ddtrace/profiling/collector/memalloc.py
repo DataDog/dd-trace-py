@@ -94,23 +94,27 @@ class MemoryCollector(collector.PeriodicCollector):
     _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
     max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
-    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
+    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
 
-    def _start(self):
+    def _start_service(self):  # type: ignore[override]
+        # type: (...) -> None
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
         _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
-        super(MemoryCollector, self)._start()
 
-    def stop(self):
+        super(MemoryCollector, self)._start_service()
+
+    def _stop_service(self):  # type: ignore[override]
+        # type: (...) -> None
+        super(MemoryCollector, self)._stop_service()
+
         if _memalloc is not None:
             try:
                 _memalloc.stop()
             except RuntimeError:
                 pass
-            super(MemoryCollector, self).stop()
 
     def _get_thread_id_ignore_set(self):
         # type: () -> typing.Set[int]

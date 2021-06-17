@@ -136,11 +136,13 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         query = "set_many key"
         if PYMEMCACHE_VERSION[0] == 1:
             assert result is True
-        else:
+        elif PYMEMCACHE_VERSION < (3, 4, 4):
             assert result == []
             if isinstance(client, pymemcache.client.hash.HashClient):
                 resource = "set"
                 query = "set key"
+        else:
+            assert result == []
 
         self.check_spans(1, [resource], [query])
 
@@ -153,11 +155,13 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         query = "set_many key"
         if PYMEMCACHE_VERSION[0] == 1:
             assert result is True
-        else:
+        elif PYMEMCACHE_VERSION < (3, 4, 4):
             assert result == []
             if isinstance(client, pymemcache.client.hash.HashClient):
                 resource = "set"
                 query = "set key"
+        else:
+            assert result == []
 
         self.check_spans(1, [resource], [query])
 

@@ -9,6 +9,8 @@ import attr
 from ddtrace.internal import nogevent
 from ddtrace.internal import service
 
+from . import forksafe
+
 
 class PeriodicThread(threading.Thread):
     """Periodic thread.
@@ -39,7 +41,7 @@ class PeriodicThread(threading.Thread):
         self._target = target
         self._on_shutdown = on_shutdown
         self.interval = interval
-        self.quit = threading.Event()
+        self.quit = forksafe.Event()
         self.daemon = True
 
     def stop(self):
@@ -168,7 +170,7 @@ def PeriodicRealThreadClass():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    _interval = attr.ib()
+    _interval = attr.ib(type=float)
     _worker = attr.ib(default=None, init=False, repr=False)
 
     _real_thread = False
@@ -176,17 +178,25 @@ class PeriodicService(service.Service):
 
     @property
     def interval(self):
+        # type: (...) -> float
         return self._interval
 
     @interval.setter
-    def interval(self, value):
+    def interval(
+        self, value  # type: float
+    ):
+        # type: (...) -> None
         self._interval = value
         # Update the interval of the PeriodicThread based on ours
         if self._worker:
             self._worker.interval = value
 
-    def _start(self):
-        # type: () -> None
+    def _start_service(
+        self,
+        *args,  # type: typing.Any
+        **kwargs  # type: typing.Any
+    ):
+        # type: (...) -> None
         """Start the periodic service."""
         periodic_thread_class = PeriodicRealThreadClass() if self._real_thread else PeriodicThread
         self._worker = periodic_thread_class(
@@ -197,15 +207,22 @@ class PeriodicService(service.Service):
         )
         self._worker.start()
 
-    def join(self, timeout=None):
+    def _stop_service(
+        self,
+        *args,  # type: typing.Any
+        **kwargs  # type: typing.Any
+    ):
+        # type: (...) -> None
+        """Stop the periodic collector."""
+        self._worker.stop()
+        super(PeriodicService, self)._stop_service(*args, **kwargs)
+
+    def join(
+        self, timeout=None  # type: typing.Optional[float]
+    ):
+        # type: (...) -> None
         if self._worker:
             self._worker.join(timeout)
-
-    def stop(self):
-        """Stop the periodic collector."""
-        if self._worker:
-            self._worker.stop()
-        super(PeriodicService, self).stop()
 
     @staticmethod
     def on_shutdown():

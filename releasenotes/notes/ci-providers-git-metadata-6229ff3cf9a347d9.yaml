@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The pytest plugin now includes git metadata tags including author name and email as well as commit message
+    from CI provider environments.
