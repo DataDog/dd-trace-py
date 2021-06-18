@@ -169,6 +169,12 @@ venv = Venv(
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --benchmark-warmup=on {cmdargs} tests/benchmarks",
+            venvs=[
+                Venv(
+                    name="benchmarks-nogc",
+                    command="pytest --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
+                ),
+            ],
         ),
         Venv(
             name="tracer",
