@@ -1,14 +1,10 @@
 import asyncio
 
-from ...provider import DefaultContextProvider
+from ...provider import BaseContextProvider
 from ...span import Span
 
 
-# Task attribute used to set/get the context
-CONTEXT_ATTR = "__datadog_context"
-
-
-class AsyncioContextProvider(DefaultContextProvider):
+class AsyncioContextProvider(BaseContextProvider):
     """Manages the active context for asyncio execution. Framework
     instrumentation that is built on top of the ``asyncio`` library, should
     use this provider when contextvars are not available (Python versions
@@ -18,6 +14,9 @@ class AsyncioContextProvider(DefaultContextProvider):
     it uses a thread-local storage when the ``Context`` is propagated to
     a different thread, than the one that is running the async loop.
     """
+
+    # Task attribute used to set/get the context
+    _CONTEXT_ATTR = "__datadog_context"
 
     def activate(self, context, loop=None):
         """Sets the scoped ``Context`` for the current running ``Task``."""
@@ -29,7 +28,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
         if task:
-            setattr(task, CONTEXT_ATTR, context)
+            setattr(task, self._CONTEXT_ATTR, context)
         return context
 
     def _get_loop(self, loop=None):
@@ -55,7 +54,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         if task is None:
             return False
 
-        ctx = getattr(task, CONTEXT_ATTR, None)
+        ctx = getattr(task, self._CONTEXT_ATTR, None)
         return ctx is not None
 
     def active(self, loop=None):
@@ -68,7 +67,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         task = asyncio.Task.current_task(loop=loop)
         if task is None:
             return None
-        ctx = getattr(task, CONTEXT_ATTR, None)
+        ctx = getattr(task, self._CONTEXT_ATTR, None)
         if isinstance(ctx, Span):
             return self._update_active(ctx)
         return ctx

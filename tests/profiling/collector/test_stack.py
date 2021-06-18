@@ -137,7 +137,9 @@ def test_max_time_usage_over():
 
 
 def test_ignore_profiler_single():
-    r, c, thread_id = test_collector._test_collector_collect(stack.StackCollector, stack.StackSampleEvent)
+    r, c, thread_id = test_collector._test_collector_collect(
+        stack.StackCollector, stack.StackSampleEvent, ignore_profiler=True
+    )
     events = r.events[stack.StackSampleEvent]
     assert thread_id not in {e.thread_id for e in events}
 
@@ -210,7 +212,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=True, tracer=None)",
+        "nframes=64, ignore_profiler=False, tracer=None)",
     )
 
 
@@ -340,7 +342,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 334, "test_exception_collection")]
+    assert e.frames == [(__file__, 336, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
