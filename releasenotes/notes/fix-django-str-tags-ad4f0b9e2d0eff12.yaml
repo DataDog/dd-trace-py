@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixed the handling of some Django tags that caused type errors.
+    Fixed the handling of the Django template name tag causing type errors.
