@@ -32,7 +32,11 @@ def ddtrace_after_in_child():
 
 def register(after_in_child):
     # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
-    """Register a function to be called after fork in the child process."""
+    """Register a function to be called after fork in the child process.
+
+    Note that ``after_in_child`` will be called in all child processes across
+    multiple forks unless it is unregistered.
+    """
     _registry.append(after_in_child)
     return after_in_child
 
