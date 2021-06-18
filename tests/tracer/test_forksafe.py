@@ -38,22 +38,13 @@ def test_registry():
     def after_in_child_1():
         state.append(1)
 
-    def f1():
-        pass
-
     @forksafe.register
     def after_in_child_2():
         state.append(2)
 
-    def f2():
-        pass
-
     @forksafe.register
     def after_in_child_3():
         state.append(3)
-
-    def f3():
-        pass
 
     forksafe.ddtrace_after_in_child()
     assert state == [1, 2, 3]
@@ -266,3 +257,31 @@ def test_event_fork():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_double_fork():
+    state = []
+
+    @forksafe.register
+    def fn():
+        state.append(1)
+
+    child = os.fork()
+
+    if child == 0:
+        assert state == [1]
+        child2 = os.fork()
+
+        if child2 == 0:
+            assert state == [1, 1]
+            os._exit(42)
+
+        pid, status = os.waitpid(child2, 0)
+        exit_code = os.WEXITSTATUS(status)
+        assert exit_code == 42
+        os._exit(42)
+
+    assert state == []
+    pid, status = os.waitpid(child, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
