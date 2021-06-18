@@ -245,6 +245,7 @@ def extract_circle_ci(env):
         PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
         PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
         JOB_URL: env.get("CIRCLE_BUILD_URL"),
+        JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
         WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
     }
