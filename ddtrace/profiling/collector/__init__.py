@@ -1,9 +1,13 @@
 # -*- encoding: utf-8 -*-
+import typing
+
 import attr
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.utils import attr as attr_utils
+
+from .. import event
 
 
 class CollectorError(Exception):
@@ -33,15 +37,16 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def periodic(self):
+        # type: (...) -> None
         """Collect events and push them into the recorder."""
         for events in self.collect():
             self.recorder.push_events(events)
 
-    @staticmethod
-    def collect():
+    def collect(self):
+        # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
         """Collect the actual data.
 
-        :return: A list of sample list to push in the recorder.
+        :return: A list of event list to push in the recorder.
         """
         raise NotImplementedError
 
