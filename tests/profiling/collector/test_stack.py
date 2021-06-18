@@ -3,13 +3,14 @@ import os
 import threading
 import time
 import timeit
+import typing
 
 import pytest
 import six
 
 from ddtrace.internal import nogevent
-from ddtrace.internal import service
 from ddtrace.profiling import collector
+from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _threading
@@ -154,34 +155,16 @@ def test_no_ignore_profiler_single():
 
 class CollectorTest(collector.PeriodicCollector):
     def collect(self):
-        _fib(20)
+        # type: (...) -> typing.Iterable[typing.Iterable[event_mod.Event]]
+        _fib(22)
         return []
 
 
-def test_ignore_profiler_gevent_task(profiler):
-    # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
-    # sure to catch it with the StackProfiler and that it's ignored.
-    c = CollectorTest(profiler._profiler._recorder, interval=0.00001)
-    c.start()
-    collector_thread_ids = {
-        col._worker.ident
-        for col in profiler._profiler._collectors
-        if (isinstance(col, collector.PeriodicCollector) and col.status == service.ServiceStatus.RUNNING)
-    }
-    collector_thread_ids.add(c._worker.ident)
-    while True:
-        events = profiler._profiler._recorder.reset()
-        if collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]}):
-            break
-        # Give some time for gevent to switch greenlets
-        time.sleep(0.1)
-    c.stop()
-
-
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
-def test_not_ignore_profiler_gevent_task(monkeypatch):
+@pytest.mark.parametrize("ignore", (True, False))
+def test_ignore_profiler_gevent_task(monkeypatch, ignore):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
-    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", str(ignore))
     p = profiler.Profiler()
     p.start()
     # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
@@ -191,7 +174,8 @@ def test_not_ignore_profiler_gevent_task(monkeypatch):
     # Wait forever and stop when we finally find an event with our collector task id
     while True:
         events = p._profiler._recorder.reset()
-        if c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}:
+        ids = {e.task_id for e in events[stack.StackSampleEvent]}
+        if (c._worker.ident in ids) != ignore:
             break
         # Give some time for gevent to switch greenlets
         time.sleep(0.1)
@@ -342,7 +326,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 336, "test_exception_collection")]
+    assert e.frames == [(__file__, 320, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
