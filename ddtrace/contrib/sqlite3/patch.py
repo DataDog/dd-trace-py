@@ -3,7 +3,6 @@ import sqlite3
 import sqlite3.dbapi2
 
 from ddtrace import config
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 # project
@@ -23,7 +22,6 @@ config._add(
     dict(
         _default_service="sqlite",
         trace_fetch_methods=asbool(get_env("sqlite", "trace_fetch_methods", default=False)),
-        _deprecated_name="dbapi2",
     ),
 )
 
@@ -71,15 +69,7 @@ class TracedSQLite(TracedConnection):
     def __init__(self, conn, pin=None, cursor_cls=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
-            cursor_cls = TracedSQLiteCursor
-            if config.sqlite.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
-                if config.dbapi2.trace_fetch_methods:
-                    debtcollector.deprecate(
-                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
-                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
-                        removal_version="0.50.0",
-                    )
-                cursor_cls = TracedSQLiteFetchCursor
+            cursor_cls = TracedSQLiteFetchCursor if config.sqlite.trace_fetch_methods else TracedSQLiteCursor
 
             super(TracedSQLite, self).__init__(conn, pin=pin, cfg=config.sqlite, cursor_cls=cursor_cls)
 
