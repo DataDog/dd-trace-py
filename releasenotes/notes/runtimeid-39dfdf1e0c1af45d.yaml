@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix runtime id tag not being set on distributed traces.
