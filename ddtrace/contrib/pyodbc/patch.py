@@ -15,7 +15,6 @@ config._add(
     dict(
         _default_service="pyodbc",
         trace_fetch_methods=asbool(get_env("pyodbc", "trace_fetch_methods", default=False)),
-        _deprecated_name="dbapi2",
     ),
 )
 
