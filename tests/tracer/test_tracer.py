@@ -916,6 +916,7 @@ def test_tracer_runtime_tags_cross_execution(tracer):
     with tracer.trace("span") as span:
         pass
     assert span.get_tag("runtime-id") is not None
+    assert span.get_metric(system.PID) is not None
 
 
 def test_start_span_hooks():

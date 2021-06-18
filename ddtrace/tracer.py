@@ -550,7 +550,6 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span
-            span.metrics[system.PID] = self._pid or getpid()
             if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
             span.sampled = self.sampler.sample(span)
@@ -582,6 +581,7 @@ class Tracer(object):
 
         if not span._parent:
             span.meta["runtime-id"] = get_runtime_id()
+            span.metrics[system.PID] = self._pid
 
         # Apply default global tags.
         if self.tags:
