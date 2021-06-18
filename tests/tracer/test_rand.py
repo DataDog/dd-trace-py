@@ -13,7 +13,6 @@ import threading
 from ddtrace import Span
 from ddtrace import tracer
 from ddtrace.internal import _rand
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import Queue
 
 
@@ -35,22 +34,15 @@ def test_fork_no_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=False) for _ in range(100)}
+        rns = {_rand.rand64bits() for _ in range(100)}
         child_rns = q.get()
 
-        if PYTHON_VERSION_INFO >= (3, 7):
-            # Python 3.7+ have fork hooks which should be used
-            # Hence we should not get any collisions
-            assert rns & child_rns == set()
-        else:
-            # Python < 3.7 we don't have any mechanism (other than the pid
-            # check) to reseed on so we expect there to be collisions.
-            assert rns == child_rns
+        assert rns & child_rns == set()
 
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=False) for _ in range(100)}
+            rngs = {_rand.rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -68,22 +60,15 @@ def test_fork_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=True) for _ in range(100)}
+        rns = {_rand.rand64bits() for _ in range(100)}
         child_rns = q.get()
 
-        if PYTHON_VERSION_INFO >= (3, 7):
-            # Python 3.7+ have fork hooks which should be used
-            # Hence we should not get any collisions
-            assert rns & child_rns == set()
-        else:
-            # Python < 3.7 we have the pid check so there also
-            # should not be any collisions.
-            assert rns & child_rns == set()
+        assert rns & child_rns == set()
 
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=True) for _ in range(100)}
+            rngs = {_rand.rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the

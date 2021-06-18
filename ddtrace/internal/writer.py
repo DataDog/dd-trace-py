@@ -3,7 +3,6 @@ from collections import defaultdict
 from json import loads
 import logging
 import sys
-import threading
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -205,7 +204,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # to flush dynamically.
         buffer_size=8 << 20,  # type: int
         max_payload_size=8 << 20,  # type: int
-        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -226,9 +225,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._timeout = timeout
 
         if priority_sampler is not None:
-            self._endpoint = "/v0.4/traces"
+            self._endpoint = "v0.4/traces"
         else:
-            self._endpoint = "/v0.3/traces"
+            self._endpoint = "v0.3/traces"
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -243,7 +242,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             max_item_size=self._max_payload_size,
         )
         self._headers.update({"Content-Type": self._encoder.content_type})
-        self._started_lock = threading.Lock()
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()
@@ -315,8 +313,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 conn.close()
 
     def _downgrade(self, payload, response):
-        if self._endpoint == "/v0.4/traces":
-            self._endpoint = "/v0.3/traces"
+        if self._endpoint == "v0.4/traces":
+            self._endpoint = "v0.3/traces"
             return payload
         raise ValueError
 
@@ -372,16 +370,15 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
-        # Start the AgentWriter on first write.
-        # Starting it earlier might be an issue with gevent, see:
-        # https://github.com/DataDog/dd-trace-py/issues/1192
         if spans is None:
             return
 
         if self._sync_mode is False:
+            # Start the AgentWriter on first write.
             try:
-                self.start()
-            except service.ServiceAlreadyRunning:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+            except service.ServiceStatusError:
                 pass
 
         self._metrics_dist("writer.accepted.traces")
@@ -455,10 +452,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
+    def _stop_service(  # type: ignore[override]
+        self,
+        timeout=None,  # type: Optional[float]
+    ):
+        # type: (...) -> None
         # FIXME: don't join() on stop(), let the caller handle this
-        super(AgentWriter, self).stop()
+        super(AgentWriter, self)._stop_service()
         self.join(timeout=timeout)
 
     on_shutdown = periodic

@@ -1,9 +1,12 @@
 # -*- encoding: utf-8 -*-
+import os
+
 import pytest
 
 from ddtrace.profiling import event
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
+from tests.utils import call_program
 
 
 def test_defaultdictkey():
@@ -49,3 +52,8 @@ def test_limit():
     )
     assert r.events[stack.StackExceptionSampleEvent].maxlen == 12
     assert r.events[stack.StackSampleEvent].maxlen == 24
+
+
+def test_fork():
+    stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "recorder_fork.py"))
+    assert exitcode == 0, (stdout, stderr)

@@ -8,6 +8,7 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
+import warnings
 
 import mock
 import pytest
@@ -330,7 +331,7 @@ class TracerTestCases(TracerTestCase):
     def test_global_context(self):
         # the tracer uses a global thread-local Context
         span = self.trace("fake_span")
-        ctx = self.tracer.get_call_context()
+        ctx = self.tracer.current_trace_context()
         assert ctx.trace_id == span.trace_id
         assert ctx.span_id == span.span_id
 
@@ -350,10 +351,8 @@ class TracerTestCases(TracerTestCase):
         self.assertIsNone(self.tracer.current_root_span())
 
     def test_default_provider_get(self):
-        # Tracer Context Provider must return a Context object
-        # even if empty
         ctx = self.tracer.context_provider.active()
-        assert isinstance(ctx, Context)
+        assert ctx is None
 
     def test_default_provider_set(self):
         # The Context Provider can set the current active Context;
@@ -450,7 +449,7 @@ class TracerTestCases(TracerTestCase):
             name="web.worker",
             parent_id=root.span_id,
             trace_id=root.trace_id,
-            _parent=root,
+            _parent=None,
             tracer=self.tracer,
         )
 
@@ -514,14 +513,28 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    t.writer = mock.Mock(wraps=t.writer)
+    writer = mock.Mock(wraps=t.writer)
+    t.writer = writer
 
     # The writer thread does not start until the first write.
     t.shutdown()
     assert t.writer.stop.called
     assert not t.writer.join.called
 
-    # Do a write to start the writer.
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+
+        # Do a write to start the writer.
+        with t.trace("something"):
+            pass
+
+        (w,) = ws
+        assert issubclass(w.category, DeprecationWarning)
+        assert (
+            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
+            "A new tracer should be created for generating new traces in version '1.0.0'"
+        )
+
     with t.trace("something"):
         pass
 
@@ -1094,12 +1107,12 @@ def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
     s1.finish()
-    with mock.patch("ddtrace.context.log") as log:
-        s2.finish()
+    tracer.log = mock.MagicMock(wraps=tracer.log)
+    s2.finish()
     calls = [
         mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),
     ]
-    log.debug.assert_has_calls(calls)
+    tracer.log.debug.assert_has_calls(calls)
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
@@ -1205,29 +1218,29 @@ def test_ctx(tracer, test_spans):
     with tracer.trace("test") as s1:
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
-        assert tracer.get_call_context().trace_id == s1.trace_id
-        assert tracer.get_call_context().span_id == s1.span_id
+        assert tracer.current_trace_context().trace_id == s1.trace_id
+        assert tracer.current_trace_context().span_id == s1.span_id
 
         with tracer.trace("test2") as s2:
             assert tracer.current_span() == s2
             assert tracer.current_root_span() == s1
-            assert tracer.get_call_context().trace_id == s1.trace_id
-            assert tracer.get_call_context().span_id == s2.span_id
+            assert tracer.current_trace_context().trace_id == s1.trace_id
+            assert tracer.current_trace_context().span_id == s2.span_id
 
             with tracer.trace("test3") as s3:
                 assert tracer.current_span() == s3
                 assert tracer.current_root_span() == s1
-                assert tracer.get_call_context().trace_id == s1.trace_id
-                assert tracer.get_call_context().span_id == s3.span_id
+                assert tracer.current_trace_context().trace_id == s1.trace_id
+                assert tracer.current_trace_context().span_id == s3.span_id
 
-            assert tracer.get_call_context().trace_id == s1.trace_id
-            assert tracer.get_call_context().span_id == s2.span_id
+            assert tracer.current_trace_context().trace_id == s1.trace_id
+            assert tracer.current_trace_context().span_id == s2.span_id
 
         with tracer.trace("test4") as s4:
             assert tracer.current_span() == s4
             assert tracer.current_root_span() == s1
-            assert tracer.get_call_context().trace_id == s1.trace_id
-            assert tracer.get_call_context().span_id == s4.span_id
+            assert tracer.current_trace_context().trace_id == s1.trace_id
+            assert tracer.current_trace_context().span_id == s4.span_id
 
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
@@ -1289,8 +1302,8 @@ def test_ctx_distributed(tracer, test_spans):
     with tracer.trace("test") as s1:
         assert tracer.current_span() == s1
         assert tracer.current_root_span() == s1
-        assert tracer.get_call_context().trace_id == s1.trace_id
-        assert tracer.get_call_context().span_id == s1.span_id
+        assert tracer.current_trace_context().trace_id == s1.trace_id
+        assert tracer.current_trace_context().span_id == s1.span_id
         assert s1.parent_id is None
 
     trace = test_spans.pop_traces()
@@ -1300,12 +1313,17 @@ def test_ctx_distributed(tracer, test_spans):
     ctx = Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
     tracer.context_provider.activate(ctx)
     assert tracer.current_span() is None
+    assert (
+        tracer.current_trace_context()
+        == tracer.context_provider.active()
+        == Context(span_id=1234, trace_id=4321, sampling_priority=2, dd_origin="somewhere")
+    )
 
     with tracer.trace("test2") as s2:
         assert tracer.current_span() == s2
         assert tracer.current_root_span() == s2
-        assert tracer.get_call_context().trace_id == s2.trace_id == 4321
-        assert tracer.get_call_context().span_id == s2.span_id
+        assert tracer.current_trace_context().trace_id == s2.trace_id == 4321
+        assert tracer.current_trace_context().span_id == s2.span_id
         assert s2.parent_id == 1234
 
     trace = test_spans.pop_traces()
@@ -1397,6 +1415,36 @@ def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     child = spans[1]
     assert root.get_tag(HOSTNAME_KEY) is None
     assert child.get_tag(HOSTNAME_KEY) is None
+
+
+def test_non_active_span(tracer, test_spans):
+    with tracer.start_span("test", activate=False):
+        assert tracer.current_span() is None
+        assert tracer.current_root_span() is None
+    assert tracer.current_span() is None
+    assert tracer.current_root_span() is None
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+
+    with tracer.start_span("test1", activate=False):
+        with tracer.start_span("test2", activate=False):
+            assert tracer.current_span() is None
+            assert tracer.current_root_span() is None
+    assert tracer.current_span() is None
+    assert tracer.current_root_span() is None
+    traces = test_spans.pop_traces()
+    assert len(traces) == 2
+
+    with tracer.start_span("active", activate=True) as active:
+        with tracer.start_span("non active", child_of=active, activate=False):
+            assert tracer.context_provider.active() is active
+            assert tracer.current_root_span() is active
+        assert tracer.context_provider.active() is active
+        assert tracer.current_root_span() is active
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 2
 
 
 def test_service_mapping():
@@ -1514,3 +1562,86 @@ def test_spans_sampled_all(tracer, test_spans):
 
     spans = test_spans.pop()
     assert len(spans) == 3
+
+
+def test_closing_other_context_spans_single_span(tracer, test_spans):
+    """
+    Ensure that a span created in one thread can be finished in another without
+    breaking the active span management.
+    """
+
+    def _target(span):
+        assert tracer.current_span() is None
+        span.finish()
+        assert tracer.current_span() is None
+
+    span = tracer.trace("main thread")
+    assert tracer.current_span() is span
+    t1 = threading.Thread(target=_target, args=(span,))
+    t1.start()
+    t1.join()
+    assert tracer.current_span() is None
+
+    spans = test_spans.pop()
+    assert len(spans) == 1
+
+
+def test_closing_other_context_spans_multi_spans(tracer, test_spans):
+    """
+    Ensure that spans created in one thread can be finished in another without
+    breaking the active span management.
+    """
+
+    def _target(span):
+        assert tracer.current_span() is None
+        span.finish()
+        assert tracer.current_span() is None
+
+    root = tracer.trace("root span")
+    span = tracer.trace("child span")
+    assert tracer.current_span() is span
+    t1 = threading.Thread(target=_target, args=(span,))
+    t1.start()
+    t1.join()
+    assert tracer.current_span() is root
+    root.finish()
+
+    spans = test_spans.pop()
+    assert len(spans) == 2
+
+
+def test_fork_manual_span_same_context(tracer):
+    span = tracer.trace("test")
+    pid = os.fork()
+
+    if pid == 0:
+        child = tracer.start_span("child", child_of=span)
+        assert child.parent_id == span.span_id
+        assert child._parent is None
+        # No more current span strong reference to avoid memory leaks.
+        assert tracer.current_span() is None
+        child.finish()
+        os._exit(12)
+
+    span.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
+def test_fork_manual_span_different_contexts(tracer):
+    span = tracer.start_span("test")
+    pid = os.fork()
+
+    if pid == 0:
+        child = tracer.start_span("child", child_of=span)
+        assert child.parent_id == span.span_id
+        assert child._parent is None
+        assert tracer.current_span() is None
+        child.finish()
+        os._exit(12)
+
+    span.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12

@@ -144,8 +144,8 @@ class TestGeventTracer(TracerTestCase):
         worker_2 = spans[2]
         # check sampling priority
         assert parent_span.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP
-        assert worker_1.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP
-        assert worker_2.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP
+        assert worker_1.get_metric(SAMPLING_PRIORITY_KEY) is None
+        assert worker_2.get_metric(SAMPLING_PRIORITY_KEY) is None
 
     def test_trace_spawn_multiple_greenlets_multiple_traces(self):
         # multiple greenlets must be part of the same trace

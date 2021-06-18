@@ -11,7 +11,6 @@ from six.moves import BaseHTTPServer
 from six.moves import socketserver
 
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
-from ddtrace.internal import service
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
@@ -345,7 +344,12 @@ class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 class _APIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+
+    expected_path_prefix = None
+
     def do_PUT(self):
+        if self.expected_path_prefix is not None:
+            assert self.path.startswith(self.expected_path_prefix)
         self.send_error(200, "OK")
 
 
@@ -361,7 +365,8 @@ class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
 
 
 _HOST = "0.0.0.0"
-_TIMEOUT_PORT = 8743
+_PORT = 8743
+_TIMEOUT_PORT = _PORT + 1
 _RESET_PORT = _TIMEOUT_PORT + 1
 
 
@@ -382,7 +387,7 @@ def _make_uds_server(path, request_handler):
     while resp != 200:
         conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
         try:
-            conn.request("PUT", path)
+            conn.request("PUT", "/")
             resp = get_connection_response(conn).status
         finally:
             conn.close()
@@ -394,10 +399,13 @@ def _make_uds_server(path, request_handler):
 @pytest.fixture
 def endpoint_uds_server():
     socket_name = tempfile.mktemp()
-    server, thread = _make_uds_server(socket_name, _APIEndpointRequestHandlerTest)
+    handler = _APIEndpointRequestHandlerTest
+    server, thread = _make_uds_server(socket_name, handler)
+    handler.expected_path_prefix = "/v0."
     try:
         yield server
     finally:
+        handler.expected_path_prefix = None
         server.shutdown()
         thread.join()
         os.unlink(socket_name)
@@ -432,6 +440,42 @@ def endpoint_test_reset_server():
         thread.join()
 
 
+@pytest.fixture
+def endpoint_assert_path():
+    handler = _APIEndpointRequestHandlerTest
+    server, thread = _make_server(_PORT, handler)
+
+    def configure(expected_path_prefix=None):
+        handler.expected_path_prefix = expected_path_prefix
+        return thread
+
+    try:
+        yield configure
+    finally:
+        handler.expected_path_prefix = None
+        server.shutdown()
+        thread.join()
+
+
+def test_agent_url_path(endpoint_assert_path):
+    # test without base path
+    endpoint_assert_path("/v0.")
+    writer = AgentWriter(agent_url="http://%s:%s/" % (_HOST, _PORT))
+    writer._encoder.put([Span(None, "foobar")])
+    writer.flush_queue(raise_exc=True)
+
+    # test without base path nor trailing slash
+    writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _PORT))
+    writer._encoder.put([Span(None, "foobar")])
+    writer.flush_queue(raise_exc=True)
+
+    # test with a base path
+    endpoint_assert_path("/test/v0.")
+    writer = AgentWriter(agent_url="http://%s:%s/test/" % (_HOST, _PORT))
+    writer._encoder.put([Span(None, "foobar")])
+    writer.flush_queue(raise_exc=True)
+
+
 def test_flush_connection_timeout_connect():
     writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, 2019))
     if PY3:
@@ -439,13 +483,15 @@ def test_flush_connection_timeout_connect():
     else:
         exc_type = socket.error
     with pytest.raises(exc_type):
-        writer._send_payload("foobar", 12)
+        writer._encoder.put([Span(None, "foobar")])
+        writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
     writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
-        writer._send_payload("foobar", 12)
+        writer._encoder.put([Span(None, "foobar")])
+        writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_reset(endpoint_test_reset_server):
@@ -455,12 +501,14 @@ def test_flush_connection_reset(endpoint_test_reset_server):
     else:
         exc_types = (httplib.BadStatusLine,)
     with pytest.raises(exc_types):
-        writer._send_payload("foobar", 12)
+        writer._encoder.put([Span(None, "foobar")])
+        writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_uds(endpoint_uds_server):
     writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
-    writer._send_payload("foobar", 12)
+    writer._encoder.put([Span(None, "foobar")])
+    writer.flush_queue(raise_exc=True)
 
 
 def test_flush_queue_raise():
@@ -490,14 +538,3 @@ def test_racing_start():
         t.join()
 
     assert len(writer._encoder) == 100
-
-
-def test_double_stop():
-    # Ensure double stopping doesn't result in an exception.
-    writer = AgentWriter(agent_url="http://dne:1234")
-    writer.write([])
-    assert writer.status == service.ServiceStatus.RUNNING
-    writer.stop()
-    assert writer.status == service.ServiceStatus.STOPPED
-    writer.stop()
-    assert writer.status == service.ServiceStatus.STOPPED

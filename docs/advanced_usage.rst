@@ -23,6 +23,174 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+Context
+-------
+
+The :class:`ddtrace.context.Context` object is used to represent the state of
+a trace at a point in time. This state includes the trace id, active span id,
+distributed sampling decision and more. It is used to propagate the trace
+across execution boundaries like processes
+(:ref:`Distributed Tracing <disttracing>`), threads and tasks.
+
+To retrieve the context of the currently active trace use::
+
+        context = tracer.current_trace_context()
+
+Note that if there is no active trace then ``None`` will be returned.
+
+
+Tracing Context Management
+--------------------------
+
+In ``ddtrace`` "context management" is the management of which
+:class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
+execution (thread, task, etc). There can only be one active span or context
+per execution at a time.
+
+Context management enables parenting to be done implicitly when creating new
+spans by using the active span as the parent of a new span. When an active span
+finishes its parent becomes the new active span.
+
+``tracer.trace()`` automatically creates new spans as the child of the active
+context::
+
+    # Here no span is active
+    assert tracer.current_span() is None
+
+    with tracer.trace("parent") as parent:
+        # Here `parent` is active
+        assert tracer.current_span() is parent
+
+        with tracer.trace("child") as child:
+            # Here `child` is active.
+            # `child` automatically inherits from `parent`
+            assert tracer.current_span() is child
+
+        # `parent` is active again
+        assert tracer.current_span() is parent
+
+    # Here no span is active again
+    assert tracer.current_span() is None
+
+
+.. important::
+
+    Span objects are owned by the execution in which they are created and must
+    be finished in the same execution. To continue a trace in a different
+    execution then the ``span.context`` can be passed between executions and
+    activated. See the sections below for how to propagate spans and traces
+    across task, thread or process boundaries.
+
+
+Tracing Across Threads
+^^^^^^^^^^^^^^^^^^^^^^
+
+To continue a trace across threads the context needs to be passed between
+threads::
+
+    import threading, time
+    from ddtrace import tracer
+
+    def _target(trace_ctx):
+        tracer.context_provider.activate(trace_ctx)
+        with tracer.trace("second_thread") as span2:
+            # span2's parent will be the main_thread span
+            time.sleep(1)
+
+    with tracer.trace("main_thread") as span:
+        thread = threading.Thread(target=_target, args=(span.context,))
+        thread.start()
+        thread.join()
+
+
+Tracing Across Processes
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Just like the threading case, if tracing across processes is desired then the
+span has to be propagated as a context::
+
+    from multiprocessing import Process
+    import time
+    from ddtrace import tracer
+
+    def _target(ctx):
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("proc"):
+            time.sleep(1)
+        tracer.shutdown()
+
+    with tracer.trace("work") as span:
+        proc = Process(target=_target, args=(span.context,))
+        proc.start()
+        time.sleep(1)
+        proc.join()
+
+fork
+****
+If using `fork()`, any open spans from the parent process must be finished by
+the parent process. Any active spans from the original process will be converted
+to contexts to avoid memory leaks.
+
+Here's an example of tracing some work done in a child process::
+
+    import os, sys, time
+    from ddtrace import tracer
+
+    span = tracer.trace("work")
+
+    pid = os.fork()
+
+    if pid == 0:
+        with tracer.trace("child_work"):
+            time.sleep(1)
+        sys.exit(0)
+
+    # Do some other work in the parent
+    time.sleep(1)
+    span.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 0
+
+
+Tracing Across Asyncio Tasks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default the active context will by propagated across tasks on creation as
+the `contextvars`_ context is copied between tasks. If this is not desirable
+then ``None`` can be activated in the new task::
+
+    tracer.context_provider.activate(None)
+
+
+Manual Management
+^^^^^^^^^^^^^^^^^
+
+Parenting can be managed manually by using ``tracer.start_span()`` which by
+default does not activate spans when they are created. See the documentation
+for :meth:`ddtrace.Tracer.start_span`.
+
+
+Context Providers
+^^^^^^^^^^^^^^^^^
+
+The default context provider used in the tracer uses contextvars_ to store
+the active context per execution. This means that any asynchronous library
+that uses `contextvars`_ will have support for automatic context management.
+
+If there is a case where the default is insufficient then a custom context
+provider can be used. It must implement the
+:class:`ddtrace.provider.BaseContextProvider` interface and can be configured
+with::
+
+    tracer.configure(context_provider=MyContextProvider)
+
+
+.. _contextvars: https://docs.python.org/3/library/contextvars.html
+
+
+.. _disttracing:
+
 Distributed Tracing
 -------------------
 
@@ -523,6 +691,13 @@ API
 ``Span``
 ^^^^^^^^
 .. autoclass:: ddtrace.Span
+    :members:
+    :special-members: __init__
+
+
+``Context``
+^^^^^^^^^^^
+.. autoclass:: ddtrace.context.Context
     :members:
     :special-members: __init__
 
