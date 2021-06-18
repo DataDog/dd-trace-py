@@ -273,7 +273,7 @@ cdef class Packer(object):
 
         return ret
 
-    cdef _pack_trace(self, object trace):
+    cdef _pack_trace(self, list trace):
         cdef int ret
         cdef Py_ssize_t L
 
@@ -281,19 +281,16 @@ cdef class Packer(object):
             ret = msgpack_pack_nil(&self.pk)
             return ret
 
-        if PyList_CheckExact(trace):
-            L = len(trace)
-            if L > ITEM_LIMIT:
-                raise ValueError("list is too large")
+        L = len(trace)
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
 
-            ret = msgpack_pack_array(&self.pk, L)
-            if ret != 0: raise RuntimeError("Couldn't pack trace")
+        ret = msgpack_pack_array(&self.pk, L)
+        if ret != 0: raise RuntimeError("Couldn't pack trace")
 
-            for span in trace:
-                ret = self._pack_span(span)
-                if ret != 0: raise RuntimeError("Couldn't pack span")
-        else:
-            PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(trace).tp_name)
+        for span in trace:
+            ret = self._pack_span(span)
+            if ret != 0: raise RuntimeError("Couldn't pack span")
         return ret
 
     cpdef pack_trace(self, list trace):
