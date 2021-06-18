@@ -2,8 +2,6 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 import struct
 
-from ..span import Span
-
 
 cdef extern from "Python.h":
     char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
