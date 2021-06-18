@@ -15,7 +15,7 @@ from tenacity import wait_fixed
     wait=wait_fixed(5),
     stop=stop_after_attempt(50),
 )
-def check_app(url="http://localhost:5000"):
+def wait_for_app(url="http://localhost:5000"):
     return urllib.request.urlopen(url)
 
 
