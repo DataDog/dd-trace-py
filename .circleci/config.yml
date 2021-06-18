@@ -2,9 +2,9 @@ version: 2.1
 
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
-python38-alpine_image: &python38-alpine_image python:3.8-alpine
-python38_image: &python38_image circleci/python:3.8
-ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:latest
+python39-alpine_image: &python39-alpine_image python:3.9-alpine
+python39_image: &python39_image cimg/python:3.9
+ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
@@ -143,7 +143,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst -s '<< parameters.pattern >>'"
+                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -240,13 +240,13 @@ executors:
     docker:
       - image: *cimg_base_image
     resource_class: small
-  python38-alpine:
+  python39-alpine:
     docker:
-      - image: *python38-alpine_image
+      - image: *python39-alpine_image
     resource_class: small
-  python38:
+  python39:
     docker:
-      - image: *python38_image
+      - image: *python39_image
     resource_class: small
   ddtrace_dev:
     docker:
@@ -289,7 +289,7 @@ postgres_server: &postgres_server
 
 jobs:
   pre_check:
-    executor: python38
+    executor: python39
     steps:
       - checkout
       - setup_riot
@@ -302,6 +302,9 @@ jobs:
       - run:
           name: "Mypy check"
           command: riot run mypy
+      - run:
+          name: "Codespell check"
+          command: riot run -s codespell
 
   ccheck:
     executor: cimg_base
@@ -313,7 +316,7 @@ jobs:
       - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
 
   coverage_report:
-    executor: python38
+    executor: python39
     steps:
       - checkout
       - attach_workspace:
@@ -366,20 +369,13 @@ jobs:
           paths:
             - "."
 
-  build-docker-ci-image:
-    executor: cimg_base
-    steps:
-      - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - run: |
-          docker build .
 
   # alpine is the only environment not built/tested by cibuildwheel
   test_build_alpine:
-    executor: python38-alpine
+    executor: python39-alpine
     steps:
-      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash
+      # Rust + Cargo are needed for Cryptography
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
       - test_build
 
   tracer:
@@ -581,7 +577,7 @@ jobs:
       - run_test:
           pattern: 'django$'
           snapshot: true
-          docker_services: "memcached redis"
+          docker_services: "memcached redis postgres"
 
   djangorestframework:
     <<: *machine_executor
@@ -656,16 +652,6 @@ jobs:
           wait: mysql
           pattern: '^mysqldb_contrib-.*-mysqlclient'
 
-  mysqldb:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-    steps:
-      - run_tox_scenario:
-          wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqldb'
-
   pymysql:
     <<: *contrib_job
     docker:
@@ -688,8 +674,8 @@ jobs:
   pytest:
     executor: ddtrace_dev
     steps:
-      - run_tox_scenario:
-          pattern: '^pytest_contrib'
+      - run_test:
+          pattern: 'pytest'
 
   pymemcache:
     <<: *contrib_job
@@ -916,17 +902,6 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  build_wheels:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - *pyenv-set-global
-      - run: pip install cython
-      - run: scripts/build-dist-cp27
-      - run: scripts/build-dist
-      - store_artifacts:
-          path: dist
-
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
@@ -975,7 +950,6 @@ requires_tests: &requires_tests
     - molten
     - mongoengine
     - mysqlconnector
-    - mysqldb
     - mysqlpython
     - opentracer
     - psycopg
@@ -1004,14 +978,6 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-  build_wheels_workflow:
-    jobs:
-      - request_build:
-          type: approval
-      - build_wheels:
-          requires:
-            - request_build
-      
   test:
     jobs:
       # Pre-checking before running all jobs
@@ -1023,9 +989,6 @@ workflows:
 
       # Build necessary base venvs for integration tests
       - build_base_venvs: *requires_pre_check
-
-      # Building CI docker image
-      - build-docker-ci-image: *requires_pre_check
 
       # Test building the package
       - test_build_alpine: *requires_pre_check
@@ -1068,7 +1031,6 @@ workflows:
       - molten: *requires_base_venvs
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
-      - mysqldb: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - psycopg: *requires_base_venvs

@@ -1,3 +1,4 @@
+# type: ignore
 from typing import List
 from typing import Tuple
 
@@ -80,6 +81,9 @@ venv = Venv(
         "opentracing": latest,
         "hypothesis": latest,
     },
+    env={
+        "DD_TESTING_RAISE": "1",
+    },
     venvs=[
         Venv(
             pys=["3"],
@@ -97,8 +101,6 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="flake8",
-            command="flake8 {cmdargs} ddtrace/ tests/",
             pkgs={
                 "flake8": ">=3.8,<3.9",
                 "flake8-blind-except": latest,
@@ -109,14 +111,39 @@ venv = Venv(
                 "flake8-isort": latest,
                 "pygments": latest,
             },
+            venvs=[
+                Venv(
+                    name="flake8",
+                    command="flake8 {cmdargs} ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-flake8",
+                    command="flake8 {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             pkgs={
-                "mypy": latest,
+                # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
+                "mypy": "<0.900",
             },
+        ),
+        Venv(
+            pys=["3"],
+            pkgs={"codespell": "==2.1.0"},
+            venvs=[
+                Venv(
+                    name="codespell",
+                    command="codespell ddtrace/ tests/",
+                ),
+                Venv(
+                    name="hook-codespell",
+                    command="codespell {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
@@ -141,7 +168,7 @@ venv = Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest {cmdargs} tests/benchmarks",
+            command="pytest --benchmark-warmup=on {cmdargs} tests/benchmarks",
         ),
         Venv(
             name="tracer",
@@ -427,6 +454,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -439,6 +467,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -451,6 +480,7 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
+                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
@@ -711,7 +741,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0", "~=2.8.0", latest]},
+                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
                 ),
                 Venv(
                     pys=["3.7"],
@@ -892,6 +922,29 @@ venv = Venv(
                         "pytest-asyncio": latest,
                         "requests": latest,
                         "aiofiles": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest",
+            command="pytest {cmdargs} tests/contrib/pytest",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest==4.6 is last to support python 2.7
+                    pkgs={"pytest": ">=4.0,<4.6"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "pytest": [
+                            ">=3.0,<4.0",
+                            ">=4.0,<5.0",
+                            ">=5.0,<6.0",
+                            ">=6.0,<7.0",
+                            latest,
+                        ],
                     },
                 ),
             ],

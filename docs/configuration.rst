@@ -69,12 +69,20 @@ below:
      - Boolean
      - True
      - Enables :ref:`Logs Injection`.
+   * - ``DD_CALL_BASIC_CONFIG``
+     - Boolean
+     - True
+     - Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
    * - ``DD_TRACE_AGENT_URL``
      - URL
      - ``http://localhost:8126``
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.
+   * - ``DD_TRACE_AGENT_TIMEOUT_SECONDS``
+     - Float
+     - 2.0
+     - The timeout in float to use to connect to the Datadog agent.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
      - False
@@ -113,8 +121,8 @@ below:
      - The interval in seconds to wait before flushing out recorded events.
    * - ``DD_PROFILING_IGNORE_PROFILER``
      - Boolean
-     - True
-     - Whether to ignore the profiler in the generated data.
+     - False
+     - **Deprecated**: whether to ignore the profiler in the generated data.
    * - ``DD_PROFILING_TAGS``
      - String
      -

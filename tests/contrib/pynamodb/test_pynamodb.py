@@ -184,7 +184,7 @@ class PynamodbTest(TracerTestCase):
 
         self.reset()
 
-        # Manual overide
+        # Manual override
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
         Pin.override(self.conn, service="override-pynamodb", tracer=self.tracer)
         list_result = self.conn.list_tables()

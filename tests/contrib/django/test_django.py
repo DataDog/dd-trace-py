@@ -1694,8 +1694,11 @@ class TestWSGI:
 
 @pytest.mark.django_db
 def test_connections_patched():
+    from django.db import connection
     from django.db import connections
 
     assert len(connections.all())
     for conn in connections.all():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
+
+    assert isinstance(connection.cursor, wrapt.ObjectProxy)
