@@ -19,7 +19,6 @@ config._add(
         # TODO[v1.0] this should be "mysql"
         _default_service="pymysql",
         trace_fetch_methods=asbool(get_env("pymysql", "trace_fetch_methods", default=False)),
-        _deprecated_name="dbapi2",
     ),
 )
 
