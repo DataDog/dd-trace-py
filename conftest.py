@@ -35,7 +35,8 @@ def pytest_configure(config):
 
     # Save per-interpreter benchmark results.
     if config.pluginmanager.hasplugin("benchmark"):
-        config.option.benchmark_save = str(time()).replace(".", "_") + "_py%d_%d" % sys.version_info[:2]
+        gc = "_nogc" if config.option.benchmark_disable_gc else ""
+        config.option.benchmark_save = str(time()).replace(".", "_") + gc + "_py%d_%d" % sys.version_info[:2]
 
 
 # Determine if the folder should be ignored
