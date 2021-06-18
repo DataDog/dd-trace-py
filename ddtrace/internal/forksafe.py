@@ -68,7 +68,7 @@ _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
 def _reset_objects():
     # type: (...) -> None
-    for obj in _resetable_objects:
+    for obj in list(_resetable_objects):
         try:
             obj._reset_object()
         except Exception:
@@ -78,7 +78,10 @@ def _reset_objects():
 register(_reset_objects)
 
 
-class ResetObject(wrapt.ObjectProxy):
+_T = typing.TypeVar("_T")
+
+
+class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     """An object wrapper object that is fork-safe and resets itself after a fork.
 
     When a Python process forks, a Lock can be in any state, locked or not, by any thread. Since after fork all threads
@@ -88,7 +91,7 @@ class ResetObject(wrapt.ObjectProxy):
     """
 
     def __init__(
-        self, wrapped_class  # type: typing.Any
+        self, wrapped_class  # type: typing.Type[_T]
     ):
         # type: (...) -> None
         super(ResetObject, self).__init__(wrapped_class())
@@ -101,15 +104,15 @@ class ResetObject(wrapt.ObjectProxy):
 
 
 def Lock():
-    # type: (...) -> ResetObject
+    # type: (...) -> ResetObject[threading.Lock]
     return ResetObject(threading.Lock)
 
 
 def RLock():
-    # type: (...) -> ResetObject
+    # type: (...) -> ResetObject[threading.RLock]
     return ResetObject(threading.RLock)
 
 
 def Event():
-    # type: (...) -> ResetObject
+    # type: (...) -> ResetObject[threading.Event]
     return ResetObject(threading.Event)
