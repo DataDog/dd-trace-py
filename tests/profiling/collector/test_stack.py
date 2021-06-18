@@ -360,9 +360,9 @@ def tracer_and_collector(tracer):
 
 def test_thread_to_span_thread_isolation(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
 
     quit_thread = threading.Event()
     span_started = threading.Event()
@@ -370,7 +370,7 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     store = {}
 
     def start_span():
-        store["span2"] = t.start_span("thread2")
+        store["span2"] = t.start_span("thread2", activate=True)
         span_started.set()
         quit_thread.wait()
 
@@ -379,11 +379,11 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     span_started.wait()
     if TESTING_GEVENT:
         # We track *real* threads, gevent is using only one in this case
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root, store["span2"]}
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(th.ident) == set()
+        assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == store["span2"]
+        assert c._thread_span_links.get_active_span_from_thread_id(th.ident) is None
     else:
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(th.ident) == {store["span2"]}
+        assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
+        assert c._thread_span_links.get_active_span_from_thread_id(th.ident) == store["span2"]
     # Do not quit the thread before we test, otherwise the collector might clean up the thread from the list of spans
     quit_thread.set()
     th.join()
@@ -391,51 +391,50 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
 
 def test_thread_to_span_multiple(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
-    subspan = t.start_span("subtrace", child_of=root)
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subspan}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
+    subspan = t.start_span("subtrace", child_of=root, activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subspan
     subspan.finish()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
     root.finish()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) is None
 
 
 def test_thread_to_child_span_multiple_unknown_thread(tracer_and_collector):
     t, c = tracer_and_collector
-    t.start_span("root")
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(3456789) == set()
+    t.start_span("root", activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(3456789) is None
 
 
 def test_thread_to_child_span_clear(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
     c._thread_span_links.clear_threads(set())
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) is None
 
 
 def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
-    subspan = t.start_span("subtrace", child_of=root)
-    subsubspan = t.start_span("subsubtrace", child_of=subspan)
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subsubspan}
-    subsubspan2 = t.start_span("subsubtrace2", child_of=subspan)
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subsubspan, subsubspan2}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
+    subspan = t.start_span("subtrace", child_of=root, activate=True)
+    subsubspan = t.start_span("subsubtrace", child_of=subspan, activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan
+    subsubspan2 = t.start_span("subsubtrace2", child_of=subspan, activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan2
     # ⚠ subspan is not supposed to finish before its children, but the API authorizes it
-    # In that case, we would return also the root span as it's becoming a parent without children 🤷
     subspan.finish()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root, subsubspan, subsubspan2}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan2
 
 
-def test_collect_span_ids(tracer_and_collector):
+def test_collect_span_id(tracer_and_collector):
     t, c = tracer_and_collector
-    span = t.start_span("foobar")
+    span = t.start_span("foobar", activate=True)
     # This test will run forever if it fails. Don't make it fail.
     while True:
         try:
@@ -443,14 +442,14 @@ def test_collect_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id in event.trace_ids and span.span_id in event.span_ids:
+        if span.trace_id == event.trace_id and span.span_id == event.span_id:
             break
 
 
-def test_collect_multiple_span_ids(tracer_and_collector):
+def test_collect_multiple_span_id(tracer_and_collector):
     t, c = tracer_and_collector
-    span = t.start_span("foobar")
-    child = t.start_span("foobar", child_of=span)
+    span = t.start_span("foobar", activate=True)
+    child = t.start_span("foobar", child_of=span, activate=True)
     # This test will run forever if it fails. Don't make it fail.
     while True:
         try:
@@ -458,7 +457,7 @@ def test_collect_multiple_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id in event.trace_ids and child.span_id in event.span_ids:
+        if child.trace_id == event.trace_id and child.span_id == event.span_id:
             break
 
 
