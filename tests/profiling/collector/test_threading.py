@@ -88,11 +88,11 @@ def test_lock_events_tracer(tracer):
         assert {"test_threading.py:76", "test_threading.py:79"}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
             if event.name == "test_threading.py:76":
-                assert event.trace_ids is None
-                assert event.span_ids is None
+                assert event.trace_id is None
+                assert event.span_id is None
             elif event.name == "test_threading.py:79":
-                assert event.trace_ids == {trace_id}
-                assert event.span_ids == {span_id}
+                assert event.trace_id == trace_id
+                assert event.span_id == span_id
 
 
 def test_lock_release_events():

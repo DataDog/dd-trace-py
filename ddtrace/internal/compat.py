@@ -6,6 +6,7 @@ import textwrap
 import threading
 from typing import Any
 from typing import AnyStr
+from typing import Optional
 from typing import Text
 from typing import Union
 
@@ -22,6 +23,7 @@ __all__ = [
     "urlencode",
     "parse",
     "reraise",
+    "maybe_stringify",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -242,3 +244,10 @@ except ImportError:
     def ensure_pep562(module_name):
         # type: (str) -> None
         pass
+
+
+def maybe_stringify(obj):
+    # type: (Any) -> Optional[str]
+    if obj is not None:
+        return stringify(obj)
+    return None
