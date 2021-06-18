@@ -1,14 +1,16 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
-import collections
 import sys
 import threading
+import typing
 import weakref
 
 import attr
 import six
 
+from ddtrace import context
+from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
@@ -304,7 +306,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
             _threading.get_thread_name(pthread_id),
             running_threads[pthread_id],
             current_exceptions.get(pthread_id),
-            thread_span_links.get_active_leaf_spans_from_thread_id(pthread_id) if thread_span_links else set(),
+            thread_span_links.get_active_span_from_thread_id(pthread_id) if thread_span_links else None,
             cpu_time,
         )
         for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
@@ -332,7 +334,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     stack_events = []
     exc_events = []
 
-    for thread_id, thread_native_id, thread_name, frame, exception, spans, cpu_time in running_threads:
+    for thread_id, thread_native_id, thread_name, frame, exception, span, cpu_time in running_threads:
         task_id, task_name = get_task(thread_id)
 
         # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks
@@ -350,8 +352,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_name=thread_name,
                 task_id=task_id,
                 task_name=task_name,
-                trace_ids=set(span.trace_id for span in spans),
-                span_ids=set(span.span_id for span in spans),
+                trace_id=None if span is None else span.trace_id,
+                span_id=None if span is None else span.span_id,
                 nframes=nframes, frames=frames,
                 wall_time_ns=wall_time,
                 cpu_time_ns=cpu_time,
@@ -382,19 +384,24 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 @attr.s(slots=True, eq=False)
 class _ThreadSpanLinks(object):
 
-    # Keys is a thread_id
-    # Value is a set of weakrefs to spans
-    _thread_id_to_spans = attr.ib(factory=lambda: collections.defaultdict(set), repr=False, init=False)
-    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False)
+    # Key is a thread_id
+    # Value is a weakref to latest active span
+    _thread_id_to_spans = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, ddspan.Span])
+    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False, type=nogevent.Lock)
 
-    def link_span(self, span):
+    def link_span(
+            self,
+            span # type: typing.Optional[typing.Union[context.Context, ddspan.Span]]
+    ):
+        # type: (...) -> None
         """Link a span to its running environment.
 
         Track threads, tasks, etc.
         """
         # Since we're going to iterate over the set, make sure it's locked
-        with self._lock:
-            self._thread_id_to_spans[nogevent.thread_get_ident()].add(weakref.ref(span))
+        if isinstance(span, ddspan.Span):
+            with self._lock:
+                self._thread_id_to_spans[nogevent.thread_get_ident()] = weakref.ref(span)
 
     def clear_threads(self, existing_thread_ids):
         """Clear the stored list of threads based on the list of existing thread ids.
@@ -409,40 +416,24 @@ class _ThreadSpanLinks(object):
                 if thread_id not in existing_thread_ids:
                     del self._thread_id_to_spans[thread_id]
 
-    def get_active_leaf_spans_from_thread_id(self, thread_id):
-        """Return the latest active spans for a thread.
-
-        In theory this should return a single span, though if multiple children span are active without being finished,
-        there can be several spans returned.
+    def get_active_span_from_thread_id(
+            self,
+            thread_id # type: int
+    ):
+        # type: (...) -> typing.Optional[ddspan.Span]
+        """Return the latest active span for a thread.
 
         :param thread_id: The thread id.
         :return: A set with the active spans.
         """
-        alive_spans = set()
 
         with self._lock:
-            span_list = self._thread_id_to_spans.get(thread_id, ())
-            dead_spans = set()
-            for span_ref in span_list:
-                span = span_ref()
-                if span is None:
-                    dead_spans.add(span_ref)
-                else:
-                    alive_spans.add(span)
-
-            # Clean the set from the dead spans
-            for dead_span in dead_spans:
-                span_list.remove(dead_span)
-
-        # Iterate over a copy so we can modify the original
-        for span in alive_spans.copy():
-            if not span.finished:
-                try:
-                    alive_spans.remove(span._parent)
-                except KeyError:
-                    pass
-
-        return {span for span in alive_spans if not span.finished}
+            active_span_ref = self._thread_id_to_spans.get(thread_id)
+            if active_span_ref is not None:
+                active_span = active_span_ref()
+                if active_span is not None and not active_span.finished:
+                    return active_span
+                return None
 
 
 def _default_min_interval_time():
@@ -479,7 +470,7 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
-            self.tracer.on_start_span(self._thread_span_links.link_span)
+            self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
 
     def _start_service(self):
         # This is split in its own function to ease testing
@@ -489,7 +480,7 @@ class StackCollector(collector.PeriodicCollector):
     def _stop_service(self):
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
-            self.tracer.deregister_on_start_span(self._thread_span_links.link_span)
+            self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
