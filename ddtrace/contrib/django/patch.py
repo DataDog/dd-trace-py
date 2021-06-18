@@ -32,6 +32,7 @@ except ImportError:
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool
@@ -466,7 +467,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     """Instrument django.template.base.Template.render for tracing template rendering."""
-    template_name = getattr(instance, "name", None)
+    template_name = maybe_stringify(getattr(instance, "name", None))
     if template_name:
         resource = template_name
     else:
