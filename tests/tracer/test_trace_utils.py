@@ -376,6 +376,21 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
         mock_log.exception.assert_not_called()
 
 
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"HTTP_REQUEST_HEADER", "value"},
+        response_headers={"HTTP_RESPONSE_HEADER": "value"},
+    )
+    assert list(span.meta.keys()) == [
+        "runtime-id",
+    ]
+    mock_store_headers.assert_not_called()
+
+
 @mock.patch("ddtrace.contrib.trace_utils.log")
 @pytest.mark.parametrize(
     "val, bad",

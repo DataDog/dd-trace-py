@@ -62,7 +62,7 @@ class TraceSamplingProcessor(TraceProcessor):
             if span.sampled:
                 return trace
 
-        log.info("dropping trace, %d spans unsampled", len(trace))
+        log.debug("dropping trace, %d spans unsampled", len(trace))
         return None
 
 

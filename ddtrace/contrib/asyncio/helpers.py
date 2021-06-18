@@ -7,7 +7,7 @@ import asyncio
 
 import ddtrace
 
-from .provider import CONTEXT_ATTR
+from .provider import AsyncioContextProvider
 from .wrappers import wrapped_create_task
 
 
@@ -19,7 +19,7 @@ def set_call_context(task, ctx):
     This method is available for backward-compatibility. Use the
     ``AsyncioContextProvider`` API to set the current active ``Context``.
     """
-    setattr(task, CONTEXT_ATTR, ctx)
+    setattr(task, AsyncioContextProvider._CONTEXT_ATTR, ctx)
 
 
 def ensure_future(coro_or_future, *, loop=None, tracer=None):
