@@ -273,37 +273,60 @@ cdef class Packer(object):
 
         return ret
 
-    cdef int _pack(self, object o) except -1:
+    cdef _pack_trace(self, object trace):
         cdef int ret
         cdef Py_ssize_t L
 
-        if o is None:
+        if trace is None:
             ret = msgpack_pack_nil(&self.pk)
+            return ret
 
-        elif PyList_CheckExact(o):
-            # Expect a list of traces or a list of spans
-            L = len(o)
+        if PyList_CheckExact(trace):
+            L = len(trace)
             if L > ITEM_LIMIT:
                 raise ValueError("list is too large")
 
             ret = msgpack_pack_array(&self.pk, L)
-            if ret != 0: return ret
+            if ret != 0: raise RuntimeError("Couldn't pack trace")
 
-            for e in o:
-                ret = self._pack(e)
-                if ret != 0: break
-
-        elif isinstance(o, Span):
-            ret = self._pack_span(o)
+            for span in trace:
+                ret = self._pack_span(span)
+                if ret != 0: raise RuntimeError("Couldn't pack span")
         else:
-            PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+            PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(trace).tp_name)
         return ret
 
-    cpdef pack(self, object obj):
+    cpdef pack_trace(self, list trace):
         cdef int ret
 
         try:
-            ret = self._pack(obj)
+            ret = self._pack_trace(trace)
+        except:
+            self.pk.length = 0
+            raise
+        if ret:  # should not happen.
+            raise RuntimeError("internal error")
+
+        # Reset the buffer.
+        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
+        self.pk.length = 0
+        return buf
+
+    cpdef pack_traces(self, list traces):
+        cdef int ret
+        cdef Py_ssize_t L
+
+        L = len(traces)
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
+
+        try:
+            ret = msgpack_pack_array(&self.pk, L)
+            if ret != 0: raise RuntimeError("Couldn't pack traces")
+
+            for trace in traces:
+                ret = self._pack_trace(trace)
+                if ret != 0: raise RuntimeError("Couldn't pack trace")
         except:
             self.pk.length = 0
             raise
@@ -334,10 +357,10 @@ cdef class MsgpackEncoder(object):
         return msgpack.unpackb(data, raw=True)
 
     cpdef encode_trace(self, list trace):
-        return Packer().pack(trace)
+        return Packer().pack_trace(trace)
 
-    cpdef encode_traces(self, traces):
-        return Packer().pack(traces)
+    cpdef encode_traces(self, list traces):
+        return Packer().pack_traces(traces)
 
     cpdef join_encoded(self, objs):
         """Join a list of encoded objects together as a msgpack array"""
