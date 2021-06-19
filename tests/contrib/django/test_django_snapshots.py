@@ -190,9 +190,10 @@ def psycopg2_patched(transactional_db):
 def test_psycopg_query_default(client, psycopg2_patched):
     """Execute a psycopg2 query on a Django database wrapper"""
     from django.db import connections
+    from psycopg2.sql import Identifier
     from psycopg2.sql import SQL
 
-    query = SQL("""select 'one' as x""")
+    query = SQL("""select 'one' as {}""").format(Identifier("x"))
     conn = connections["postgres"]
     with conn.cursor() as cur:
         cur.execute(query)

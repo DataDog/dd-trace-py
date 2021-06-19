@@ -80,15 +80,18 @@ def patch_conn(django, conn):
             "django.db.alias": alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        cursor = func(*args, **kwargs)
-        traced_cursor_cls = dbapi.TracedCursor
-        if (
-            Psycopg2TracedCursor is not None
-            and hasattr(cursor, "cursor")
-            and isinstance(cursor.cursor, psycopg_cursor_cls)
-        ):
-            traced_cursor_cls = Psycopg2TracedCursor
-        return traced_cursor_cls(cursor, pin, config.django)
+        cursor = func(*args, **kwargs)  # type: django.db.backends.utils.CursorWrapper
+
+        # Ensure the CursorWrapper.cursor is wrapped
+        if not isinstance(cursor.cursor, dbapi.TracedCursor):
+            traced_cursor_cls = dbapi.TracedCursor
+            if Psycopg2TracedCursor is not None and isinstance(cursor.cursor, psycopg_cursor_cls):
+                traced_cursor_cls = Psycopg2TracedCursor
+            setattr(cursor, "cursor", traced_cursor_cls(cursor.cursor, pin, config.django))
+        else:
+            # Update the pin on the CursorWrapper.cursor with the data from Django
+            pin.onto(cursor.cursor)
+        return cursor
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
