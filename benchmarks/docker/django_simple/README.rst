@@ -15,12 +15,12 @@ Run
 
 To run, simply execute::
 
-  docker run -it --rm django_simple /app/start
+  docker run -it --rm django_simple
 
 If you want to save the output, mount a volume to ``/app/output``::
 
-  docker run -it --rm -v "/path/to/output":"/artifacts/output" django_simple /app/start
+  docker run -it --rm -v "/path/to/output":"/artifacts/output" django_simple
 
-The ``entrypoint`` for this image will by default install the release version of ``ddtrace`` or the value of the ``DDTRACE_VERSION`` environment variable if given. You can also install from a set of wheel by mounting a volume with the necessary wheels::
+This image will by default install the release version of ``ddtrace`` or the value of the ``DDTRACE_VERSION`` environment variable if given. You can also install from a set of wheel by mounting a volume with the necessary wheels::
 
-  docker run -it --rm -v "/path/to/wheels/":"/artifacts/wheels/" django_simple /app/start
+  docker run -it --rm -v "/path/to/wheels/":"/artifacts/wheels/" django_simple
