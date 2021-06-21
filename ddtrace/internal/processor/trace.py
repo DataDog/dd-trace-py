@@ -58,13 +58,14 @@ class TraceSamplingProcessor(TraceProcessor):
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
-        sampled_spans = [s for s in trace if s.sampled]
-        if len(sampled_spans) == 0:
-            log.debug("dropping trace, %d spans unsampled", len(trace))
-            return None
+        if trace:
+            for span in trace:
+                if span.sampled:
+                    return trace
 
-        log.debug("trace %d sampled (%d/%d spans sampled)", trace[0].trace_id, len(sampled_spans), len(trace))
-        return trace
+            log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
+
+        return None
 
 
 @attr.s
