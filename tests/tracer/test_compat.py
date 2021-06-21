@@ -8,6 +8,7 @@ import hypothesis.strategies as st
 import pytest
 import six
 
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import is_integer
@@ -137,6 +138,7 @@ def test_pep562():
     assert whatever == "good module attribute"
 
 
+@pytest.mark.skipif(PY2, reason="This hypothesis test hangs occasionally on Python 2")
 @given(
     obj=st.one_of(
         st.none(),
