@@ -36,7 +36,7 @@ def run():
             env["SIRUN_VARIANT"] = run_variant
             env["SIRUN_NO_STDIO"] = "1"
             sirunp = subprocess.Popen(["sirun", "meta.json"], stdout=subprocess.PIPE, env=env)
-            check_app()
+            wait_for_app()
             subprocess.run(
                 f"k6 run --vus {K6_VUS} --iterations {K6_ITERATIONS} --summary-export={k6_output_path} script.js",
                 shell=True,
