@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
@@ -268,38 +270,6 @@ class TestIntegrationConfig(BaseTestCase):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service is None
 
-    def test_get_analytics_sample_rate_deprecated_name(self):
-        """Check method for accessing sample rate based on configuration"""
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
-            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
-            self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
-            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
-            self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
-            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
-            self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
-            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
-            self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
-
-        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
-            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
-            self.assertIsNone(ic.get_analytics_sample_rate())
-
-        with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
-            ic = IntegrationConfig(config, "bar", _deprecated_name="foo")
-            self.assertIsNone(ic.get_analytics_sample_rate())
-
     @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE="foo-svc"))
     def test_service_env_var(self):
         ic = IntegrationConfig(self.config, "foo")
@@ -319,3 +289,31 @@ class TestIntegrationConfig(BaseTestCase):
     def test_service_name_env_var_legacy(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
+
+
+@pytest.mark.parametrize(
+    "global_headers,int_headers,expected",
+    (
+        (None, None, (False, False, False)),
+        ([], None, (False, False, False)),
+        (["Header"], None, (True, False, True)),
+        (None, ["Header"], (False, True, True)),
+        (None, [], (False, False, False)),
+        (["Header"], ["Header"], (True, True, True)),
+        ([], [], (False, False, False)),
+    ),
+)
+def test_config_is_header_tracing_configured(global_headers, int_headers, expected):
+    config = Config()
+    integration_config = config.myint
+
+    if global_headers is not None:
+        config.trace_headers(global_headers)
+    if int_headers is not None:
+        integration_config.http.trace_headers(int_headers)
+
+    assert (
+        config.http.is_header_tracing_configured,
+        integration_config.http.is_header_tracing_configured,
+        integration_config.is_header_tracing_configured,
+    ) == expected

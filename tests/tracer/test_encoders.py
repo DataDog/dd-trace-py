@@ -383,6 +383,10 @@ class SubFloat(float):
         (Span(None, SubString("name")), {SubString("test"): SubString("test")}),
         (Span(None, "name"), {"unicode": u"😐"}),
         (Span(None, "name"), {u"😐": u"😐"}),
+        (
+            Span(None, u"span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
+            {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", u"tag2": u"unicode"},
+        ),
     ],
 )
 def test_span_types(span, tags):
