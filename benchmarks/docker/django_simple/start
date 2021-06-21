@@ -19,7 +19,7 @@ def wait_for_app(url="http://localhost:5000"):
     return urllib.request.urlopen(url)
 
 
-RUN_VARIANTS = ["enabled", "disabled"]
+RUN_VARIANTS = ["enabled", "disabled", "profiler"]
 K6_VUS = os.getenv("K6_VUS", 1)
 K6_ITERATIONS = os.getenv("K6_ITERATIONS", 1000)
 
