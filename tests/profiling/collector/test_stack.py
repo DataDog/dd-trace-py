@@ -331,6 +331,31 @@ def test_exception_collection():
     assert e.exc_type == ValueError
 
 
+@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
+def test_exception_collection_trace(tracer):
+    r = recorder.Recorder()
+    c = stack.StackCollector(r, tracer=tracer)
+    with c:
+        with tracer.trace("test123") as span:
+            try:
+                raise ValueError("hello")
+            except Exception:
+                nogevent.sleep(1)
+
+    exception_events = r.events[stack.StackExceptionSampleEvent]
+    assert len(exception_events) >= 1
+    e = exception_events[0]
+    assert e.timestamp > 0
+    assert e.sampling_period > 0
+    assert e.thread_id == nogevent.thread_get_ident()
+    assert e.thread_name == "MainThread"
+    assert e.frames == [(__file__, 343, "test_exception_collection_trace")]
+    assert e.nframes == 1
+    assert e.exc_type == ValueError
+    assert e.span_id == span.span_id
+    assert e.trace_id == span.trace_id
+
+
 @pytest.fixture
 def tracer_and_collector(tracer):
     r = recorder.Recorder()
