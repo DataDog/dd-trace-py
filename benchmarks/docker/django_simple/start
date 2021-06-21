@@ -28,7 +28,7 @@ def run():
     # TODO: use sirun's own capabilities to run variants and multiple iterations
     for run_variant in RUN_VARIANTS:
         for iteration in range(3):
-            output_dir = os.path.join(os.path.dirname(__file__), "output", run_variant, f"{iteration}")
+            output_dir = os.path.join("/artifacts", "output", run_variant, f"{iteration}")
             os.makedirs(output_dir, exist_ok=True)
             sirun_output_path = os.path.join(output_dir, "sirun_output.ndjson")
             k6_output_path = os.path.join(output_dir, "k6_output.json")

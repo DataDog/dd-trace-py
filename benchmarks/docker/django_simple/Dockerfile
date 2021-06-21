@@ -66,6 +66,11 @@ RUN chmod +x /app/start
 # make django owner of the WORKDIR directory as well.
 RUN chown django:django ${APP_HOME}
 
+# top level directory for artifacts
+ARG ARTIFACTS=/artifacts
+RUN mkdir -p ${ARTIFACTS}
+RUN chown django:django ${ARTIFACTS}
+
 USER django
 
 # Create venv
@@ -81,3 +86,4 @@ ENV DDTRACE_VERSION ""
 ENV WEB_CONCURRENCY 1
 
 ENTRYPOINT ["/app/entrypoint"]
+CMD ["/app/start"]

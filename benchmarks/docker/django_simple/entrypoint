@@ -6,7 +6,7 @@ set -o nounset
 
 # Install ddtrace
 if [[ -z "${DDTRACE_VERSION}" ]]; then
-    if [[ -d "/wheels" ]]; then
+    if [[ -d "/artifacts/wheels" ]]; then
         pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/*
     else
         pip install ddtrace
