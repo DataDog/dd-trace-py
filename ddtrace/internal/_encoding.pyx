@@ -89,7 +89,7 @@ cdef class Packer(object):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
 
-    cpdef _flush_buffer(self):
+    cdef inline object _flush_buffer(self):
         buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
         # Reset the buffer.
         self.pk.length = 0
@@ -277,7 +277,7 @@ cdef class Packer(object):
 
         return ret
 
-    cdef _pack_trace(self, list trace):
+    cdef inline int _pack_trace(self, list trace):
         cdef int ret
         cdef Py_ssize_t L
 
