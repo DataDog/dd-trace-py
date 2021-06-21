@@ -51,8 +51,8 @@ cdef class Packer(object):
     usage::
 
         packer = Packer()
-        astream.write(packer.pack(a))
-        astream.write(packer.pack(b))
+        astream.write(packer.pack_trace(trace))
+        astream.write(packer.pack_traces(traces))
 
     Packer's constructor has some keyword arguments:
 
@@ -88,6 +88,12 @@ cdef class Packer(object):
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
+
+    cpdef _flush_buffer(self):
+        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
+        # Reset the buffer.
+        self.pk.length = 0
+        return buf
 
     cdef inline int _pack_number(self, object n):
         if n is None:
@@ -275,10 +281,6 @@ cdef class Packer(object):
         cdef int ret
         cdef Py_ssize_t L
 
-        if trace is None:
-            ret = msgpack_pack_nil(&self.pk)
-            return ret
-
         L = len(trace)
         if L > ITEM_LIMIT:
             raise ValueError("list is too large")
@@ -302,10 +304,7 @@ cdef class Packer(object):
         if ret:  # should not happen.
             raise RuntimeError("internal error")
 
-        # Reset the buffer.
-        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-        self.pk.length = 0
-        return buf
+        return self._flush_buffer()
 
     cpdef pack_traces(self, list traces):
         cdef int ret
@@ -328,10 +327,7 @@ cdef class Packer(object):
         if ret:  # should not happen.
             raise RuntimeError("internal error")
 
-        # Reset the buffer.
-        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-        self.pk.length = 0
-        return buf
+        return self._flush_buffer()
 
     def bytes(self):
         """Return internal buffer contents as bytes object"""
