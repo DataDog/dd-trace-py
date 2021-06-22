@@ -6,34 +6,34 @@ from enum import Enum
 
 
 # Test Framework
-FRAMEWORK = "test.framework"
+FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 
 # Test Name
-NAME = "test.name"
+NAME = TEST_NAME = "test.name"
 
 # Test Parameters
 PARAMETERS = "test.parameters"
 
 # Pytest Result (XFail, XPass)
-RESULT = "pytest.result"
+RESULT = TEST_RESULT = "pytest.result"
 
 # Skip Reason
-SKIP_REASON = "test.skip_reason"
+SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
 
 # Test Status
-STATUS = "test.status"
+STATUS = TEST_STATUS = "test.status"
 
 # Test Suite
-SUITE = "test.suite"
+SUITE = TEST_SUITE = "test.suite"
 
 # Traits
-TRAITS = "test.traits"
+TRAITS = TEST_TRAITS = "test.traits"
 
 # Test Type
-TYPE = "test.type"
+TYPE = TEST_TYPE = "test.type"
 
 # XFail Reason
-XFAIL_REASON = "pytest.xfail.reason"
+XFAIL_REASON = TEST_XFAIL_REASON = "pytest.xfail.reason"
 
 
 class Status(Enum):
