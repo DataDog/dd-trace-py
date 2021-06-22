@@ -36,3 +36,8 @@ application = get_wsgi_application()
 # Apply WSGI middleware here.
 # from helloworld.wsgi import HelloWorldApplication
 # application = HelloWorldApplication(application)
+
+
+# Enable only profiler to be used without ddtrace-run
+if os.getenv("BENCHMARK_ONLY_PROFILING_ENABLED", False) is not False:
+    import ddtrace.profiling.auto

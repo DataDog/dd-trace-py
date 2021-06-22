@@ -1,15 +1,16 @@
 {
     "name": "django-simple",
+    "run": "gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid",
+    "iterations": 3,
     "variants": {
-        "enabled": {
+        "disabled": {},
+        "tracer": {
             "run": "ddtrace-run gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid"
         },
         "profiler": {
-            "run": "ddtrace-run gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid",
-            "env": { "DD_PROFILING_ENABLED" : "true"}
-        },
-        "disabled": {
-            "run": "gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid"
+            "env": {
+                "BENCHMARK_ONLY_PROFILING_ENABLED": "1"
+            }
         }
     }
 }

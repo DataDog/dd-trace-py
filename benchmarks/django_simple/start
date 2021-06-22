@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+import tempfile
 import urllib.request
 
 from tenacity import retry
@@ -19,34 +20,46 @@ def wait_for_app(url="http://localhost:5000"):
     return urllib.request.urlopen(url)
 
 
-RUN_VARIANTS = ["enabled", "disabled", "profiler"]
-K6_VUS = os.getenv("K6_VUS", 1)
-K6_ITERATIONS = os.getenv("K6_ITERATIONS", 1000)
-
-
 def run():
-    # TODO: use sirun's own capabilities to run variants and multiple iterations
-    for run_variant in RUN_VARIANTS:
-        for iteration in range(3):
-            output_dir = os.path.join("/artifacts", "output", run_variant, f"{iteration}")
-            os.makedirs(output_dir, exist_ok=True)
-            sirun_output_path = os.path.join(output_dir, "sirun_output.ndjson")
-            k6_output_path = os.path.join(output_dir, "k6_output.json")
+    with open("meta.json", "r") as f:
+        meta = json.load(f)
+
+    if meta is None:
+        sys.stderr.write("sirun config error")
+        sys.exit(1)
+
+    output_dir = os.path.join("/artifacts", "output")
+    os.makedirs(output_dir, exist_ok=True)
+    sirun_output = os.path.join(output_dir, "sirun.ndjson")
+    with open(sirun_output, "w") as o:
+        # we could use sirun's own functionality to run all variants but since
+        # we need to capture k6 summary we have to split out sirun runs by
+        # variant
+        for variant in meta["variants"]:
+            print(f"variant={variant}")
             env = os.environ.copy()
-            env["SIRUN_VARIANT"] = run_variant
-            env["SIRUN_NO_STDIO"] = "1"
+            env["SIRUN_VARIANT"] = variant
             sirunp = subprocess.Popen(["sirun", "meta.json"], stdout=subprocess.PIPE, env=env)
-            wait_for_app()
-            subprocess.run(
-                f"k6 run --vus {K6_VUS} --iterations {K6_ITERATIONS} --summary-export={k6_output_path} script.js",
-                shell=True,
-            )
-            # shutdown gunicorn to trigger metric collection
-            subprocess.run("pkill -f gunicorn.pid", shell=True)
-            assert sirunp.wait() == 0
-            sirun_output = json.loads(sirunp.stdout.read().decode().strip())
-            with open(sirun_output_path, "w") as fp:
-                json.dump(sirun_output, fp)
+            for iteration in range(meta.get("iterations", 1)):
+                print(f"iteration={iteration}")
+                # wait for app to be loaded before starting load
+                wait_for_app()
+                # run k6 load scenario
+                k6_output = os.path.join(output_dir, f"k6_{variant}_{iteration}.json")
+                # k6 can send statsd metrics but sirun currently does not
+                # generate stats on the metrics
+                subprocess.run(f"k6 run --out statsd --quiet --summary-export={k6_output} script.js", shell=True)
+                # shutdown gunicorn to mark end of iteration
+                subprocess.run("pkill -f gunicorn.pid", shell=True)
+            # make sure sirun process exits cleanly
+            assert sirunp.wait(timeout=60) == 0
+            d = sirunp.stdout.read().decode()
+            print(d)
+            # append output from variant run
+            o.write(d)
+
+    # print sirun summary
+    subprocess.run(f"cat {sirun_output} | sirun --summarize", shell=True)
 
 
 if __name__ == "__main__":

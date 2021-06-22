@@ -6,17 +6,13 @@ set -o nounset
 
 # Install ddtrace
 if [[ -z "${DDTRACE_VERSION}" ]]; then
-    if [[ -d "/artifacts/wheels" ]]; then
-        pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/*
-    else
+    if [[ -z "${ARTIFACTS_WHEELS}" ]]; then
         pip install ddtrace
+    else
+        pip install --no-cache-dir --no-index --find-links=${ARTIFACTS_WHEELS} ${ARTIFACTS_WHEELS}/*
     fi
 else
     pip install git+https://github.com/Datadog/dd-trace-py@${DDTRACE_VERSION}
 fi
-
-# Run migrations in entrypoint
-python /app/manage.py collectstatic --noinput
-python /app/manage.py migrate
 
 exec "$@"

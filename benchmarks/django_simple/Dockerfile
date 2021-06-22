@@ -81,9 +81,16 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 # use wheels to install python dependencies
 RUN pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/*
 
+# Run migrations in image creation as data will not change during run
+RUN python /app/manage.py collectstatic --noinput \
+    && python /app/manage.py migrate
+
 # For performance testing
 ENV DDTRACE_VERSION ""
+ENV ARTIFACTS_WHEELS ""
 ENV WEB_CONCURRENCY 1
+ENV SIRUN_NO_STDIO 0
+ENV K6_STATSD_ENABLE_TAGS "true"
 
 ENTRYPOINT ["/app/entrypoint"]
 CMD ["/app/start"]
