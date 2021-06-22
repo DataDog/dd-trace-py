@@ -4,9 +4,7 @@ import sys
 import pytest
 
 from ddtrace import Pin
-from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import test
-from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from tests.utils import TracerTestCase
 
 
@@ -314,6 +312,9 @@ class TestPytest(TracerTestCase):
         rec.assertoutcome(passed=1)
 
         spans = self.pop_spans()
-        assert len(spans) == 4
-        for span in spans:
-            assert span.meta[ORIGIN_KEY] == CI_APP_TEST_ORIGIN
+        # dd_origin tag is added at encode time
+        trace = self.tracer.writer.msgpack_encoder.encode_trace(spans)
+        decoded_trace = self.tracer.writer.msgpack_encoder._decode(trace)
+        assert len(decoded_trace) == 4
+        for span in decoded_trace:
+            assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
