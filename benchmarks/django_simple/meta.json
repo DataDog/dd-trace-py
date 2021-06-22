@@ -2,6 +2,10 @@
     "name": "django-simple",
     "run": "gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid",
     "iterations": 3,
+    "env": {
+        "DD_PROFILING_API_TIMEOUT": "0.1",
+        "DD_PROFILING_UPLOAD_INTERVAL": "10"
+    },
     "variants": {
         "disabled": {},
         "tracer": {
@@ -10,6 +14,12 @@
         "profiler": {
             "env": {
                 "BENCHMARK_ONLY_PROFILING_ENABLED": "1"
+            }
+        },
+        "tracer_profiler": {
+            "run": "ddtrace-run gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid",
+            "env": {
+                "DD_PROFILING_ENABLED": "true"
             }
         }
     }
