@@ -2,6 +2,8 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 import struct
 
+from ..constants import ORIGIN_KEY
+
 
 cdef extern from "Python.h":
     char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
@@ -152,7 +154,7 @@ cdef class Packer(object):
 
         raise TypeError("Unhandled text type: %r" % type(text))
 
-    cdef inline int _pack_meta(self, object meta):
+    cdef inline int _pack_meta(self, object meta, object dd_origin):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -160,6 +162,8 @@ cdef class Packer(object):
         if PyDict_CheckExact(meta):
             d = <dict> meta
             L = len(d)
+            if dd_origin is not None:
+                L += 1
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
 
@@ -170,6 +174,10 @@ cdef class Packer(object):
                     if ret != 0: break
                     ret = self._pack_text(v)
                     if ret != 0: break
+                if dd_origin is not None:
+                    ret = self._pack_text(ORIGIN_KEY)
+                    if ret == 0:
+                        ret = self._pack_text(dd_origin)
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -196,7 +204,7 @@ cdef class Packer(object):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef inline int _pack_span(self, object span):
+    cdef inline int _pack_span(self, object span, object dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -204,7 +212,7 @@ cdef class Packer(object):
         cdef int has_metrics
 
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span.meta) > 0)
+        has_meta = <bint> (len(span.meta) > 0 or dd_origin is not None)
         has_metrics = <bint> (len(span.metrics) > 0)
 
         L = 9 + has_span_type + has_meta + has_metrics
@@ -266,7 +274,7 @@ cdef class Packer(object):
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0: return ret
-                ret = self._pack_meta(span.meta)
+                ret = self._pack_meta(span.meta, dd_origin)
                 if ret != 0: return ret
 
             if has_metrics:
@@ -288,8 +296,11 @@ cdef class Packer(object):
         ret = msgpack_pack_array(&self.pk, L)
         if ret != 0: raise RuntimeError("Couldn't pack trace")
 
+        if L > 0 and trace[0].context is not None:
+            dd_origin = trace[0].context.dd_origin
+
         for span in trace:
-            ret = self._pack_span(span)
+            ret = self._pack_span(span, dd_origin)
             if ret != 0: raise RuntimeError("Couldn't pack span")
         return ret
 

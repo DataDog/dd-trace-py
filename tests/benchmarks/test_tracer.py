@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.constants import ORIGIN_KEY
-from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from tests.utils import DummyTracer
 
 
@@ -90,54 +88,3 @@ def test_tracer_large_trace(benchmark, tracer):
 
 def test_tracer_start_span(benchmark, tracer):
     benchmark(tracer.start_span, "benchmark")
-
-
-def dd_origin_tracing_scenario(tracer, num_spans):
-    """Tracing scenario (includes writing and encoding) for CIApp dd_origin propagation"""
-    with tracer.trace("pytest-test") as span:
-        span.context.dd_origin = CI_APP_TEST_ORIGIN
-        for _ in range(num_spans - 1):
-            with tracer.trace(""):
-                pass
-
-
-def assert_dd_origin_present_in_all_spans(dummy_tracer):
-    spans = dummy_tracer.writer.pop()
-    for span in spans:
-        assert span.meta.get(ORIGIN_KEY) == CI_APP_TEST_ORIGIN
-
-
-@pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
-def test_dd_origin_tagging_with_processor_1_span(benchmark):
-    """Propagate dd_origin tags to all spans in 1-span trace via TraceTagsProcessor"""
-    tracer = DummyTracer()
-    # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
-    benchmark(dd_origin_tracing_scenario, tracer, 1)
-    assert_dd_origin_present_in_all_spans(tracer)
-
-
-@pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
-def test_dd_origin_tagging_with_processor_50_spans(benchmark):
-    """Propagate dd_origin tags to all spans in 50-span trace via TraceTagsProcessor"""
-    tracer = DummyTracer()
-    # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
-    benchmark(dd_origin_tracing_scenario, tracer, 50)
-    assert_dd_origin_present_in_all_spans(tracer)
-
-
-@pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
-def test_dd_origin_tagging_with_processor_200_spans(benchmark):
-    """Propagate dd_origin tags to all spans in 200-span trace via TraceTagsProcessor"""
-    tracer = DummyTracer()
-    # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
-    benchmark(dd_origin_tracing_scenario, tracer, 200)
-    assert_dd_origin_present_in_all_spans(tracer)
-
-
-@pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
-def test_dd_origin_tagging_with_processor_2000_spans(benchmark):
-    """Propagate dd_origin tags to all spans in 2000-span trace via TraceTagsProcessor"""
-    tracer = DummyTracer()
-    # TraceTagsProcessor.process_trace() should be called on every span on_span_finish()
-    benchmark(dd_origin_tracing_scenario, tracer, 2000)
-    assert_dd_origin_present_in_all_spans(tracer)

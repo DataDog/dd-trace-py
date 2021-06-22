@@ -8,6 +8,7 @@ from unittest import TestCase
 import msgpack
 import pytest
 
+from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
@@ -17,6 +18,7 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
+from tests.utils import DummyTracer
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -400,3 +402,17 @@ def test_span_types(span, tags):
 
     trace = [span]
     assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
+
+
+def test_encoder_propagates_dd_origin():
+    tracer = DummyTracer()
+    with tracer.trace("Root") as root:
+        root.context.dd_origin = CI_APP_TEST_ORIGIN
+        for _ in range(999):
+            with tracer.trace("child"):
+                pass
+    trace = tracer.writer.pop()
+    encoded_trace = tracer.writer._encoder.encode_trace(trace)
+    decoded_trace = tracer.writer._encoder._decode(encoded_trace)
+    for span in decoded_trace:
+        assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"

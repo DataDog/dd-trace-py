@@ -2,10 +2,12 @@ import msgpack
 from msgpack.fallback import Packer
 import pytest
 
+from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal.encoding import MsgpackEncoder
 from ddtrace.internal.encoding import _EncoderBase
 from tests.tracer.test_encoders import RefMsgpackEncoder
 from tests.tracer.test_encoders import gen_trace
+from tests.utils import DummyTracer
 
 
 msgpack_encoder = RefMsgpackEncoder()
@@ -77,3 +79,28 @@ def test_join_encoded_custom(benchmark):
     benchmark(
         trace_encoder.join_encoded, [trace_encoder.encode_trace(trace_large), trace_encoder.encode_trace(trace_small)]
     )
+
+
+def dd_origin_trace(tracer, num_spans):
+    """Tracing scenario (includes writing and encoding) for CIApp dd_origin propagation"""
+    with tracer.trace("pytest-test") as span:
+        span.context.dd_origin = CI_APP_TEST_ORIGIN
+        for _ in range(num_spans - 1):
+            with tracer.trace(""):
+                pass
+    return tracer.writer.pop()
+
+
+@pytest.mark.parametrize("trace_size", [1, 50, 200, 1000])
+@pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
+def test_dd_origin_tagging_spans_via_encoder(benchmark, trace_size):
+    """Propagate dd_origin tags to all spans in 50-span trace via Encoder"""
+    tracer = DummyTracer()
+    trace = dd_origin_trace(tracer, trace_size)
+    benchmark(trace_encoder.encode_trace, trace)
+
+    # Ensure encoded trace contains dd_origin tag in all spans
+    encoded_trace = trace_encoder.encode_trace(trace)
+    decoded_trace = trace_encoder._decode(encoded_trace)
+    for span in decoded_trace:
+        assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
