@@ -291,6 +291,7 @@ class TestPytest(TracerTestCase):
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
+    @pytest.mark.skipif(sys.version_info[0] == 2, reason="msgpack module unsupported in python 2")
     def test_dd_origin_tag_on_every_span(self):
         """Test that every span in generated trace has the dd_origin tag."""
         py_file = self.testdir.makepyfile(
@@ -312,7 +313,7 @@ class TestPytest(TracerTestCase):
         rec.assertoutcome(passed=1)
 
         spans = self.pop_spans()
-        # dd_origin tag is added at encode time
+        # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         trace = self.tracer.writer.msgpack_encoder.encode_trace(spans)
         decoded_trace = self.tracer.writer.msgpack_encoder._decode(trace)
         assert len(decoded_trace) == 4
