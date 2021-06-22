@@ -2,8 +2,6 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 import struct
 
-from ..span import Span
-
 
 cdef extern from "Python.h":
     char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
@@ -53,8 +51,8 @@ cdef class Packer(object):
     usage::
 
         packer = Packer()
-        astream.write(packer.pack(a))
-        astream.write(packer.pack(b))
+        astream.write(packer.pack_trace(trace))
+        astream.write(packer.pack_traces(traces))
 
     Packer's constructor has some keyword arguments:
 
@@ -90,6 +88,12 @@ cdef class Packer(object):
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
+
+    cdef inline object _flush_buffer(self):
+        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
+        # Reset the buffer.
+        self.pk.length = 0
+        return buf
 
     cdef inline int _pack_number(self, object n):
         if n is None:
@@ -273,47 +277,57 @@ cdef class Packer(object):
 
         return ret
 
-    cdef int _pack(self, object o) except -1:
+    cdef inline int _pack_trace(self, list trace):
         cdef int ret
         cdef Py_ssize_t L
 
-        if o is None:
-            ret = msgpack_pack_nil(&self.pk)
+        L = len(trace)
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
 
-        elif PyList_CheckExact(o):
-            # Expect a list of traces or a list of spans
-            L = len(o)
-            if L > ITEM_LIMIT:
-                raise ValueError("list is too large")
+        ret = msgpack_pack_array(&self.pk, L)
+        if ret != 0: raise RuntimeError("Couldn't pack trace")
 
-            ret = msgpack_pack_array(&self.pk, L)
-            if ret != 0: return ret
-
-            for e in o:
-                ret = self._pack(e)
-                if ret != 0: break
-
-        elif isinstance(o, Span):
-            ret = self._pack_span(o)
-        else:
-            PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+        for span in trace:
+            ret = self._pack_span(span)
+            if ret != 0: raise RuntimeError("Couldn't pack span")
         return ret
 
-    cpdef pack(self, object obj):
+    cpdef pack_trace(self, list trace):
         cdef int ret
 
         try:
-            ret = self._pack(obj)
+            ret = self._pack_trace(trace)
         except:
             self.pk.length = 0
             raise
         if ret:  # should not happen.
             raise RuntimeError("internal error")
 
-        # Reset the buffer.
-        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-        self.pk.length = 0
-        return buf
+        return self._flush_buffer()
+
+    cpdef pack_traces(self, list traces):
+        cdef int ret
+        cdef Py_ssize_t L
+
+        L = len(traces)
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
+
+        try:
+            ret = msgpack_pack_array(&self.pk, L)
+            if ret != 0: raise RuntimeError("Couldn't pack traces")
+
+            for trace in traces:
+                ret = self._pack_trace(trace)
+                if ret != 0: raise RuntimeError("Couldn't pack trace")
+        except:
+            self.pk.length = 0
+            raise
+        if ret:  # should not happen.
+            raise RuntimeError("internal error")
+
+        return self._flush_buffer()
 
     def bytes(self):
         """Return internal buffer contents as bytes object"""
@@ -334,10 +348,10 @@ cdef class MsgpackEncoder(object):
         return msgpack.unpackb(data, raw=True)
 
     cpdef encode_trace(self, list trace):
-        return Packer().pack(trace)
+        return Packer().pack_trace(trace)
 
-    cpdef encode_traces(self, traces):
-        return Packer().pack(traces)
+    cpdef encode_traces(self, list traces):
+        return Packer().pack_traces(traces)
 
     cpdef join_encoded(self, objs):
         """Join a list of encoded objects together as a msgpack array"""
