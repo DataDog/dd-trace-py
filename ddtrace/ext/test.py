@@ -5,6 +5,9 @@ tags for common test attributes
 from enum import Enum
 
 
+# Test Arguments
+ARGUMENTS = TEST_ARGUMENTS = "test.arguments"
+
 # Test Framework
 FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 
