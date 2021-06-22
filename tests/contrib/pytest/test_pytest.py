@@ -291,7 +291,6 @@ class TestPytest(TracerTestCase):
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
-    @pytest.mark.skipif(sys.version_info[0] == 2, reason="msgpack module unsupported in python 2")
     def test_dd_origin_tag_on_every_span(self):
         """Test that every span in generated trace has the dd_origin tag."""
         py_file = self.testdir.makepyfile(
