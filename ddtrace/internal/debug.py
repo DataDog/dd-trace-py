@@ -99,7 +99,6 @@ def collect(tracer):
             integration_configs[module] = "N/A"
 
     pip_version = packages_available.get("pip", "N/A")
-
     return dict(
         # Timestamp UTC ISO 8601
         date=datetime.datetime.utcnow().isoformat(),
@@ -134,4 +133,6 @@ def collect(tracer):
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer.tags),
         integrations=integration_configs,
+        partial_flush_enabled=tracer._partial_flush_enabled,
+        partial_flush_min_spans=tracer._partial_flush_min_spans,
     )

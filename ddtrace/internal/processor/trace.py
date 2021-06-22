@@ -141,6 +141,9 @@ class SpanAggregator(SpanProcessor):
                 else:
                     finished = trace_spans
 
+                if self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans:
+                    log.debug("Partially flushing %d spans for trace %d", len(trace.spans), span.trace_id)
+
                 trace.num_finished -= len(finished)
 
                 if len(trace.spans) == 0:

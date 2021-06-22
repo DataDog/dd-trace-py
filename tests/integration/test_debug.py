@@ -22,6 +22,7 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
 from .test_integration import AGENT_VERSION
+import pdb
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
@@ -137,7 +138,6 @@ def test_debug_post_configure():
     tracer.configure(uds_path="/file.sock")
 
     f = debug.collect(tracer)
-
     agent_url = f.get("agent_url")
     assert agent_url == "unix:///file.sock"
 
@@ -371,3 +371,20 @@ def test_debug_span_log():
     p.wait()
     stderr = p.stderr.read()
     assert b"finishing span name='span'" in stderr
+
+
+def test_partial_flush_log():
+    tracer = ddtrace.Tracer()
+
+    tracer.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=300,
+    )
+
+    f = debug.collect(tracer)
+
+    partial_flush_enabled = f.get("partial_flush_enabled")
+    partial_flush_min_spans = f.get("partial_flush_min_spans")
+
+    assert partial_flush_enabled == True
+    assert partial_flush_min_spans == 300
