@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -119,6 +120,11 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
+
+        params = [1, 2, 3, 4, 5]
+        for i, span in enumerate(spans):
+            extracted_params = json.loads(span.meta[test.PARAMETERS])
+            assert extracted_params == {"parameters": {"abc": params[i]}, "metadata": {}}
 
     def test_skip(self):
         """Test parametrize case."""
