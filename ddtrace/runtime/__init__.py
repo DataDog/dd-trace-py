@@ -31,7 +31,7 @@ class RuntimeMetrics(object):
         :param flush_interval: The flush interval.
         """
 
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(  # type: ignore[attr-defined]
+        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(
             tracer=tracer, dogstatsd_url=dogstatsd_url, flush_interval=flush_interval
         )
 
@@ -44,7 +44,7 @@ class RuntimeMetrics(object):
         Once disabled, runtime metrics can be re-enabled by calling ``enable``
         again.
         """
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()  # type: ignore[attr-defined]
+        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()
 
 
 __all__ = ["RuntimeMetrics"]
