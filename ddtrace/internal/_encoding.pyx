@@ -298,6 +298,8 @@ cdef class Packer(object):
 
         if L > 0 and trace[0].context is not None:
             dd_origin = trace[0].context.dd_origin
+        else:
+            dd_origin = None
 
         for span in trace:
             ret = self._pack_span(span, dd_origin)
