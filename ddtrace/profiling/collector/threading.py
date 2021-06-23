@@ -4,7 +4,6 @@ import os.path
 import sys
 import threading
 from typing import Optional
-from typing import Set
 from typing import Tuple
 
 import attr
@@ -78,8 +77,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
-    def _get_trace_and_span_ids(self):
-        # type: (...) -> Tuple[Optional[Set[int]], Optional[Set[int]]]
+    def _get_trace_and_span_id(self):
+        # type: (...) -> Tuple[Optional[int], Optional[int]]
         """Return current trace and span ids."""
         if self._self_tracer is None:
             return (None, None)
@@ -88,7 +87,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if ctxt is None:
             return (None, None)
 
-        return ({ctxt.trace_id}, {ctxt.span_id})
+        return (ctxt.trace_id, ctxt.span_id)
 
     def acquire(self, *args, **kwargs):
         if not self._self_capture_sampler.capture():
@@ -102,7 +101,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
-                trace_ids, span_ids = self._get_trace_and_span_ids()
+                trace_id, span_id = self._get_trace_and_span_id()
                 self._self_recorder.push_event(
                     LockAcquireEvent(
                         lock_name=self._self_name,
@@ -110,8 +109,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         nframes=nframes,
                         thread_id=thread_id,
                         thread_name=thread_name,
-                        trace_ids=trace_ids,
-                        span_ids=span_ids,
+                        trace_id=trace_id,
+                        span_id=span_id,
                         wait_time_ns=end - start,
                         sampling_pct=self._self_capture_sampler.capture_pct,
                     )
@@ -129,7 +128,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
                         thread_id, thread_name = _current_thread()
-                        trace_ids, span_ids = self._get_trace_and_span_ids()
+                        trace_id, span_id = self._get_trace_and_span_id()
                         self._self_recorder.push_event(
                             LockReleaseEvent(
                                 lock_name=self._self_name,
@@ -137,8 +136,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                                 nframes=nframes,
                                 thread_id=thread_id,
                                 thread_name=thread_name,
-                                trace_ids=trace_ids,
-                                span_ids=span_ids,
+                                trace_id=trace_id,
+                                span_id=span_id,
                                 locked_for_ns=end - self._self_acquired_at,
                                 sampling_pct=self._self_capture_sampler.capture_pct,
                             )

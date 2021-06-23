@@ -1,6 +1,6 @@
 from typing import Optional
 
-import ddtrace
+import ddtrace.internal.runtime.runtime_metrics
 
 
 class RuntimeMetrics(object):
