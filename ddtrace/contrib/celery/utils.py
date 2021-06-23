@@ -46,7 +46,7 @@ def set_tags_from_context(span, context):
 
         # Skip `timelimit` if it is not set (its default/unset value is a
         # tuple or a list of `None` values
-        if key == "timelimit" and all((_ is None for _ in value)):
+        if key == "timelimit" and all(_ is None for _ in value):
             continue
 
         # Skip `retries` if its value is `0`
