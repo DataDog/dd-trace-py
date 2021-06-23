@@ -85,6 +85,7 @@ mysqldb
 namespace
 opentracer
 opentracing
+pid
 plugin
 posix
 postgres
@@ -107,6 +108,7 @@ repo
 respawn
 runnable
 runtime
+runtime-id
 sanic
 sql
 sqlalchemy
