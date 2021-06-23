@@ -14,9 +14,6 @@ DEFAULT_TRACE_PORT = 8126
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
-DEFAULT_BUFFER_SIZE = 8 * 1000000  # 8mb
-DEFAULT_MAX_PAYLOAD_SIZE = 8 * 1000000  # 8mb
-DEFAULT_PROCESSING_INTERVAL = 1.0
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
@@ -39,21 +36,6 @@ def get_stats_port():
 def get_trace_agent_timeout():
     # type: () -> float
     return float(get_env("trace", "agent", "timeout", "seconds", default=DEFAULT_TIMEOUT))  # type: ignore[arg-type]
-
-
-def get_trace_writer_buffer_size():
-    # type: () -> int
-    return int(get_env("trace", "writer", "buffer", "size", "bytes", default=DEFAULT_BUFFER_SIZE))  # type: ignore[arg-type]
-
-
-def get_trace_writer_max_payload_size():
-    # type: () -> int
-    return int(get_env("trace", "writer", "max", "payload", "size", "bytes", default=DEFAULT_MAX_PAYLOAD_SIZE))  # type: ignore[arg-type]
-
-
-def get_trace_writer_interval_seconds():
-    # type: () -> float
-    return float(get_env("trace", "writer", "interval", "seconds", default=DEFAULT_PROCESSING_INTERVAL))  # type: ignore[arg-type]
 
 
 def get_trace_url():
