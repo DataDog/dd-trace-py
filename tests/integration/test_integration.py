@@ -501,9 +501,9 @@ print(len(root.handlers))
 
 def test_writer_env_configuration(run_python_code_in_subprocess):
     env = os.environ.copy()
-    env["DD_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
-    env["DD_WRITER_INTERVAL_SECONDS"] = "5.0"
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
@@ -533,9 +533,9 @@ assert ddtrace.tracer.writer._interval == 1.0
 
 def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
-    env["DD_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
-    env["DD_WRITER_INTERVAL_SECONDS"] = "5.0"
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
