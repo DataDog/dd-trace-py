@@ -371,6 +371,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     thread_native_id=thread_native_id,
                     task_id=task_id,
                     task_name=task_name,
+                    trace_id=None if span is None else span.trace_id,
+                    span_id=None if span is None else span.span_id,
                     nframes=nframes,
                     frames=frames,
                     sampling_period=int(interval * 1e9),
