@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# store k6 metrics in temporary file that can be appended to artifact
+JSON_OUTPUT="$(mktemp)"
+touch $JSON_OUTPUT
+
+/app/wait
+
+k6 run --out json=${JSON_OUTPUT} --quiet script.js
+
+cat $JSON_OUTPUT >> /artifacts/output/k6.ndjson
+
+# sigterm to server to end iteration
+pkill -f gunicorn.pid
