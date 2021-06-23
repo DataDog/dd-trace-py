@@ -51,17 +51,18 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # copy python dependency wheels from python-build-stage
 COPY --from=python-build-stage /usr/src/app/wheels  /wheels/
 
-# Install sirun
+# sirun
 RUN curl -sL https://github.com/DataDog/sirun/releases/download/v0.1.8/sirun-v0.1.8-x86_64-unknown-linux-gnu.tar.gz | tar zxf - -C /tmp && mv /tmp/sirun /usr/bin
 
 # k6
 RUN curl -SL https://github.com/k6io/k6/releases/download/v0.32.0/k6-v0.32.0-linux-amd64.tar.gz | tar zxf - -C /tmp && mv /tmp/k6-v0.32.0-linux-amd64/k6 /usr/bin
 
+# jq
+RUN curl -L -o /usr/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 && \
+  chmod +x /usr/bin/jq
+
 # copy application code to WORKDIR
 COPY --chown=django:django . ${APP_HOME}
-
-RUN chmod +x /app/entrypoint
-RUN chmod +x /app/start
 
 # make django owner of the WORKDIR directory as well.
 RUN chown django:django ${APP_HOME}
@@ -93,4 +94,4 @@ ENV SIRUN_NO_STDIO 0
 ENV K6_STATSD_ENABLE_TAGS "true"
 
 ENTRYPOINT ["/app/entrypoint"]
-CMD ["/app/start"]
+CMD ["/app/benchmark"]
