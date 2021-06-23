@@ -108,23 +108,53 @@ class TestPytest(TracerTestCase):
             """
             import pytest
 
-            @pytest.mark.parametrize('abc', [1, 2, 3, 4, pytest.param(5, marks=pytest.mark.skip)])
+            class A:
+                def __init__(self, name, value):
+                    self.name = name
+                    self.value = value
+
+            def item_param():
+                return 42
+
+            @pytest.mark.parametrize(
+                'item',
+                [
+                    1,
+                    2,
+                    3,
+                    4,
+                    pytest.param(A("test_name", "value"), marks=pytest.mark.skip),
+                    pytest.param(A("test_name", A("inner_name", "value")), marks=pytest.mark.skip),
+                    pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
+                    pytest.param([1, 2, 3], marks=pytest.mark.skip),
+                    pytest.param(item_param, marks=pytest.mark.skip)
+                ]
+            )
             class Test1(object):
-                def test_1(self, abc):
-                    assert abc in {1, 2, 3}
+                def test_1(self, item):
+                    assert item in {1, 2, 3}
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=3, failed=1, skipped=1)
+        rec.assertoutcome(passed=3, failed=1, skipped=5)
         spans = self.pop_spans()
 
-        assert len(spans) == 5
-
-        params = [1, 2, 3, 4, 5]
-        for i, span in enumerate(spans):
-            extracted_params = json.loads(span.meta[test.PARAMETERS])
-            assert extracted_params == {"parameters": {"abc": params[i]}, "metadata": {}}
+        expected_params = [
+            1,
+            2,
+            3,
+            4,
+            {"name": "test_name", "value": "value"},
+            {"name": "test_name", "value": {"name": "inner_name", "value": "value"}},
+            {"a": {"name": "test_name", "value": "value"}, "b": [1, 2, 3]},
+            [1, 2, 3],
+        ]
+        assert len(spans) == 9
+        for i in range(len(spans) - 1):
+            extracted_params = json.loads(spans[i].meta[test.PARAMETERS])
+            assert extracted_params == {"parameters": {"item": expected_params[i]}, "metadata": {}}
+        assert "<function item_param at 0x" in json.loads(spans[8].meta[test.PARAMETERS])["parameters"]["item"]
 
     def test_skip(self):
         """Test parametrize case."""

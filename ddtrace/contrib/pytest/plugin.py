@@ -105,9 +105,10 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
+        # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
             params = {"parameters": item.callspec.params, "metadata": {}}
-            span.set_tag(test.PARAMETERS, json.dumps(params))
+            span.set_tag(test.PARAMETERS, json.dumps(params, default=lambda x: x.__dict__ if x.__dict__ else str(x)))
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
