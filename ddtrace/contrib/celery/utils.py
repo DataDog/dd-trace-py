@@ -66,7 +66,7 @@ def attach_span(task, task_id, span, is_publish=False):
          task from within another task does not cause any conflicts.
 
          This mostly happens when either a task fails and a retry policy is in place,
-         or when a task is manually retries (e.g. `task.retry()`), we end up trying
+         or when a task is manually retried (e.g. `task.retry()`), we end up trying
          to publish a task with the same id as the task currently running.
 
          Previously publishing the new task would overwrite the existing `celery.run` span
@@ -92,7 +92,10 @@ def detach_span(task, task_id, is_publish=False):
         return
 
     # DEV: See note in `attach_span` for key info
-    del weak_dict[(task_id, is_publish)]
+    try:
+        del weak_dict[(task_id, is_publish)]
+    except KeyError:
+        pass
 
 
 def retrieve_span(task, task_id, is_publish=False):
