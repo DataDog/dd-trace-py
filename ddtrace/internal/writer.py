@@ -200,11 +200,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=1.0,  # type: float
+        processing_interval=agent.get_trace_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=8 * 1000000,  # type: int
-        max_payload_size=8 * 1000000,  # type: int
+        buffer_size=agent.get_trace_writer_buffer_size(),  # type: int
+        max_payload_size=agent.get_trace_writer_max_payload_size(),  # type: int
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
