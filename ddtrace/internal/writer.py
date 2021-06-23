@@ -60,12 +60,16 @@ def get_writer_buffer_size():
 
 def get_writer_max_payload_size():
     # type: () -> int
-    return int(get_env("trace", "writer_max_payload_size_bytes", default=DEFAULT_MAX_PAYLOAD_SIZE))  # type: ignore[arg-type]
+    return int(
+        get_env("trace", "writer_max_payload_size_bytes", default=DEFAULT_MAX_PAYLOAD_SIZE)  # type: ignore[arg-type]
+    )
 
 
 def get_writer_interval_seconds():
     # type: () -> float
-    return float(get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL))  # type: ignore[arg-type]
+    return float(
+        get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
+    )
 
 
 def _human_size(nbytes):
