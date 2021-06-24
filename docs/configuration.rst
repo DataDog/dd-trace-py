@@ -83,6 +83,18 @@ below:
      - Float
      - 2.0
      - The timeout in float to use to connect to the Datadog agent.
+   * - ``DD_TRACE_WRITER_BUFFER_SIZE_BYTES``
+     - Int
+     - 8000000
+     - The max size in bytes of traces to buffer between flushes to the agent.
+   * - ``DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES``
+     - Int
+     - 8000000
+     - The max size in bytes of each payload sent to the trace agent. If max payload size is less than buffer size, multiple payloads will be sent to the trace agent.
+   * - ``DD_TRACE_WRITER_INTERVAL_SECONDS``
+     - Float
+     - 1.0
+     - The time between each flush of traces to the trace agent.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
      - False
