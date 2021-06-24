@@ -66,7 +66,7 @@ cdef class Packer(object):
         self.pk.buf_size = buf_size
         self.pk.length = 0
 
-    def __init__(self, buf_size, buf_start_size=1024*1024):
+    def __init__(self, buf_size):
         self._default = None
 
         if PY_MAJOR_VERSION < 3:
