@@ -2,7 +2,7 @@
     "name": "django-simple",
     "setup": "bash -c \"nohup /app/setup & echo $! > setup.pid\"",
     "run": "./run",
-    "iterations": 10,
+    "iterations": 5,
     "env": {
         "DD_PROFILING_API_TIMEOUT": "0.1",
         "DD_PROFILING_UPLOAD_INTERVAL": "10"
