@@ -23,7 +23,7 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return "".join(random.choice(chars) for _ in range(size))
 
 
-def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
+def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10, dd_origin=None):
     t = Tracer()
 
     root = None
@@ -51,6 +51,7 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
 
             if not root:
                 root = span
+                root.set_tag("_dd.origin", dd_origin)
 
     return trace
 

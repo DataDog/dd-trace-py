@@ -23,6 +23,7 @@ cdef extern from "pack.h":
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
+    int msgpack_pack_write(msgpack_packer* pk, const char *data, size_t l)
 
 cdef extern from "buff_converter.h":
     object buff_to_buff(char *, Py_ssize_t)
@@ -33,15 +34,6 @@ cdef long long ITEM_LIMIT = (2**32)-1
 
 cdef inline int PyBytesLike_Check(object o):
     return PyBytes_Check(o) or PyByteArray_Check(o)
-
-
-cdef inline int pack_bytes(msgpack_packer *pk, char *bytes, Py_ssize_t l):
-    cdef int ret
-    cdef dict d
-    ret = msgpack_pack_raw(pk, l)
-    if ret == 0:
-        ret = msgpack_pack_raw_body(pk, bytes, l)
-    return ret
 
 
 cdef class Packer(object):
@@ -66,19 +58,16 @@ cdef class Packer(object):
     cdef const char *encoding
     cdef const char *unicode_errors
 
-    def __cinit__(self):
-        cdef int buf_size = 1024*1024
+    def __cinit__(self, int buf_size):
+        # Pre-allocate the buffer size now, we never resize the buffer
         self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.pk.buf_size = buf_size
         self.pk.length = 0
 
-    def __init__(self, default=None):
-        if default is not None:
-            if not PyCallable_Check(default):
-                raise TypeError("default must be a callable.")
-        self._default = default
+    def __init__(self, buf_size, buf_start_size=1024*1024):
+        self._default = None
 
         if PY_MAJOR_VERSION < 3:
             self.encoding = "utf-8"
@@ -107,9 +96,7 @@ cdef class Packer(object):
                     return msgpack_pack_unsigned_long_long(&self.pk, <unsigned long long> n)
                 return msgpack_pack_long_long(&self.pk, <long long> n)
             except OverflowError as oe:
-                if n is not self._default:
-                    return self._pack_number(self._default)
-                raise OverflowError("Integer value out of range")
+                return msgpack_pack_nil(&self.pk)
 
         elif PyInt_Check(n):
             return msgpack_pack_long(&self.pk, <long> n)
@@ -212,65 +199,65 @@ cdef class Packer(object):
         ret = msgpack_pack_map(&self.pk, L)
 
         if ret == 0:
-            ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa8trace_id", 9)
             if ret != 0: return ret
             ret = self._pack_number(span.trace_id)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa9parent_id", 10)
             if ret != 0: return ret
             ret = self._pack_number(span.parent_id)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa7span_id", 8)
             if ret != 0: return ret
             ret = self._pack_number(span.span_id)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"service", 7)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa7service", 8)
             if ret != 0: return ret
             ret = self._pack_text(span.service)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"resource", 8)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa8resource", 9)
             if ret != 0: return ret
             ret = self._pack_text(span.resource)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"name", 4)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa4name", 5)
             if ret != 0: return ret
             ret = self._pack_text(span.name)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"error", 5)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa5error", 6)
             if ret != 0: return ret
             ret = msgpack_pack_long(&self.pk, <long> (1 if span.error else 0))
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"start", 5)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa5start", 6)
             if ret != 0: return ret
             ret = self._pack_number(span.start_ns)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"duration", 8)
+            ret = msgpack_pack_write(&self.pk, <char *> b"\xa8duration", 9)
             if ret != 0: return ret
             ret = self._pack_number(span.duration_ns)
             if ret != 0: return ret
 
             if has_span_type:
-                ret = pack_bytes(&self.pk, <char *> b"type", 4)
+                ret = msgpack_pack_write(&self.pk, <char *> b"\xa4type", 5)
                 if ret != 0: return ret
                 ret = self._pack_text(span.span_type)
                 if ret != 0: return ret
 
             if has_meta:
-                ret = pack_bytes(&self.pk, <char *> b"meta", 4)
+                ret = msgpack_pack_write(&self.pk, <char *> b"\xa4meta", 5)
                 if ret != 0: return ret
                 ret = self._pack_meta(span.meta)
                 if ret != 0: return ret
 
             if has_metrics:
-                ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
+                ret = msgpack_pack_write(&self.pk, <char *> b"\xa7metrics", 8)
                 if ret != 0: return ret
                 ret = self._pack_metrics(span.metrics)
                 if ret != 0: return ret
@@ -341,6 +328,11 @@ cdef class Packer(object):
 cdef class MsgpackEncoder(object):
     content_type = "application/msgpack"
 
+    cdef Packer _packer
+
+    def __cinit__(self, int buf_size = 8 * 1000000):
+        self._packer = Packer(buf_size=buf_size)
+
     cpdef _decode(self, data):
         import msgpack
         if msgpack.version[:2] < (0, 6):
@@ -348,10 +340,10 @@ cdef class MsgpackEncoder(object):
         return msgpack.unpackb(data, raw=True)
 
     cpdef encode_trace(self, list trace):
-        return Packer().pack_trace(trace)
+        return self._packer.pack_trace(trace)
 
     cpdef encode_traces(self, list traces):
-        return Packer().pack_traces(traces)
+        return self._packer.pack_traces(traces)
 
     cpdef join_encoded(self, objs):
         """Join a list of encoded objects together as a msgpack array"""

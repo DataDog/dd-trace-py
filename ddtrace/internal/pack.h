@@ -41,13 +41,10 @@ static inline int msgpack_pack_write(msgpack_packer* pk, const char *data, size_
     size_t bs = pk->buf_size;
     size_t len = pk->length;
 
+    // return an error if we are going to overflow the buffer, no resizing
+    // this generally means a single trace is larger than the buffer size
     if (len + l > bs) {
-        bs = (len + l) * 2;
-        buf = (char*)PyMem_Realloc(buf, bs);
-        if (!buf) {
-            PyErr_NoMemory();
-            return -1;
-        }
+      return -1;
     }
     memcpy(buf + len, data, l);
     len += l;

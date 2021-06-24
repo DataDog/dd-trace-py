@@ -239,7 +239,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 }
             )
 
-        self._encoder = Encoder()
+        self._encoder = Encoder(buf_size=self._max_payload_size)
         self._headers.update({"Content-Type": self._encoder.content_type})
 
         self.dogstatsd = dogstatsd
