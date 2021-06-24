@@ -910,6 +910,15 @@ def test_tracer_runtime_tags_fork():
     assert children_tag != span.get_tag("runtime-id")
 
 
+def test_tracer_runtime_tags_cross_execution(tracer):
+    ctx = Context(trace_id=12, span_id=21)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("span") as span:
+        pass
+    assert span.get_tag("runtime-id") is not None
+    assert span.get_metric(system.PID) is not None
+
+
 def test_start_span_hooks():
     t = ddtrace.Tracer()
 

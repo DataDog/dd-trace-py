@@ -228,6 +228,6 @@ class PeriodicService(service.Service):
     def on_shutdown():
         pass
 
-    @staticmethod
-    def periodic():
+    def periodic(self):
+        # type: (...) -> None
         pass
