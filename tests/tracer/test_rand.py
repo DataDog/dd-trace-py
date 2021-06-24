@@ -13,6 +13,7 @@ import threading
 from ddtrace import Span
 from ddtrace import tracer
 from ddtrace.internal import _rand
+from ddtrace.internal import forksafe
 from ddtrace.internal.compat import Queue
 
 
@@ -81,6 +82,7 @@ def test_multiprocess():
     q = MPQueue()
 
     def target(q):
+        assert sum((_ is _rand.seed for _ in forksafe._registry)) == 1
         q.put([_rand.rand64bits() for _ in range(100)])
 
     ps = [mp.Process(target=target, args=(q,)) for _ in range(30)]
@@ -89,6 +91,7 @@ def test_multiprocess():
 
     for p in ps:
         p.join()
+        assert p.exitcode == 0
 
     ids_list = [_rand.rand64bits() for _ in range(1000)]
     ids = set(ids_list)
