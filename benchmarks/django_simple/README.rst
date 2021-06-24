@@ -13,7 +13,7 @@ Use docker to build the image which will run tests and store output in an artifa
 Run
 ---
 
-To run, simply execute::
+To run, execute::
 
   docker run -it --rm django_simple
 
@@ -21,6 +21,12 @@ If you want to save the output, mount a volume to ``/app/output``::
 
   docker run -it --rm -v "/path/to/output":"/artifacts/output" django_simple
 
-This image will by default install the release version of ``ddtrace`` or the value of the ``DDTRACE_VERSION`` environment variable if given. You can also install from a set of wheel by mounting a volume with the necessary wheels::
+This image will by default install the release version of ``ddtrace``.
 
-  docker run -it --rm -v "/path/to/wheels/":"/artifacts/wheels/" django_simple
+You can install a different version by using git tags or commit hashes as the value for the ``DDTRACE_GIT_COMMIT_ID`` environment variable::
+
+  docker run -it --rm -e "DDTRACE_GIT_COMMIT_ID=v0.48.1" django_simple
+
+You can also install from a set of wheel by mounting a volume with the necessary wheels and setting the ``DDTRACE_WHEELS`` environment variable::
+
+  docker run -it --rm  -e "DDTRACE_WHEELS=/artifacts/wheels" -v "/path/to/wheels/":"/artifacts/wheels/" django_simple

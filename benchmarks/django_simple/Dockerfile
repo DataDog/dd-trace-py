@@ -87,8 +87,8 @@ RUN python /app/manage.py collectstatic --noinput \
     && python /app/manage.py migrate
 
 # For performance testing
-ENV DDTRACE_VERSION ""
-ENV ARTIFACTS_WHEELS ""
+ENV DDTRACE_GIT_COMMIT_ID ""
+ENV DDTRACE_WHEELS ""
 ENV WEB_CONCURRENCY 1
 ENV SIRUN_NO_STDIO 0
 ENV K6_STATSD_ENABLE_TAGS "true"
