@@ -29,11 +29,11 @@ from .context import Context
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
-from .internal import _rand
 from .internal import agent
 from .internal import atexit
 from .internal import compat
 from .internal import debug
+from .internal import forksafe
 from .internal import hostname
 from .internal import service
 from .internal.dogstatsd import get_dogstatsd_client
@@ -150,8 +150,11 @@ class Tracer(object):
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
+        forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
+
+        self._new_process = False
 
     def _atexit(self):
         # type: () -> None
@@ -403,6 +406,19 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
+    def _child_after_fork(self):
+        self._pid = getpid()
+
+        # Assume that the services of the child are not necessarily a subset of those
+        # of the parent.
+        self._services = set()
+
+        # Re-create the background writer thread
+        self.writer = self.writer.recreate()
+        self._initialize_span_processors()
+
+        self._new_process = True
+
     def _start_span(
         self,
         name,  # type: str
@@ -448,8 +464,9 @@ class Tracer(object):
         Note: be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
-        is_new_process = self._check_new_process()
-        if is_new_process:
+        if self._new_process:
+            self._new_process = False
+
             # The spans remaining in the context can not and will not be
             # finished in this new process. So to avoid memory leaks the
             # strong span reference (which will never be finished) is replaced
@@ -510,7 +527,6 @@ class Tracer(object):
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
-                _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
 
@@ -531,12 +547,9 @@ class Tracer(object):
                 service=mapped_service,
                 resource=resource,
                 span_type=span_type,
-                _check_pid=False,
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span
-            span.metrics[system.PID] = self._pid or getpid()
-            span.meta["runtime-id"] = get_runtime_id()
             if config.report_hostname:
                 span.meta[HOSTNAME_KEY] = hostname.get_hostname()
             span.sampled = self.sampler.sample(span)
@@ -565,6 +578,10 @@ class Tracer(object):
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
+
+        if not span._parent:
+            span.meta["runtime-id"] = get_runtime_id()
+            span.metrics[system.PID] = self._pid
 
         # Apply default global tags.
         if self.tags:
@@ -634,30 +651,6 @@ class Tracer(object):
                 writer=self.writer,
             ),
         ]  # type: List[SpanProcessor]
-
-    def _check_new_process(self):
-        # type: () -> bool
-        """Checks if the tracer is in a new process (was forked) and performs
-        the necessary updates if it is a new process
-        """
-        pid = getpid()
-        if self._pid == pid:
-            return False
-
-        self._pid = pid
-
-        # We have to reseed the RNG or we will get collisions between the processes as
-        # they will share the seed and generate the same random numbers.
-        _rand.seed()
-
-        # Assume that the services of the child are not necessarily a subset of those
-        # of the parent.
-        self._services = set()
-
-        # Re-create the background writer thread
-        self.writer = self.writer.recreate()
-        self._initialize_span_processors()
-        return True
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -898,6 +891,7 @@ class Tracer(object):
                 return
 
             atexit.register(self._atexit)
+            forksafe.register(self._child_after_fork)
 
             self.start_span = self._start_span
             self.trace = self._trace
@@ -947,6 +941,7 @@ class Tracer(object):
 
         with self._shutdown_lock:
             atexit.unregister(self._atexit)
+            forksafe.unregister(self._child_after_fork)
 
             self.start_span = self._shutdown_start_span  # type: ignore[assignment]
             self.trace = self._shutdown_trace  # type: ignore[assignment]
