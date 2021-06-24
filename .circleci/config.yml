@@ -626,6 +626,14 @@ jobs:
           pattern: "grpc"
           snapshot: true
 
+  maridb:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'maridb$'
+          snapshot: true
+          docker_services: "mariadb"
+
   molten:
     <<: *contrib_job
     steps:
@@ -947,6 +955,7 @@ requires_tests: &requires_tests
     - jinja2
     - kombu
     - mako
+    - mariadb
     - molten
     - mongoengine
     - mysqlconnector
@@ -1028,6 +1037,7 @@ workflows:
       - jinja2: *requires_base_venvs
       - kombu: *requires_base_venvs
       - mako: *requires_base_venvs
+      - mariadb: *requires_base_venvs
       - molten: *requires_base_venvs
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
