@@ -372,7 +372,7 @@ def test_custom_json_encoding_python_objects(obj):
     """Ensures the _json_encode helper encodes complex objects into dicts of inner values or a string representation."""
     encoded = _json_encode(obj)
     obj = json.loads(
-        json.dumps(obj, default=lambda x: getattr(x, "__dict__", None) if getattr(x, "__dict__", None) else str(x))
+        json.dumps(obj, default=lambda x: getattr(x, "__dict__", None) if getattr(x, "__dict__", None) else repr(x))
     )
     decoded = json.loads(encoded)
     assert obj == decoded

@@ -38,7 +38,7 @@ def _json_encode(params):
 
     def inner_encode(obj):
         obj_dict = getattr(obj, "__dict__", None)
-        return obj_dict if obj_dict else str(obj)
+        return obj_dict if obj_dict else repr(obj)
 
     return json.dumps(params, default=inner_encode)
 
