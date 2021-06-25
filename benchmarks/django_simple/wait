@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+import urllib.request
+
+from tenacity import retry
+from tenacity import stop_after_attempt
+from tenacity import wait_fixed
+
+
+@retry(
+    wait=wait_fixed(5),
+    stop=stop_after_attempt(50),
+)
+def wait_for_app(url="http://localhost:5000"):
+    return urllib.request.urlopen(url)
+
+
+if __name__ == "__main__":
+    wait_for_app()
