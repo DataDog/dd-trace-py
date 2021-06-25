@@ -345,9 +345,7 @@ complex_types = [st.functions(), st.dates(), st.decimals(), st.builds(A, name=st
     st.dictionaries(
         st.text(),
         st.one_of(
-            *simple_types,
-            st.lists(st.one_of(*simple_types)),
-            st.dictionaries(st.text(), st.one_of(*simple_types)),
+            st.lists(st.one_of(*simple_types)), st.dictionaries(st.text(), st.one_of(*simple_types)), *simple_types
         ),
     )
 )
@@ -362,9 +360,7 @@ def test_custom_json_encoding_simple_types(obj):
     st.dictionaries(
         st.text(),
         st.one_of(
-            *complex_types,
-            st.lists(st.one_of(*complex_types)),
-            st.dictionaries(st.text(), st.one_of(*complex_types)),
+            st.lists(st.one_of(*complex_types)), st.dictionaries(st.text(), st.one_of(*complex_types)), *complex_types
         ),
     )
 )
@@ -380,19 +376,21 @@ def test_custom_json_encoding_python_objects(obj):
 
 def test_custom_json_encoding_side_effects():
     """Ensures the _json_encode helper encodes objects with side effects (getattr, repr) without raising exceptions."""
+    dict_side_effect = Exception("side effect __dict__")
+    repr_side_effect = Exception("side effect __repr__")
 
     class B(object):
         def __getattribute__(self, item):
             if item == "__dict__":
-                raise Exception("side effect __dict__")
+                raise dict_side_effect
             raise AttributeError()
 
     class C(object):
         def __repr__(self):
-            raise Exception("side effect __repr__")
+            raise repr_side_effect
 
     obj = {"b": B(), "c": C()}
     encoded = _json_encode(obj)
     decoded = json.loads(encoded)
-    assert decoded["b"] == "Exception('side effect __dict__')"
-    assert decoded["c"] == "Exception('side effect __repr__')"
+    assert decoded["b"] == repr(dict_side_effect)
+    assert decoded["c"] == repr(repr_side_effect)
