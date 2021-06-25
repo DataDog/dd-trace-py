@@ -37,8 +37,11 @@ def _json_encode(params):
     """JSON encode parameters. If complex object show inner values, otherwise default to string representation."""
 
     def inner_encode(obj):
-        obj_dict = getattr(obj, "__dict__", None)
-        return obj_dict if obj_dict else repr(obj)
+        try:
+            obj_dict = getattr(obj, "__dict__", None)
+            return obj_dict if obj_dict else repr(obj)
+        except Exception as e:
+            return repr(e)
 
     return json.dumps(params, default=inner_encode)
 

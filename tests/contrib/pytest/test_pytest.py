@@ -332,13 +332,13 @@ class TestPytest(TracerTestCase):
 
 
 class A(object):
-    def __init__(self, name: str, value: int):
+    def __init__(self, name, value):
         self.name = name
         self.value = value
 
 
 simple_types = [st.none(), st.booleans(), st.text(), st.integers(), st.floats(allow_infinity=False, allow_nan=False)]
-complex_types = [st.functions(), st.dates(), st.decimals(), st.from_type(A)]
+complex_types = [st.functions(), st.dates(), st.decimals(), st.builds(A, name=st.text(), value=st.integers())]
 
 
 @given(
@@ -376,3 +376,23 @@ def test_custom_json_encoding_python_objects(obj):
     )
     decoded = json.loads(encoded)
     assert obj == decoded
+
+
+def test_custom_json_encoding_side_effects():
+    """Ensures the _json_encode helper encodes objects with side effects (getattr, repr) without raising exceptions."""
+
+    class B(object):
+        def __getattribute__(self, item):
+            if item == "__dict__":
+                raise Exception("side effect __dict__")
+            raise AttributeError()
+
+    class C(object):
+        def __repr__(self):
+            raise Exception("side effect __repr__")
+
+    obj = {"b": B(), "c": C()}
+    encoded = _json_encode(obj)
+    decoded = json.loads(encoded)
+    assert decoded["b"] == "Exception('side effect __dict__')"
+    assert decoded["c"] == "Exception('side effect __repr__')"
