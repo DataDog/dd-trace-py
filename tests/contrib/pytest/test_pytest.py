@@ -2,9 +2,12 @@ import json
 import os
 import sys
 
+from hypothesis import given
+from hypothesis import strategies as st
 import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.pytest.plugin import _json_encode
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -153,8 +156,8 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 9
         for i in range(len(spans) - 1):
             extracted_params = json.loads(spans[i].meta[test.PARAMETERS])
-            assert extracted_params == {"parameters": {"item": expected_params[i]}, "metadata": {}}
-        assert "<function item_param at 0x" in json.loads(spans[8].meta[test.PARAMETERS])["parameters"]["item"]
+            assert extracted_params == {"arguments": {"item": expected_params[i]}, "metadata": {}}
+        assert "<function item_param at 0x" in json.loads(spans[8].meta[test.PARAMETERS])["arguments"]["item"]
 
     def test_skip(self):
         """Test parametrize case."""
@@ -326,3 +329,50 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
+
+
+class A(object):
+    def __init__(self, name: str, value: int):
+        self.name = name
+        self.value = value
+
+
+simple_types = [st.none(), st.booleans(), st.text(), st.integers(), st.floats(allow_infinity=False, allow_nan=False)]
+complex_types = [st.functions(), st.dates(), st.decimals(), st.from_type(A)]
+
+
+@given(
+    st.dictionaries(
+        st.text(),
+        st.one_of(
+            *simple_types,
+            st.lists(st.one_of(*simple_types)),
+            st.dictionaries(st.text(), st.one_of(*simple_types)),
+        ),
+    ),
+)
+def test_custom_json_encoding_simple_types(obj):
+    """Ensures the _json.encode helper encodes simple objects."""
+    encoded = _json_encode(obj)
+    decoded = json.loads(encoded)
+    assert obj == decoded
+
+
+@given(
+    st.dictionaries(
+        st.text(),
+        st.one_of(
+            *complex_types,
+            st.lists(st.one_of(*complex_types)),
+            st.dictionaries(st.text(), st.one_of(*complex_types)),
+        ),
+    ),
+)
+def test_custom_json_encoding_python_objects(obj):
+    """Ensures the _json_encode helper encodes complex objects into dicts of inner values or a string representation."""
+    encoded = _json_encode(obj)
+    obj = json.loads(
+        json.dumps(obj, default=lambda x: getattr(x, "__dict__", None) if getattr(x, "__dict__", None) else str(x))
+    )
+    decoded = json.loads(encoded)
+    assert obj == decoded
