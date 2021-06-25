@@ -349,7 +349,7 @@ complex_types = [st.functions(), st.dates(), st.decimals(), st.builds(A, name=st
             st.lists(st.one_of(*simple_types)),
             st.dictionaries(st.text(), st.one_of(*simple_types)),
         ),
-    ),
+    )
 )
 def test_custom_json_encoding_simple_types(obj):
     """Ensures the _json.encode helper encodes simple objects."""
@@ -366,7 +366,7 @@ def test_custom_json_encoding_simple_types(obj):
             st.lists(st.one_of(*complex_types)),
             st.dictionaries(st.text(), st.one_of(*complex_types)),
         ),
-    ),
+    )
 )
 def test_custom_json_encoding_python_objects(obj):
     """Ensures the _json_encode helper encodes complex objects into dicts of inner values or a string representation."""
