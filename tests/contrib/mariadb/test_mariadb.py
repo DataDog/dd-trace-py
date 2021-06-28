@@ -350,6 +350,13 @@ def test_simple_query_snapshot(tracer):
     rows = cursor.fetchall()
     assert len(rows) == 1
 
+@snapshot(include_tracer=True, ignores=["meta.error.stack"])
+def test_simple_malformed_query_snapshot(tracer):
+    connection = get_connection(tracer)
+    cursor = connection.cursor()
+    with pytest.raises(mariadb.ProgrammingError):
+        cursor.execute("SELEC 1")
+
 @snapshot(include_tracer=True)
 def test_simple_query_fetchall( tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
