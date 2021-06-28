@@ -272,8 +272,26 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag("mark") == "dd_tags"
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
 
+    def test_service_name_repository_name(self):
+        """Test span's service name is set to repository name."""
+        self.monkeypatch.setenv("APPVEYOR", "true")
+        self.monkeypatch.setenv("APPVEYOR_REPO_PROVIDER", "github")
+        self.monkeypatch.setenv("APPVEYOR_REPO_NAME", "test-repository-name")
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+
+            def test_service(ddspan):
+                assert 'test-repository-name' == os.getenv("APPVEYOR_REPO_NAME")
+                assert 'test-repository-name' == ddspan.service
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.subprocess_run("--ddtrace", file_name)
+        rec.assert_outcomes(passed=1)
+
     def test_default_service_name(self):
-        """Test default service name."""
+        """Test default service name if no repository name found."""
         py_file = self.testdir.makepyfile(
             """
             def test_service(ddspan):
@@ -290,7 +308,7 @@ class TestPytest(TracerTestCase):
         assert spans[0].name == "pytest.test"
 
     def test_dd_service_name(self):
-        """Test integration service name."""
+        """Test when integration service name set."""
         self.monkeypatch.setenv("DD_SERVICE", "mysvc")
         if "DD_PYTEST_SERVICE" in os.environ:
             self.monkeypatch.delenv("DD_PYTEST_SERVICE")

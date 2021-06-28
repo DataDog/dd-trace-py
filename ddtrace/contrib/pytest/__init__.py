@@ -26,7 +26,7 @@ Global Configuration
    This option can also be set with the ``DD_PYTEST_SERVICE`` environment
    variable.
 
-   Default: ``"pytest"``
+   Default: Name of the repository being tested, otherwise ``"pytest"`` if the repository name cannot be found.
 
 
 .. py:data:: ddtrace.config.pytest["operation_name"]

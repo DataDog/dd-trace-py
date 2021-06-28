@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 from typing import Dict
 
@@ -77,7 +78,15 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
 
     if is_enabled(config):
-        Pin(tags=ci.tags(), _config=ddtrace.config.pytest).onto(config)
+        ci_tags = ci.tags()
+        if ci_tags.get(ci.git.REPOSITORY_URL, None):
+            try:
+                repository_name = re.search(r"(.+?).git", ci_tags[ci.git.REPOSITORY_URL].split("/")[-1]).group(1)
+            except AttributeError:
+                # In case of parsing error, default to repository url
+                repository_name = ci_tags[ci.git.REPOSITORY_URL]
+            ddtrace.config.pytest["_default_service"] = repository_name
+        Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
 
 def pytest_sessionfinish(session, exitstatus):
