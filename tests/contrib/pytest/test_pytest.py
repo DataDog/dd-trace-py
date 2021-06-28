@@ -1,9 +1,13 @@
+import json
 import os
 import sys
 
+from hypothesis import given
+from hypothesis import strategies as st
 import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.pytest.plugin import _json_encode
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -107,18 +111,53 @@ class TestPytest(TracerTestCase):
             """
             import pytest
 
-            @pytest.mark.parametrize('abc', [1, 2, 3, 4, pytest.param(5, marks=pytest.mark.skip)])
+            class A:
+                def __init__(self, name, value):
+                    self.name = name
+                    self.value = value
+
+            def item_param():
+                return 42
+
+            @pytest.mark.parametrize(
+                'item',
+                [
+                    1,
+                    2,
+                    3,
+                    4,
+                    pytest.param(A("test_name", "value"), marks=pytest.mark.skip),
+                    pytest.param(A("test_name", A("inner_name", "value")), marks=pytest.mark.skip),
+                    pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
+                    pytest.param([1, 2, 3], marks=pytest.mark.skip),
+                    pytest.param(item_param, marks=pytest.mark.skip)
+                ]
+            )
             class Test1(object):
-                def test_1(self, abc):
-                    assert abc in {1, 2, 3}
+                def test_1(self, item):
+                    assert item in {1, 2, 3}
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=3, failed=1, skipped=1)
+        rec.assertoutcome(passed=3, failed=1, skipped=5)
         spans = self.pop_spans()
 
-        assert len(spans) == 5
+        expected_params = [
+            1,
+            2,
+            3,
+            4,
+            {"name": "test_name", "value": "value"},
+            {"name": "test_name", "value": {"name": "inner_name", "value": "value"}},
+            {"a": {"name": "test_name", "value": "value"}, "b": [1, 2, 3]},
+            [1, 2, 3],
+        ]
+        assert len(spans) == 9
+        for i in range(len(spans) - 1):
+            extracted_params = json.loads(spans[i].meta[test.PARAMETERS])
+            assert extracted_params == {"arguments": {"item": expected_params[i]}, "metadata": {}}
+        assert "<function item_param at 0x" in json.loads(spans[8].meta[test.PARAMETERS])["arguments"]["item"]
 
     def test_skip(self):
         """Test parametrize case."""
@@ -290,3 +329,68 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
+
+
+class A(object):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+
+simple_types = [st.none(), st.booleans(), st.text(), st.integers(), st.floats(allow_infinity=False, allow_nan=False)]
+complex_types = [st.functions(), st.dates(), st.decimals(), st.builds(A, name=st.text(), value=st.integers())]
+
+
+@given(
+    st.dictionaries(
+        st.text(),
+        st.one_of(
+            st.lists(st.one_of(*simple_types)), st.dictionaries(st.text(), st.one_of(*simple_types)), *simple_types
+        ),
+    )
+)
+def test_custom_json_encoding_simple_types(obj):
+    """Ensures the _json.encode helper encodes simple objects."""
+    encoded = _json_encode(obj)
+    decoded = json.loads(encoded)
+    assert obj == decoded
+
+
+@given(
+    st.dictionaries(
+        st.text(),
+        st.one_of(
+            st.lists(st.one_of(*complex_types)), st.dictionaries(st.text(), st.one_of(*complex_types)), *complex_types
+        ),
+    )
+)
+def test_custom_json_encoding_python_objects(obj):
+    """Ensures the _json_encode helper encodes complex objects into dicts of inner values or a string representation."""
+    encoded = _json_encode(obj)
+    obj = json.loads(
+        json.dumps(obj, default=lambda x: getattr(x, "__dict__", None) if getattr(x, "__dict__", None) else repr(x))
+    )
+    decoded = json.loads(encoded)
+    assert obj == decoded
+
+
+def test_custom_json_encoding_side_effects():
+    """Ensures the _json_encode helper encodes objects with side effects (getattr, repr) without raising exceptions."""
+    dict_side_effect = Exception("side effect __dict__")
+    repr_side_effect = Exception("side effect __repr__")
+
+    class B(object):
+        def __getattribute__(self, item):
+            if item == "__dict__":
+                raise dict_side_effect
+            raise AttributeError()
+
+    class C(object):
+        def __repr__(self):
+            raise repr_side_effect
+
+    obj = {"b": B(), "c": C()}
+    encoded = _json_encode(obj)
+    decoded = json.loads(encoded)
+    assert decoded["b"] == repr(dict_side_effect)
+    assert decoded["c"] == repr(repr_side_effect)
