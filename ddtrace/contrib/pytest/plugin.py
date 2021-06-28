@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Any
 from typing import Dict
 
@@ -11,6 +10,7 @@ from ...constants import SPAN_KIND
 from ...ext import SpanTypes
 from ...ext import ci
 from ...ext import test
+from ...internal import compat
 from ...pin import Pin
 from ..trace_utils import int_service
 from .constants import FRAMEWORK
@@ -81,8 +81,9 @@ def pytest_configure(config):
         ci_tags = ci.tags()
         if ci_tags.get(ci.git.REPOSITORY_URL, None):
             try:
-                repository_name = re.search(r"(.+?).git", ci_tags[ci.git.REPOSITORY_URL].split("/")[-1]).group(1)
-            except AttributeError:
+                parsed_path = compat.parse.urlparse(ci_tags[ci.git.REPOSITORY_URL]).path
+                repository_name = parsed_path.split("/")[-1].split(".git")[0]
+            except Exception:
                 # In case of parsing error, default to repository url
                 repository_name = ci_tags[ci.git.REPOSITORY_URL]
             ddtrace.config.pytest["_default_service"] = repository_name
