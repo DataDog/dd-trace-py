@@ -85,6 +85,7 @@ mysqldb
 namespace
 opentracer
 opentracing
+parameterized
 pid
 plugin
 posix
