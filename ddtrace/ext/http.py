@@ -17,4 +17,3 @@ VERSION = "http.version"
 
 # template render span type
 TEMPLATE = "template"
-
