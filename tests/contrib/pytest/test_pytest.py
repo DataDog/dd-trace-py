@@ -7,6 +7,7 @@ from hypothesis import strategies as st
 import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.contrib.pytest.plugin import _json_encode
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
@@ -295,17 +296,13 @@ class TestPytest(TracerTestCase):
         py_file = self.testdir.makepyfile(
             """
             def test_service(ddspan):
-                assert True
+                assert ddspan.service == "pytest"
+                assert ddspan.name == "pytest.test"
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
-
-        assert len(spans) == 1
-        assert spans[0].service == "pytest"
-        assert spans[0].name == "pytest.test"
+        rec = self.subprocess_run("--ddtrace", file_name)
+        rec.assert_outcomes(passed=1)
 
     def test_dd_service_name(self):
         """Test when integration service name set."""
@@ -412,3 +409,19 @@ def test_custom_json_encoding_side_effects():
     decoded = json.loads(encoded)
     assert decoded["b"] == repr(dict_side_effect)
     assert decoded["c"] == repr(repr_side_effect)
+
+
+@pytest.mark.parametrize(
+    "repository_url,repository_name",
+    [
+        ("https://github.com/DataDog/dd-trace-py.git", "dd-trace-py"),
+        ("https://github.com/DataDog/dd-trace-py", "dd-trace-py"),
+        ("git@github.com:DataDog/dd-trace-py.git", "dd-trace-py"),
+        ("git@github.com:DataDog/dd-trace-py", "dd-trace-py"),
+        ("dd-trace-py", "dd-trace-py"),
+        ("git@hostname.com:org/repo-name.git", "repo-name"),
+        ("git@hostname.com:org/repo-name", "repo-name"),
+    ],
+)
+def test_repository_name_extracted(repository_url, repository_name):
+    assert _extract_repository_name(repository_url) == repository_name

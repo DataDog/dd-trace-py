@@ -47,6 +47,17 @@ def _json_encode(params):
     return json.dumps(params, default=inner_encode)
 
 
+def _extract_repository_name(repository_url):
+    # type: (str) -> str
+    """Extract repository name from repository url."""
+    try:
+        parsed_path = compat.parse.urlparse(repository_url).path
+        return parsed_path.split("/")[-1].split(".git")[0]
+    except Exception:
+        # In case of parsing error, default to repository url
+        return repository_url
+
+
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
@@ -80,12 +91,7 @@ def pytest_configure(config):
     if is_enabled(config):
         ci_tags = ci.tags()
         if ci_tags.get(ci.git.REPOSITORY_URL, None):
-            try:
-                parsed_path = compat.parse.urlparse(ci_tags[ci.git.REPOSITORY_URL]).path
-                repository_name = parsed_path.split("/")[-1].split(".git")[0]
-            except Exception:
-                # In case of parsing error, default to repository url
-                repository_name = ci_tags[ci.git.REPOSITORY_URL]
+            repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
             ddtrace.config.pytest["_default_service"] = repository_name
         Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
