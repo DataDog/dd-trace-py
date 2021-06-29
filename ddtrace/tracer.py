@@ -490,7 +490,7 @@ class Tracer(object):
             if isinstance(child_of, Context):
                 context = child_of
             else:
-                context = child_of._context
+                context = child_of._context or Context()
                 parent = child_of
         else:
             context = Context()
