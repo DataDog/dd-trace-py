@@ -561,3 +561,46 @@ assert ddtrace.tracer.writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
+
+
+def test_partial_flush_log(run_python_code_in_subprocess):
+    partial_flush_min_spans = "2"
+    env = os.environ.copy()
+    env["DD_TRACER_PARTIAL_FLUSH_ENABLED"] = "true"
+    env["DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from ddtrace import tracer
+
+print(tracer._partial_flush_enabled)
+assert tracer._partial_flush_enabled == True
+assert tracer._partial_flush_min_spans == 2
+""",
+        env=env,
+    )
+
+    assert status == 0, (out, err)
+
+    t = Tracer()
+
+    t.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=2,
+    )
+
+    s1 = t.trace("1")
+    s2 = t.trace("2")
+    s3 = t.trace("3")
+
+    with mock.patch("ddtrace.internal.processor.trace.log") as log:
+        s1.finish()
+        s2.finish()
+
+    calls = [
+        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, AnyInt()),
+    ]
+
+    log.debug.assert_has_calls(calls)
+    s3.finish()
+    t.shutdown()
