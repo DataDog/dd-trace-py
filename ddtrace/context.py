@@ -35,8 +35,10 @@ class Context(object):
     _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
     def __attrs_post_init__(self):
-        self.dd_origin = self._dd_origin
-        self.sampling_priority = self._sampling_priority
+        if self._dd_origin is not None:
+            self.dd_origin = self._dd_origin
+        if self._sampling_priority is not None:
+            self.sampling_priority = self._sampling_priority
         del self._dd_origin
         del self._sampling_priority
 
