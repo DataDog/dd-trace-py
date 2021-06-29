@@ -421,6 +421,7 @@ def test_custom_json_encoding_side_effects():
         ("dd-trace-py", "dd-trace-py"),
         ("git@hostname.com:org/repo-name.git", "repo-name"),
         ("git@hostname.com:org/repo-name", "repo-name"),
+        ("ssh://git@hostname.com:org/repo-name", "repo-name"),
     ],
 )
 def test_repository_name_extracted(repository_url, repository_name):
