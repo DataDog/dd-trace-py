@@ -14,6 +14,10 @@ class GeventContextProvider(BaseContextProvider):
     # Greenlet attribute used to set/get the context
     _CONTEXT_ATTR = "__datadog_context"
 
+    def _executor_id(self):
+        # type: () -> int
+        return id(gevent.getcurrent())
+
     def _get_current_context(self):
         """Helper to get the active context from the current greenlet."""
         current_g = gevent.getcurrent()

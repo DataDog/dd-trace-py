@@ -414,3 +414,30 @@ class TestGeventTracer(TracerTestCase):
         assert p.returncode == 0, stderr
         assert b"Test success" in stdout
         assert b"RecursionError" not in stderr
+
+    def test_cross_greenlet_parenting(self):
+        """
+        When crossing task (greenlet) boundaries
+            The active span reference should not be copied across tasks.
+            Instead, the span's context should be activated.
+        """
+        def entrypoint():
+            with self.tracer.trace("main"):
+                jobs = [gevent.spawn(green_1)]
+            gevent.joinall(jobs)
+
+        def green_1():
+            with self.tracer.trace("worker") as span:
+                span.context.sampling_priority = USER_KEEP
+                gevent.sleep(0.01)
+
+        gevent.spawn(entrypoint).join()
+        spans = self.pop_spans()
+        main_span, task_span = spans
+        assert main_span.trace_id == task_span.trace_id
+        assert task_span.parent_id == main_span.span_id
+        # TODO: this is a bug and should pass but doesn't because the trace is
+        # finished and processed by the processors before the next span comes
+        # in and so the main span doesn't get the sampling decision.
+        # assert main_span.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP
+        assert task_span.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP

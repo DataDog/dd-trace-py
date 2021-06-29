@@ -1,6 +1,8 @@
 import gevent
 import gevent.pool as gpool
 
+from ddtrace.span import Span
+
 from .provider import GeventContextProvider
 
 
@@ -17,7 +19,10 @@ class TracingMixin(object):
         super(TracingMixin, self).__init__(*args, **kwargs)
 
         # copy the active span/context into the new greenlet
-        if ctx:
+        if isinstance(ctx, Span):
+            # make a copy of the span as the new greenlet is a new executor
+            setattr(self, GeventContextProvider._CONTEXT_ATTR, ctx.context)
+        elif ctx:
             setattr(self, GeventContextProvider._CONTEXT_ATTR, ctx)
 
 

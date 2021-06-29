@@ -579,6 +579,8 @@ class Tracer(object):
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
+        span._executor_id = self.context_provider._executor_id()
+
         if not span._parent:
             span.meta["runtime-id"] = get_runtime_id()
             span.metrics[system.PID] = self._pid
@@ -747,8 +749,8 @@ class Tracer(object):
         """Return the active span in the current execution context.
 
         Note that there may be an active span represented by a context object
-        (like from a distributed trace) which will not be returned by this
-        method.
+        when crossing execution boundaries in which case this method will
+        return None.
         """
         active = self.context_provider.active()
         return active if isinstance(active, Span) else None

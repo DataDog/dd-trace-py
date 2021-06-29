@@ -1,10 +1,18 @@
 import asyncio
 
 from ...provider import BaseContextProvider
+from ...provider import DefaultContextProvider
 from ...span import Span
+from .compat import asyncio_current_task
 
 
-class AsyncioContextProvider(BaseContextProvider):
+class AsyncioContextProvider(DefaultContextProvider):
+    def _executor_id(self):
+        # type: () -> int
+        return id(asyncio_current_task())
+
+
+class LegacyAsyncioContextProvider(BaseContextProvider):
     """Manages the active context for asyncio execution. Framework
     instrumentation that is built on top of the ``asyncio`` library, should
     use this provider when contextvars are not available (Python versions
@@ -71,3 +79,7 @@ class AsyncioContextProvider(BaseContextProvider):
         if isinstance(ctx, Span):
             return self._update_active(ctx)
         return ctx
+
+    def _executor_id(self):
+        # type: () -> int
+        return id(asyncio_current_task())

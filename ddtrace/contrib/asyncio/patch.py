@@ -1,10 +1,12 @@
 import asyncio
 import sys
 
+from ddtrace import tracer
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...utils.wrappers import unwrap as _u
+from .provider import AsyncioContextProvider
 from .wrappers import wrapped_create_task
 
 
@@ -15,6 +17,7 @@ def patch():
     if getattr(asyncio, "_datadog_patch", False):
         return
     setattr(asyncio, "_datadog_patch", True)
+    tracer.configure(context_provider=AsyncioContextProvider)
 
     if sys.version_info < (3, 7, 0):
         _w(asyncio.BaseEventLoop, "create_task", wrapped_create_task)

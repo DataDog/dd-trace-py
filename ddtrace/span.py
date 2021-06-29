@@ -71,6 +71,8 @@ class Span(object):
         "sampled",
         # Internal attributes
         "_context",
+        # Track which execution this span was created in.
+        "_executor_id",
         "_local_root",
         "_parent",
         "_ignored_exceptions",
@@ -150,6 +152,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
+        self._executor_id = 0  # type: int
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None

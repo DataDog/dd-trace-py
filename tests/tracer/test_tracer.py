@@ -1654,3 +1654,14 @@ def test_fork_manual_span_different_contexts(tracer):
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_context_tags(tracer):
+    with tracer.trace("span") as s1:
+        s1.context.sampling_priority = 3
+        with tracer.trace("span2") as s2:
+            assert s2.context.sampling_priority == 3
+            with tracer.trace("span3") as s3:
+                assert s3.context.sampling_priority == 3
+        with tracer.trace("span4") as s4:
+            assert s4.context.sampling_priority == 3

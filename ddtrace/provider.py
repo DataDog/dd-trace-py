@@ -79,13 +79,36 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         """
         return self.active()
 
+    def _executor_id(self):
+        # type: () -> int
+        return 0
+
     def _update_active(self, span):
         # type: (Span) -> Optional[Span]
+        """Update the active span based on the state of the span and its executor.
+
+        The new active is determined to be the first span found going up the
+        parent hiearachy starting with the previous active span which is:
+
+            1) From the same executor (thread, task, etc)
+            2) Unfinished
+
+        If a span from a different executor is found then it is converted to a
+        context and activated.
+        """
+        _exec_id = self._executor_id()
+
         if span.finished:
             new_active = span  # type: Optional[Span]
-            while new_active and new_active.finished:
+            while new_active and new_active.finished and span._executor_id == _exec_id:
                 new_active = new_active._parent
-            self.activate(new_active)
+
+            # If the new active span is from a different executor then activate
+            # the context of the span
+            if new_active and new_active._executor_id != _exec_id:
+                self.activate(new_active.context)
+            else:
+                self.activate(new_active)
             return new_active
         return span
 

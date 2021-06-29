@@ -46,13 +46,13 @@ required_modules = ["asyncio"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from ...internal.compat import CONTEXTVARS_IS_AVAILABLE
-        from ...provider import DefaultContextProvider
         from .provider import AsyncioContextProvider
+        from .provider import LegacyAsyncioContextProvider
 
         if CONTEXTVARS_IS_AVAILABLE:
-            context_provider = DefaultContextProvider()
-        else:
             context_provider = AsyncioContextProvider()
+        else:
+            context_provider = LegacyAsyncioContextProvider()
 
         from .helpers import ensure_future
         from .helpers import run_in_executor

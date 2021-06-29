@@ -3,11 +3,13 @@ import time
 
 import pytest
 
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.asyncio import context_provider
 from ddtrace.contrib.asyncio.helpers import set_call_context
 from ddtrace.contrib.asyncio.patch import patch
 from ddtrace.contrib.asyncio.patch import unpatch
+from ddtrace.ext.priority import USER_KEEP
 from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.provider import DefaultContextProvider
 from tests.opentracer.utils import init_tracer
@@ -198,3 +200,33 @@ async def test_trace_multiple_coroutines_ot_inner(tracer):
     # the parenting is correct
     assert traces[0][0] == traces[0][1]._parent
     assert traces[0][0].trace_id == traces[0][1].trace_id
+
+
+@pytest.mark.asyncio
+async def test_parent_close(tracer, test_spans):
+    """
+    When crossing task boundaries
+        The active span reference should not be copied across tasks.
+        Instead, the span's context should be activated.
+    """
+    tracer.configure(context_provider=context_provider)
+
+    async def f1():
+        with tracer.trace("f1"):
+            pass
+
+    with tracer.trace("main_task") as span:
+        span.context.sampling_priority = USER_KEEP
+        t = asyncio.create_task(f1())
+
+    # Pass execution to the task. When the task creates the f1 span it should
+    # inherit from the main_task span despite the main_task span being finished
+    # already.
+    await t
+
+    spans = test_spans.pop()
+    main_span, f1_span = spans
+    assert f1_span.trace_id == main_span.trace_id
+    assert f1_span.parent_id == main_span.span_id
+    assert main_span.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP
+    assert f1_span.get_metric(SAMPLING_PRIORITY_KEY) == USER_KEEP
