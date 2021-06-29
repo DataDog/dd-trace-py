@@ -358,9 +358,11 @@ venv = Venv(
                     },
                     pkgs={
                         "celery": [
-                            "~=5.0.5",
-                            # "~=5.0",  # most recent 5.x
-                            # latest, # Pin until https://github.com/celery/celery/issues/6829 is resolved.
+                            # Pin until https://github.com/celery/celery/issues/6829 is resolved.
+                            # "~=5.0.5",
+                            "==5.0.5",
+                            "~=5.0",  # most recent 5.x
+                            latest,
                         ],
                         "redis": "~=3.5",
                     },
