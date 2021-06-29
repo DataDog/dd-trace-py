@@ -99,7 +99,7 @@ def collect(tracer):
             integration_configs[module] = "N/A"
 
     pip_version = packages_available.get("pip", "N/A")
-    
+
     return dict(
         # Timestamp UTC ISO 8601
         date=datetime.datetime.utcnow().isoformat(),
