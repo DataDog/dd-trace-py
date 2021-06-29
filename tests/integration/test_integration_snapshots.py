@@ -192,7 +192,6 @@ def test_tracer_trace_across_fork():
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
-        tracer.shutdown()
 
     tracer.shutdown()
 

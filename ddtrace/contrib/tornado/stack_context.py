@@ -3,6 +3,7 @@ import sys
 import tornado
 from tornado.ioloop import IOLoop
 
+from ...provider import BaseContextProvider
 from ...provider import DefaultContextProvider
 from ...span import Span
 
@@ -31,6 +32,11 @@ if _USE_STACK_CONTEXT:
         """
 
         def __init__(self):
+            # type: (...) -> None
+            # HACK(jd): this should be using super(), but calling DefaultContextProvider.__init__
+            # sets the context to `None` which breaks this code.
+            # We therefore skip DefaultContextProvider.__init__ and call only BaseContextProvider.__init__.
+            BaseContextProvider.__init__(self)
             self._context = None
 
         def enter(self):
