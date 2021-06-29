@@ -14,6 +14,9 @@ FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 # Test Name
 NAME = TEST_NAME = "test.name"
 
+# Test Parameters
+PARAMETERS = "test.parameters"
+
 # Pytest Result (XFail, XPass)
 RESULT = TEST_RESULT = "pytest.result"
 

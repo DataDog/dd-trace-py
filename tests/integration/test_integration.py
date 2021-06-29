@@ -497,3 +497,67 @@ print(len(root.handlers))
         assert out == six.b("1\n")
     else:
         assert out == six.b("0\n")
+
+
+def test_writer_env_configuration(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 1000
+assert ddtrace.tracer.writer._buffer.max_item_size == 5000
+assert ddtrace.tracer.writer._interval == 5.0
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 8000000
+assert ddtrace.tracer.writer._buffer.max_item_size == 8000000
+assert ddtrace.tracer.writer._interval == 1.0
+""",
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 1000
+assert ddtrace.tracer.writer._buffer.max_item_size == 5000
+assert ddtrace.tracer.writer._interval == 5.0
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_in_subprocess):
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 8000000
+assert ddtrace.tracer.writer._buffer.max_item_size == 8000000
+assert ddtrace.tracer.writer._interval == 1.0
+""",
+    )
+    assert status == 0, (out, err)

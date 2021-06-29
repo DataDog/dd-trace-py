@@ -75,9 +75,7 @@ cpdef seed():
 
 # We have to reseed the RNG or we will get collisions between the processes as
 # they will share the seed and generate the same random numbers.
-cpdef _reseed_on_fork():
-    seed()
-    forksafe.register(_reseed_on_fork)
+forksafe.register(seed)
 
 
 cpdef rand64bits():
@@ -88,4 +86,4 @@ cpdef rand64bits():
     return <uint64_t>(state * <uint64_t>2685821657736338717)
 
 
-_reseed_on_fork()
+seed()
