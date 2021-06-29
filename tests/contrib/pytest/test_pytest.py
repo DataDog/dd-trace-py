@@ -4,6 +4,7 @@ import sys
 
 from hypothesis import given
 from hypothesis import strategies as st
+import mock
 import pytest
 
 from ddtrace import Pin
@@ -426,3 +427,11 @@ def test_custom_json_encoding_side_effects():
 )
 def test_repository_name_extracted(repository_url, repository_name):
     assert _extract_repository_name(repository_url) == repository_name
+
+
+def test_repository_name_not_extracted_warning():
+    repository_url = "https://github.com:organ[ization/repository-name"
+    with mock.patch("ddtrace.contrib.pytest.plugin.log") as mock_log:
+        extracted_repository_name = _extract_repository_name(repository_url)
+        assert extracted_repository_name == repository_url
+    mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
