@@ -360,7 +360,7 @@ venv = Venv(
                         "celery": [
                             "~=5.0.5",
                             "~=5.0",  # most recent 5.x
-                            latest,
+                            # latest, # Pin until https://github.com/celery/celery/issues/6829 is resolved.
                         ],
                         "redis": "~=3.5",
                     },
