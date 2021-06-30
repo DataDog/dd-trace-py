@@ -1,9 +1,19 @@
 from typing import Optional
 
+import six
+
 import ddtrace.internal.runtime.runtime_metrics
 
 
-class RuntimeMetrics(object):
+class _RuntimeMetricsStatus(type):
+    @property
+    def _enabled(_):
+        # type () -> bool
+        """Runtime metrics enabled status."""
+        return ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enabled
+
+
+class RuntimeMetrics(six.with_metaclass(_RuntimeMetricsStatus)):
     """
     Runtime metrics service API.
 

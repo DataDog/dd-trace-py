@@ -48,9 +48,6 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-_ENABLED = False
-
-
 def _get_default_heap_sample_size(
     default_heap_sample_size=512 * 1024,  # type: int
 ):
@@ -59,7 +56,7 @@ def _get_default_heap_sample_size(
     if heap_sample_size is not None:
         return int(heap_sample_size)
 
-    if not _ENABLED:
+    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "0")):
         return 0
 
     try:

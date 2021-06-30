@@ -77,6 +77,7 @@ class RuntimeWorker(periodic.PeriodicService):
     _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
     _services = attr.ib(type=Set[str], init=False, factory=set)
 
+    enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = RLock()
 
@@ -108,6 +109,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance.stop()
             cls._instance.join()
             cls._instance = None
+            cls.enabled = False
 
     @classmethod
     def _restart(cls):
@@ -128,6 +130,7 @@ class RuntimeWorker(periodic.PeriodicService):
             forksafe.register(cls._restart)
 
             cls._instance = runtime_worker
+            cls.enabled = True
 
     def flush(self):
         # type: () -> None

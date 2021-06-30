@@ -50,7 +50,7 @@ class TraceMiddleware(object):
         if not span:
             return  # unexpected
 
-        status = httpx.normalize_status_code(resp.status)
+        status = resp.status.partition(" ")[0]
 
         # FIXME[matt] falcon does not map errors or unmatched routes
         # to proper status codes, so we we have to try to infer them
