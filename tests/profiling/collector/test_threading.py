@@ -1,4 +1,5 @@
 import threading
+import uuid
 
 import pytest
 from six.moves import _thread
@@ -60,22 +61,24 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 0
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:58"
+    assert event.lock_name == "test_threading.py:59"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns > 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 59, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 60, "test_lock_acquire_events")
     assert event.sampling_pct == 100
 
 
 def test_lock_events_tracer(tracer):
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
     r = recorder.Recorder()
     with collector_threading.LockCollector(r, tracer=tracer, capture_pct=100):
         lock = threading.Lock()
         lock.acquire()
-        with tracer.trace("test") as t:
+        with tracer.trace("test", resource=resource, span_type=span_type) as t:
             lock2 = threading.Lock()
             lock2.acquire()
             lock.release()
@@ -85,14 +88,18 @@ def test_lock_events_tracer(tracer):
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_threading.LockAcquireEvent, collector_threading.LockReleaseEvent):
-        assert {"test_threading.py:76", "test_threading.py:79"}.issubset({e.lock_name for e in events[event_type]})
+        assert {"test_threading.py:79", "test_threading.py:82"}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.name == "test_threading.py:76":
+            if event.name == "test_threading.py:79":
                 assert event.trace_id is None
                 assert event.span_id is None
-            elif event.name == "test_threading.py:79":
+                assert event.trace_resource is None
+                assert event.trace_type is None
+            elif event.name == "test_threading.py:82":
                 assert event.trace_id == trace_id
                 assert event.span_id == span_id
+                assert event.trace_resource == t.resource
+                assert event.trace_type == t.span_type
 
 
 def test_lock_release_events():
@@ -104,13 +111,13 @@ def test_lock_release_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 1
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:101"
+    assert event.lock_name == "test_threading.py:108"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0.1
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 103, "test_lock_release_events")
+    assert event.frames[0] == (__file__, 110, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 
