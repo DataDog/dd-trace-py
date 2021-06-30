@@ -333,13 +333,9 @@ def test_memalloc_speed(benchmark, heap_sample_size):
         (False, (lambda v: v == 0, lambda v: v == 0, lambda v: v == 0, lambda v: v == 0)),
     ),
 )
-def test_memalloc_sample_size(enabled, predicates):
-    restore = memalloc._ENABLED
-    memalloc._ENABLED = enabled
-    try:
-        assert predicates[0](memalloc._get_default_heap_sample_size())
-        assert predicates[1](memalloc._get_default_heap_sample_size(1))
-        assert predicates[2](memalloc._get_default_heap_sample_size(512))
-        assert predicates[3](memalloc._get_default_heap_sample_size(512 * 1024 * 1024))
-    finally:
-        memalloc._ENABLED = restore
+def test_memalloc_sample_size(enabled, predicates, monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled))
+    assert predicates[0](memalloc._get_default_heap_sample_size())
+    assert predicates[1](memalloc._get_default_heap_sample_size(1))
+    assert predicates[2](memalloc._get_default_heap_sample_size(512))
+    assert predicates[3](memalloc._get_default_heap_sample_size(512 * 1024 * 1024))

@@ -35,8 +35,10 @@ class Context(object):
     _metrics = attr.ib(factory=dict)  # type: _MetricDictType
 
     def __attrs_post_init__(self):
-        self.dd_origin = self._dd_origin
-        self.sampling_priority = self._sampling_priority
+        if self._dd_origin is not None:
+            self.dd_origin = self._dd_origin
+        if self._sampling_priority is not None:
+            self.sampling_priority = self._sampling_priority
         del self._dd_origin
         del self._sampling_priority
 
@@ -52,12 +54,11 @@ class Context(object):
     def _with_span(self, span):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
-        with self._lock:
-            ctx = self.__class__(trace_id=span.trace_id, span_id=span.span_id)
-            ctx._lock = self._lock
-            ctx._meta = self._meta
-            ctx._metrics = self._metrics
-            return ctx
+        ctx = self.__class__(trace_id=span.trace_id, span_id=span.span_id)
+        ctx._lock = self._lock
+        ctx._meta = self._meta
+        ctx._metrics = self._metrics
+        return ctx
 
     def _update_tags(self, span):
         # type: (Span) -> None

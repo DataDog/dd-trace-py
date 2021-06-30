@@ -12,6 +12,8 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
+from ddtrace.contrib.requests.connection import _extract_hostname
+from ddtrace.contrib.requests.connection import _extract_query_string
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
@@ -567,3 +569,43 @@ session.get("http://httpbin.org/status/200")
     assert p.stderr.read() == six.b("")
     assert p.stdout.read() == six.b("")
     assert p.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "uri,hostname",
+    [
+        ("http://localhost:8080", "localhost:8080"),
+        ("http://localhost:8080/", "localhost:8080"),
+        ("http://localhost", "localhost"),
+        ("http://localhost/", "localhost"),
+        ("http://asd:wwefwf@localhost:8080", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path?query", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", "localhost:8080"),
+        ("http://localhost:8080/path#frag?ment", "localhost:8080"),
+        ("http://localhost/path#frag?ment", "localhost"),
+    ],
+)
+def test_extract_hostname(uri, hostname):
+    assert _extract_hostname(uri) == hostname
+
+
+@pytest.mark.parametrize(
+    "uri,qs",
+    [
+        ("http://localhost:8080", None),
+        ("http://localhost", None),
+        ("http://asd:wwefwf@localhost:8080", None),
+        ("http://asd:wwefwf@localhost:8080/path", None),
+        ("http://asd:wwefwf@localhost:8080/path?query", "query"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "query"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", None),
+        ("http://localhost:8080/path#frag?ment", None),
+        ("http://localhost/path#frag?ment", None),
+        ("http://localhost?query", "query"),
+    ],
+)
+def test_extract_query_string(uri, qs):
+    assert _extract_query_string(uri) == qs
