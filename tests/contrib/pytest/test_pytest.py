@@ -10,6 +10,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.contrib.pytest.plugin import _json_encode
+from ddtrace.ext import ci
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -284,7 +285,6 @@ class TestPytest(TracerTestCase):
             import os
 
             def test_service(ddspan):
-                assert 'test-repository-name' == os.getenv("APPVEYOR_REPO_NAME")
                 assert 'test-repository-name' == ddspan.service
         """
         )
@@ -294,6 +294,9 @@ class TestPytest(TracerTestCase):
 
     def test_default_service_name(self):
         """Test default service name if no repository name found."""
+        providers = [provider for (provider, extract) in ci.PROVIDERS]
+        for provider in providers:
+            self.monkeypatch.delenv(provider, raising=False)
         py_file = self.testdir.makepyfile(
             """
             def test_service(ddspan):
@@ -306,7 +309,7 @@ class TestPytest(TracerTestCase):
         rec.assert_outcomes(passed=1)
 
     def test_dd_service_name(self):
-        """Test when integration service name set."""
+        """Test dd service name."""
         self.monkeypatch.setenv("DD_SERVICE", "mysvc")
         if "DD_PYTEST_SERVICE" in os.environ:
             self.monkeypatch.delenv("DD_PYTEST_SERVICE")

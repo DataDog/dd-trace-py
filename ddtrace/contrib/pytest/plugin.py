@@ -89,12 +89,11 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
-
     if is_enabled(config):
         ci_tags = ci.tags()
-        if ci_tags.get(ci.git.REPOSITORY_URL, None):
+        if ci_tags.get(ci.git.REPOSITORY_URL, None) and int_service(None, ddtrace.config.pytest) == "pytest":
             repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
-            ddtrace.config.pytest["_default_service"] = repository_name
+            ddtrace.config.pytest["service"] = repository_name
         Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
 
@@ -124,7 +123,6 @@ def pytest_runtest_protocol(item, nextitem):
     if pin is None:
         yield
         return
-
     with pin.tracer.trace(
         ddtrace.config.pytest.operation_name,
         service=int_service(pin, ddtrace.config.pytest),
