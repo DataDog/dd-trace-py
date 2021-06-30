@@ -1,3 +1,5 @@
+from typing import Optional
+
 import ddtrace
 from ddtrace import config
 
@@ -5,12 +7,49 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...internal.compat import parse
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+
+
+def _extract_hostname(uri):
+    # type: (str) -> str
+    end = len(uri)
+    j = uri.rfind("#", 0, end)
+    if j != -1:
+        end = j
+    j = uri.rfind("&", 0, end)
+    if j != -1:
+        end = j
+
+    start = uri.find("://", 0, end) + 3
+    i = uri.find("@", start, end) + 1
+    if i != 0:
+        start = i
+    j = uri.find("/", start, end)
+    if j != -1:
+        end = j
+
+    return uri[start:end]
+
+
+def _extract_query_string(uri):
+    # type: (str) -> Optional[str]
+    start = uri.find("?") + 1
+    if start == 0:
+        return None
+
+    end = len(uri)
+    j = uri.rfind("#", 0, end)
+    if j != -1:
+        end = j
+
+    if end <= start:
+        return None
+
+    return uri[start:end]
 
 
 def _wrap_send(func, instance, args, kwargs):
@@ -29,10 +68,8 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    parsed_uri = parse.urlparse(request.url)
-    hostname = parsed_uri.hostname
-    if parsed_uri.port:
-        hostname = "{}:{}".format(hostname, parsed_uri.port)
+    url = request.url
+    hostname = _extract_hostname(url)
 
     cfg = config.get_from(instance)
     service = None
@@ -59,19 +96,9 @@ def _wrap_send(func, instance, args, kwargs):
         if cfg.get("distributed_tracing"):
             HTTPPropagator.inject(span.context, request.headers)
 
-        response = None
+        response = response_headers = None
         try:
             response = func(*args, **kwargs)
-
-            # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
-            # requests custom structure, that we convert to a dict
-            if hasattr(response, "headers"):
-                response_headers = response.headers
-            else:
-                response_headers = None
-            trace_utils.set_http_meta(
-                span, config.requests, request_headers=request.headers, response_headers=response_headers
-            )
             return response
         finally:
             try:
@@ -82,13 +109,16 @@ def _wrap_send(func, instance, args, kwargs):
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
                     response_headers = dict(getattr(response, "headers", {}))
+
                 trace_utils.set_http_meta(
                     span,
                     config.requests,
+                    request_headers=request.headers,
+                    response_headers=response_headers,
                     method=request.method.upper(),
                     url=request.url,
                     status_code=status,
-                    query=parsed_uri.query,
+                    query=_extract_query_string(url),
                 )
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)
