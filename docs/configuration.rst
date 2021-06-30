@@ -121,6 +121,10 @@ below:
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
+   * - ``DD_PROFILING_HEAP_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable the heap memory profiler.
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
      - 2
