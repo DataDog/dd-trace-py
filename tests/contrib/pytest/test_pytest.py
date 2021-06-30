@@ -423,6 +423,9 @@ def test_custom_json_encoding_side_effects():
         ("git@hostname.com:org/repo-name.git", "repo-name"),
         ("git@hostname.com:org/repo-name", "repo-name"),
         ("ssh://git@hostname.com:org/repo-name", "repo-name"),
+        ("git+git://github.com/org/repo-name.git", "repo-name"),
+        ("git+ssh://github.com/org/repo-name.git", "repo-name"),
+        ("git+https://github.com/org/repo-name.git", "repo-name"),
     ],
 )
 def test_repository_name_extracted(repository_url, repository_name):
@@ -430,6 +433,7 @@ def test_repository_name_extracted(repository_url, repository_name):
 
 
 def test_repository_name_not_extracted_warning():
+    """If provided an invalid repository url, should raise warning and return original repository url"""
     repository_url = "https://github.com:organ[ization/repository-name"
     with mock.patch("ddtrace.contrib.pytest.plugin.log") as mock_log:
         extracted_repository_name = _extract_repository_name(repository_url)

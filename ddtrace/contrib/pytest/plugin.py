@@ -56,8 +56,7 @@ def _extract_repository_name(repository_url):
     # type: (str) -> str
     """Extract repository name from repository url."""
     try:
-        parsed_path = compat.parse.urlparse(repository_url).path
-        return parsed_path.split("/")[-1].split(".git")[0]
+        return compat.parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
     except ValueError:
         # In case of parsing error, default to repository url
         log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
