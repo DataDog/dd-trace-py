@@ -4,6 +4,7 @@ import threading
 import time
 import timeit
 import typing
+import uuid
 
 import pytest
 import six
@@ -326,7 +327,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 320, "test_exception_collection")]
+    assert e.frames == [(__file__, 321, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -349,7 +350,7 @@ def test_exception_collection_trace(tracer):
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 343, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 344, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -443,7 +444,9 @@ def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
 
 def test_collect_span_id(tracer_and_collector):
     t, c = tracer_and_collector
-    span = t.start_span("foobar", activate=True)
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
     # This test will run forever if it fails. Don't make it fail.
     while True:
         try:
@@ -452,12 +455,16 @@ def test_collect_span_id(tracer_and_collector):
             # No event left or no event yet
             continue
         if span.trace_id == event.trace_id and span.span_id == event.span_id:
+            assert event.trace_resource == resource
+            assert event.trace_type == span_type
             break
 
 
 def test_collect_multiple_span_id(tracer_and_collector):
     t, c = tracer_and_collector
-    span = t.start_span("foobar", activate=True)
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
     child = t.start_span("foobar", child_of=span, activate=True)
     # This test will run forever if it fails. Don't make it fail.
     while True:
@@ -467,6 +474,8 @@ def test_collect_multiple_span_id(tracer_and_collector):
             # No event left or no event yet
             continue
         if child.trace_id == event.trace_id and child.span_id == event.span_id:
+            assert event.trace_resource == resource
+            assert event.trace_type == span_type
             break
 
 
