@@ -5,12 +5,12 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1618357801277945181
-   "duration" 107575512
-   "meta" {"runtime-id" "cb4a438bb8364fa5ac0fec9f7df34c89"}
+   "start" 1624045258581163000
+   "duration" 22147000
+   "meta" {"runtime-id" "afc32eb3be454c03b8a140291d5fd696"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8786
+              "system.pid" 12507
               "_dd.tracer_kr" 1.0}}
       {"name" "child"
        "service" nil
@@ -19,7 +19,9 @@
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1618357801293690837
-       "duration" 76002
+       "start" 1624045258591089000
+       "duration" 53000
+       "meta" {"runtime-id" "dc30b84ca01142239a7f2a51d9c7725e"}
        "metrics" {"_sampling_priority_v1" 1
+                  "system.pid" 12517
                   "_dd.tracer_kr" 1.0}}]]

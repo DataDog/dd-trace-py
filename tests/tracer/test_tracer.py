@@ -8,6 +8,7 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
+import warnings
 
 import mock
 import pytest
@@ -512,14 +513,28 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    t.writer = mock.Mock(wraps=t.writer)
+    writer = mock.Mock(wraps=t.writer)
+    t.writer = writer
 
     # The writer thread does not start until the first write.
     t.shutdown()
     assert t.writer.stop.called
     assert not t.writer.join.called
 
-    # Do a write to start the writer.
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+
+        # Do a write to start the writer.
+        with t.trace("something"):
+            pass
+
+        (w,) = ws
+        assert issubclass(w.category, DeprecationWarning)
+        assert (
+            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
+            "A new tracer should be created for generating new traces in version '1.0.0'"
+        )
+
     with t.trace("something"):
         pass
 
@@ -893,6 +908,15 @@ def test_tracer_runtime_tags_fork():
 
     children_tag = q.get()
     assert children_tag != span.get_tag("runtime-id")
+
+
+def test_tracer_runtime_tags_cross_execution(tracer):
+    ctx = Context(trace_id=12, span_id=21)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("span") as span:
+        pass
+    assert span.get_tag("runtime-id") is not None
+    assert span.get_metric(system.PID) is not None
 
 
 def test_start_span_hooks():
