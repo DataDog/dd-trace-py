@@ -20,7 +20,7 @@ class TracingMixin(object):
 
         # copy the active span/context into the new greenlet
         if isinstance(ctx, Span):
-            # make a copy of the span as the new greenlet is a new executor
+            # make a copy of the span as a context in the new greenlet as it is a new executor
             setattr(self, GeventContextProvider._CONTEXT_ATTR, ctx.context)
         elif ctx:
             setattr(self, GeventContextProvider._CONTEXT_ATTR, ctx)

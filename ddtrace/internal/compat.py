@@ -251,3 +251,7 @@ def maybe_stringify(obj):
     if obj is not None:
         return stringify(obj)
     return None
+
+
+def current_thread_ident():
+    return threading.current_thread().ident

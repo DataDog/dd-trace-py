@@ -9,6 +9,7 @@ import six
 from . import _hooks
 from .context import Context
 from .internal.compat import contextvars
+from .internal.compat import current_thread_ident
 from .internal.logger import get_logger
 from .span import Span
 
@@ -81,7 +82,7 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
 
     def _executor_id(self):
         # type: () -> int
-        return 0
+        return current_thread_ident()
 
     def _update_active(self, span):
         # type: (Span) -> Optional[Span]
