@@ -200,6 +200,7 @@ def patch(raise_errors=True, **patch_modules):
         ",".join(patched_modules),
     )
 
+
 @deprecated("This module will be removed")
 def patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
