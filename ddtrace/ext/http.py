@@ -17,7 +17,3 @@ VERSION = "http.version"
 
 # template render span type
 TEMPLATE = "template"
-
-
-def normalize_status_code(code):
-    return code.split(" ")[0]
