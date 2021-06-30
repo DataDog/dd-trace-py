@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   git
 
 # Requirements are installed here to ensure they will be cached.
-COPY ./requirements.txt .
+COPY ./django_simple/requirements.txt .
 
 # Create Python Dependency and Sub-Dependency Wheels.
 RUN pip wheel --wheel-dir /usr/src/app/wheels  \
@@ -62,7 +62,7 @@ RUN curl -L -o /usr/bin/jq https://github.com/stedolan/jq/releases/download/jq-1
   chmod +x /usr/bin/jq
 
 # copy application code to WORKDIR
-COPY --chown=django:django . ${APP_HOME}
+COPY --chown=django:django ./django_simple ${APP_HOME}
 
 # make django owner of the WORKDIR directory as well.
 RUN chown django:django ${APP_HOME}
