@@ -1,0 +1,12 @@
+---
+prelude: >
+     The monkey.patch_module as well as the monkey.get_patch_module has been deprecated.
+
+deprecations:
+  - |
+    ``monkey.patch_module`` is deprecated. 
+  - |
+    ``monkey.get_patch_module`` is deprecated. 
+
+
+
