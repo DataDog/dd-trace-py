@@ -4,10 +4,13 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import re
 from typing import Any
+from typing import Callable
 from typing import Dict
+from typing import Generator
+from typing import Iterator
 from typing import Optional
-from typing import Set
 from typing import TYPE_CHECKING
+from typing import Tuple
 
 from ddtrace import Pin
 from ddtrace import config
@@ -279,26 +282,33 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
             tracer.context_provider.activate(context)
 
 
-def flatten_dict(
-    d,  # type: Dict[str, Any]
+def _flatten(
+    obj,  # type: Any
     sep=".",  # type: str
     prefix="",  # type: str
-    exclude=None,  # type: Optional[Set[str]]
+    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
 ):
-    # type: (...) -> Dict[str, Any]
-    """
-    Returns a normalized dict of depth 1
-    """
-    flat = {}
+    # type: (...) -> Generator[Tuple[str, Any], None, None]
     s = deque()  # type: ignore
-    s.append((prefix, d))
-    exclude = exclude or set()
+    s.append((prefix, obj))
     while s:
         p, v = s.pop()
-        if p in exclude:
+        if exclude_policy is not None and exclude_policy(p):
             continue
         if isinstance(v, dict):
-            s.extend((p + sep + k if p else k, v) for k, v in v.items())
+            s.extend((sep.join((p, k)) if p else k, v) for k, v in v.items())
         else:
-            flat[p] = v
-    return flat
+            yield p, v
+
+
+def set_flattened_tags(
+    span,  # type: Span
+    items,  # type: Iterator[Tuple[str, Any]]
+    sep=".",  # type: str
+    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
+    processor=None,  # type Optional[Callable[[Any], Any]]
+):
+    # type: (...) -> None
+    for prefix, value in items:
+        for tag, v in _flatten(value, sep, prefix, exclude_policy):
+            span.set_tag(tag, processor(v) if processor is not None else v)
