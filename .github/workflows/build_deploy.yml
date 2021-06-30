@@ -10,6 +10,9 @@ on:
       expectedVersion:
         description: 'Expected version string'
         required: true
+  schedule:
+    # Nightly builds after weekdays
+    - cron:  0 2 * * 2-6
 
 jobs:
   build_wheels:
