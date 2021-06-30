@@ -201,8 +201,10 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-@deprecated(message="This module has been moved to ddtrace.internal and will no longer be part of the public API.",
-    version="1.0.0")
+@deprecated(
+    message="This module has been moved to ddtrace.internal and will no longer be part of the public API.",
+    version="1.0.0",
+)
 def patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
     """Patch a single module
@@ -222,8 +224,10 @@ def patch_module(module, raise_errors=True):
         return False
 
 
-@deprecated(message="This module has been moved to ddtrace.internal and will no longer be part of the public API.",
-    version="1.0.0")
+@deprecated(
+    message="This module has been moved to ddtrace.internal and will no longer be part of the public API.",
+    version="1.0.0",
+)
 def get_patched_modules():
     # type: () -> List[str]
     """Get the list of patched modules"""
