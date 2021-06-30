@@ -202,7 +202,7 @@ def patch(raise_errors=True, **patch_modules):
 
 
 @deprecated(
-    message="This module has been moved to ddtrace.internal and will no longer be part of the public API.",
+    message="This function will be removed.",
     version="1.0.0",
 )
 def patch_module(module, raise_errors=True):
@@ -225,7 +225,7 @@ def patch_module(module, raise_errors=True):
 
 
 @deprecated(
-    message="This module has been moved to ddtrace.internal and will no longer be part of the public API.",
+    message="This function will be removed.",
     version="1.0.0",
 )
 def get_patched_modules():
