@@ -20,6 +20,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 from .internal.logger import get_logger
 from .settings import _config as config
 from .utils import formats
+from .utils.deprecation import deprecated
 
 
 log = get_logger(__name__)
@@ -199,7 +200,7 @@ def patch(raise_errors=True, **patch_modules):
         ",".join(patched_modules),
     )
 
-
+@deprecated("This module will be removed")
 def patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
     """Patch a single module
@@ -219,6 +220,7 @@ def patch_module(module, raise_errors=True):
         return False
 
 
+@deprecated("This module will me removed")
 def get_patched_modules():
     # type: () -> List[str]
     """Get the list of patched modules"""
