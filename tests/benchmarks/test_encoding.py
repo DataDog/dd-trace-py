@@ -36,7 +36,6 @@ trace_small_one_tag = gen_trace(nspans=50, key_size=10, ntags=1, nmetrics=0)
 trace_small_complex = gen_trace(nspans=50, key_size=10, ntags=50, nmetrics=25)
 
 
-# group name: encoding
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
 def test_encode_1000_span_trace(benchmark):
     benchmark(msgpack_encoder.encode_trace, trace_large)
@@ -69,7 +68,6 @@ def test_encode_500_span_trace_custom(benchmark):
     benchmark(trace_encoder.encode_trace, trace_medium)
 
 
-# group name: encoding.small
 @pytest.mark.benchmark(group="encoding.small", min_time=0.005)
 def test_encode_trace_small(benchmark):
     benchmark(msgpack_encoder.encode_trace, trace_small)
@@ -100,7 +98,6 @@ def test_encode_trace_small_custom_complex(benchmark):
     benchmark(trace_encoder.encode_trace, trace_small_complex)
 
 
-# group name: encoding.small.multi
 @pytest.mark.benchmark(group="encoding.small.multi", min_time=0.005)
 def test_encode_trace_small_multi(benchmark):
     benchmark(msgpack_encoder.encode_traces, [trace_small for _ in range(50)])
@@ -111,7 +108,6 @@ def test_encode_trace_small_multi_custom(benchmark):
     benchmark(trace_encoder.encode_traces, [trace_small for _ in range(50)])
 
 
-# group name: encoding.join-encoded
 @pytest.mark.benchmark(group="encoding.join_encoded", min_time=0.005)
 def test_join_encoded(benchmark):
     benchmark(
@@ -130,7 +126,7 @@ def test_join_encoded_custom(benchmark):
         trace_encoder.join_encoded,
         [
             trace_encoder.encode_trace(trace_large),
-            msgpack_encoder.encode_trace(trace_medium),
+            trace_encoder.encode_trace(trace_medium),
             trace_encoder.encode_trace(trace_small),
         ],
     )
