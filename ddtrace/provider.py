@@ -1,4 +1,5 @@
 import abc
+import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -9,7 +10,6 @@ import six
 from . import _hooks
 from .context import Context
 from .internal.compat import contextvars
-from .internal.compat import current_thread_ident
 from .internal.logger import get_logger
 from .span import Span
 
@@ -82,14 +82,14 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
 
     def _executor_id(self):
         # type: () -> int
-        return current_thread_ident()
+        return threading.current_thread().ident
 
     def _update_active(self, span):
         # type: (Span) -> Optional[Span]
         """Update the active span based on the state of the span and its executor.
 
         The new active is determined to be the first span found going up the
-        parent hiearachy starting with the previous active span which is:
+        parent hierarchy starting with the previous active span which is:
 
             1) From the same executor (thread, task, etc)
             2) Unfinished
@@ -105,7 +105,7 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
                 new_active = new_active._parent
 
             # If the new active span is from a different executor then activate
-            # the context of the span
+            # the context of the span instead.
             if new_active and new_active._executor_id != _exec_id:
                 self.activate(new_active.context)
             else:

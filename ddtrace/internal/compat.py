@@ -253,5 +253,3 @@ def maybe_stringify(obj):
     return None
 
 
-def current_thread_ident():
-    return threading.current_thread().ident
