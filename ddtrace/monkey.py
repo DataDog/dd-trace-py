@@ -233,7 +233,7 @@ def _patch_module(module, raise_errors=True):
     version="1.0.0",
 )
 def get_patched_modules():
-    return sorted(_PATCHED_MODULES)
+    return _get_patched_modules()
 
 
 def _get_patched_modules():
