@@ -24,7 +24,8 @@ class PPMsgpackEncoder(_EncoderBase):
     @staticmethod
     def decode(data):
         return msgpack.unpackb(data, raw=True)
-        
+
+
 # Set a static seed to ensure gen_trace is consistant
 random.seed(13)
 trace_large = gen_trace(nspans=1000, key_size=35, ntags=55, nmetrics=24)
