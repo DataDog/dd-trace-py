@@ -206,6 +206,7 @@ def patch(raise_errors=True, **patch_modules):
     version="1.0.0",
 )
 def patch_module(module, raise_errors=True):
+    # type: (str, bool) -> bool
     return patch_module(module, raise_errors=raise_errors)
 
 
@@ -216,7 +217,7 @@ def _patch_module(module, raise_errors=True):
     Returns if the module got properly patched.
     """
     try:
-        return _patch_module(module)
+        return _attempt_patch_module(module)
     except ModuleNotFoundException:
         if raise_errors:
             raise
@@ -233,6 +234,7 @@ def _patch_module(module, raise_errors=True):
     version="1.0.0",
 )
 def get_patched_modules():
+    # type: () -> List[str]
     return sorted(_PATCHED_MODULES)
 
 
