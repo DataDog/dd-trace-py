@@ -146,7 +146,7 @@ def patch_all(**patch_modules):
 
         >>> patch_all(redis=False, cassandra=False)
     """
-    modules = S.copy()
+    modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables
     for module, enabled in modules.items():
@@ -158,7 +158,7 @@ def patch_all(**patch_modules):
         modules[module] = override_enabled
 
     # Arguments take precedence over the environment and the defaults.
-    modules.update(s)
+    modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
 
