@@ -206,7 +206,7 @@ def patch(raise_errors=True, **patch_modules):
     version="1.0.0",
 )
 def patch_module(module, raise_errors=True):
-    return patch_module(module, raise_errors=raise_errors)
+    return _patch_module(module, raise_errors=raise_errors)
 
 
 def _patch_module(module, raise_errors=True):
