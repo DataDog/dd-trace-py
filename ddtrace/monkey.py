@@ -207,7 +207,7 @@ def patch(raise_errors=True, **patch_modules):
 )
 def patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
-    return patch_module(module, raise_errors=raise_errors)
+    return _patch_module(module, raise_errors=raise_errors)
 
 
 def _patch_module(module, raise_errors=True):
@@ -235,7 +235,7 @@ def _patch_module(module, raise_errors=True):
 )
 def get_patched_modules():
     # type: () -> List[str]
-    return sorted(_PATCHED_MODULES)
+    return _get_patched_modules()
 
 
 def _get_patched_modules():
