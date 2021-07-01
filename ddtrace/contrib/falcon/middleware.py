@@ -1,4 +1,4 @@
-import sys
+import s
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
