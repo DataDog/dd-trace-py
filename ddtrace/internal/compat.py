@@ -251,5 +251,3 @@ def maybe_stringify(obj):
     if obj is not None:
         return stringify(obj)
     return None
-
-

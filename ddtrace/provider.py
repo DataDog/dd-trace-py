@@ -81,7 +81,7 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         return self.active()
 
     def _executor_id(self):
-        # type: () -> int
+        # type: () -> Optional[int]
         return threading.current_thread().ident
 
     def _update_active(self, span):

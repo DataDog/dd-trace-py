@@ -1656,7 +1656,11 @@ def test_fork_manual_span_different_contexts(tracer):
     assert exit_code == 12
 
 
-def test_context_tags(tracer):
+def test_context_tags(tracer, test_spans):
+    """
+    When a sampling priority is set
+        It should be shared by all spans in the trace
+    """
     with tracer.trace("span") as s1:
         s1.context.sampling_priority = 3
         with tracer.trace("span2") as s2:
@@ -1665,3 +1669,6 @@ def test_context_tags(tracer):
                 assert s3.context.sampling_priority == 3
         with tracer.trace("span4") as s4:
             assert s4.context.sampling_priority == 3
+
+    root = test_spans.get_root_span()
+    assert root.get_metric(SAMPLING_PRIORITY_KEY) == 3

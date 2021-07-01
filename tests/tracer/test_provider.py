@@ -1,4 +1,3 @@
-import queue
 import threading
 from typing import Dict
 from typing import Optional
@@ -133,7 +132,11 @@ def test_default_cross_execution_parenting_multi_span_close_wrong_executor(trace
 
 
 def test_default_cross_execution_parent_finish_before_child(tracer, test_spans):
-    """ """
+    """
+    When a trace is continued in another execution
+        When the propagated span is finished before a new span in the executor
+            The span should remain active in the executor
+    """
 
     provider = TestContextProvider()
     tracer.configure(context_provider=provider)
@@ -153,6 +156,7 @@ def test_default_cross_execution_parent_finish_before_child(tracer, test_spans):
         pass
 
     # Execution returns to main executor.
+    provider.executor_id = 0
     main_span.finish()
 
     main_span, executor_span = test_spans.pop()
@@ -161,19 +165,47 @@ def test_default_cross_execution_parent_finish_before_child(tracer, test_spans):
 
 
 def test_cross_thread_tracing(tracer, test_spans):
-    q = queue.Queue()
-
     def _thread(ctx):
         tracer.context_provider.activate(ctx)
         with tracer.trace("thread1-1"):
-            q.get()
+            pass
         with tracer.trace("thread1-2"):
             pass
 
     with tracer.trace("main_thread") as span:
         t = threading.Thread(target=_thread, args=(span.context,))
+    # Start the thread after the span has finished above.
     t.start()
-    q.put(1)
+    t.join()
+
+    main_span = test_spans.find_span(name="main_thread")
+    thread_span1 = test_spans.find_span(name="thread1-1")
+    thread_span2 = test_spans.find_span(name="thread1-2")
+    assert main_span.trace_id == thread_span1.trace_id
+    assert thread_span1.parent_id == main_span.span_id
+    assert thread_span2.parent_id is None
+    assert thread_span2.trace_id != main_span.trace_id
+
+
+def test_cross_thread_tracing_with_span(tracer, test_spans):
+    """
+    When a trace is propagated across threads with a span reference
+        When the propagated span finishes before the thread starts executing
+            The propagated span should still be inherited from in the new thread
+    """
+
+    def _thread(span):
+        assert span.finished
+        tracer.context_provider.activate(span)
+        with tracer.trace("thread1-1"):
+            pass
+        with tracer.trace("thread1-2"):
+            pass
+
+    with tracer.trace("main_thread") as span:
+        t = threading.Thread(target=_thread, args=(span,))
+    # Start the thread after the span has finished above.
+    t.start()
     t.join()
 
     main_span = test_spans.find_span(name="main_thread")
