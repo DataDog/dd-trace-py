@@ -146,7 +146,7 @@ def patch_all(**patch_modules):
 
         >>> patch_all(redis=False, cassandra=False)
     """
-    modules = PATCH_MODULES.copy()
+    modules = S.copy()
 
     # The enabled setting can be overridden by environment variables
     for module, enabled in modules.items():
@@ -158,7 +158,7 @@ def patch_all(**patch_modules):
         modules[module] = override_enabled
 
     # Arguments take precedence over the environment and the defaults.
-    modules.update(patch_modules)
+    modules.update(s)
 
     patch(raise_errors=False, **modules)
 
@@ -179,7 +179,7 @@ def patch(raise_errors=True, **patch_modules):
             for m in modules_to_poi:
                 # If the module has already been imported then patch immediately
                 if m in sys.modules:
-                    patch_module(module, raise_errors=raise_errors)
+                    _patch_module(module, raise_errors=raise_errors)
                     break
                 # Otherwise, add a hook to patch when it is imported for the first time
                 else:
@@ -190,9 +190,9 @@ def patch(raise_errors=True, **patch_modules):
             with _LOCK:
                 _PATCHED_MODULES.add(module)
         else:
-            patch_module(module, raise_errors=raise_errors)
+            _patch_module(module, raise_errors=raise_errors)
 
-    patched_modules = get_patched_modules()
+    patched_modules = _get_patched_modules()
     log.info(
         "patched %s/%s modules (%s)",
         len(patched_modules),
@@ -206,6 +206,10 @@ def patch(raise_errors=True, **patch_modules):
     version="1.0.0",
 )
 def patch_module(module, raise_errors=True):
+    return _patch_module(module, raise_errors=raise_errors)
+
+
+def _patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
     """Patch a single module
 
@@ -229,13 +233,17 @@ def patch_module(module, raise_errors=True):
     version="1.0.0",
 )
 def get_patched_modules():
+    return sorted(_PATCHED_MODULES)
+
+
+def _get_patched_modules():
     # type: () -> List[str]
     """Get the list of patched modules"""
     with _LOCK:
         return sorted(_PATCHED_MODULES)
 
 
-def _patch_module(module):
+def _attempt_patch_module(module):
     # type: (str) -> bool
     """_patch_module will attempt to monkey patch the module.
 
