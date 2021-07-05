@@ -8,6 +8,7 @@ from typing import Tuple
 
 import six
 
+from ddtrace.ext import ci
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
@@ -99,6 +100,18 @@ def extract_commit_message(cwd=None):
     raise ValueError(stderr)
 
 
+def extract_workspace_path(cwd=None):
+    # type: (Optional[str]) -> str
+    cmd = subprocess.Popen(
+        ["git", "rev-parse", "--show-toplevel"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
+    )
+    stdout, stderr = cmd.communicate()
+    if cmd.returncode == 0:
+        workspace_path = compat.ensure_text(stdout).strip()
+        return workspace_path
+    raise ValueError(stderr)
+
+
 def extract_git_metadata(cwd=None):
     # type: (Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
@@ -113,6 +126,7 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
         tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
+        tags[ci.WORKSPACE_PATH] = extract_workspace_path(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
