@@ -157,6 +157,9 @@ setup(
     long_description_content_type="text/markdown",
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
+    package_data={
+        "ddtrace.appsec": ["rules.json"],
+    },
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     # enum34 is an enum backport for earlier versions of python
@@ -171,6 +174,7 @@ setup(
         "attrs>=19.2.0",
         "six>=1.12.0",
         "pep562; python_version<'3.7'",
+        "sq-native>=1.0",
     ],
     extras_require={
         # users can include opentracing by having:

@@ -902,6 +902,13 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
+  appsec:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'appsec'
+
+
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
@@ -975,6 +982,7 @@ requires_tests: &requires_tests
     - urllib3
     - vertica
     - wsgi
+    - appsec
 
 workflows:
   version: 2
@@ -1056,6 +1064,7 @@ workflows:
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
+      - appsec: *requires_base_venvs
 
       # Final reports
       # - coverage_report: *requires_tests

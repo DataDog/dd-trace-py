@@ -308,6 +308,21 @@ def test_env_profiling_enabled(monkeypatch):
     assert out.strip() == b"NO PROFILER"
 
 
+def test_env_appsec_enabled(monkeypatch):
+    """DD_APPSEC_ENABLED allows enabling the AppSec module."""
+    # Off by default
+    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_appsec.py"])
+    assert out.strip() == b"NOT LOADED"
+
+    monkeypatch.setenv("DD_APPSEC_ENABLED", "true")
+    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_appsec.py"])
+    assert out.strip() == b"APPSEC LOADED"
+
+    monkeypatch.setenv("DD_APPSEC_ENABLED", "false")
+    out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_appsec.py"])
+    assert out.strip() == b"NOT LOADED"
+
+
 def test_version():
     p = subprocess.Popen(
         ["ddtrace-run", "-v"],

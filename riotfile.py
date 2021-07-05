@@ -1005,5 +1005,10 @@ venv = Venv(
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),
+        Venv(
+            name="appsec",
+            command="pytest {cmdargs} tests/appsec/",
+            venvs=[Venv(pys=select_pys())],
+        ),
     ],
 )
