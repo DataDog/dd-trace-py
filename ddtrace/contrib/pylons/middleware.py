@@ -3,6 +3,7 @@ import sys
 from pylons import config
 from webob import Request
 
+from ddtrace import _events
 from ddtrace import config as ddconfig
 
 from .. import trace_utils
@@ -57,7 +58,14 @@ class PylonsTraceMiddleware(object):
             # set analytics sample rate with global config enabled
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
-            trace_utils.set_http_meta(span, ddconfig.pylons, request_headers=request.headers)
+            _events.emit_http_request(
+                span,
+                method=request.method,
+                url=request.url,
+                query=request.query_string,
+                headers=request.headers,
+                integration=ddconfig.pylons.integration_name,
+            )
 
             if not span.sampled:
                 return self.app(environ, start_response)
@@ -70,8 +78,11 @@ class PylonsTraceMiddleware(object):
                 else:
                     response_headers = kwargs.get("response_headers", {})
                 http_code = int(status.split()[0])
-                trace_utils.set_http_meta(
-                    span, ddconfig.pylons, status_code=http_code, response_headers=response_headers
+                _events.emit_http_response(
+                    span,
+                    status_code=http_code,
+                    headers=response_headers,
+                    integration=ddconfig.pylons.integration_name,
                 )
                 return start_response(status, *args, **kwargs)
 
@@ -87,7 +98,13 @@ class PylonsTraceMiddleware(object):
                     int(code)
                 except (TypeError, ValueError):
                     code = 500
-                trace_utils.set_http_meta(span, ddconfig.pylons, status_code=code)
+
+                _events.emit_http_response(
+                    span,
+                    status_code=code,
+                    headers={},
+                    integration=ddconfig.pylons.integration_name,
+                )
 
                 # re-raise the original exception with its original traceback
                 reraise(typ, val, tb=tb)
@@ -105,19 +122,6 @@ class PylonsTraceMiddleware(object):
                 if span.resource == span.name:
                     span.resource = "%s.%s" % (controller, action)
 
-                url = "%s://%s:%s%s" % (
-                    environ.get("wsgi.url_scheme"),
-                    environ.get("SERVER_NAME"),
-                    environ.get("SERVER_PORT"),
-                    environ.get("PATH_INFO"),
-                )
-                trace_utils.set_http_meta(
-                    span,
-                    ddconfig.pylons,
-                    method=environ.get("REQUEST_METHOD"),
-                    url=url,
-                    query=environ.get("QUERY_STRING"),
-                )
                 if controller:
                     span._set_str_tag("pylons.route.controller", controller)
                 if action:

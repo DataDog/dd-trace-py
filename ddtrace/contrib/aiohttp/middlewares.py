@@ -1,3 +1,4 @@
+from ddtrace import _events
 from ddtrace import config
 
 from .. import trace_utils
@@ -57,6 +58,16 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONTEXT_KEY] = request_span.context
         request[REQUEST_SPAN_KEY] = request_span
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
+
+        _events.emit_http_request(
+            request_span,
+            method=request.method,
+            url=str(request.url),  # DEV: request.url is a yarl's URL object
+            headers=request.headers,
+            query=request.query_string,
+            integration=config.aiohttp.integration_name,
+        )
+
         try:
             response = await handler(request)
             return response
@@ -98,19 +109,16 @@ async def on_prepare(request, response):
 
     # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
-    if trace_query_string is None:
-        trace_query_string = config.http.trace_query_string
-    if trace_query_string:
+    if trace_query_string is True:
         request_span.set_tag(http.QUERY_STRING, request.query_string)
+    elif trace_query_string is False:
+        request_span.set_tag(http.QUERY_STRING, None)
 
-    trace_utils.set_http_meta(
+    _events.emit_http_response(
         request_span,
-        config.aiohttp,
-        method=request.method,
-        url=str(request.url),  # DEV: request.url is a yarl's URL object
         status_code=response.status,
-        request_headers=request.headers,
-        response_headers=response.headers,
+        headers=response.headers,
+        integration=config.aiohttp.integration_name,
     )
 
     request_span.finish()

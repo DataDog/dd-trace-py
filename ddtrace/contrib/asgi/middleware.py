@@ -1,6 +1,7 @@
 import sys
 
 import ddtrace
+from ddtrace import _events
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
@@ -117,15 +118,17 @@ class TraceMiddleware:
         else:
             url = None
 
-        if self.integration_config.trace_query_string:
-            query_string = scope.get("query_string")
-            if len(query_string) > 0:
-                query_string = bytes_to_str(query_string)
-        else:
-            query_string = None
+        query_string = scope.get("query_string")
+        if len(query_string) > 0:
+            query_string = bytes_to_str(query_string)
 
-        trace_utils.set_http_meta(
-            span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
+        _events.emit_http_request(
+            span,
+            method=method,
+            url=url,
+            headers=headers,
+            query=query_string,
+            integration=self.integration_config.integration_name,
         )
 
         tags = _extract_versions_from_scope(scope, self.integration_config)
@@ -142,8 +145,11 @@ class TraceMiddleware:
             else:
                 response_headers = None
 
-            trace_utils.set_http_meta(
-                span, self.integration_config, status_code=status_code, response_headers=response_headers
+            _events.emit_http_response(
+                span,
+                status_code=status_code,
+                headers=response_headers,
+                integration=self.integration_config.integration_name,
             )
 
             return await send(message)

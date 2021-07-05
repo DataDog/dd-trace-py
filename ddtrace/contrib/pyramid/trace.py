@@ -4,6 +4,7 @@ from pyramid.settings import asbool
 
 # project
 import ddtrace
+from ddtrace import _events
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
@@ -78,6 +79,16 @@ def trace_tween_factory(handler, registry):
                     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True))
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
+
+                _events.emit_http_request(
+                    span,
+                    method=request.method,
+                    url=request.path_url,
+                    headers=request.headers,
+                    query=request.query_string,
+                    integration=config.pyramid.integration_name,
+                )
+
                 response = None
                 status = None
                 try:
@@ -105,16 +116,13 @@ def trace_tween_factory(handler, registry):
                     else:
                         response_headers = None
 
-                    trace_utils.set_http_meta(
+                    _events.emit_http_response(
                         span,
-                        config.pyramid,
-                        method=request.method,
-                        url=request.path_url,
                         status_code=status,
-                        query=request.query_string,
-                        request_headers=request.headers,
-                        response_headers=response_headers,
+                        headers=response_headers,
+                        integration=config.pyramid,
                     )
+
                 return response
 
         return trace_tween

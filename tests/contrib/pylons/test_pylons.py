@@ -57,7 +57,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.service == "web"
         assert span.resource == "root.raise_exception"
         assert span.error == 0
-        assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
+        assert span.get_tag(http.URL) == "http://localhost/raise_exception"
         assert_span_http_status_code(span, 200)
         assert http.QUERY_STRING not in span.meta
         assert span.get_tag(errors.ERROR_MSG) is None
@@ -90,7 +90,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.service == "web"
         assert span.resource == "None.None"
         assert span.error == 0
-        assert span.get_tag(http.URL) == "http://localhost:80/"
+        assert span.get_tag(http.URL) == "http://localhost/"
         assert_span_http_status_code(span, 200)
         assert span.get_tag(errors.ERROR_MSG) is None
         assert span.get_tag(errors.ERROR_TYPE) is None
@@ -120,7 +120,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.service == "web"
         assert span.resource == "None.None"
         assert span.error == 1
-        assert span.get_tag(http.URL) == "http://localhost:80/"
+        assert span.get_tag(http.URL) == "http://localhost/"
         assert_span_http_status_code(span, 500)
         assert span.get_tag(errors.ERROR_MSG) == "Middleware exception"
         assert span.get_tag(errors.ERROR_TYPE) == "exceptions.Exception"
@@ -144,7 +144,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.service == "web"
         assert span.resource == "root.raise_exception"
         assert span.error == 0
-        assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
+        assert span.get_tag(http.URL) == "http://localhost/raise_exception"
         assert_span_http_status_code(span, 200)
         assert span.get_tag(errors.ERROR_MSG) is None
         assert span.get_tag(errors.ERROR_TYPE) is None
@@ -168,7 +168,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.service == "web"
         assert span.resource == "root.raise_exception"
         assert span.error == 0
-        assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
+        assert span.get_tag(http.URL) == "http://localhost/raise_exception"
         assert_span_http_status_code(span, 404)
         assert span.get_tag(errors.ERROR_MSG) is None
         assert span.get_tag(errors.ERROR_TYPE) is None
@@ -318,7 +318,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 1
         assert_span_http_status_code(span, 500)
         assert span.get_tag("error.msg") == "Ouch!"
-        assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
+        assert span.get_tag(http.URL) == "http://localhost/raise_exception"
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
     def test_failure_500_with_wrong_code(self):
@@ -334,7 +334,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.resource == "root.raise_wrong_code"
         assert span.error == 1
         assert_span_http_status_code(span, 500)
-        assert span.meta.get(http.URL) == "http://localhost:80/raise_wrong_code"
+        assert span.meta.get(http.URL) == "http://localhost/raise_wrong_code"
         assert span.get_tag("error.msg") == "Ouch!"
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
@@ -351,7 +351,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.resource == "root.raise_custom_code"
         assert span.error == 1
         assert_span_http_status_code(span, 512)
-        assert span.meta.get(http.URL) == "http://localhost:80/raise_custom_code"
+        assert span.meta.get(http.URL) == "http://localhost/raise_custom_code"
         assert span.get_tag("error.msg") == "Ouch!"
         assert "Exception: Ouch!" in span.get_tag("error.stack")
 
@@ -368,7 +368,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.resource == "root.raise_code_method"
         assert span.error == 1
         assert_span_http_status_code(span, 500)
-        assert span.meta.get(http.URL) == "http://localhost:80/raise_code_method"
+        assert span.meta.get(http.URL) == "http://localhost/raise_code_method"
         assert span.get_tag("error.msg") == "Ouch!"
 
     def test_distributed_tracing_default(self):
@@ -453,7 +453,7 @@ class PylonsTestCase(TracerTestCase):
         assert dd_span.service == "web"
         assert dd_span.resource == "root.index"
         assert_span_http_status_code(dd_span, 200)
-        assert dd_span.meta.get(http.URL) == "http://localhost:80/"
+        assert dd_span.meta.get(http.URL) == "http://localhost/"
         assert dd_span.error == 0
 
     def test_request_headers(self):

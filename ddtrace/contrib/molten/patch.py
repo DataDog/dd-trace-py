@@ -1,5 +1,6 @@
 import molten
 
+from ddtrace import _events
 from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -114,7 +115,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
                 # if route never resolve, update root resource
                 span.resource = u"{} {}".format(request.method, code)
 
-            trace_utils.set_http_meta(span, config.molten, status_code=code)
+            _events.emit_http_response(
+                span, status_code=code, headers=headers, integration=config.molten.integration_name
+            )
 
             return wrapped(*args, **kwargs)
 
@@ -128,8 +131,14 @@ def patch_app_call(wrapped, instance, args, kwargs):
             request.path,
         )
         query = urlencode(dict(request.params))
-        trace_utils.set_http_meta(
-            span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
+
+        _events.emit_http_request(
+            span,
+            method=request.method,
+            url=url,
+            query=query,
+            headers=request.headers,
+            integration=config.molten.integration_name,
         )
 
         span.set_tag("molten.version", molten.__version__)

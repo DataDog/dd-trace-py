@@ -10,6 +10,7 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 # project
+from ddtrace import _events
 from ddtrace import config
 
 from .. import trace_utils
@@ -72,10 +73,20 @@ class TraceTool(cherrypy.Tool):
             self._tracer, int_config=config.cherrypy, request_headers=cherrypy.request.headers
         )
 
-        cherrypy.request._datadog_span = self._tracer.trace(
+        cherrypy.request._datadog_span = span = self._tracer.trace(
             SPAN_NAME,
             service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
             span_type=SpanTypes.WEB,
+        )
+
+        url = compat.to_unicode(cherrypy.request.base + cherrypy.request.path_info)
+
+        _events.emit_http_request(
+            span,
+            method=cherrypy.request.method,
+            url=url,
+            headers=cherrypy.request.headers,
+            integration=config.cherrypy.integration_name,
         )
 
     def _after_error_response(self):
@@ -118,17 +129,13 @@ class TraceTool(cherrypy.Tool):
             resource = "{} {}".format(cherrypy.request.method, cherrypy.request.path_info)
             span.resource = compat.to_unicode(resource)
 
-        url = compat.to_unicode(cherrypy.request.base + cherrypy.request.path_info)
         status_code, _, _ = valid_status(cherrypy.response.status)
 
-        trace_utils.set_http_meta(
+        _events.emit_http_response(
             span,
-            config.cherrypy,
-            method=cherrypy.request.method,
-            url=url,
             status_code=status_code,
-            request_headers=cherrypy.request.headers,
-            response_headers=cherrypy.response.headers,
+            headers=cherrypy.response.headers,
+            integration=config.cherrypy.integration_name,
         )
 
         span.finish()

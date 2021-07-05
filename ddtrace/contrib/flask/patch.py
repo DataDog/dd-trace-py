@@ -2,6 +2,7 @@ import flask
 import werkzeug
 
 from ddtrace import Pin
+from ddtrace import _events
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -272,7 +273,7 @@ def _wrap_start_response(func, span, request):
         if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
             span.resource = u" ".join((request.method, code))
 
-        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
+        _events.emit_http_response(span, status_code=code, headers=headers, integration=config.flask.integration_name)
         return func(status_code, headers)
 
     return traced_start_response
@@ -318,14 +319,13 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         start_response = _wrap_start_response(start_response, span, request)
 
         # DEV: We set response status code in `_wrap_start_response`
-        # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
-        trace_utils.set_http_meta(
+        _events.emit_http_request(
             span,
-            config.flask,
             method=request.method,
-            url=request.base_url,
+            url=request.url,
+            headers=request.headers,
             query=request.query_string,
-            request_headers=request.headers,
+            integration=config.flask.integration_name,
         )
 
         return wrapped(environ, start_response)

@@ -3,6 +3,7 @@ import asyncio
 import sanic
 
 import ddtrace
+from ddtrace import _events
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
@@ -30,7 +31,9 @@ def update_span(span, response):
         # invalid response causes ServerError exception which must be handled
         status_code = 500
         response_headers = None
-    trace_utils.set_http_meta(span, config.sanic, status_code=status_code, response_headers=response_headers)
+    _events.emit_http_response(
+        span, status_code=status_code, headers=response_headers, integration=config.sanic.integration_name
+    )
 
 
 def _wrap_response_callback(span, callback):
@@ -160,8 +163,14 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
         query_string = request.query_string
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
-        trace_utils.set_http_meta(
-            span, config.sanic, method=method, url=url, query=query_string, request_headers=headers
+
+        _events.emit_http_request(
+            span,
+            method=method,
+            url=url,
+            query=query_string,
+            headers=headers,
+            integration=config.sanic.integration_name,
         )
 
         if write_callback is not None:

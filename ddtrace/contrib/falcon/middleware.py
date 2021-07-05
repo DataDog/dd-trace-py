@@ -1,10 +1,10 @@
 import sys
 
+from ddtrace import _events
 from ddtrace import config
+from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http as httpx
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.compat import iteritems
@@ -33,8 +33,13 @@ class TraceMiddleware(object):
         # set analytics sample rate with global config enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))
 
-        trace_utils.set_http_meta(
-            span, config.falcon, method=req.method, url=req.url, query=req.query_string, request_headers=req.headers
+        _events.emit_http_request(
+            span,
+            method=req.method,
+            url=req.url,
+            query=req.query_string or None,
+            headers=req.headers,
+            integration=config.falcon.integration_name,
         )
 
     def process_resource(self, req, resp, resource, params):
@@ -58,7 +63,9 @@ class TraceMiddleware(object):
         if resource is None:
             status = "404"
             span.resource = "%s 404" % req.method
-            span.set_tag(httpx.STATUS_CODE, status)
+            _events.emit_http_response(
+                span, status_code=status, headers=resp._headers, integration=config.falcon.integration_name
+            )
             span.finish()
             return
 
@@ -74,11 +81,13 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        trace_utils.set_http_meta(span, config.falcon, status_code=status, response_headers=resp._headers)
-
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
         config.falcon.hooks.emit("request", span, req, resp)
+
+        _events.emit_http_response(
+            span, status_code=status, headers=resp._headers, integration=config.falcon.integration_name
+        )
 
         # Close the span
         span.finish()

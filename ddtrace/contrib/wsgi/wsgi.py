@@ -17,6 +17,7 @@ import six
 from six.moves.urllib.parse import quote
 
 import ddtrace
+from ddtrace import _events
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
@@ -98,8 +99,13 @@ class DDWSGIMiddleware(object):
         def intercept_start_response(status, response_headers, exc_info=None):
             span = self.tracer.current_root_span()
             status_code, status_msg = status.split(" ", 1)
-            span.set_tag("http.status_msg", status_msg)
-            trace_utils.set_http_meta(span, config.wsgi, status_code=status_code, response_headers=response_headers)
+            _events.emit_http_response(
+                span,
+                status_code=status_code,
+                status_msg=status_msg,
+                headers=response_headers,
+                integration=config.wsgi.integration_name,
+            )
             with self.tracer.trace(
                 "wsgi.start_response",
                 service=trace_utils.int_service(None, config.wsgi),
@@ -135,8 +141,14 @@ class DDWSGIMiddleware(object):
             method = environ.get("REQUEST_METHOD")
             query_string = environ.get("QUERY_STRING")
             request_headers = get_request_headers(environ)
-            trace_utils.set_http_meta(
-                span, config.wsgi, method=method, url=url, query=query_string, request_headers=request_headers
+
+            _events.emit_http_request(
+                span,
+                method=method,
+                url=url,
+                query=query_string,
+                headers=request_headers,
+                integration=config.wsgi.integration_name,
             )
 
             if self.span_modifier:

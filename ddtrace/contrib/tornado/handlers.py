@@ -1,12 +1,12 @@
 from tornado.web import HTTPError
 
+from ddtrace import _events
 from ddtrace import config
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...ext import http
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
@@ -44,6 +44,15 @@ def execute(func, handler, args, kwargs):
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
+        _events.emit_http_request(
+            request_span,
+            method=handler.request.method,
+            url=handler.request.full_url(),
+            headers=handler.request.headers,
+            query=handler.request.query,
+            integration=config.tornado.integration_name,
+        )
+
         return func(*args, **kwargs)
 
 
@@ -61,11 +70,12 @@ def on_finish(func, handler, args, kwargs):
         # space here
         klass = handler.__class__
         request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
-        request_span.set_tag("http.method", request.method)
-        request_span.set_tag("http.status_code", handler.get_status())
-        request_span.set_tag(http.URL, request.full_url().rsplit("?", 1)[0])
-        if config.tornado.trace_query_string:
-            request_span.set_tag(http.QUERY_STRING, request.query)
+        _events.emit_http_response(
+            request_span,
+            status_code=handler.get_status(),
+            headers={},
+            integration=config.tornado.integration_name,
+        )
         request_span.finish()
 
     return func(*args, **kwargs)

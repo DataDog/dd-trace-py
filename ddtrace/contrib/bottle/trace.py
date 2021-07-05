@@ -4,6 +4,7 @@ from bottle import request
 from bottle import response
 
 import ddtrace
+from ddtrace import _events
 from ddtrace import config
 
 from .. import trace_utils
@@ -52,6 +53,18 @@ class TracePlugin(object):
                 # set analytics sample rate with global config enabled
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))
 
+                method = request.method
+                url = request.urlparts._replace(query="").geturl()
+
+                _events.emit_http_request(
+                    s,
+                    method=method,
+                    url=url,
+                    headers=request.headers,
+                    query=request.query_string,
+                    integration=config.bottle.integration_name,
+                )
+
                 code = None
                 result = None
                 try:
@@ -79,17 +92,11 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    method = request.method
-                    url = request.urlparts._replace(query="").geturl()
-                    trace_utils.set_http_meta(
+                    _events.emit_http_response(
                         s,
-                        config.bottle,
-                        method=method,
-                        url=url,
                         status_code=response_code,
-                        query=request.query_string,
-                        request_headers=request.headers,
-                        response_headers=response.headers,
+                        headers=response.headers,
+                        integration=config.bottle.integration_name,
                     )
 
         return wrapped

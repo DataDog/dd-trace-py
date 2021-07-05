@@ -1,6 +1,7 @@
 from django.utils.functional import SimpleLazyObject
 import six
 
+from ddtrace import _events
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -195,6 +196,28 @@ def _before_request_tags(pin, span, request):
         )
     span._set_str_tag("django.request.class", func_name(request))
 
+    url = get_request_uri(request)
+
+    if DJANGO22:
+        request_headers = request.headers
+    else:
+        request_headers = {}
+        for header, value in request.META.items():
+            name = from_wsgi_header(header)
+            if name:
+                request_headers[name] = value
+
+    qs = request.META.get("QUERY_STRING", None)
+
+    _events.emit_http_request(
+        span,
+        method=request.method,
+        url=url,
+        query=qs,
+        headers=request_headers,
+        integration=config.django.integration_name,
+    )
+
 
 def _after_request_tags(pin, span, request, response):
     # Response can be None in the event that the request failed
@@ -251,25 +274,7 @@ def _after_request_tags(pin, span, request, response):
 
             set_tag_array(span, "django.response.template", template_names)
 
-        url = get_request_uri(request)
-
-        if DJANGO22:
-            request_headers = request.headers
-        else:
-            request_headers = {}
-            for header, value in request.META.items():
-                name = from_wsgi_header(header)
-                if name:
-                    request_headers[name] = value
-
         response_headers = dict(response.items())
-        trace_utils.set_http_meta(
-            span,
-            config.django,
-            method=request.method,
-            url=url,
-            status_code=status,
-            query=request.META.get("QUERY_STRING", None),
-            request_headers=request_headers,
-            response_headers=response_headers,
+        _events.emit_http_response(
+            span, status_code=status, headers=response_headers, integration=config.django.integration_name
         )
