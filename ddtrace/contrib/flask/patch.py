@@ -329,6 +329,15 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             request_headers=request.headers,
         )
 
+        config.flask.emit_http_hook(
+            "request",
+            s,
+            method=request.method,
+            url=request.base_url,
+            query=request.query_string,
+            request_headers=request.headers,
+        )
+
         return wrapped(environ, start_response)
 
 

@@ -3,10 +3,12 @@ import flask
 from flask import abort
 from flask import make_response
 
+from ddtrace._hooks import Hooks
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import to_unicode
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.utils import assert_is_measured
@@ -854,3 +856,25 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         span = traces[0][0]
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_http_integration_request_hook(self):
+        hooks = Hooks()
+        req = {}
+
+        @hooks.register("request")
+        def _keep_request(span, **kwargs):
+            req.update(kwargs)
+
+        with self.override_http_config("flask", dict(hooks=hooks)):
+
+            self.client.get(
+                "/?foo=bar",
+                headers={
+                    "my-header": "my_value",
+                },
+            )
+
+        assert req.get("method") == "GET"
+        assert req.get("url") == "http://localhost/"
+        assert to_unicode(req.get("query")) == "foo=bar"
+        assert req.get("request_headers", {}).get("my-header") == "my_value"

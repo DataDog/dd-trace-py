@@ -115,10 +115,21 @@ class TraceMiddleware(object):
         )
 
         try:
-            g.flask_datadog_span = self.app._tracer.trace(
+            g.flask_datadog_span = span = self.app._tracer.trace(
                 SPAN_NAME,
                 service=self.app._service,
                 span_type=SpanTypes.WEB,
+            )
+
+            config.flask.emit_http_hook(
+                "request",
+                span,
+                method=request.method,
+                url=compat.to_unicode(request.base_url or ""),
+                query=request.query_string.decode()
+                if hasattr(request.query_string, "decode")
+                else request.query_string,
+                request_headers=request.headers,
             )
         except Exception:
             log.debug("flask: error tracing request", exc_info=True)

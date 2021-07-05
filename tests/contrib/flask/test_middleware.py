@@ -5,14 +5,17 @@ import time
 from flask import make_response
 
 from ddtrace import config
+from ddtrace._hooks import Hooks
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import errors
 from ddtrace.ext import http
+from ddtrace.internal import compat
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_http_config
 
 from .web import create_app
 
@@ -420,3 +423,25 @@ class TestFlask(TracerTestCase):
         span = traces[0][0]
 
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_http_integration_request_hook(self):
+        hooks = Hooks()
+        req = {}
+
+        @hooks.register("request")
+        def _keep_request(span, **kwargs):
+            req.update(kwargs)
+
+        with override_http_config("flask", dict(hooks=hooks)):
+
+            self.client.get(
+                "/?foo=bar",
+                headers={
+                    "my-header": "my_value",
+                },
+            )
+
+        assert req.get("method") == "GET"
+        assert req.get("url") == "http://localhost/"
+        assert compat.to_unicode(req.get("query")) == "foo=bar"
+        assert req.get("request_headers", {}).get("my-header") == "my_value"
