@@ -8,7 +8,6 @@ from typing import Tuple
 
 import six
 
-from ddtrace.ext import ci
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
@@ -126,7 +125,6 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
         tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
-        tags[ci.WORKSPACE_PATH] = extract_workspace_path(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:

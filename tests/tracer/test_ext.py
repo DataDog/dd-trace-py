@@ -113,7 +113,7 @@ def test_git_extract_workspace_path(git_repo):
 def test_git_extract_workspace_path_error(tmpdir):
     """On error, workspace path should not be extracted, and should internally raise an error."""
     with pytest.raises(ValueError):
-        git.extract_workspace_path(cwd=tmpdir)
+        git.extract_workspace_path(cwd=str(tmpdir))
 
 
 def test_extract_git_metadata(git_repo):
@@ -127,7 +127,6 @@ def test_extract_git_metadata(git_repo):
         git.COMMIT_COMMITTER_NAME: "Jane Doe",
         git.COMMIT_COMMITTER_EMAIL: "jane@doe.com",
         git.COMMIT_COMMITTER_DATE: "2021-01-20T04:37:21-0400",
-        ci.WORKSPACE_PATH: git_repo,
     }
     assert git.extract_git_metadata(cwd=git_repo) == expected_tags
 

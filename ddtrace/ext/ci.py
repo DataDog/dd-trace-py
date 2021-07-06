@@ -8,7 +8,8 @@ from typing import Dict
 from typing import MutableMapping
 from typing import Optional
 
-from . import git
+from ddtrace.ext import git
+from ddtrace.internal.logger import get_logger
 
 
 # Stage Name
@@ -59,6 +60,9 @@ _RE_TAGS = re.compile(r"^tags/")
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
+log = get_logger(__name__)
+
+
 def _normalize_ref(name):
     # type: (Optional[str]) -> Optional[str]
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
@@ -91,6 +95,13 @@ def tags(env=None, cwd=None):
             break
 
     git_info = git.extract_git_metadata(cwd=cwd)
+    try:
+        git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
+    except git.GitNotFoundError:
+        log.error("Git executable not found, cannot extract git metadata.")
+    except ValueError:
+        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.
     tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
