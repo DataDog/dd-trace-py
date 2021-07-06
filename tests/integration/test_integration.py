@@ -594,13 +594,14 @@ assert tracer._partial_flush_min_spans == 2
     s3 = t.trace("3")
 
     with mock.patch("ddtrace.internal.processor.trace.log") as log:
-        s1.finish()
+        s3.finish()
         s2.finish()
 
     calls = [
-        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, AnyInt()),
+        mock.call("trace %d has %d spans, %d finished", AnyInt(), 3, 1),
+        mock.call("Partially flushing %d spans for trace %d", int(partial_flush_min_spans), AnyInt()),
     ]
 
     log.debug.assert_has_calls(calls)
-    s3.finish()
+    s1.finish()
     t.shutdown()
