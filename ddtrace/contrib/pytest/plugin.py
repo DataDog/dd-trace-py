@@ -10,11 +10,17 @@ from ...constants import SPAN_KIND
 from ...ext import SpanTypes
 from ...ext import ci
 from ...ext import test
+from ...internal import compat
+from ...internal.logger import get_logger
 from ...pin import Pin
 from ..trace_utils import int_service
 from .constants import FRAMEWORK
 from .constants import HELP_MSG
 from .constants import KIND
+
+
+PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+log = get_logger(__name__)
 
 
 def is_enabled(config):
@@ -46,7 +52,15 @@ def _json_encode(params):
     return json.dumps(params, default=inner_encode)
 
 
-PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+def _extract_repository_name(repository_url):
+    # type: (str) -> str
+    """Extract repository name from repository url."""
+    try:
+        return compat.parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
+    except ValueError:
+        # In case of parsing error, default to repository url
+        log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
+        return repository_url
 
 
 def pytest_addoption(parser):
@@ -75,9 +89,12 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
-
     if is_enabled(config):
-        Pin(tags=ci.tags(), _config=ddtrace.config.pytest).onto(config)
+        ci_tags = ci.tags()
+        if ci_tags.get(ci.git.REPOSITORY_URL, None) and int_service(None, ddtrace.config.pytest) == "pytest":
+            repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
+            ddtrace.config.pytest["service"] = repository_name
+        Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -106,7 +123,6 @@ def pytest_runtest_protocol(item, nextitem):
     if pin is None:
         yield
         return
-
     with pin.tracer.trace(
         ddtrace.config.pytest.operation_name,
         service=int_service(pin, ddtrace.config.pytest),
