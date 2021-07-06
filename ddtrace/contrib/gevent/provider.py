@@ -30,6 +30,7 @@ class GeventContextProvider(BaseContextProvider):
         current_g = gevent.getcurrent()
         if current_g is not None:
             setattr(current_g, self._CONTEXT_ATTR, context)
+            super(GeventContextProvider, self).activate(context)
             return context
 
     def active(self):

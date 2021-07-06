@@ -1,10 +1,12 @@
 import collections
 import itertools
 import operator
+import typing
 
 import attr
 import six
 
+from ddtrace import ext
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
@@ -134,8 +136,19 @@ class _PprofConverter(object):
         return tuple(locations)
 
     def convert_stack_event(
-        self, thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, samples
+        self,
+        thread_id,  # type: int
+        thread_native_id,  # type: int
+        thread_name,  # type: str
+        trace_id,  # type: int
+        span_id,  # type: int
+        trace_resource,  # type: str
+        trace_type,  # type: str
+        frames,
+        nframes,  # type: int
+        samples,  # type: typing.Iterable[stack.StackSampleEvent]
     ):
+        # type: (...) -> None
         location_key = (
             self._to_locations(frames, nframes),
             (
@@ -144,6 +157,8 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("trace id", trace_id),
                 ("span id", span_id),
+                ("trace endpoint", trace_resource),
+                ("trace type", trace_type),
             ),
         )
 
@@ -183,7 +198,18 @@ class _PprofConverter(object):
         self._location_values[location_key]["heap-space"] += event.size
 
     def convert_lock_acquire_event(
-        self, lock_name, thread_id, thread_name, trace_id, span_id, frames, nframes, events, sampling_ratio
+        self,
+        lock_name,
+        thread_id,
+        thread_name,
+        trace_id,
+        span_id,
+        trace_resource,
+        trace_type,
+        frames,
+        nframes,
+        events,
+        sampling_ratio,
     ):
         location_key = (
             self._to_locations(frames, nframes),
@@ -192,6 +218,8 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("trace id", trace_id),
                 ("span id", span_id),
+                ("trace endpoint", trace_resource),
+                ("trace type", trace_type),
                 ("lock name", lock_name),
             ),
         )
@@ -202,7 +230,18 @@ class _PprofConverter(object):
         )
 
     def convert_lock_release_event(
-        self, lock_name, thread_id, thread_name, trace_id, span_id, frames, nframes, events, sampling_ratio
+        self,
+        lock_name,
+        thread_id,
+        thread_name,
+        trace_id,
+        span_id,
+        trace_resource,
+        trace_type,
+        frames,
+        nframes,
+        events,
+        sampling_ratio,
     ):
         location_key = (
             self._to_locations(frames, nframes),
@@ -211,6 +250,8 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("trace id", trace_id),
                 ("span id", span_id),
+                ("trace endpoint", trace_resource),
+                ("trace type", trace_type),
                 ("lock name", lock_name),
             ),
         )
@@ -281,21 +322,29 @@ class _PprofConverter(object):
         )
 
 
+_stack_event_group_key_T = typing.Tuple[
+    int,
+    int,
+    str,
+    typing.Optional[int],
+    typing.Optional[int],
+    typing.Tuple,
+    int,
+]
+
+
 @attr.s
 class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
     @staticmethod
-    def _get_trace_id(event):
-        if event.trace_id:
-            return str(event.trace_id)
-        return ""
-
-    @staticmethod
-    def _get_span_id(event):
-        if event.span_id:
-            return str(event.span_id)
-        return ""
+    def _none_to_str(
+        value,  # type: typing.Optional[typing.Any]
+    ):
+        # type: (...) -> str
+        if value is None:
+            return ""
+        return str(value)
 
     @staticmethod
     def _get_thread_name(thread_id, thread_name):
@@ -303,31 +352,57 @@ class PprofExporter(exporter.Exporter):
             return "Anonymous Thread %d" % thread_id
         return thread_name
 
-    def _stack_event_group_key(self, event):
-        # If multiple traces were active, we pick only one :(
+    def _stack_event_group_key(
+        self,
+        event,  # type: stack.StackSampleEvent
+    ):
+        # type: (...) -> _stack_event_group_key_T
+
+        if event.trace_type == ext.SpanTypes.WEB.value:
+            trace_resource = self._none_to_str(event.trace_resource)
+        else:
+            # Do not export trace_resource for privacy concerns.
+            trace_resource = ""
+
         return (
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
-            self._get_trace_id(event),
-            self._get_span_id(event),
+            self._none_to_str(event.trace_id),
+            self._none_to_str(event.span_id),
+            trace_resource,
+            self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
         )
 
-    def _group_stack_events(self, events):
+    def _group_stack_events(
+        self,
+        events,  # type: typing.Iterable[stack.StackSampleEvent]
+    ):
+        # type: typing.Iterator[typing.Tuple[_stack_event_group_key_T, typing.Iterator[stack.StackSampleEvent]]]
         return itertools.groupby(
             sorted(events, key=self._stack_event_group_key),
             key=self._stack_event_group_key,
         )
 
-    def _lock_event_group_key(self, event):
+    def _lock_event_group_key(
+        self, event  # type: lock.LockEventBase
+    ):
+        if event.trace_type == ext.SpanTypes.WEB.value:
+            trace_resource = self._none_to_str(event.trace_resource)
+        else:
+            # Do not export trace_resource for privacy concerns.
+            trace_resource = ""
+
         return (
             event.lock_name,
             event.thread_id,
             self._get_thread_name(event.thread_id, event.thread_name),
-            self._get_trace_id(event),
-            self._get_span_id(event),
+            self._none_to_str(event.trace_id),
+            self._none_to_str(event.span_id),
+            trace_resource,
+            self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
         )
@@ -345,8 +420,8 @@ class PprofExporter(exporter.Exporter):
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
-            self._get_trace_id(event),
-            self._get_span_id(event),
+            self._none_to_str(event.trace_id),
+            self._none_to_str(event.span_id),
             tuple(event.frames),
             event.nframes,
             exc_type_name,
@@ -416,11 +491,20 @@ class PprofExporter(exporter.Exporter):
             nb_event += 1
 
         for (
-            (thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes),
+            (thread_id, thread_native_id, thread_name, trace_id, span_id, trace_resource, trace_type, frames, nframes),
             stack_events,
         ) in self._group_stack_events(stack_events):
             converter.convert_stack_event(
-                thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, list(stack_events)
+                thread_id,
+                thread_native_id,
+                thread_name,
+                trace_id,
+                span_id,
+                trace_resource,
+                trace_type,
+                frames,
+                nframes,
+                list(stack_events),
             )
 
         # Handle Lock events
@@ -440,6 +524,8 @@ class PprofExporter(exporter.Exporter):
                     thread_name,
                     trace_id,
                     span_id,
+                    trace_resource,
+                    trace_type,
                     frames,
                     nframes,
                 ), l_events in self._group_lock_events(lock_events):
@@ -449,6 +535,8 @@ class PprofExporter(exporter.Exporter):
                         thread_name,
                         trace_id,
                         span_id,
+                        trace_resource,
+                        trace_type,
                         frames,
                         nframes,
                         list(l_events),
@@ -473,7 +561,17 @@ class PprofExporter(exporter.Exporter):
 
         if memalloc._memalloc:
             for (
-                (thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes),
+                (
+                    thread_id,
+                    thread_native_id,
+                    thread_name,
+                    trace_id,
+                    span_id,
+                    trace_resource,
+                    trace_type,
+                    frames,
+                    nframes,
+                ),
                 memalloc_events,
             ) in self._group_stack_events(events.get(memalloc.MemoryAllocSampleEvent, [])):
                 converter.convert_memalloc_event(
