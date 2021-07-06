@@ -575,14 +575,15 @@ def test_partial_flush_log(run_python_code_in_subprocess):
     s1 = t.trace("1")
     s2 = t.trace("2")
     s3 = t.trace("3")
+    t_id = s3.trace_id
 
     with mock.patch("ddtrace.internal.processor.trace.log") as log:
         s3.finish()
         s2.finish()
 
     calls = [
-        mock.call("trace %d has %d spans, %d finished", AnyInt(), 3, 1),
-        mock.call("Partially flushing %d spans for trace %d", 2, AnyInt()),
+        mock.call("trace %d has %d spans, %d finished", t_id, 3, 1),
+        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
     ]
 
     log.debug.assert_has_calls(calls)
