@@ -918,13 +918,14 @@ venv = Venv(
         ),
         Venv(
             name="mariadb",
-            command="python -m pytest {cmdargs} tests/contrib/mariadb",
+            command="pytest {cmdargs} tests/contrib/mariadb",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "mariadb": [
-                            ">=1.0.0,<1.1.0",
+                            "~=1.0.0",
+                            "~=1.0",
                             latest,
                         ],
                     },

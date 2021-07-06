@@ -1,0 +1,43 @@
+[[{"name" "mariadb.query"
+   "service" "mariadb"
+   "resource" "SELECT 1"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1625591312342722800
+   "duration" 652100
+   "meta" {"runtime-id" "782d3f7fec4e4e2386c600eac7a84772"
+           "out.host" "127.0.0.1"
+           "db.user" "test"
+           "db.name" "test"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 2783
+              "out.port" 3306
+              "db.rowcount" 0
+              "sql.rows" 0
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "mariadb.query.fetchall"
+   "service" "mariadb"
+   "resource" "SELECT 1"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1625591312343788700
+   "duration" 70700
+   "meta" {"runtime-id" "782d3f7fec4e4e2386c600eac7a84772"
+           "out.host" "127.0.0.1"
+           "db.user" "test"
+           "db.name" "test"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 2783
+              "out.port" 3306
+              "db.rowcount" 1
+              "sql.rows" 1
+              "_dd.tracer_kr" 1.0}}]]

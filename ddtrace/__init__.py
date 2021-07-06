@@ -9,7 +9,6 @@ from .tracer import Tracer  # noqa: E402
 from .utils.deprecation import deprecated  # noqa: E402
 
 
-
 try:
     __version__ = pkg_resources.get_distribution(__name__).version
 except pkg_resources.DistributionNotFound:
