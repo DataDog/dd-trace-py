@@ -1,5 +1,5 @@
 """
-The  integration instruments the mariadb library to trace mariadb queries.
+The mariadb integration instruments the mariadb library to trace mariadb queries.
 
 
 Enabling
