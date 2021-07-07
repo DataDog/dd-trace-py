@@ -217,12 +217,12 @@ async def test_parent_close(tracer, test_spans):
 
     with tracer.trace("main_task") as span:
         span.context.sampling_priority = USER_KEEP
-        t = asyncio.create_task(f1())
+        f = asyncio.ensure_future(f1())
 
     # Pass execution to the task. When the task creates the f1 span it should
     # inherit from the main_task span despite the main_task span being finished
     # already.
-    await t
+    await f
 
     spans = test_spans.pop()
     main_span, f1_span = spans

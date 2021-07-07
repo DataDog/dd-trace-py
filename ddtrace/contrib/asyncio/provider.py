@@ -1,85 +1,89 @@
 import asyncio
 
-from ...provider import BaseContextProvider
+from ...compat import PYTHON_VERSION_INFO
 from ...provider import DefaultContextProvider
 from ...span import Span
 from .compat import asyncio_current_task
 
 
-class AsyncioContextProvider(DefaultContextProvider):
-    def _executor_id(self):
-        # type: () -> int
-        return id(asyncio_current_task())
+if PYTHON_VERSION_INFO >= (3, 7, 0):
+
+    class AsyncioContextProvider(DefaultContextProvider):
+        def _executor_id(self):
+            # type: () -> int
+            return id(asyncio_current_task())
 
 
-class LegacyAsyncioContextProvider(BaseContextProvider):
-    """Manages the active context for asyncio execution. Framework
-    instrumentation that is built on top of the ``asyncio`` library, should
-    use this provider when contextvars are not available (Python versions
-    less than 3.7).
+else:
 
-    This Context Provider inherits from ``DefaultContextProvider`` because
-    it uses a thread-local storage when the ``Context`` is propagated to
-    a different thread, than the one that is running the async loop.
-    """
+    class AsyncioContextProvider(DefaultContextProvider):
+        """Manages the active context for asyncio execution. Framework
+        instrumentation that is built on top of the ``asyncio`` library, should
+        use this provider when contextvars are not available (Python versions
+        less than 3.7).
 
-    # Task attribute used to set/get the context
-    _CONTEXT_ATTR = "__datadog_context"
+        This Context Provider inherits from ``DefaultContextProvider`` because
+        it uses a thread-local storage when the ``Context`` is propagated to
+        a different thread, than the one that is running the async loop.
+        """
 
-    def activate(self, context, loop=None):
-        """Sets the scoped ``Context`` for the current running ``Task``."""
-        loop = self._get_loop(loop)
-        if not loop:
-            super(AsyncioContextProvider, self).activate(context)
+        # Task attribute used to set/get the context
+        _CONTEXT_ATTR = "__datadog_context"
+
+        def activate(self, context, loop=None):
+            """Sets the scoped ``Context`` for the current running ``Task``."""
+            loop = self._get_loop(loop)
+            if not loop:
+                super(AsyncioContextProvider, self).activate(context)
+                return context
+
+            # the current unit of work (if tasks are used)
+            task = asyncio.Task.current_task(loop=loop)
+            if task:
+                setattr(task, self._CONTEXT_ATTR, context)
             return context
 
-        # the current unit of work (if tasks are used)
-        task = asyncio.Task.current_task(loop=loop)
-        if task:
-            setattr(task, self._CONTEXT_ATTR, context)
-        return context
-
-    def _get_loop(self, loop=None):
-        """Helper to try and resolve the current loop"""
-        try:
-            return loop or asyncio.get_event_loop()
-        except RuntimeError:
-            # Detects if a loop is available in the current thread;
-            # DEV: This happens when a new thread is created from the out that is running the async loop
-            # DEV: It's possible that a different Executor is handling a different Thread that
-            #      works with blocking code. In that case, we fallback to a thread-local Context.
-            pass
-        return None
-
-    def _has_active_context(self, loop=None):
-        """Helper to determine if we have a currently active context"""
-        loop = self._get_loop(loop=loop)
-        if loop is None:
-            return super(AsyncioContextProvider, self)._has_active_context()
-
-        # the current unit of work (if tasks are used)
-        task = asyncio.Task.current_task(loop=loop)
-        if task is None:
-            return False
-
-        ctx = getattr(task, self._CONTEXT_ATTR, None)
-        return ctx is not None
-
-    def active(self, loop=None):
-        """Returns the active context for the execution."""
-        loop = self._get_loop(loop=loop)
-        if not loop:
-            return super(AsyncioContextProvider, self).active()
-
-        # the current unit of work (if tasks are used)
-        task = asyncio.Task.current_task(loop=loop)
-        if task is None:
+        def _get_loop(self, loop=None):
+            """Helper to try and resolve the current loop"""
+            try:
+                return loop or asyncio.get_event_loop()
+            except RuntimeError:
+                # Detects if a loop is available in the current thread;
+                # DEV: This happens when a new thread is created from the out that is running the async loop
+                # DEV: It's possible that a different Executor is handling a different Thread that
+                #      works with blocking code. In that case, we fallback to a thread-local Context.
+                pass
             return None
-        ctx = getattr(task, self._CONTEXT_ATTR, None)
-        if isinstance(ctx, Span):
-            return self._update_active(ctx)
-        return ctx
 
-    def _executor_id(self):
-        # type: () -> int
-        return id(asyncio_current_task())
+        def _has_active_context(self, loop=None):
+            """Helper to determine if we have a currently active context"""
+            loop = self._get_loop(loop=loop)
+            if loop is None:
+                return super(AsyncioContextProvider, self)._has_active_context()
+
+            # the current unit of work (if tasks are used)
+            task = asyncio.Task.current_task(loop=loop)
+            if task is None:
+                return False
+
+            ctx = getattr(task, self._CONTEXT_ATTR, None)
+            return ctx is not None
+
+        def active(self, loop=None):
+            """Returns the active context for the execution."""
+            loop = self._get_loop(loop=loop)
+            if not loop:
+                return super(AsyncioContextProvider, self).active()
+
+            # the current unit of work (if tasks are used)
+            task = asyncio.Task.current_task(loop=loop)
+            if task is None:
+                return None
+            ctx = getattr(task, self._CONTEXT_ATTR, None)
+            if isinstance(ctx, Span):
+                return self._update_active(ctx)
+            return ctx
+
+        def _executor_id(self):
+            # type: () -> int
+            return id(asyncio_current_task())

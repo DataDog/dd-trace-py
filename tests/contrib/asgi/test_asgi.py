@@ -1,7 +1,6 @@
 import asyncio
 from functools import partial
 import random
-import sys
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -54,11 +53,9 @@ def scope(request):
 @pytest.fixture
 def tracer():
     tracer = DummyTracer()
-    if sys.version_info < (3, 7):
-        # enable legacy asyncio support
-        from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
+    from ddtrace.contrib.asyncio import context_provider
 
-        tracer.configure(context_provider=AsyncioContextProvider())
+    tracer.configure(context_provider=context_provider)
     yield tracer
 
 
