@@ -53,62 +53,51 @@ COMMIT_MESSAGE = "git.commit.message"
 log = get_logger(__name__)
 
 
+def _git_subprocess_cmd(cmd, cwd=None):
+    # type: (str, Optional[str]) -> str
+    """Helper for invoking the git CLI binary."""
+    git_cmd = subprocess.Popen(cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+    stdout, stderr = git_cmd.communicate()
+    if git_cmd.returncode == 0:
+        return compat.ensure_text(stdout).strip()
+    raise ValueError(stderr)
+
+
 def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract git commit author/committer info."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    cmd = subprocess.Popen(
-        ["git", "show", "-s", "--format=%an,%ae,%ad,%cn,%ce,%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=cwd,
+    stdout = _git_subprocess_cmd(
+        "git show -s --format=%an,%ae,%ad,%cn,%ce,%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd
     )
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        author_name, author_email, author_date, committer_name, committer_email, committer_date = (
-            compat.ensure_text(stdout).strip().split(",")
-        )
-        return {
-            "author": (author_name, author_email, author_date),
-            "committer": (committer_name, committer_email, committer_date),
-        }
-    raise ValueError(stderr)
+    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split(",")
+    return {
+        "author": (author_name, author_email, author_date),
+        "committer": (committer_name, committer_email, committer_date),
+    }
 
 
 def extract_repository_url(cwd=None):
     # type: (Optional[str]) -> str
+    """Extract git repository url."""
     # Note: `git show ls-remote --get-url` is supported since git 2.6.7 onwards
-    cmd = subprocess.Popen(["git", "ls-remote", "--get-url"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        repository_url = compat.ensure_text(stdout).strip()
-        return repository_url
-    raise ValueError(stderr)
+    repository_url = _git_subprocess_cmd("git ls-remote --get-url", cwd=cwd)
+    return repository_url
 
 
 def extract_commit_message(cwd=None):
     # type: (Optional[str]) -> str
+    """Extract git commit message."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    cmd = subprocess.Popen(
-        ["git", "show", "-s", "--format=%s"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
-    )
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        commit_message = compat.ensure_text(stdout).strip()
-        return commit_message
-    raise ValueError(stderr)
+    commit_message = _git_subprocess_cmd("git show -s --format=%s", cwd=cwd)
+    return commit_message
 
 
 def extract_workspace_path(cwd=None):
     # type: (Optional[str]) -> str
-    cmd = subprocess.Popen(
-        ["git", "rev-parse", "--show-toplevel"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
-    )
-    stdout, stderr = cmd.communicate()
-    if cmd.returncode == 0:
-        workspace_path = compat.ensure_text(stdout).strip()
-        return workspace_path
-    raise ValueError(stderr)
+    """Extract workspace path of git repository."""
+    workspace_path = _git_subprocess_cmd("git rev-parse --show-toplevel", cwd=cwd)
+    return workspace_path
 
 
 def extract_git_metadata(cwd=None):
