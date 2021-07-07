@@ -1,6 +1,7 @@
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.runtime import RuntimeMetrics
+from tests.utils import DummyTracer
 
 
 def test_runtime_metrics_api():
@@ -83,3 +84,35 @@ assert RuntimeMetrics._enabled
 """,
     )
     assert status == 0
+
+
+def test_runtime_metrics_enable():
+    RuntimeMetrics.enable()
+    assert RuntimeWorker._instance is not None
+    assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
+    assert RuntimeWorker._instance.tracer is not None
+    assert RuntimeWorker._instance.dogstatsd_url is None
+    assert RuntimeWorker._instance.interval is not None
+
+    RuntimeMetrics.disable()
+
+    tracer = DummyTracer()
+    dogstatsd_url = "udp://agent:8125"
+
+    RuntimeMetrics.disable()
+
+    RuntimeMetrics.enable(tracer=tracer, dogstatsd_url=dogstatsd_url)
+    assert RuntimeWorker._instance is not None
+    assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
+    assert RuntimeWorker._instance.tracer == tracer
+    assert RuntimeWorker._instance.dogstatsd_url == dogstatsd_url
+    assert RuntimeWorker._instance.interval is not None
+
+    flush_interval = 100
+
+    RuntimeMetrics.enable(tracer=tracer, dogstatsd_url=dogstatsd_url, flush_interval=flush_interval)
+    assert RuntimeWorker._instance is not None
+    assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
+    assert RuntimeWorker._instance.tracer == tracer
+    assert RuntimeWorker._instance.dogstatsd_url == dogstatsd_url
+    assert RuntimeWorker._instance.interval == flush_interval
