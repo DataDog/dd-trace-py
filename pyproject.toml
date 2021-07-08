@@ -41,8 +41,7 @@ exclude = '''
   | ddtrace/(
     contrib/
     (
-      aiopg
-      | boto
+      boto
       | jinja2
       | pylibmc
       | rediscluster
@@ -54,8 +53,7 @@ exclude = '''
   (
     contrib/
     (
-      aiopg
-      | config.py
+      config.py
       | jinja2
       | pylibmc
       | rediscluster
