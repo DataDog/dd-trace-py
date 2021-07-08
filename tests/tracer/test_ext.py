@@ -26,10 +26,26 @@ def _updateenv(monkeypatch, env):
 
 
 @pytest.fixture
-def git_repo(tmpdir):
-    """Create temporary git directory, with one added file commit with a unique author and committer."""
+def git_repo_empty(tmpdir):
+    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
     cwd = str(tmpdir)
-    subprocess.check_output("git init", cwd=cwd, shell=True)
+    version = subprocess.check_output("git version", shell=True)
+    # decode "git version 2.28.0" to (2, 28, 0)
+    decoded_version = tuple(int(n) for n in version.decode().strip().split(" ")[-1].split(".") if n.isdigit())
+    if decoded_version >= (2, 28):
+        # versions starting from 2.28 can have a different initial branch name
+        # configured in ~/.gitconfig
+        subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
+    else:
+        # versions prior to 2.28 will create a master branch by default
+        subprocess.check_output("git init", cwd=cwd, shell=True)
+    yield cwd
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    """Create temporary git directory, with one added file commit with a unique author and committer."""
+    cwd = git_repo_empty
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
     # Set temporary git directory to not require gpg commit signing
     subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
@@ -45,14 +61,6 @@ def git_repo(tmpdir):
         cwd=cwd,
         shell=True,
     )
-    yield cwd
-
-
-@pytest.fixture
-def git_repo_empty(tmpdir):
-    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
-    cwd = str(tmpdir)
-    subprocess.check_output("git init", cwd=cwd, shell=True)
     yield cwd
 
 
