@@ -32,7 +32,7 @@ def git_repo_empty(tmpdir):
     version = subprocess.check_output("git version", shell=True)
     # decode "git version 2.28.0" to (2, 28, 0)
     decoded_version = tuple(int(n) for n in version.decode().strip().split(' ')[-1].split(".") if n.isdigit())
-    if decoded_version > (2, 28):
+    if decoded_version >= (2, 28):
         # versions starting from 2.28 can have a different initial branch name
         # configured in ~/.gitconfig
         subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
