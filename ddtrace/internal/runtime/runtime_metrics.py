@@ -88,7 +88,6 @@ class RuntimeWorker(periodic.PeriodicService):
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
         self.tracer.on_start_span(self._set_language_on_span)
-        self.interval = self.interval or _get_default_interval()
 
     def _set_language_on_span(
         self,
@@ -125,6 +124,7 @@ class RuntimeWorker(periodic.PeriodicService):
         with cls._lock:
             if cls._instance is not None:
                 return
+            flush_interval = flush_interval or _get_default_interval()
             runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
             runtime_worker.start()
             # force an immediate update constant tags
