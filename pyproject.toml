@@ -42,7 +42,6 @@ exclude = '''
     contrib/
     (
       aiopg
-      | boto
       | jinja2
       | pylibmc
       | rediscluster
