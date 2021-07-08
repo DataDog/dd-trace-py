@@ -43,7 +43,6 @@ exclude = '''
     (
       aiopg
       | boto
-      | jinja2
       | pylibmc
     )
     | profiling/exporter/pprof_.*pb2.py$
@@ -55,7 +54,6 @@ exclude = '''
     (
       aiopg
       | config.py
-      | jinja2
       | pylibmc
     )
   )
