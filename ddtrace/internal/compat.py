@@ -1,3 +1,4 @@
+import datetime
 import platform
 import random
 import re
@@ -24,6 +25,7 @@ __all__ = [
     "parse",
     "reraise",
     "maybe_stringify",
+    "utc",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -68,6 +70,26 @@ if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
+
+# UTC timezone support for Python 2 datetime
+if PY3:
+    utc = datetime.timezone.utc
+else:
+    _ZERO = datetime.timedelta(0)
+
+    class _UTC(datetime.tzinfo):
+        """UTC timezone."""
+
+        def utcoffset(self, dt):
+            return _ZERO
+
+        def tzname(self, dt):
+            return "UTC"
+
+        def dst(self, dt):
+            return _ZERO
+
+    utc = _UTC()
 
 
 def is_integer(obj):

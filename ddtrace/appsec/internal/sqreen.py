@@ -1,8 +1,12 @@
+from datetime import datetime
+import json
 import logging
 from typing import Any
 from typing import Mapping
 from typing import Optional
+from typing import Sequence
 from typing import TYPE_CHECKING
+import uuid
 
 
 if TYPE_CHECKING:
@@ -10,7 +14,12 @@ if TYPE_CHECKING:
 
 from sq_native import waf
 
+from ddtrace.appsec.internal.events.attack import Attack_0_1_0
+from ddtrace.appsec.internal.events.attack import Rule
+from ddtrace.appsec.internal.events.attack import RuleMatch
+from ddtrace.appsec.internal.events.context import get_required_context
 from ddtrace.appsec.internal.protections import BaseProtection
+from ddtrace.internal.compat import utc
 from ddtrace.utils.time import StopWatch
 
 
@@ -32,7 +41,7 @@ class SqreenLibrary(BaseProtection):
         self._instance = waf.WAFEngine(rules)
 
     def process(self, span, data):
-        # type: (Span, Mapping[str, Any]) -> None
+        # type: (Span, Mapping[str, Any]) -> Sequence[Attack_0_1_0]
         with StopWatch() as timer:
             context = self._instance.create_context()
             ret = context.run(data, self._budget)
@@ -43,3 +52,28 @@ class SqreenLibrary(BaseProtection):
             span.set_metric("_dd.sq.overtime_ms", elapsed_ms - self._budget)
         if ret.report:
             span.set_metric("_dd.sq.reports", 1)
+            return [self.sqreen_waf_to_attack(ret.data, blocked=ret.block)]
+        return []
+
+    @staticmethod
+    def sqreen_waf_to_attack(data, blocked=False, at=None):
+        """Convert a Sqreen WAF result to an AppSec Attack event."""
+        if at is None:
+            at = datetime.now(utc)
+        waf_data = json.loads(data.decode("utf-8", errors="replace"))
+        filter_data = waf_data[0]["filter"][0]
+        return Attack_0_1_0(
+            event_id=str(uuid.uuid4()),
+            detected_at=at.isoformat(),
+            type="waf",
+            blocked=blocked,
+            rule=Rule(id=waf_data[0]["rule"], name=waf_data[0]["flow"], set="waf"),
+            rule_match=RuleMatch(
+                operator=filter_data["operator"],
+                operator_value=filter_data["operator_value"],
+                parameters=[],  # DEV: do not report user data yet
+                highlight=[],  # DEV: do not report user data yet
+                has_server_side_match=False,
+            ),
+            context=get_required_context(),
+        )
