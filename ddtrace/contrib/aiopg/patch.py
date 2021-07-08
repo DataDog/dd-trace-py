@@ -4,13 +4,12 @@ import asyncio
 import aiopg.connection
 import psycopg2.extensions
 
+from ddtrace.contrib.aiopg.connection import AIOTracedConnection
+from ddtrace.contrib.psycopg.patch import _patch_extensions
+from ddtrace.contrib.psycopg.patch import _unpatch_extensions
+from ddtrace.contrib.psycopg.patch import patch_conn as psycopg_patch_conn
+from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
-
-from ...utils.wrappers import unwrap as _u
-from ..psycopg.patch import _patch_extensions
-from ..psycopg.patch import _unpatch_extensions
-from ..psycopg.patch import patch_conn as psycopg_patch_conn
-from .connection import AIOTracedConnection
 
 
 def patch():
