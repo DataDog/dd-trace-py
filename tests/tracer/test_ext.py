@@ -46,7 +46,6 @@ def git_repo_empty(tmpdir):
 def git_repo(git_repo_empty):
     """Create temporary git directory, with one added file commit with a unique author and committer."""
     cwd = git_repo_empty
-    subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
     # Set temporary git directory to not require gpg commit signing
     subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
