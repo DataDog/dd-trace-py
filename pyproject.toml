@@ -43,7 +43,6 @@ exclude = '''
     (
       aiopg
       | boto
-      | jinja2
       | pylibmc
       | rediscluster
     )
@@ -56,7 +55,6 @@ exclude = '''
     (
       aiopg
       | config.py
-      | jinja2
       | pylibmc
       | rediscluster
     )
