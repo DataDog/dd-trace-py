@@ -1,19 +1,19 @@
 from typing import Any
+from typing import FrozenSet
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
 
-from ddtrace.contrib.trace_utils import flatten_dict
+from ddtrace.contrib.trace_utils import set_flattened_tags
 
 
 if TYPE_CHECKING:
     from ddtrace.span import Span
 
 
-EXCLUDED_ENDPOINT = {"kms", "sts"}
+EXCLUDED_ENDPOINT = frozenset({"kms", "sts"})
 EXCLUDED_ENDPOINT_TAGS = {
-    "s3": {"params.Body"},
-    "firehose": {"params.Records"},
+    "firehose": frozenset({"params.Records"}),
 }
 
 
@@ -37,9 +37,13 @@ def add_span_arg_tags(
 ):
     # type: (...) -> None
     if endpoint_name not in EXCLUDED_ENDPOINT:
-        tags = dict((name, value) for (name, value) in zip(args_names, args) if name in args_traced)
-        flat_tags = flatten_dict(tags, exclude=EXCLUDED_ENDPOINT_TAGS.get(endpoint_name))
-        span.set_tags({k: truncate_arg_value(v) for k, v in flat_tags.items()})
+        exclude_set = EXCLUDED_ENDPOINT_TAGS.get(endpoint_name, frozenset())  # type: FrozenSet[str]
+        set_flattened_tags(
+            span,
+            items=((name, value) for (name, value) in zip(args_names, args) if name in args_traced),
+            exclude_policy=lambda tag: tag in exclude_set or tag.endswith("Body"),
+            processor=truncate_arg_value,
+        )
 
 
 REGION = "aws.region"

@@ -4,10 +4,13 @@ import sys
 
 from hypothesis import given
 from hypothesis import strategies as st
+import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.contrib.pytest.plugin import _json_encode
+from ddtrace.ext import ci
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -272,25 +275,41 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag("mark") == "dd_tags"
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
 
-    def test_default_service_name(self):
-        """Test default service name."""
+    def test_service_name_repository_name(self):
+        """Test span's service name is set to repository name."""
+        self.monkeypatch.setenv("APPVEYOR", "true")
+        self.monkeypatch.setenv("APPVEYOR_REPO_PROVIDER", "github")
+        self.monkeypatch.setenv("APPVEYOR_REPO_NAME", "test-repository-name")
         py_file = self.testdir.makepyfile(
             """
+            import os
+
             def test_service(ddspan):
-                assert True
+                assert 'test-repository-name' == ddspan.service
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
-        spans = self.pop_spans()
+        rec = self.subprocess_run("--ddtrace", file_name)
+        rec.assert_outcomes(passed=1)
 
-        assert len(spans) == 1
-        assert spans[0].service == "pytest"
-        assert spans[0].name == "pytest.test"
+    def test_default_service_name(self):
+        """Test default service name if no repository name found."""
+        providers = [provider for (provider, extract) in ci.PROVIDERS]
+        for provider in providers:
+            self.monkeypatch.delenv(provider, raising=False)
+        py_file = self.testdir.makepyfile(
+            """
+            def test_service(ddspan):
+                assert ddspan.service == "pytest"
+                assert ddspan.name == "pytest.test"
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.subprocess_run("--ddtrace", file_name)
+        rec.assert_outcomes(passed=1)
 
     def test_dd_service_name(self):
-        """Test integration service name."""
+        """Test dd service name."""
         self.monkeypatch.setenv("DD_SERVICE", "mysvc")
         if "DD_PYTEST_SERVICE" in os.environ:
             self.monkeypatch.delenv("DD_PYTEST_SERVICE")
@@ -394,3 +413,32 @@ def test_custom_json_encoding_side_effects():
     decoded = json.loads(encoded)
     assert decoded["b"] == repr(dict_side_effect)
     assert decoded["c"] == repr(repr_side_effect)
+
+
+@pytest.mark.parametrize(
+    "repository_url,repository_name",
+    [
+        ("https://github.com/DataDog/dd-trace-py.git", "dd-trace-py"),
+        ("https://github.com/DataDog/dd-trace-py", "dd-trace-py"),
+        ("git@github.com:DataDog/dd-trace-py.git", "dd-trace-py"),
+        ("git@github.com:DataDog/dd-trace-py", "dd-trace-py"),
+        ("dd-trace-py", "dd-trace-py"),
+        ("git@hostname.com:org/repo-name.git", "repo-name"),
+        ("git@hostname.com:org/repo-name", "repo-name"),
+        ("ssh://git@hostname.com:org/repo-name", "repo-name"),
+        ("git+git://github.com/org/repo-name.git", "repo-name"),
+        ("git+ssh://github.com/org/repo-name.git", "repo-name"),
+        ("git+https://github.com/org/repo-name.git", "repo-name"),
+    ],
+)
+def test_repository_name_extracted(repository_url, repository_name):
+    assert _extract_repository_name(repository_url) == repository_name
+
+
+def test_repository_name_not_extracted_warning():
+    """If provided an invalid repository url, should raise warning and return original repository url"""
+    repository_url = "https://github.com:organ[ization/repository-name"
+    with mock.patch("ddtrace.contrib.pytest.plugin.log") as mock_log:
+        extracted_repository_name = _extract_repository_name(repository_url)
+        assert extracted_repository_name == repository_url
+    mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
