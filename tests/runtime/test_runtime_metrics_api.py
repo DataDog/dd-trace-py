@@ -93,27 +93,59 @@ assert RuntimeMetrics._enabled
     (
         dict(),
         dict(tracer=DummyTracer(), dogstatsd_url="udp://agent:8125"),
-        dict(tracer=DummyTracer(), dogstatsd_url="udp://agent:8125", flush_interval="100.0"),
+        dict(tracer=DummyTracer(), dogstatsd_url="udp://agent:8125", flush_interval=100.0),
+        dict(flush_interval=0),
     ),
 )
-def test_runtime_metrics_enable(monkeypatch, enable_kwargs):
+def test_runtime_metrics_enable(enable_kwargs):
     try:
-        if "flush_interval" in enable_kwargs:
-            monkeypatch.setenv("DD_RUNTIME_METRICS_INTERVAL", enable_kwargs["flush_interval"])
+        RuntimeMetrics.enable(**enable_kwargs)
+
+        assert RuntimeWorker._instance is not None
+        assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
+        assert (
+            RuntimeWorker._instance.tracer == enable_kwargs["tracer"]
+            if "tracer" in enable_kwargs
+            else RuntimeWorker._instance.tracer is not None
+        )
+        assert (
+            RuntimeWorker._instance.dogstatsd_url == enable_kwargs["dogstatsd_url"]
+            if "dogstatsd_url" in enable_kwargs
+            else RuntimeWorker._instance.dogstatsd_url is None
+        )
+        assert (
+            RuntimeWorker._instance.interval == enable_kwargs["flush_interval"]
+            if "flush_interval" in enable_kwargs
+            else RuntimeWorker._instance.interval == 10.0
+        )
+    finally:
+        RuntimeMetrics.disable()
+
+        # if "flush_interval" in enable_kwargs:
+        #     monkeypatch.setenv("DD_RUNTIME_METRICS_INTERVAL", str(enable_kwargs["flush_interval"]))
+
+
+@pytest.mark.parametrize(
+    "environ",
+    (
+        dict(),
+        dict(DD_RUNTIME_METRICS_INTERVAL="0.0"),
+        dict(DD_RUNTIME_METRICS_INTERVAL="100.0"),
+    ),
+)
+def test_runtime_metrics_enable_environ(monkeypatch, environ):
+    try:
+        for (k, v) in environ.items():
+            monkeypatch.setenv(k, v)
 
         RuntimeMetrics.enable()
 
         assert RuntimeWorker._instance is not None
         assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
         assert (
-            "tracer" in enable_kwargs and RuntimeWorker._instance.tracer == enable_kwargs["tracer"]
-        ) or RuntimeWorker._instance.tracer is not None
-        assert (
-            "dogstatsd_url" in enable_kwargs and RuntimeWorker._instance.dogstatsd_url == enable_kwargs["dogstatsd_url"]
-        ) or RuntimeWorker._instance.dogstatsd_url is None
-        assert (
-            "flush_interval" in enable_kwargs
-            and RuntimeWorker._instance.interval == float(enable_kwargs["flush_interval"])
-        ) or RuntimeWorker._instance.interval == 10.0
+            RuntimeWorker._instance.interval == float(environ["DD_RUNTIME_METRICS_INTERVAL"])
+            if "DD_RUNTIME_METRICS_INTERVAL" in environ
+            else RuntimeWorker._instance.interval == 10.0
+        )
     finally:
         RuntimeMetrics.disable()

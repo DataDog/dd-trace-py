@@ -62,7 +62,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-def _get_default_interval():
+def _get_interval_or_default():
     return float(get_env("runtime_metrics", "interval", default=10))
 
 
@@ -72,7 +72,7 @@ class RuntimeWorker(periodic.PeriodicService):
     client.
     """
 
-    _interval = attr.ib(type=float, factory=_get_default_interval)
+    _interval = attr.ib(type=float, factory=_get_interval_or_default)
     tracer = attr.ib(type=ddtrace.Tracer, default=None)
     dogstatsd_url = attr.ib(type=Optional[str], default=None)
     _dogstatsd_client = attr.ib(init=False, repr=False)
@@ -124,7 +124,8 @@ class RuntimeWorker(periodic.PeriodicService):
         with cls._lock:
             if cls._instance is not None:
                 return
-            flush_interval = flush_interval or _get_default_interval()
+            if flush_interval is None:
+                flush_interval = _get_interval_or_default()
             runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
             runtime_worker.start()
             # force an immediate update constant tags
