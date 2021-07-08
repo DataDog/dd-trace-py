@@ -1005,5 +1005,27 @@ venv = Venv(
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),
+        Venv(
+            name="aiopg",
+            pys=select_pys(),
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6"],
+                    pkgs={
+                        "aiopg": ["~=0.12.0", "~=0.15.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
+                    },
+                ),
+            ],
+            pkgs={
+                "sqlalchemy": latest,
+            },
+            command="pytest {cmdargs} tests/contrib/aiopg",
+        ),
     ],
 )
