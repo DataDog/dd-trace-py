@@ -121,9 +121,6 @@ def test_runtime_metrics_enable(enable_kwargs):
     finally:
         RuntimeMetrics.disable()
 
-        # if "flush_interval" in enable_kwargs:
-        #     monkeypatch.setenv("DD_RUNTIME_METRICS_INTERVAL", str(enable_kwargs["flush_interval"]))
-
 
 @pytest.mark.parametrize(
     "environ",
