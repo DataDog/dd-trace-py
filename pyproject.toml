@@ -44,7 +44,6 @@ exclude = '''
       aiopg
       | boto
       | pylibmc
-      | rediscluster
     )
     | profiling/exporter/pprof_.*pb2.py$
     | vendor/
@@ -56,7 +55,6 @@ exclude = '''
       aiopg
       | config.py
       | pylibmc
-      | rediscluster
     )
   )
 )
