@@ -13,6 +13,8 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace.internal._encoding import BufferFull
+from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
@@ -291,3 +293,34 @@ def test_custom_msgpack_encode_trace_size(name, service, resource, meta, metrics
 
     encoder.put(trace)
     assert encoder.size + 1 == len(encoder.encode())
+
+
+def test_encoder_buffer_size_limit():
+    buffer_size = 1 << 10
+    encoder = MsgpackEncoder(buffer_size, buffer_size)
+
+    trace = [Span(tracer=None, name="test")]
+    encoder.put(trace)
+    trace_size = encoder.size
+
+    for _ in range(1, int(buffer_size / trace_size)):
+        encoder.put(trace)
+
+    with pytest.raises(BufferFull):
+        encoder.put(trace)
+
+    with pytest.raises(BufferFull):
+        encoder.put(trace)
+
+
+def test_encoder_buffer_item_size_limit():
+    buffer_size = 1 << 10
+    encoder = MsgpackEncoder(buffer_size, buffer_size)
+
+    span = Span(tracer=None, name="test")
+    trace = [span]
+    encoder.put(trace)
+    trace_size = encoder.size
+
+    with pytest.raises(BufferItemTooLarge):
+        encoder.put([span] * (int(buffer_size / trace_size) + 1))

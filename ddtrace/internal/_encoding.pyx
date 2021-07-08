@@ -4,8 +4,6 @@ import struct
 import threading
 
 from ..span import Span
-from .buffer import BufferFull
-from .buffer import BufferItemTooLarge
 
 
 cdef extern from "Python.h":
@@ -34,6 +32,14 @@ cdef extern from "buff_converter.h":
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
+
+
+class BufferFull(Exception):
+    pass
+
+
+class BufferItemTooLarge(Exception):
+    pass
 
 
 cdef inline int PyBytesLike_Check(object o):

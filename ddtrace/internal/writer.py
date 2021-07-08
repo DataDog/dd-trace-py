@@ -23,9 +23,9 @@ from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.formats import get_env
 from ..utils.time import StopWatch
+from ._encoding import BufferFull
+from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .buffer import BufferFull
-from .buffer import BufferItemTooLarge
 from .encoding import Encoder
 from .encoding import JSONEncoderV2
 from .logger import get_logger
