@@ -29,7 +29,7 @@ def _updateenv(monkeypatch, env):
 def git_repo(tmpdir):
     """Create temporary git directory, with one added file commit with a unique author and committer."""
     cwd = str(tmpdir)
-    subprocess.check_output("git init", cwd=cwd, shell=True)
+    subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
     # Set temporary git directory to not require gpg commit signing
     subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
@@ -52,7 +52,7 @@ def git_repo(tmpdir):
 def git_repo_empty(tmpdir):
     """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
     cwd = str(tmpdir)
-    subprocess.check_output("git init", cwd=cwd, shell=True)
+    subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
     yield cwd
 
 
