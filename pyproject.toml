@@ -42,7 +42,6 @@ exclude = '''
     contrib/
     (
       boto
-      | jinja2
       | pylibmc
     )
     | profiling/exporter/pprof_.*pb2.py$
@@ -53,7 +52,6 @@ exclude = '''
     contrib/
     (
       config.py
-      | jinja2
       | pylibmc
     )
   )
