@@ -345,6 +345,21 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
+        if span is None:
+            trace_id = None
+            span_id = None
+            trace_type = None
+            trace_resource = None
+        else:
+            trace_id = span.trace_id
+            span_id = span.span_id
+            if span._local_root is None:
+                trace_type = None
+                trace_resource = None
+            else:
+                trace_type = span._local_root.span_type
+                trace_resource = span._local_root.resource
+
         stack_events.append(
             StackSampleEvent(
                 thread_id=thread_id,
@@ -352,8 +367,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_name=thread_name,
                 task_id=task_id,
                 task_name=task_name,
-                trace_id=None if span is None else span.trace_id,
-                span_id=None if span is None else span.span_id,
+                trace_id=trace_id,
+                span_id=span_id,
+                trace_resource=trace_resource,
+                trace_type=trace_type,
                 nframes=nframes, frames=frames,
                 wall_time_ns=wall_time,
                 cpu_time_ns=cpu_time,
@@ -371,8 +388,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     thread_native_id=thread_native_id,
                     task_id=task_id,
                     task_name=task_name,
-                    trace_id=None if span is None else span.trace_id,
-                    span_id=None if span is None else span.span_id,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    trace_resource=trace_resource,
+                    trace_type=trace_type,
                     nframes=nframes,
                     frames=frames,
                     sampling_period=int(interval * 1e9),
