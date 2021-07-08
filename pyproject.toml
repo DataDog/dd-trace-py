@@ -45,7 +45,6 @@ exclude = '''
       | boto
       | jinja2
       | pylibmc
-      | rediscluster
     )
     | profiling/exporter/pprof_.*pb2.py$
     | vendor/
@@ -58,7 +57,6 @@ exclude = '''
       | config.py
       | jinja2
       | pylibmc
-      | rediscluster
     )
   )
 )
