@@ -3,7 +3,7 @@ The Tornado integration traces all ``RequestHandler`` defined in a Tornado web a
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library.
 
-**Note:** Tornado 5 and 6 supports Python 3.7 and above.
+**Note:** This integration requires Python 3.7 and above for Tornado 5 and 6.
 
 The following is an example::
 
