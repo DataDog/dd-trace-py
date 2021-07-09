@@ -39,7 +39,6 @@ RUN pip install -r requirements.txt
 ENV DDTRACE_GIT_COMMIT_ID ""
 ENV PIP_INSTALL_WHEELS ""
 ENV SIRUN_NO_STDIO 0
-ENV K6_STATSD_ENABLE_TAGS "true"
 
 ENTRYPOINT ["/app/entrypoint"]
 CMD ["/app/benchmark"]
