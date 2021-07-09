@@ -8,7 +8,7 @@ Build
 
 Use docker to build the image which will run tests and store output in an artifacts directory::
 
-  docker build -t django_simple benchmarks/django_simple/
+  docker build -t django_simple -f benchmarks/django_simple.Dockerfile benchmarks/
 
 Run
 ---

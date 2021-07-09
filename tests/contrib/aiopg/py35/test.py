@@ -2,6 +2,7 @@ import asyncio
 
 import aiopg
 
+# project
 from ddtrace import Pin
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch

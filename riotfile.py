@@ -1007,7 +1007,6 @@ venv = Venv(
         ),
         Venv(
             name="aiopg",
-            pys=select_pys(),
             venvs=[
                 Venv(
                     pys=["3.5", "3.6"],

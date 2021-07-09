@@ -4,6 +4,7 @@ import time
 import aiopg
 from psycopg2 import extras
 
+# project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiopg.patch import patch
@@ -12,9 +13,8 @@ from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import assert_is_measured
-
-from ...subprocesstest import run_in_subprocess
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
