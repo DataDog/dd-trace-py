@@ -21,7 +21,10 @@ class Jinja2Test(TracerTestCase):
         super(Jinja2Test, self).setUp()
         patch()
         # prevent cache effects when using Template('code...')
-        jinja2.environment._spontaneous_environments.clear()
+        try:
+            jinja2.environment._spontaneous_environments.clear()
+        except AttributeError:
+            jinja2.utils.clear_caches()
         Pin.override(jinja2.environment.Environment, tracer=self.tracer)
 
     def tearDown(self):
