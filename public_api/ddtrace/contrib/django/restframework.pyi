@@ -1,0 +1,3 @@
+from typing import Any
+
+def patch_restframework(django: Any) -> None: ...

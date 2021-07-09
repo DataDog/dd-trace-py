@@ -1,4 +1,5 @@
-from typing import Any, Dict, List
+import Any
+from typing import Dict, List
 
 log: Any
 PATCH_MODULES: Any

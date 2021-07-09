@@ -1,0 +1,3 @@
+from typing import Any
+
+def tracer_config(__init__: Any, app: Any, args: Any, kwargs: Any) -> None: ...

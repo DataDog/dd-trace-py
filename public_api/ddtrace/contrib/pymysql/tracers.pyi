@@ -1,0 +1,3 @@
+import Any
+
+def get_traced_pymysql_connection(*args: Any, **kwargs: Any) -> Any: ...

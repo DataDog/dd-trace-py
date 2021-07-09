@@ -1,0 +1,3 @@
+import typing
+
+def parse_version(version: str) -> typing.Tuple[int, int, int]: ...

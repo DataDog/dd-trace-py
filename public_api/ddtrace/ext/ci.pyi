@@ -14,6 +14,7 @@ OS_PLATFORM: str
 OS_VERSION: str
 RUNTIME_NAME: str
 RUNTIME_VERSION: str
+log: Any
 
 def tags(env: Optional[MutableMapping[str, str]]=..., cwd: Optional[str]=...) -> Dict[str, str]: ...
 def extract_appveyor(env: MutableMapping[str, str]) -> Dict[str, Optional[str]]: ...

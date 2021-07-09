@@ -1,0 +1,3 @@
+import requests
+
+class TracedSession(requests.Session): ...

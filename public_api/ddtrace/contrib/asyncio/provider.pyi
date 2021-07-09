@@ -1,0 +1,6 @@
+from ...provider import BaseContextProvider
+from typing import Any, Optional
+
+class AsyncioContextProvider(BaseContextProvider):
+    def activate(self, context: Any, loop: Optional[Any] = ...): ...
+    def active(self, loop: Optional[Any] = ...): ...

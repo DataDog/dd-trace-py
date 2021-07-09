@@ -1,4 +1,4 @@
-import ddtrace
+import ddtrace.internal.runtime.runtime_metrics
 from typing import Optional
 
 class RuntimeMetrics:

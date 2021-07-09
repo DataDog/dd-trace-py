@@ -1,0 +1,3 @@
+from typing import Any
+
+def run_with_trace_context(func: Any, *args: Any, **kwargs: Any): ...

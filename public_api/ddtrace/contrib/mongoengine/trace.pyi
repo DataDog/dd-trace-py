@@ -1,0 +1,6 @@
+from ddtrace.vendor import wrapt
+from typing import Any
+
+class WrappedConnect(wrapt.ObjectProxy):
+    def __init__(self, connect: Any) -> None: ...
+    def __call__(self, *args: Any, **kwargs: Any): ...

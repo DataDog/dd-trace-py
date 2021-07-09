@@ -3,7 +3,10 @@ from .context import Context
 from .span import Span
 from typing import Any, Optional, Union
 
+log: Any
+
 class BaseContextProvider(metaclass=abc.ABCMeta):
+    def __init__(self) -> None: ...
     @abc.abstractmethod
     def activate(self, ctx: Optional[Union[Context, Span]]) -> None: ...
     @abc.abstractmethod

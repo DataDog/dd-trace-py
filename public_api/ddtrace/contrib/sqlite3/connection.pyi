@@ -1,0 +1,3 @@
+import Any
+
+def connection_factory(*args: Any, **kwargs: Any) -> Any: ...

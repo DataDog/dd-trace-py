@@ -1,0 +1,6 @@
+from typing import Any
+
+FALCON_VERSION: Any
+
+def patch() -> None: ...
+def traced_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> None: ...

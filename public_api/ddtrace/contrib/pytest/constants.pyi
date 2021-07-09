@@ -1,0 +1,3 @@
+FRAMEWORK: str
+KIND: str
+HELP_MSG: str

@@ -1,0 +1,3 @@
+from typing import Any
+
+def create_server_interceptor(pin: Any): ...
