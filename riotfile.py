@@ -971,5 +971,19 @@ venv = Venv(
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),
+        Venv(
+            name="jinja2",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                ),
+            ],
+            command="pytest {cmdargs} tests/contrib/jinja2",
+        ),
     ],
 )
