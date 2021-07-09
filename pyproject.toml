@@ -41,8 +41,7 @@ exclude = '''
   | ddtrace/(
     contrib/
     (
-      aiopg
-      | boto
+      boto
       | pylibmc
     )
     | profiling/exporter/pprof_.*pb2.py$
@@ -52,8 +51,7 @@ exclude = '''
   (
     contrib/
     (
-      aiopg
-      | config.py
+      config.py
       | pylibmc
     )
   )
