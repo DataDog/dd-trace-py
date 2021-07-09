@@ -1005,5 +1005,21 @@ venv = Venv(
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),
+        Venv(
+            # releases 3.7 and 3.8 are broken on Python >= 3.7
+            # (see https://github.com/r4fek/django-cassandra-engine/issues/104)
+            name="cassandra",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"cassandra-driver": ["~=3.6.0", "~=3.15.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={"cassandra-driver": [("~=3.%d.0" % m) for m in range(6, 9)] + ["~=3.15.0", latest]},
+                ),
+            ],
+            command="pytest {cmdargs} tests/contrib/cassandra",
+        ),
     ],
 )
