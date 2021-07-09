@@ -41,11 +41,8 @@ exclude = '''
   | ddtrace/(
     contrib/
     (
-      aiopg
-      | boto
-      | jinja2
+      boto
       | pylibmc
-      | rediscluster
     )
     | profiling/exporter/pprof_.*pb2.py$
     | vendor/
@@ -54,11 +51,8 @@ exclude = '''
   (
     contrib/
     (
-      aiopg
-      | config.py
-      | jinja2
+      config.py
       | pylibmc
-      | rediscluster
     )
   )
 )
