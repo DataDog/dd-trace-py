@@ -23,7 +23,6 @@ RUN curl -sL https://github.com/DataDog/sirun/releases/download/v0.1.8/sirun-v0.
 
 COPY ./common/entrypoint /app/
 COPY ./common/benchmark /app/
-COPY ./common/meta.yaml /app/
 
 # Add benchmark scenario code, overriding anything from common
 COPY ./${BENCHMARK}/ /app/
