@@ -1,6 +1,0 @@
-from typing import Any
-
-DROP_PORTS: Any
-
-def patch() -> None: ...
-def unpatch() -> None: ...

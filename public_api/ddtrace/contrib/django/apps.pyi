@@ -1,9 +1,0 @@
-from django.apps import AppConfig
-from typing import Any
-
-log: Any
-
-class TracerConfig(AppConfig):
-    name: str = ...
-    label: str = ...
-    def ready(self) -> None: ...

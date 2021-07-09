@@ -1,3 +1,0 @@
-from typing import Any, Optional
-
-def wrap_executor(tracer: Any, fn: Any, args: Any, kwargs: Any, span_name: Any, service: Optional[Any] = ..., resource: Optional[Any] = ..., span_type: Optional[Any] = ...): ...

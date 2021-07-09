@@ -1,6 +1,0 @@
-from typing import Any
-
-log: Any
-
-def create_client_interceptor(pin: Any, host: Any, port: Any): ...
-def intercept_channel(wrapped: Any, instance: Any, args: Any, kwargs: Any): ...

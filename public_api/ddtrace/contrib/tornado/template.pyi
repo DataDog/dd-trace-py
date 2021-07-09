@@ -1,3 +1,0 @@
-from typing import Any
-
-def generate(func: Any, renderer: Any, args: Any, kwargs: Any): ...

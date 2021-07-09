@@ -1,6 +1,0 @@
-from ...provider import BaseContextProvider
-from typing import Any
-
-class GeventContextProvider(BaseContextProvider):
-    def activate(self, context: Any): ...
-    def active(self): ...
