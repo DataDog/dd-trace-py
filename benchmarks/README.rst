@@ -8,7 +8,7 @@ Copy ``sample`` directory and edit the ``meta.yaml`` file to specify the executa
 
 Build image::
 
-  docker build -t benchmark-<scenario> --build-arg <scenario> -f base.Dockerfile .
+  docker build -t benchmark-<scenario> --build-arg BENCHMARK=<scenario> -f base.Dockerfile .
 
 Run scenario::
 
