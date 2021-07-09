@@ -23,7 +23,6 @@ RUN curl -sL https://github.com/DataDog/sirun/releases/download/v0.1.8/sirun-v0.
 
 COPY ./common/entrypoint /app/
 COPY ./common/benchmark /app/
-COPY ./common/meta.yaml /app/
 
 # Add benchmark scenario code, overriding anything from common
 COPY ./${BENCHMARK}/ /app/
@@ -39,7 +38,6 @@ RUN pip install -r requirements.txt
 ENV DDTRACE_GIT_COMMIT_ID ""
 ENV PIP_INSTALL_WHEELS ""
 ENV SIRUN_NO_STDIO 0
-ENV K6_STATSD_ENABLE_TAGS "true"
 
 ENTRYPOINT ["/app/entrypoint"]
 CMD ["/app/benchmark"]

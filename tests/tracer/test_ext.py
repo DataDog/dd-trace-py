@@ -26,10 +26,26 @@ def _updateenv(monkeypatch, env):
 
 
 @pytest.fixture
-def git_repo(tmpdir):
-    """Create temporary git directory, with one added file commit with a unique author and committer."""
+def git_repo_empty(tmpdir):
+    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
     cwd = str(tmpdir)
-    subprocess.check_output("git init", cwd=cwd, shell=True)
+    version = subprocess.check_output("git version", shell=True)
+    # decode "git version 2.28.0" to (2, 28, 0)
+    decoded_version = tuple(int(n) for n in version.decode().strip().split(" ")[-1].split(".") if n.isdigit())
+    if decoded_version >= (2, 28):
+        # versions starting from 2.28 can have a different initial branch name
+        # configured in ~/.gitconfig
+        subprocess.check_output("git init --initial-branch=master", cwd=cwd, shell=True)
+    else:
+        # versions prior to 2.28 will create a master branch by default
+        subprocess.check_output("git init", cwd=cwd, shell=True)
+    yield cwd
+
+
+@pytest.fixture
+def git_repo(git_repo_empty):
+    """Create temporary git directory, with one added file commit with a unique author and committer."""
+    cwd = git_repo_empty
     subprocess.check_output('git remote add origin "git@github.com:test-repo-url.git"', cwd=cwd, shell=True)
     # Set temporary git directory to not require gpg commit signing
     subprocess.check_output("git config --local commit.gpgsign false", cwd=cwd, shell=True)
@@ -45,14 +61,6 @@ def git_repo(tmpdir):
         cwd=cwd,
         shell=True,
     )
-    yield cwd
-
-
-@pytest.fixture
-def git_repo_empty(tmpdir):
-    """Create temporary empty git directory, meaning no commits/users/repository-url to extract (error)"""
-    cwd = str(tmpdir)
-    subprocess.check_output("git init", cwd=cwd, shell=True)
     yield cwd
 
 
@@ -76,7 +84,7 @@ def test_git_extract_user_info(git_repo):
 
 
 def test_git_extract_user_info_error(git_repo_empty):
-    """On error, the author/committer tags should not be extracted, and should internally raise and log the error."""
+    """On error, the author/committer tags should not be extracted, and should internally raise an error."""
     with pytest.raises(ValueError):
         git.extract_user_info(cwd=git_repo_empty)
 
@@ -88,7 +96,7 @@ def test_git_extract_repository_url(git_repo):
 
 
 def test_git_extract_repository_url_error(git_repo_empty):
-    """On error, the repository url tag should not be extracted, and should internally raise the error."""
+    """On error, the repository url tag should not be extracted, and should internally raise an error."""
     with pytest.raises(ValueError):
         git.extract_repository_url(cwd=git_repo_empty)
 
@@ -100,9 +108,20 @@ def test_git_extract_commit_message(git_repo):
 
 
 def test_git_extract_commit_message_error(git_repo_empty):
-    """On error, the commit message tag should not be extracted, and should internally raise and log the error."""
+    """On error, the commit message tag should not be extracted, and should internally raise an error."""
     with pytest.raises(ValueError):
         git.extract_commit_message(cwd=git_repo_empty)
+
+
+def test_git_extract_workspace_path(git_repo):
+    """Make sure that workspace path is correctly extracted."""
+    assert git.extract_workspace_path(cwd=git_repo) == git_repo
+
+
+def test_git_extract_workspace_path_error(tmpdir):
+    """On error, workspace path should not be extracted, and should internally raise an error."""
+    with pytest.raises(ValueError):
+        git.extract_workspace_path(cwd=str(tmpdir))
 
 
 def test_extract_git_metadata(git_repo):
@@ -162,7 +181,7 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
     """If no or None or empty string values from CI provider env, should be overwritten by extracted git metadata."""
     ci_provider_env = {
         "APPVEYOR": "true",
-        "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+        "APPVEYOR_BUILD_FOLDER": "",
         "APPVEYOR_BUILD_ID": "appveyor-build-id",
         "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
         "APPVEYOR_REPO_BRANCH": "master",
@@ -179,6 +198,7 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"
     assert extracted_tags["git.commit.author.email"] == "john@doe.com"
+    assert extracted_tags["ci.workspace_path"] == git_repo
 
 
 def test_os_runtime_metadata_tagging():

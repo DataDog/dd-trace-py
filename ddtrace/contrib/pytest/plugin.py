@@ -5,18 +5,17 @@ from typing import Dict
 import pytest
 
 import ddtrace
-
-from ...constants import SPAN_KIND
-from ...ext import SpanTypes
-from ...ext import ci
-from ...ext import test
-from ...internal import compat
-from ...internal.logger import get_logger
-from ...pin import Pin
-from ..trace_utils import int_service
-from .constants import FRAMEWORK
-from .constants import HELP_MSG
-from .constants import KIND
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.pytest.constants import FRAMEWORK
+from ddtrace.contrib.pytest.constants import HELP_MSG
+from ddtrace.contrib.pytest.constants import KIND
+from ddtrace.contrib.trace_utils import int_service
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import ci
+from ddtrace.ext import test
+from ddtrace.internal import compat
+from ddtrace.internal.logger import get_logger
+from ddtrace.pin import Pin
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
