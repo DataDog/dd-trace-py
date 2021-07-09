@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+mkdir -p /artifacts/output/
+
+# cleanup any existing output artifacts
+rm -f /artifacts/output/*.*
+
+sirun meta.yaml | tee /artifacts/output/sirun.ndjson
+
+jq -s -f summarize_sirun.jq /artifacts/output/sirun.ndjson | tee /artifacts/output/summary_sirun.json
+jq -s -f summarize_k6.jq /artifacts/output/k6.ndjson | tee /artifacts/output/summary_k6.json
+
+# keep process alive before exiting
+# FIXME: remove once artifacts can be uploaded when run in CI
+sleep 30m

@@ -58,13 +58,14 @@ class TraceSamplingProcessor(TraceProcessor):
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
-        sampled_spans = [s for s in trace if s.sampled]
-        if len(sampled_spans) == 0:
-            log.debug("dropping trace, %d spans unsampled", len(trace))
-            return None
+        if trace:
+            for span in trace:
+                if span.sampled:
+                    return trace
 
-        log.debug("trace %d sampled (%d/%d spans sampled)", trace[0].trace_id, len(sampled_spans), len(trace))
-        return trace
+            log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
+
+        return None
 
 
 @attr.s
@@ -124,9 +125,8 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
-            if trace.num_finished == len(trace.spans) or (
-                self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
-            ):
+            should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
+            if trace.num_finished == len(trace.spans) or should_partial_flush:
                 trace_spans = trace.spans
                 trace.spans = []
                 if trace.num_finished < len(trace_spans):
@@ -140,7 +140,12 @@ class SpanAggregator(SpanProcessor):
                 else:
                     finished = trace_spans
 
-                trace.num_finished -= len(finished)
+                num_finished = len(finished)
+
+                if should_partial_flush:
+                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
+
+                trace.num_finished -= num_finished
 
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]

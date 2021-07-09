@@ -4,7 +4,6 @@ Generic dbapi tracing code.
 import six
 
 from ddtrace import config
-from ddtrace.vendor import debtcollector
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -12,9 +11,6 @@ from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ...utils.attrdict import AttrDict
-from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
@@ -22,11 +18,12 @@ from ..trace_utils import iswrapped
 
 log = get_logger(__name__)
 
+
 config._add(
     "dbapi2",
     dict(
         _default_service="db",
-        trace_fetch_methods=asbool(get_env("dbapi2", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=None,  # Part of the API. Should be implemented at the integration level.
     ),
 )
 
@@ -40,7 +37,7 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or "sql"
         self._self_datadog_name = "{}.query".format(name)
         self._self_last_execute_operation = None
-        self._self_config = _override_dbapi2_config(cfg)
+        self._self_config = cfg or config.dbapi2
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
@@ -167,45 +164,6 @@ class FetchTracedCursor(TracedCursor):
         )
 
 
-# TODO: Remove once config.dbapi2 has been removed
-class _OverrideAttrDict(wrapt.ObjectProxy):
-    __slots__ = ("override", "base")
-    sentinel = object()
-
-    def __init__(self, override, base):
-        self.override = override or AttrDict()
-        self.base = base or AttrDict()
-        super(_OverrideAttrDict, self).__init__(self.override)
-
-    def __getattr__(self, name):
-        try:
-            return getattr(self.override, name)
-        except AttributeError:
-            return getattr(self.base, name)
-
-    def __getitem__(self, name):
-        value = self.override.get(name, self.sentinel)
-        return self.base.__getitem__(name) if value == self.sentinel else value
-
-    def __contains__(self, name):
-        return (name in self.override and self.override[name] is not None) or (
-            name in self.base and self.base[name] is not None
-        )
-
-
-def _override_dbapi2_config(new_cfg):
-    # Need to backwards support the dbapi2 config entry
-    # but give precedence to the given config.
-    if new_cfg is None:
-        return config.dbapi2
-
-    # Avoid wrapping again
-    if isinstance(new_cfg, _OverrideAttrDict):
-        return new_cfg
-
-    return _OverrideAttrDict(new_cfg, config.dbapi2)
-
-
 class TracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
@@ -215,16 +173,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # Set default cursor class if one was not provided
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
-            cursor_cls = TracedCursor
-            # Deprecation of config.dbapi2 requires we add a check
-            if cfg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
-                if config.dbapi2.trace_fetch_methods:
-                    debtcollector.deprecate(
-                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
-                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
-                        removal_version="0.50.0",
-                    )
-                cursor_cls = FetchTracedCursor
+            cursor_cls = FetchTracedCursor if cfg.trace_fetch_methods else TracedCursor
 
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
@@ -234,7 +183,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
-        self._self_config = _override_dbapi2_config(cfg)
+        self._self_config = cfg
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.

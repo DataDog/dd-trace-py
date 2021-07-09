@@ -497,3 +497,95 @@ print(len(root.handlers))
         assert out == six.b("1\n")
     else:
         assert out == six.b("0\n")
+
+
+def test_writer_env_configuration(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 1000
+assert ddtrace.tracer.writer._buffer.max_item_size == 5000
+assert ddtrace.tracer.writer._interval == 5.0
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 8000000
+assert ddtrace.tracer.writer._buffer.max_item_size == 8000000
+assert ddtrace.tracer.writer._interval == 1.0
+""",
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 1000
+assert ddtrace.tracer.writer._buffer.max_item_size == 5000
+assert ddtrace.tracer.writer._interval == 5.0
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_in_subprocess):
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._buffer.max_size == 8000000
+assert ddtrace.tracer.writer._buffer.max_item_size == 8000000
+assert ddtrace.tracer.writer._interval == 1.0
+""",
+    )
+    assert status == 0, (out, err)
+
+
+def test_partial_flush_log(run_python_code_in_subprocess):
+    partial_flush_min_spans = 2
+    t = Tracer()
+
+    t.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=partial_flush_min_spans,
+    )
+
+    s1 = t.trace("1")
+    s2 = t.trace("2")
+    s3 = t.trace("3")
+    t_id = s3.trace_id
+
+    with mock.patch("ddtrace.internal.processor.trace.log") as log:
+        s3.finish()
+        s2.finish()
+
+    calls = [
+        mock.call("trace %d has %d spans, %d finished", t_id, 3, 1),
+        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
+    ]
+
+    log.debug.assert_has_calls(calls)
+    s1.finish()
+    t.shutdown()

@@ -91,7 +91,6 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
-        _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
         """
@@ -138,8 +137,8 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
-        self.span_id = span_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
+        self.trace_id = trace_id or _rand.rand64bits()  # type: int
+        self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self.tracer = tracer  # type: Optional[Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -147,7 +146,7 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context  # type: Optional[Context]
+        self._context = context._with_span(self) if context else None  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -505,11 +504,8 @@ class Span(object):
         # type: () -> Context
         """Return the trace context for this span."""
         if self._context is None:
-            ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
-            self._context = ctx
-        else:
-            ctx = self._context._with_span(self)
-        return ctx
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
+        return self._context
 
     def __enter__(self):
         return self

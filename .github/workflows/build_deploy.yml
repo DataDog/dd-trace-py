@@ -10,6 +10,9 @@ on:
       expectedVersion:
         description: 'Expected version string'
         required: true
+  schedule:
+    # Nightly builds after weekdays
+    - cron:  0 2 * * 2-6
 
 jobs:
   build_wheels:
@@ -36,7 +39,7 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        uses: joerick/cibuildwheel@v1.11.1
+        uses: joerick/cibuildwheel@v1.12.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones

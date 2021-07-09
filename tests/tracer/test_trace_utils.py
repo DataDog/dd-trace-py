@@ -6,6 +6,7 @@ from hypothesis.strategies import lists
 from hypothesis.strategies import none
 from hypothesis.strategies import recursive
 from hypothesis.strategies import text
+from hypothesis.strategies import tuples
 import mock
 import pytest
 
@@ -508,30 +509,43 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.meta[http.URL] == FULL_URL
 
 
-nested_dicts = recursive(
-    none() | booleans() | floats() | text(),
-    lambda children: lists(children, min_size=1) | dictionaries(text(), children, min_size=1),
-    max_leaves=10,
+# This generates a list of (key, value) tuples, with values given by nested
+# dictionaries
+@given(
+    lists(
+        tuples(
+            text(),
+            recursive(
+                none() | booleans() | floats() | text(),
+                lambda children: lists(children, min_size=1) | dictionaries(text(), children, min_size=1),
+                max_leaves=10,
+            ),
+        ),
+        max_size=4,
+    )
 )
-
-
-@given(nested_dicts)
-def test_flatten_dict_is_flat(d):
+def test_set_flattened_tags_is_flat(items):
     """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
-    f = trace_utils.flatten_dict(d)
-    assert isinstance(f, dict)
-    assert not any(isinstance(v, dict) for v in f.values())
+    span = Span(None, "test")
+    trace_utils.set_flattened_tags(span, items)
+    assert isinstance(span.meta, dict)
+    assert not any(isinstance(v, dict) for v in span.meta.values())
 
 
-def test_flatten_dict_keys():
+def test_set_flattened_tags_keys():
     """Ensure expected keys in flattened dictionary"""
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
-    assert trace_utils.flatten_dict(d, sep="_") == e
+    span = Span(None, "test")
+    trace_utils.set_flattened_tags(span, d.items(), sep="_")
+    assert span.metrics == e
 
 
-def test_flatten_dict_exclude():
+def test_set_flattened_tags_exclude_policy():
     """Ensure expected keys in flattened dictionary with exclusion set"""
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_B=4)
-    assert trace_utils.flatten_dict(d, sep="_", exclude={"C_A", "C_C"}) == e
+    span = Span(None, "test")
+
+    trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
+    assert span.metrics == e
