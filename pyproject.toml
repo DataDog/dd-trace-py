@@ -27,6 +27,8 @@ exclude = '''
   | ddtrace/profiling/collector/_traceback.pyx$
   | ddtrace/profiling/collector/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
+  | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/vendor/
   | \.eggs
   | \.git
   | \.hg
@@ -38,22 +40,5 @@ exclude = '''
   | buck-out/
   | build/
   | dist/
-  | ddtrace/(
-    contrib/
-    (
-      boto
-      | pylibmc
-    )
-    | profiling/exporter/pprof_.*pb2.py$
-    | vendor/
-  )
-  | tests/
-  (
-    contrib/
-    (
-      config.py
-      | pylibmc
-    )
-  )
 )
 '''
