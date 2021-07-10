@@ -2,7 +2,7 @@ from ddtrace import Pin
 from ddtrace.contrib.rq import patch, unpatch
 
 from tests.contrib.patch import PatchTestCase
-from tests import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class RqPatchTestCase(PatchTestCase.Base):

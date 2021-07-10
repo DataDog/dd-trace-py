@@ -223,20 +223,20 @@ def unpatch():
     if not getattr(rq, "_datadog_patch", False):
         return
 
-    Pin.remove_from(rq)
+    Pin().remove_from(rq)
 
     # Unpatch rq.job.Job
-    Pin.remove_from(rq.job.Job)
+    Pin().remove_from(rq.job.Job)
     trace_utils.unwrap(rq.job.Job, "perform")
     trace_utils.unwrap(rq.job.Job, "fetch")
 
     # Unpatch rq.queue.Queue
-    Pin.remove_from(rq.queue.Queue)
+    Pin().remove_from(rq.queue.Queue)
     trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
 
     # Unpatch rq.worker.Worker
-    Pin.remove_from(rq.worker.Worker)
+    Pin().remove_from(rq.worker.Worker)
     trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
     setattr(rq, "_datadog_patch", False)

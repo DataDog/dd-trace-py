@@ -1,34 +1,35 @@
 [[{"name" "rq.queue.enqueue_job"
    "service" "rq"
-   "resource" "tests.contrib.rq.test_rq.job_fail"
+   "resource" "tests.contrib.rq.jobs.job_fail"
    "type" "worker"
    "error" 1
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605651104008829000
-   "duration" 8493000
-   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
+   "start" 1625890388541717000
+   "duration" 8630000
+   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
            "queue.name" "sync-q"
-           "job.id" "1a5f023b-3a76-4c33-9095-3ac8278e2140"
-           "job.func_name" "tests.contrib.rq.test_rq.job_fail"
+           "job.id" "229a9d0c-c3a7-4c44-b6ac-96167bdc1f15"
+           "job.func_name" "tests.contrib.rq.jobs.job_fail"
            "job.status" "queued"
            "error.msg" "error"
            "error.type" "builtins.Exception"
-           "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 111, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/queue.py\", line 483, in enqueue_job\n    job = self.run_job(job)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/queue.py\", line 369, in run_job\n    job.perform()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/trace_utils.py\", line 47, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 167, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 692, in perform\n    self._result = self._execute()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 698, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/rq/test_rq.py\", line 16, in job_fail\n    raise Exception(\"error\")\nException: error\n"}
+           "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 111, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n  File \"/Users/kyle/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/queue.py\", line 570, in enqueue_job\n    job = self.run_job(job)\n  File \"/Users/kyle/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/queue.py\", line 448, in run_job\n    job.perform()\n  File \"/Users/kyle/dev/dd-trace-py/ddtrace/contrib/trace_utils.py\", line 161, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/Users/kyle/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 167, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 749, in perform\n    self._result = self._execute()\n  File \"/Users/kyle/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 772, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle/dev/dd-trace-py/tests/contrib/rq/jobs.py\", line 6, in job_fail\n    raise Exception(\"error\")\nException: error\n"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 30302}}
+              "system.pid" 8544
+              "_dd.tracer_kr" 1.0}}
       {"name" "rq.job.perform"
        "service" "rq"
-       "resource" "tests.contrib.rq.test_rq.job_fail"
+       "resource" "tests.contrib.rq.jobs.job_fail"
        "error" 1
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
-       "start" 1605651104012949000
-       "duration" 2726000
-       "meta" {"job.id" "1a5f023b-3a76-4c33-9095-3ac8278e2140"
+       "start" 1625890388544350000
+       "duration" 3612000
+       "meta" {"job.id" "229a9d0c-c3a7-4c44-b6ac-96167bdc1f15"
                "error.msg" "error"
                "error.type" "builtins.Exception"
-               "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 167, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 692, in perform\n    self._result = self._execute()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 698, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/rq/test_rq.py\", line 16, in job_fail\n    raise Exception(\"error\")\nException: error\n"}}]]
+               "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 167, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 749, in perform\n    self._result = self._execute()\n  File \"/Users/kyle/dev/dd-trace-py/.venv/lib/python3.8/site-packages/rq/job.py\", line 772, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle/dev/dd-trace-py/tests/contrib/rq/jobs.py\", line 6, in job_fail\n    raise Exception(\"error\")\nException: error\n"}}]]

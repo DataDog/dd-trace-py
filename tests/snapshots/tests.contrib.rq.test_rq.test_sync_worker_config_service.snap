@@ -1,20 +1,21 @@
 [[{"name" "rq.queue.enqueue_job"
    "service" "rq"
-   "resource" "tests.contrib.rq.test_rq.job_add1"
+   "resource" "tests.contrib.rq.jobs.job_add1"
    "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1605651104293219000
-   "duration" 5302000
-   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
+   "start" 1625890388867922000
+   "duration" 3309000
+   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
            "queue.name" "q"
-           "job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"
-           "job.func_name" "tests.contrib.rq.test_rq.job_add1"}
+           "job.id" "3933e641-ae97-45c1-8835-39e756b642ec"
+           "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 30302}}]
+              "system.pid" 8544
+              "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.job.fetch"
    "service" "my-worker-svc"
    "resource" "rq.job.fetch"
@@ -22,38 +23,37 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1605651104313111000
-   "duration" 1225000
-   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
-           "job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"
-           "job.status" "queued"}
+   "start" 1625890388878903000
+   "duration" 743000
+   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
+           "job.id" "3933e641-ae97-45c1-8835-39e756b642ec"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 30302}}]
+              "system.pid" 8544
+              "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.worker.perform_job"
    "service" "my-worker-svc"
-   "resource" "tests.contrib.rq.test_rq.job_add1"
+   "resource" "tests.contrib.rq.jobs.job_add1"
    "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1605651104316923000
-   "duration" 5376000
-   "meta" {"runtime-id" "12838cc2a6f04c5f802b699feb21dd44"
-           "job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"
-           "status" "finished"
-           "origin" "q"}
+   "start" 1625890388881209000
+   "duration" 3726000
+   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
+           "job.id" "3933e641-ae97-45c1-8835-39e756b642ec"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 30302}}
+              "system.pid" 8544
+              "_dd.tracer_kr" 1.0}}
       {"name" "rq.job.perform"
        "service" "my-worker-svc"
-       "resource" "tests.contrib.rq.test_rq.job_add1"
+       "resource" "tests.contrib.rq.jobs.job_add1"
        "error" 0
        "span_id" 1
        "trace_id" 2
        "parent_id" 0
-       "start" 1605651104318405000
-       "duration" 771000
-       "meta" {"job.id" "5fa1d4c3-7487-485a-9ba1-d282d46d6ba8"}}]]
+       "start" 1625890388882237000
+       "duration" 514000
+       "meta" {"job.id" "3933e641-ae97-45c1-8835-39e756b642ec"}}]]

@@ -9,10 +9,12 @@ import rq
 
 from ddtrace import Pin
 from ddtrace.contrib.rq import patch, unpatch
-from tests import TracerTestCase, snapshot, override_config
+from tests.utils import TracerTestCase, snapshot, override_config
 
 from .jobs import job_add1, job_fail
 
+
+# Span data which isn't static to ignore in the snapshots.
 snapshot_ignores = ["meta.job.id", "meta.error.stack"]
 
 
