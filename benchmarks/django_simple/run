@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+ENABLED=${BENCHMARK_TRACING_ENABLED:-"0"}
+CMD="gunicorn config.wsgi --bind 0.0.0.0:5000 --chdir=/app --pid gunicorn.pid"
+
+# if tracer enabled, use prepend command with ddtrace-run
+[[ "$ENABLED" == "1" ]] && CMD="ddtrace-run $CMD"
+
+$CMD

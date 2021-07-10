@@ -23,6 +23,7 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -1304,6 +1305,26 @@ def test_template(test_spans):
     assert span.get_tag("django.template.name") == "my-template"
 
 
+@pytest.mark.skipif(PY2, reason="pathlib is not part of the Python 2 stdlib")
+def test_template_name(test_spans):
+    from pathlib import PosixPath
+
+    # prepare a base template using the default engine
+    template = django.template.Template("Hello {{name}}!")
+
+    # DEV: template.name can be an instance of PosixPath (see
+    # https://github.com/DataDog/dd-trace-py/issues/2418)
+    template.name = PosixPath("/my-template")
+    template.render(django.template.Context({"name": "Django"}))
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    (span,) = spans
+    assert span.get_tag("django.template.name") == "/my-template"
+    assert span.resource == "/my-template"
+
+
 """
 OpenTracing tests
 """
@@ -1694,8 +1715,11 @@ class TestWSGI:
 
 @pytest.mark.django_db
 def test_connections_patched():
+    from django.db import connection
     from django.db import connections
 
     assert len(connections.all())
     for conn in connections.all():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
+
+    assert isinstance(connection.cursor, wrapt.ObjectProxy)

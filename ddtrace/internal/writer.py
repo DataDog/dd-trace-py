@@ -3,13 +3,13 @@ from collections import defaultdict
 from json import loads
 import logging
 import sys
-import threading
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TextIO
 
 import six
+import tenacity
 
 import ddtrace
 from ddtrace.vendor.dogstatsd import DogStatsd
@@ -21,6 +21,7 @@ from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
+from ..utils.formats import get_env
 from ..utils.time import StopWatch
 from .agent import get_connection
 from .buffer import BufferFull
@@ -46,6 +47,29 @@ LOG_ERR_INTERVAL = 60
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
+
+DEFAULT_BUFFER_SIZE = 8 * 1000000  # 8mb
+DEFAULT_MAX_PAYLOAD_SIZE = 8 * 1000000  # 8mb
+DEFAULT_PROCESSING_INTERVAL = 1.0
+
+
+def get_writer_buffer_size():
+    # type: () -> int
+    return int(get_env("trace", "writer_buffer_size_bytes", default=DEFAULT_BUFFER_SIZE))  # type: ignore[arg-type]
+
+
+def get_writer_max_payload_size():
+    # type: () -> int
+    return int(
+        get_env("trace", "writer_max_payload_size_bytes", default=DEFAULT_MAX_PAYLOAD_SIZE)  # type: ignore[arg-type]
+    )
+
+
+def get_writer_interval_seconds():
+    # type: () -> float
+    return float(
+        get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
+    )
 
 
 def _human_size(nbytes):
@@ -193,17 +217,19 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     should be in the same trace.
     """
 
+    RETRY_ATTEMPTS = 3
+
     def __init__(
         self,
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=1.0,  # type: float
+        processing_interval=get_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=8 * 1000000,  # type: int
-        max_payload_size=8 * 1000000,  # type: int
-        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        buffer_size=get_writer_buffer_size(),  # type: int
+        max_payload_size=get_writer_max_payload_size(),  # type: int
+        timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -225,9 +251,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._timeout = timeout
 
         if priority_sampler is not None:
-            self._endpoint = "/v0.4/traces"
+            self._endpoint = "v0.4/traces"
         else:
-            self._endpoint = "/v0.3/traces"
+            self._endpoint = "v0.3/traces"
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -240,12 +266,20 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._encoder = Encoder()
         self._headers.update({"Content-Type": self._encoder.content_type})
 
-        self._started_lock = threading.Lock()
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
+        self._retry_upload = tenacity.Retrying(
+            # Retry RETRY_ATTEMPTS times within the first half of the processing
+            # interval, using a Fibonacci policy with jitter
+            wait=tenacity.wait_random_exponential(
+                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+            ),
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
+        )
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -304,8 +338,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 conn.close()
 
     def _downgrade(self, payload, response):
-        if self._endpoint == "/v0.4/traces":
-            self._endpoint = "/v0.3/traces"
+        if self._endpoint == "v0.4/traces":
+            self._endpoint = "v0.3/traces"
             return payload
         raise ValueError
 
@@ -361,16 +395,15 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
-        # Start the AgentWriter on first write.
-        # Starting it earlier might be an issue with gevent, see:
-        # https://github.com/DataDog/dd-trace-py/issues/1192
         if spans is None:
             return
 
         if self._sync_mode is False:
+            # Start the AgentWriter on first write.
             try:
-                self.start()
-            except service.ServiceAlreadyRunning:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+            except service.ServiceStatusError:
                 pass
 
         self._metrics_dist("writer.accepted.traces")
@@ -417,13 +450,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
             encoded = self._encoder.join_encoded(enc_traces)
             try:
-                self._send_payload(encoded, len(enc_traces))
-            except (compat.httplib.HTTPException, OSError, IOError):
+                self._retry_upload(self._send_payload, encoded, len(enc_traces))
+            except tenacity.RetryError as e:
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", len(enc_traces))
                 if raise_exc:
-                    raise
+                    e.reraise()
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:
@@ -443,10 +476,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
+    def _stop_service(  # type: ignore[override]
+        self,
+        timeout=None,  # type: Optional[float]
+    ):
+        # type: (...) -> None
         # FIXME: don't join() on stop(), let the caller handle this
-        super(AgentWriter, self).stop()
+        super(AgentWriter, self)._stop_service()
         self.join(timeout=timeout)
 
     on_shutdown = periodic

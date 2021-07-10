@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The Python heap profiler can now be enabled by setting the
+    ``DD_PROFILING_HEAP_ENABLED`` environment variable to ``1``.

@@ -3,6 +3,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -24,6 +25,7 @@
       "ci.stage.name": "gitlab-stage-name",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -31,34 +33,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
-      "CI_JOB_NAME": "gitlab-job-name",
-      "CI_JOB_STAGE": "gitlab-stage-name",
-      "CI_JOB_URL": "gitlab-job-url",
-      "CI_PIPELINE_ID": "gitlab-pipeline-id",
-      "CI_PIPELINE_IID": "gitlab-pipeline-number",
-      "CI_PIPELINE_URL": "https://foo/repo/-/pipelines/1234",
-      "CI_PROJECT_PATH": "gitlab-pipeline-name",
-      "CI_REPOSITORY_URL": "sample",
-      "GITLAB_CI": "gitlab"
-    },
-    {
-      "ci.job.name": "gitlab-job-name",
-      "ci.job.url": "gitlab-job-url",
-      "ci.pipeline.id": "gitlab-pipeline-id",
-      "ci.pipeline.name": "gitlab-pipeline-name",
-      "ci.pipeline.number": "gitlab-pipeline-number",
-      "ci.pipeline.url": "https://foo/repo/pipelines/1234",
-      "ci.provider.name": "gitlab",
-      "ci.stage.name": "gitlab-stage-name",
-      "git.branch": "master",
-      "git.commit.sha": "gitlab-git-commit",
-      "git.repository_url": "sample"
-    }
-  ],
-  [
-    {
-      "CI_COMMIT_BRANCH": "origin/master",
-      "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -82,6 +57,7 @@
       "ci.workspace_path": "foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -89,6 +65,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -112,6 +89,7 @@
       "ci.workspace_path": "/foo/bar~",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -119,6 +97,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -142,6 +121,7 @@
       "ci.workspace_path": "/foo/~/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -149,6 +129,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -174,6 +155,7 @@
       "ci.workspace_path": "/not-my-home/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -181,6 +163,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -206,6 +189,7 @@
       "ci.workspace_path": "~foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -213,6 +197,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -238,6 +223,7 @@
       "ci.workspace_path": "/not-my-home",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -245,6 +231,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -268,6 +255,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -275,6 +263,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -296,34 +285,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
-      "git.repository_url": "sample"
-    }
-  ],
-  [
-    {
-      "CI_COMMIT_BRANCH": "origin/master",
-      "CI_COMMIT_SHA": "gitlab-git-commit",
-      "CI_JOB_NAME": "gitlab-job-name",
-      "CI_JOB_STAGE": "gitlab-stage-name",
-      "CI_JOB_URL": "gitlab-job-url",
-      "CI_PIPELINE_ID": "gitlab-pipeline-id",
-      "CI_PIPELINE_IID": "gitlab-pipeline-number",
-      "CI_PROJECT_DIR": "/foo/bar",
-      "CI_PROJECT_PATH": "gitlab-pipeline-name",
-      "CI_REPOSITORY_URL": "sample",
-      "GITLAB_CI": "gitlab"
-    },
-    {
-      "ci.job.name": "gitlab-job-name",
-      "ci.job.url": "gitlab-job-url",
-      "ci.pipeline.id": "gitlab-pipeline-id",
-      "ci.pipeline.name": "gitlab-pipeline-name",
-      "ci.pipeline.number": "gitlab-pipeline-number",
-      "ci.provider.name": "gitlab",
-      "ci.stage.name": "gitlab-stage-name",
-      "ci.workspace_path": "/foo/bar",
-      "git.branch": "master",
-      "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -331,6 +293,7 @@
     {
       "CI_COMMIT_BRANCH": "refs/heads/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -354,6 +317,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
@@ -361,6 +325,7 @@
     {
       "CI_COMMIT_BRANCH": "refs/heads/feature/one",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -384,12 +349,14 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "feature/one",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample"
     }
   ],
   [
     {
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_COMMIT_TAG": "origin/tags/0.1.0",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
@@ -413,6 +380,7 @@
       "ci.stage.name": "gitlab-stage-name",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample",
       "git.tag": "0.1.0"
     }
@@ -420,6 +388,7 @@
   [
     {
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_COMMIT_TAG": "refs/heads/tags/0.1.0",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
@@ -443,6 +412,7 @@
       "ci.stage.name": "gitlab-stage-name",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample",
       "git.tag": "0.1.0"
     }
@@ -450,6 +420,7 @@
   [
     {
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_COMMIT_TAG": "0.1.0",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
@@ -473,6 +444,7 @@
       "ci.stage.name": "gitlab-stage-name",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "sample",
       "git.tag": "0.1.0"
     }
@@ -481,6 +453,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -504,6 +477,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -511,6 +485,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -534,6 +509,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -541,6 +517,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -564,6 +541,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -571,6 +549,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -594,6 +573,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -601,6 +581,7 @@
     {
       "CI_COMMIT_BRANCH": "origin/master",
       "CI_COMMIT_SHA": "gitlab-git-commit",
+      "CI_COMMIT_MESSAGE": "gitlab-git-commit-message",
       "CI_JOB_NAME": "gitlab-job-name",
       "CI_JOB_STAGE": "gitlab-stage-name",
       "CI_JOB_URL": "gitlab-job-url",
@@ -624,6 +605,7 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "gitlab-git-commit",
+      "git.commit.message": "gitlab-git-commit-message",
       "git.repository_url": "git@hostname.com:org/repo.git"
     }
   ]

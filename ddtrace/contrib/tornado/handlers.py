@@ -8,7 +8,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
 from .constants import CONFIG_KEY
-from .constants import REQUEST_CONTEXT_KEY
 from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 
@@ -26,9 +25,6 @@ def execute(func, handler, args, kwargs):
     distributed_tracing = settings["distributed_tracing"]
 
     with TracerStackContext():
-        # attach the context to the request
-        setattr(handler.request, REQUEST_CONTEXT_KEY, tracer.get_call_context())
-
         trace_utils.activate_distributed_headers(
             tracer, int_config=config.tornado, request_headers=handler.request.headers, override=distributed_tracing
         )

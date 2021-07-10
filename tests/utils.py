@@ -87,6 +87,7 @@ def override_global_config(values):
         "env",
         "version",
         "service",
+        "_raise",
     ]
 
     # Grab the current values of all keys
@@ -879,7 +880,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True):
         conn.close()
 
 
-def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True):
+def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -909,7 +910,11 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True)
 
         # Use the fully qualified function name as a unique test token to
         # identify the snapshot.
-        token = "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
+        token = (
+            "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
+            if token_override is None
+            else token_override
+        )
 
         # Use variant that applies to update test token. One must apply. If none
         # apply, the test should have been marked as skipped.
@@ -943,12 +948,7 @@ class AnyFloat(object):
         return isinstance(other, float)
 
 
-def call_program(*args):
-    subp = subprocess.Popen(
-        args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-    )
+def call_program(*args, **kwargs):
+    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, **kwargs)
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid
