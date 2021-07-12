@@ -8,8 +8,8 @@ class TestSqreenLibrary(TracerTestCase):
 
         with self.trace("test") as span:
             appsec.process_request(span, query="foo=bar")
-            assert dict(appsec.mgmt.protections[0].stats) == {"total": 1, "reported": 0}
+            assert dict(appsec._mgmt.protections[0].stats) == {"total": 1, "reported": 0}
 
         with self.trace("test") as span:
             appsec.process_request(span, query="q=<script>alert(1);")
-            assert dict(appsec.mgmt.protections[0].stats) == {"total": 2, "reported": 1}
+            assert dict(appsec._mgmt.protections[0].stats) == {"total": 2, "reported": 1}

@@ -15,7 +15,7 @@ from typing import Mapping
 import attr
 
 from ddtrace import Span
-from ddtrace.appsec.protections import BaseProtection
+from ddtrace.appsec.internal.protections import BaseProtection
 from ddtrace.utils.formats import get_env
 
 
@@ -38,7 +38,7 @@ class Management(object):
         path = get_env("appsec", "rules", default=default_rules)
 
         try:
-            from ddtrace.appsec.sqreen import SqreenLibrary
+            from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
             with open(path, "r") as f:
                 rules = f.read()

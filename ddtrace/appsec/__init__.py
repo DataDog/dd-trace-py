@@ -1,11 +1,11 @@
-from ddtrace.appsec.management import Management
+from ddtrace.appsec.internal.management import Management
 
 
-mgmt = Management()
+_mgmt = Management()
 
 # Public API
-enable = mgmt.enable
-disable = mgmt.disable
-process_request = mgmt.process_request
+enable = _mgmt.enable
+disable = _mgmt.disable
+process_request = _mgmt.process_request
 
 __all__ = ["enable", "disable", "process_request"]
