@@ -367,7 +367,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         if isinstance(self.writer, AgentWriter):
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
         self._initialize_span_processors()
 
         if context_provider is not None:
