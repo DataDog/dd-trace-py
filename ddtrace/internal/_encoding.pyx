@@ -1,6 +1,9 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 import struct
+import threading
+
+from ..span import Span
 
 
 cdef extern from "Python.h":
@@ -29,6 +32,14 @@ cdef extern from "buff_converter.h":
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
+
+
+class BufferFull(Exception):
+    pass
+
+
+class BufferItemTooLarge(Exception):
+    pass
 
 
 cdef inline int PyBytesLike_Check(object o):
@@ -62,7 +73,6 @@ cdef class Packer(object):
     """
     cdef msgpack_packer pk
     cdef object _default
-    cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
 
@@ -98,7 +108,6 @@ cdef class Packer(object):
     cdef inline int _pack_number(self, object n):
         if n is None:
             return msgpack_pack_nil(&self.pk)
-
         if PyLong_Check(n):
             # PyInt_Check(long) is True for Python 3.
             # So we should test long before int.
@@ -338,8 +347,31 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
-cdef class MsgpackEncoder(object):
+cdef class BufferedEncoder(object):
+    content_type: str = None
+    def __init__(self, max_size, max_item_size): ...
+    def __len__(self): ...
+    def put(self, trace): ...
+    def encode(self): ...
+
+
+cdef class MsgpackEncoder(BufferedEncoder):
     content_type = "application/msgpack"
+    cdef int _max_size
+    cdef int _max_item_size
+    cdef int _size
+    cdef object _lock
+    cdef list _traces
+
+    def __cinit__(self, max_size, max_item_size):
+        self._max_size = max_size
+        self._max_item_size = max_item_size
+        self._size = 0
+        self._lock = threading.Lock()
+        self._traces = []
+
+    def __len__(self):
+        return len(self._traces)
 
     cpdef _decode(self, data):
         import msgpack
@@ -347,21 +379,64 @@ cdef class MsgpackEncoder(object):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
+    @property
+    def max_size(self):
+        return self._max_size
+
+    @property
+    def max_item_size(self):
+        return self._max_item_size
+
+    @property
+    def size(self):
+        """Return the size in bytes of the encoder buffer."""
+        with self._lock:
+            return self._size
+
+    cpdef put(self, list trace):
+        """Put a trace (i.e. a list of spans) in the buffer."""
+        cdef int item_len
+        
+        encoded_trace = Packer().pack_trace(trace)
+        item_len = len(encoded_trace)
+
+        if item_len > self.max_item_size or item_len > self.max_size:
+            raise BufferItemTooLarge(item_len)
+
+        with self._lock:
+            if self._size + item_len <= self.max_size:
+                self._traces.append(encoded_trace)
+                self._size += item_len
+            else:
+                raise BufferFull(item_len)
+
+    cpdef _clear(self):
+        self._traces[:] = []
+        self._size = 0
+
     cpdef encode_trace(self, list trace):
         return Packer().pack_trace(trace)
 
     cpdef encode_traces(self, list traces):
         return Packer().pack_traces(traces)
 
-    cpdef join_encoded(self, objs):
+    cdef inline _join(self):
         """Join a list of encoded objects together as a msgpack array"""
-        cdef Py_ssize_t count
-        buf = b''.join(objs)
+        cdef Py_ssize_t count = len(self._traces)
+        cdef bytes buf = b''.join(self._traces)
 
-        count = len(objs)
         if count <= 0xf:
             return struct.pack("B", 0x90 + count) + buf
         elif count <= 0xffff:
             return struct.pack(">BH", 0xdc, count) + buf
         else:
             return struct.pack(">BI", 0xdd, count) + buf
+
+    cpdef encode(self):
+        if not self._traces:
+            return None
+
+        try:
+            return self._join()
+        finally:
+            self._clear()
