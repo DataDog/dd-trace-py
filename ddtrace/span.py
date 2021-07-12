@@ -146,7 +146,7 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context  # type: Optional[Context]
+        self._context = context._with_span(self) if context else None  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -504,11 +504,8 @@ class Span(object):
         # type: () -> Context
         """Return the trace context for this span."""
         if self._context is None:
-            ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
-            self._context = ctx
-        else:
-            ctx = self._context._with_span(self)
-        return ctx
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
+        return self._context
 
     def __enter__(self):
         return self
