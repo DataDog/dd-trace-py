@@ -526,8 +526,8 @@ class BotocoreTest(TracerTestCase):
         context_json = base64.b64decode(context_b64.encode()).decode()
         context_obj = json.loads(context_json)
 
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         lamb.delete_function(FunctionName="ironmaiden")
 
@@ -610,8 +610,8 @@ class BotocoreTest(TracerTestCase):
         context_obj = json.loads(context_json)
 
         self.assertEqual(context_obj["custom"]["foo"], "bar")
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         lamb.delete_function(FunctionName="megadeth")
 
