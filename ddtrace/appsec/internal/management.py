@@ -45,8 +45,11 @@ class Management(object):
 
             self.protections = [SqreenLibrary(rules)]
         except Exception:
-            log.warning("AppSec module is not installed. Your application is not protected.")
-            log.debug("AppSec module failed to load with:", exc_info=True)
+            log.warning(
+                "AppSec module failed to load. Your application is not protected. "
+                "Please report this issue on https://github.com/DataDog/dd-trace-py/issues",
+                exc_info=True,
+            )
         else:
             log.info("AppSec module is enabled. Your application is protected.")
 
