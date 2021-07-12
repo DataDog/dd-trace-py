@@ -58,10 +58,12 @@ Global Configuration
 
    Default: ``rq-worker``
 """
-from ddtrace import config, Pin
+from ddtrace import Pin
+from ddtrace import config
+
+from .. import trace_utils
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
-from .. import trace_utils
 
 
 __all__ = [

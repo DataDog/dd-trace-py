@@ -1,6 +1,6 @@
 from ddtrace import Pin
-from ddtrace.contrib.rq import patch, unpatch
-
+from ddtrace.contrib.rq import patch
+from ddtrace.contrib.rq import unpatch
 from tests.contrib.patch import PatchTestCase
 from tests.utils import TracerTestCase
 

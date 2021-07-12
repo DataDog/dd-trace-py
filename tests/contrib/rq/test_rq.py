@@ -4,14 +4,17 @@ import time
 
 import pytest
 import redis
-
 import rq
 
 from ddtrace import Pin
-from ddtrace.contrib.rq import patch, unpatch
-from tests.utils import TracerTestCase, snapshot, override_config
+from ddtrace.contrib.rq import patch
+from ddtrace.contrib.rq import unpatch
+from tests.utils import TracerTestCase
+from tests.utils import override_config
+from tests.utils import snapshot
 
-from .jobs import job_add1, job_fail
+from .jobs import job_add1
+from .jobs import job_fail
 
 
 # Span data which isn't static to ignore in the snapshots.
