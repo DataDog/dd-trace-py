@@ -1,8 +1,8 @@
-from ddtrace.appsec import mgmt
+from ddtrace.appsec import _mgmt
 
 
 if __name__ == "__main__":
-    if mgmt.protections:
+    if _mgmt.protections:
         print("APPSEC LOADED")
     else:
         print("NOT LOADED")
