@@ -11,6 +11,7 @@ from ...ext import errors
 from ...ext import http
 from ...internal import compat
 from ...internal.logger import get_logger
+from ...utils.cache import cached
 from ...utils.deprecation import deprecated
 
 
@@ -18,6 +19,11 @@ log = get_logger(__name__)
 
 
 SPAN_NAME = "flask.request"
+
+
+@cached()
+def _normalize_resource(resource):
+    return compat.to_unicode(resource).lower()
 
 
 class TraceMiddleware(object):
@@ -65,7 +71,7 @@ class TraceMiddleware(object):
         connected = True
         for name, handler in signal_to_handler.items():
             s = getattr(signals, name, None)
-            if not s:
+            if s is None:
                 connected = False
                 log.warning("trying to instrument missing signal %s", name)
                 continue
@@ -96,9 +102,8 @@ class TraceMiddleware(object):
         will be passed in.
         """
         # when we teardown the span, ensure we have a clean slate.
-        span = getattr(g, "flask_datadog_span", None)
-        setattr(g, "flask_datadog_span", None)
-        if not span:
+        span = g.__dict__.pop("flask_datadog_span", None)
+        if span is None:
             return
 
         try:
@@ -174,7 +179,7 @@ class TraceMiddleware(object):
         # See case https://github.com/DataDog/dd-trace-py/issues/353
         if span.resource == SPAN_NAME:
             resource = endpoint or code
-            span.resource = compat.to_unicode(resource).lower()
+            span.resource = _normalize_resource(resource)
 
         trace_utils.set_http_meta(
             span,
@@ -212,7 +217,7 @@ def _patch_render(tracer):
 
     def _traced_render(template, context, app):
         with tracer.trace("flask.template", span_type=SpanTypes.TEMPLATE) as span:
-            span.set_tag("flask.template", template.name or "string")
+            span._set_str_tag("flask.template", compat.maybe_stringify(template.name) or "string")
             return _render(template, context, app)
 
     setattr(_traced_render, "__dd_orig", _render)
