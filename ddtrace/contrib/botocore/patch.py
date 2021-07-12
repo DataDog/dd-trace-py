@@ -37,7 +37,9 @@ config._add(
     "botocore",
     {
         "distributed_tracing": get_env("botocore", "distributed_tracing", default=True),
-        "clientcontext_custom_add_datadog_object": get_env("botocore", "clientcontext_custom_add_datadog_object", default=True),
+        "clientcontext_custom_add_datadog_object": get_env(
+            "botocore", "clientcontext_custom_add_datadog_object", default=True
+        ),
     },
 )
 
