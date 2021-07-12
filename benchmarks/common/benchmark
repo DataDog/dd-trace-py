@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+mkdir -p /artifacts/output/
+
+# cleanup any existing output artifacts
+rm -f /artifacts/output/*.*
+
+sirun meta.yaml | tee /artifacts/output/sirun.ndjson
+cat /artifacts/output/sirun.ndjson | sirun --summarize | tee /artifacts/output/summary_sirun.json
