@@ -6,7 +6,8 @@
       "BUILD_URL": "jenkins-pipeline-url",
       "GIT_BRANCH": "origin/master",
       "GIT_COMMIT": "jenkins-git-commit",
-      "GIT_URL": "sample",
+      "GIT_URL_1": "sample",
+      "GIR_URL_2": "otherSample",
       "JENKINS_URL": "jenkins",
       "JOB_NAME": "jobName",
       "JOB_URL": "jenkins-job-url"
