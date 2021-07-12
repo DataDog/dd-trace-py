@@ -873,8 +873,8 @@ jobs:
   jinja2:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^jinja2_contrib-'
+      - run_test:
+          pattern: 'jinja2'
 
   mako:
     <<: *contrib_job_small

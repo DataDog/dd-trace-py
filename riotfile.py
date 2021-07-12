@@ -216,7 +216,7 @@ venv = Venv(
         ),
         Venv(
             name="falcon",
-            command="pytest {cmdargs} --ignore tests/contrib/falcon/test_autopatch.py tests/contrib/falcon",
+            command="pytest {cmdargs} tests/contrib/falcon",
             venvs=[
                 # Falcon 1.x
                 # Python 2.7+
@@ -229,17 +229,6 @@ venv = Venv(
                         ]
                     },
                 ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
-                    pys=select_pys(),
-                    pkgs={
-                        "falcon": [
-                            "~=1.4.1",
-                            "~=1.4",  # latest 1.x
-                        ]
-                    },
-                    env={"DD_SERVICE": "my-falcon"},
-                ),
                 # Falcon 2.x
                 # Python 3.5+
                 Venv(
@@ -250,17 +239,6 @@ venv = Venv(
                             "~=2.0",  # latest 2.x
                         ]
                     },
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={
-                        "falcon": [
-                            "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                        ]
-                    },
-                    env={"DD_SERVICE": "my-falcon"},
                 ),
                 # Falcon 3.x
                 # Python 3.5+
@@ -273,18 +251,6 @@ venv = Venv(
                             latest,
                         ]
                     },
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={
-                        "falcon": [
-                            "~=3.0.0",
-                            "~=3.0",  # latest 3.x
-                            latest,
-                        ]
-                    },
-                    env={"DD_SERVICE": "my-falcon"},
                 ),
             ],
         ),
@@ -1045,6 +1011,20 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="jinja2",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                ),
+            ],
+            command="pytest {cmdargs} tests/contrib/jinja2",
         ),
     ],
 )

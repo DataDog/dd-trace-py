@@ -3,15 +3,14 @@ import inspect
 import boto.connection
 
 from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import aws
+from ddtrace.ext import http
+from ddtrace.pin import Pin
+from ddtrace.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
-
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
-from ...ext import aws
-from ...ext import http
-from ...pin import Pin
-from ...utils.wrappers import unwrap
 
 
 # Original boto client class
