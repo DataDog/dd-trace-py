@@ -101,7 +101,9 @@ class TestRQWorker(TracerTestCase):
 
     @snapshot(ignores=snapshot_ignores, async_mode=False)
     def test_enqueue(self):
-        p = subprocess.Popen(["ddtrace-run", "rq", "worker"], env=dict(**os.environ, DD_TRACE_REDIS_ENABLED="false"))
+        env = os.environ.copy()
+        env["DD_TRACE_REDIS_ENABLED"] = "false"
+        p = subprocess.Popen(["ddtrace-run", "rq", "worker"], env=env)
         try:
             job = self.q.enqueue(job_add1, 1)
             # Wait for traces to be flushed from the worker.
