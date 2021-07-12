@@ -95,7 +95,7 @@ def inject_trace_to_client_context(args, span):
     else:
         trace_headers = {}
         HTTPPropagator.inject(span.context, trace_headers)
-        client_context_object = {"custom": {"_datadog": trace_headers}}
+        client_context_object = {"custom": trace_headers}
         json_context = json.dumps(client_context_object).encode("utf-8")
         params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")
 
