@@ -1005,5 +1005,46 @@ venv = Venv(
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),
+        Venv(
+            name="aiohttp",
+            command="pytest {cmdargs} tests/contrib/aiohttp",
+            pkgs={"pytest": [">=3"], "pytest-aiohttp": [latest]},
+            venvs=[
+                Venv(
+                    pys=["3.6"],
+                    pkgs={
+                        "aiohttp": ["~=2.0.0", "~=2.1.0", "~=2.2.0"],
+                        "aiohttp_jinja2": ["~=0.12.0", "~=0.13.0"],
+                        # force the downgrade as a workaround
+                        # https://github.com/aio-libs/aiohttp/issues/2662
+                        "yarl": ["<1.0.0"],
+                    },
+                ),
+                Venv(
+                    pys=["3.5", "3.6", "3.7", "3.8"],
+                    pkgs={
+                        "aiohttp": ["~=2.3.0"],
+                        "aiohttp_jinja2": ["~=0.15.0"],
+                        "yarl": ["~=1.0.0"],
+                    },
+                ),
+                Venv(
+                    pys=["3.5", "3.6", "3.7"],
+                    pkgs={
+                        "aiohttp": ["~=3.0.0", "~=3.1.0", "~=3.2.0", "~=3.3.0", "~=3.5.0", "~=3.6.0"],
+                        "aiohttp_jinja2": ["~=0.15.0"],
+                        "yarl": ["~=1.0.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "aiohttp": ["~=3.0.0", "~=3.1.0", "~=3.2.0", "~=3.3.0", "~=3.6.0", latest],
+                        "aiohttp_jinja2": ["~=0.15.0"],
+                        "yarl": ["~=1.0.0"],
+                    },
+                ),
+            ],
+        ),
     ],
 )
