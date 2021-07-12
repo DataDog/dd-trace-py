@@ -349,7 +349,7 @@ class TestPytest(TracerTestCase):
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
-    def test_dd_origin_tag_on_every_span(self):
+    def test_dd_origin_tag_propagated_to_every_span(self):
         """Test that every span in generated trace has the dd_origin tag."""
         py_file = self.testdir.makepyfile(
             """

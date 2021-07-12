@@ -79,23 +79,18 @@ def test_encode_trace_small_multi_custom(benchmark):
     benchmark(_)
 
 
-def dd_origin_trace(tracer, num_spans):
-    """Tracing scenario (includes writing and encoding) for CIApp dd_origin propagation"""
-    with tracer.trace("pytest-test") as root:
-        root.context.dd_origin = CI_APP_TEST_ORIGIN
-        for _ in range(num_spans - 1):
-            with tracer.trace("") as span:
-                span.set_tag("tag", "value")
-                pass
-    return tracer.writer.pop()
-
-
 @pytest.mark.parametrize("trace_size", [1, 50, 200, 1000])
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
 def test_dd_origin_tagging_spans_via_encoder(benchmark, trace_size):
     """Propagate dd_origin tags to all spans in [1, 50, 200, 1000] span trace via Encoder"""
     tracer = DummyTracer()
-    trace = dd_origin_trace(tracer, trace_size)
+    with tracer.trace("pytest-test") as root:
+        root.context.dd_origin = CI_APP_TEST_ORIGIN
+        for _ in range(trace_size - 1):
+            with tracer.trace("") as span:
+                span.set_tag("tag", "value")
+                pass
+    trace = tracer.writer.pop()
     benchmark(trace_encoder.encode_trace, trace)
 
     # Ensure encoded trace contains dd_origin tag in all spans

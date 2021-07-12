@@ -277,14 +277,16 @@ def test_span_types(span, tags):
 
 def test_encoder_propagates_dd_origin():
     tracer = DummyTracer()
+    encoder = MsgpackEncoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN
         for _ in range(999):
             with tracer.trace("child"):
                 pass
+    # Ensure encoded trace contains dd_origin tag in all spans
     trace = tracer.writer.pop()
-    encoded_trace = tracer.writer._encoder.encode_trace(trace)
-    decoded_trace = tracer.writer._encoder._decode(encoded_trace)
+    encoded_trace = encoder.encode_trace(trace)
+    decoded_trace = encoder._decode(encoded_trace)
     for span in decoded_trace:
         assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 

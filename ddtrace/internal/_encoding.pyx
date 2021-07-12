@@ -3,8 +3,6 @@ from cpython.bytearray cimport PyByteArray_Check
 import struct
 import threading
 
-from ..span import Span
-
 from ..constants import ORIGIN_KEY
 
 
