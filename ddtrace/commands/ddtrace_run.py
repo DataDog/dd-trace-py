@@ -27,8 +27,6 @@ log = logging.getLogger(__name__)
 USAGE = """
 Execute the given Python command after configuring it to emit Datadog traces
 and profiles.
-
-
 Examples
 ddtrace-run python app.py
 ddtrace-run gunicorn myproject.wsgi
@@ -59,6 +57,7 @@ def main():
     parser.add_argument("command", nargs=argparse.REMAINDER, type=str, help="Command string to execute.")
     parser.add_argument("-d", "--debug", help="enable debug mode (disabled by default)", action="store_true")
     parser.add_argument("-i", "--info", help="print library info useful for debugging", action="store_true")
+    parser.add_argument("-s","--status", help="print easily readable tracer health check, does not reflect configuration changes made during runtime", action="store_true")
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
     args = parser.parse_args()
@@ -90,6 +89,15 @@ def main():
     _add_bootstrap_to_pythonpath(bootstrap_dir)
     log.debug("PYTHONPATH: %s", os.environ["PYTHONPATH"])
     log.debug("sys.path: %s", sys.path)
+
+    if args.status:
+        # Inline imports for performance.
+        import pprint
+
+        from ddtrace.internal.debug import pretty_collect
+
+        print(pretty_collect(ddtrace.tracer))
+        sys.exit(0)
 
     if not args.command:
         parser.print_help()

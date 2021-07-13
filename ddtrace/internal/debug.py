@@ -137,3 +137,82 @@ def collect(tracer):
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
     )
+
+
+def pretty_collect(tracer):
+    class bcolors:
+        HEADER = "\033[95m"
+        OKBLUE = "\033[94m"
+        OKCYAN = "\033[96m"
+        OKGREEN = "\033[92m"
+        WARNING = "\033[93m"
+        FAIL = "\033[91m"
+        ENDC = "\033[0m"
+        BOLD = "\033[1m"
+
+    info = collect(tracer)
+
+    info_pretty = """{0}{1}Tracer Configurations:{2}
+    Tracer enabled: {3}
+    Debug logging: {4}
+    Writing traces to: {5}
+    Agent error: {6}
+    App Analytics enabled(deprecated): {7}
+    Log injection enabled: {8}
+    Health metrics enabled: {9}
+    Priority sampling enabled: {10}
+    Partial flushing enabled: {11}
+    Partial flush minimum number of spans: {12}
+    {13}{14}Tagging:{15}
+    DD Service: {16}
+    DD Env: {17}
+    DD Version: {18}
+    Global Tags: {19}
+    Tracer Tags: {20}""".format(
+        bcolors.OKBLUE,
+        bcolors.BOLD,
+        bcolors.ENDC,
+        info.get("tracer_enabled"),
+        info.get("debug"),
+        info.get("agent_url") or "Not writing at the moment, is your tracer running?",
+        info.get("agent_error") or "None",
+        info.get("analytics_enabled"),
+        info.get("log_injection_enabled"),
+        info.get("health_metrics_enabled"),
+        info.get("priority_sampling_enabled"),
+        info.get("partial_flush_enabled"),
+        info.get("partial_flush_min_spans") or "Not set",
+        bcolors.OKGREEN,
+        bcolors.BOLD,
+        bcolors.ENDC,
+        info.get("service") or "None",
+        info.get("env") or "None",
+        info.get("dd_version") or "None",
+        info.get("global_tags") or "None",
+        info.get("tracer_tags") or "None",
+    )
+
+    summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
+
+    if info.get("agent_error"):
+        summary += "\n\n{0}ERROR: It looks like you have an agent error: '{1}'\nThe most common error is a connection error. If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://docs.datadoghq.com/tracing/setup_overview/setup/python/?tab=containers#configure-the-datadog-agent-for-apm\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/{2}".format(
+            bcolors.FAIL, info.get("agent_error"), bcolors.ENDC
+        )
+
+    if not info.get("service"):
+        summary += "\n\n{0}WARNING SERVICE NOT SET: It looks like you haven't set a service tag for this service. We'd recommend setting one with the environment variable DD_SERVICE as it's used for the scoping of application specific data across metrics, traces, and logs. For more information see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview{1}".format(
+            bcolors.WARNING, bcolors.ENDC
+        )
+
+    if not info.get("env"):
+        summary += "\n\n{0}WARNING ENV NOT SET: It looks like you haven't set an env tag for this service. We'd recommend setting one with the environment variable DD_ENV as it's used for the scoping of the application's data to a specific environment, e.g. env:prod vs env:dev. For more information see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview{1}".format(
+            bcolors.WARNING, bcolors.ENDC
+        )
+
+    if not info.get("dd_version"):
+        summary += "\n\n{0}WARNING VERSION NOT SET: It looks like you haven't set a version tag for this service. We'd recommend setting one with the environment variable DD_VERSION as it's used to scope an application's data to a specific version of that application, e.g. comparing version:0.34.0 vs version:0.35.0. For more information see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview{1}".format(
+            bcolors.WARNING, bcolors.ENDC
+        )
+
+    info_pretty += "\n\n" + summary
+    return info_pretty

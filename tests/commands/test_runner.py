@@ -9,6 +9,7 @@ import ddtrace
 from ddtrace.internal.compat import PY3
 
 from ..utils import BaseTestCase
+from ..utils import override_env
 
 
 def inject_sitecustomize(path):
@@ -402,6 +403,98 @@ def test_info():
     assert p.returncode == 0
     stdout = p.stdout.read()
     assert six.b("agent_url") in stdout
+
+
+def test_status_no_configs():
+    p = subprocess.Popen(
+        ["ddtrace-run", "--status"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    stdout = p.stdout.read()
+    assert (
+        (stdout)
+        == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
+    Tracer enabled: True
+    Debug logging: False
+    Writing traces to: http://localhost:8126
+    Agent error: Agent not reachable at http://localhost:8126. Exception raised: [Errno 111] Connection refused
+    App Analytics enabled(deprecated): False
+    Log injection enabled: False
+    Health metrics enabled: False
+    Priority sampling enabled: True
+    Partial flushing enabled: False
+    Partial flush minimum number of spans: 500
+    \x1b[92m\x1b[1mTagging:\x1b[0m
+    DD Service: None
+    DD Env: None
+    DD Version: None
+    Global Tags: None
+    Tracer Tags: None
+
+\x1b[96m\x1b[1mSummary\x1b[0m
+
+\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126. Exception raised: [Errno 111] Connection refused'\nThe most common error is a connection error. If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://docs.datadoghq.com/tracing/setup_overview/setup/python/?tab=containers#configure-the-datadog-agent-for-apm\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/\x1b[0m
+
+\x1b[93mWARNING SERVICE NOT SET: It looks like you haven't set a service tag for this service. We'd recommend setting one with the environment variable DD_SERVICE as it's used for the scoping of application specific data across metrics, traces, and logs. For more information see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview\x1b[0m
+
+\x1b[93mWARNING ENV NOT SET: It looks like you haven't set an env tag for this service. We'd recommend setting one with the environment variable DD_ENV as it's used for the scoping of the application's data to a specific environment, e.g. env:prod vs env:dev. For more information see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview\x1b[0m
+
+\x1b[93mWARNING VERSION NOT SET: It looks like you haven't set a version tag for this service. We'd recommend setting one with the environment variable DD_VERSION as it's used to scope an application's data to a specific version of that application, e.g. comparing version:0.34.0 vs version:0.35.0. For more information see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview\x1b[0m\n"""
+    )
+    assert p.returncode == 0
+
+
+def test_status_w_configs():
+    with override_env(
+        dict(
+            DD_SERVICE="tester",
+            DD_ENV="dev",
+            DD_VERSION="0.45",
+            DD_TRACE_DEBUG="true",
+            DD_LOGS_INJECTION="true",
+            DD_AGENT_HOST="168.212.226.204",
+            DD_TRACER_PARTIAL_FLUSH_ENABLED="true",
+            DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="1000",
+        )
+    ):
+        p = subprocess.Popen(
+            ["ddtrace-run", "--status"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    p.wait()
+    stdout = p.stdout.read()
+    assert (
+        (stdout)
+        == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
+    Tracer enabled: True
+    Debug logging: True
+    Writing traces to: http://168.212.226.204:8126
+    Agent error: Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out
+    App Analytics enabled(deprecated): False
+    Log injection enabled: True
+    Health metrics enabled: False
+    Priority sampling enabled: True
+    Partial flushing enabled: True
+    Partial flush minimum number of spans: 1000
+    \x1b[92m\x1b[1mTagging:\x1b[0m
+    DD Service: tester
+    DD Env: dev
+    DD Version: 0.45
+    Global Tags: None
+    Tracer Tags: None
+
+\x1b[96m\x1b[1mSummary\x1b[0m
+
+\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out'
+The most common error is a connection error. If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://docs.datadoghq.com/tracing/setup_overview/setup/python/?tab=containers#configure-the-datadog-agent-for-apm
+If your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/\x1b[0m\n"""
+    )
+
+    assert p.returncode == 0
 
 
 def test_no_args():
