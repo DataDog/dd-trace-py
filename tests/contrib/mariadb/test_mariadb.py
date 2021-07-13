@@ -20,7 +20,6 @@ import unittest
 def tracer():
     tracer = DummyTracer()
     patch()
-    # Yield to our test
     try:
         yield tracer
     finally:
