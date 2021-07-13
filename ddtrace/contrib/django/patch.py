@@ -29,20 +29,19 @@ except ImportError:
     psycopg_cursor_cls = None
     Psycopg2TracedCursor = None
 
+from ddtrace.contrib import trace_utils
+from ddtrace.contrib.django import utils
+from ddtrace.contrib.django.compat import get_resolver
+from ddtrace.contrib.django.compat import user_is_authenticated
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
+from ddtrace.internal.http import from_wsgi_header
 from ddtrace.internal.logger import get_logger
-from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 from ddtrace.vendor import wrapt
-
-from . import utils
-from .. import trace_utils
-from .compat import get_resolver
-from .compat import user_is_authenticated
 
 
 log = get_logger(__name__)

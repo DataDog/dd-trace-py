@@ -1,8 +1,10 @@
 from typing import Optional
 
 from ddtrace.utils.cache import cached
+from ddtrace.utils.deprecation import deprecated
 
 
+@deprecated("This method and module will be removed altogether", "1.0.0")
 @cached()
 def get_wsgi_header(header):
     # type: (str) -> str
@@ -13,6 +15,7 @@ def get_wsgi_header(header):
     return "HTTP_{}".format(header.upper().replace("-", "_"))
 
 
+@deprecated("This method and module will be removed altogether", "1.0.0")
 @cached()
 def from_wsgi_header(header):
     # type: (str) -> Optional[str]

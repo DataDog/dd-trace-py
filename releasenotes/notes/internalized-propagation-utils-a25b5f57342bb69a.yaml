@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The ``ddtrace.propagation.utils`` module has been deprecated and will be removed in ddtrace version 1.0.
