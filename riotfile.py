@@ -457,30 +457,6 @@ venv = Venv(
                         "psycopg2": ["~=2.8.0"],
                     },
                 ),
-                Venv(
-                    pys=select_pys(max_version="3.6"),
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=1.8,<1.9", ">=1.11,<1.12"],
-                    },
-                ),
-                Venv(
-                    pys=["3.5"],
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6"),
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", latest],
-                    },
-                ),
             ],
         ),
         Venv(
