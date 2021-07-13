@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The ``ddtrace.propagation.utils`` module has been removed.

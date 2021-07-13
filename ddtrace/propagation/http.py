@@ -2,9 +2,9 @@ from typing import Dict
 from typing import FrozenSet
 from typing import Optional
 
-from ..context import Context
-from ..internal.logger import get_logger
-from .utils import get_wsgi_header
+from ddtrace.context import Context
+from ddtrace.internal.http import get_wsgi_header
+from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
