@@ -41,7 +41,7 @@ Configuration
     Can also be enabled with the ``DD_BOTOCORE_CLIENTCONTEXT_CUSTOM_ADD_DATADOG_OBJECT``
     environment variable.
 
-    Defaut: ``False``
+    Default: ``False``
 
 
 Example::
