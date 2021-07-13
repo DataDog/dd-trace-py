@@ -19,7 +19,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.mariadb["service"]
 
-   The service name reported by default for mariadb spans.
+   The service name reported by default for MariaDB spans.
 
    This option can also be set with the ``DD_MARIADB_SERVICE`` environment
    variable.
