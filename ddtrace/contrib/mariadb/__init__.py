@@ -57,7 +57,6 @@ https://mariadb-corporation.github.io/mariadb-connector-python/usage.html
 from ...utils.importlib import require_modules
 
 
-# check `mariadb-connector` availability
 required_modules = ["mariadb"]
 
 with require_modules(required_modules) as missing_modules:
