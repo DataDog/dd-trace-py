@@ -222,7 +222,7 @@ def test_single_trace_too_large():
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        calls = [mock.call("trace (%db) larger than payload limit (%db), dropping", AnyInt(), AnyInt())]
+        calls = [mock.call("trace (%db) larger than payload buffer limit (%db), dropping", AnyInt(), AnyInt())]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
@@ -327,11 +327,17 @@ def test_bad_payload():
     t = Tracer()
 
     class BadEncoder:
-        def encode_trace(self, spans):
-            return []
+        def __len__(self):
+            return 0
 
-        def join_encoded(self, traces):
-            return "not msgpack"
+        def put(self, trace):
+            pass
+
+        def encode(self):
+            return ""
+
+        def encode_traces(self, traces):
+            return ""
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -352,11 +358,17 @@ def test_bad_encoder():
     t = Tracer()
 
     class BadEncoder:
-        def encode_trace(self, spans):
+        def __len__(self):
+            return 0
+
+        def put(self, trace):
+            pass
+
+        def encode(self):
             raise Exception()
 
-        def join_encoded(self, traces):
-            pass
+        def encode_traces(self, traces):
+            raise Exception()
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -509,8 +521,8 @@ def test_writer_env_configuration(run_python_code_in_subprocess):
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._buffer.max_size == 1000
-assert ddtrace.tracer.writer._buffer.max_item_size == 5000
+assert ddtrace.tracer.writer._encoder.max_size == 1000
+assert ddtrace.tracer.writer._encoder.max_item_size == 5000
 assert ddtrace.tracer.writer._interval == 5.0
 """,
         env=env,
@@ -523,8 +535,8 @@ def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._buffer.max_size == 8000000
-assert ddtrace.tracer.writer._buffer.max_item_size == 8000000
+assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
 assert ddtrace.tracer.writer._interval == 1.0
 """,
     )
@@ -541,8 +553,8 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._buffer.max_size == 1000
-assert ddtrace.tracer.writer._buffer.max_item_size == 5000
+assert ddtrace.tracer.writer._encoder.max_size == 1000
+assert ddtrace.tracer.writer._encoder.max_item_size == 5000
 assert ddtrace.tracer.writer._interval == 5.0
 """,
         env=env,
@@ -555,8 +567,8 @@ def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_i
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._buffer.max_size == 8000000
-assert ddtrace.tracer.writer._buffer.max_item_size == 8000000
+assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
 assert ddtrace.tracer.writer._interval == 1.0
 """,
     )

@@ -5,10 +5,11 @@ from typing import Union
 
 from ddtrace.context import Context
 from ddtrace.provider import BaseContextProvider
+from ddtrace.provider import DatadogContextMixin
 from ddtrace.span import Span
 
 
-class TestContextProvider(BaseContextProvider):
+class TestContextProvider(BaseContextProvider, DatadogContextMixin):
     """An implementation of a ContextProvider which provides explicit context
     management through the public attributes `executor_id` and `executor_state`.
     """

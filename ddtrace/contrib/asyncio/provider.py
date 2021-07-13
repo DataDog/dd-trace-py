@@ -6,17 +6,21 @@ from ...span import Span
 from .compat import asyncio_current_task
 
 
+class BaseAsyncioContextProvider(DefaultContextProvider):
+    def _executor_id(self):
+        # type: () -> int
+        return id(asyncio_current_task())
+
+
 if PYTHON_VERSION_INFO >= (3, 7, 0):
 
-    class AsyncioContextProvider(DefaultContextProvider):
-        def _executor_id(self):
-            # type: () -> int
-            return id(asyncio_current_task())
+    class AsyncioContextProvider(BaseAsyncioContextProvider):
+        pass
 
 
 else:
 
-    class AsyncioContextProvider(DefaultContextProvider):
+    class AsyncioContextProvider(BaseAsyncioContextProvider):
         """Manages the active context for asyncio execution. Framework
         instrumentation that is built on top of the ``asyncio`` library, should
         use this provider when contextvars are not available (Python versions
@@ -83,7 +87,3 @@ else:
             if isinstance(ctx, Span):
                 return self._update_active(ctx)
             return ctx
-
-        def _executor_id(self):
-            # type: () -> int
-            return id(asyncio_current_task())

@@ -1,10 +1,11 @@
 import gevent
 
 from ...provider import BaseContextProvider
+from ...provider import DatadogContextMixin
 from ...span import Span
 
 
-class GeventContextProvider(BaseContextProvider):
+class GeventContextProvider(BaseContextProvider, DatadogContextMixin):
     """Manages the active context for gevent execution.
 
     This provider depends on corresponding monkey patches to copy the active
