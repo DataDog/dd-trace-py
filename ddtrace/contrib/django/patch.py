@@ -40,7 +40,6 @@ from ddtrace.utils.formats import get_env
 from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
-from . import conf
 from . import utils
 from .. import trace_utils
 from .compat import get_resolver
