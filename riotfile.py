@@ -87,11 +87,11 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2"},
+            pkgs={"black": "==21.4b2", "isort": [latest]},
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black .",
+                    command="black . && isort .",
                 ),
                 Venv(
                     name="black",
@@ -114,10 +114,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs} ddtrace/ tests/",
-                ),
-                Venv(
-                    name="hook-flake8",
                     command="flake8 {cmdargs}",
                 ),
             ],
