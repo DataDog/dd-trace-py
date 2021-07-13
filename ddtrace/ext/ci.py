@@ -254,7 +254,7 @@ def extract_circle_ci(env):
         PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
         PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
         PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
-        PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
+        PIPELINE_URL: "https://app.circleci.com/pipelines/workflows/{0}".format(env.get("CIRCLE_WORKFLOW_ID")),
         JOB_URL: env.get("CIRCLE_BUILD_URL"),
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
@@ -330,7 +330,7 @@ def extract_jenkins(env):
     return {
         git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
-        git.REPOSITORY_URL: env.get("GIT_URL"),
+        git.REPOSITORY_URL: env.get("GIT_URL", env.get("GIT_URL_1")),
         git.TAG: tag,
         PIPELINE_ID: env.get("BUILD_TAG"),
         PIPELINE_NAME: name,
