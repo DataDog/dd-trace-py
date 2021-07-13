@@ -2,14 +2,13 @@ import os
 import platform
 import sys
 
+from setuptools import setup, find_packages, Extension
+from setuptools.command.test import test as TestCommand
+
 # ORDER MATTERS
 # Import this after setuptools or it will fail
 from Cython.Build import cythonize  # noqa: I100
 import Cython.Distutils
-from setuptools import Extension
-from setuptools import find_packages
-from setuptools import setup
-from setuptools.command.test import test as TestCommand
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -57,9 +56,8 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import shlex
-
         import tox
+        import shlex
 
         args = self.tox_args
         if args:

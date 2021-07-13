@@ -91,11 +91,15 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black . && isort .",
+                    command="isort . && black .",
                 ),
                 Venv(
                     name="black",
                     command="black {cmdargs}",
+                ),
+                Venv(
+                    name="isort",
+                    command="isort {cmdargs}",
                 ),
             ],
         ),

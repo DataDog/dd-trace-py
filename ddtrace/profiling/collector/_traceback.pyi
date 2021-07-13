@@ -1,7 +1,6 @@
 import types
 import typing
 
-
 # (filename, line number, function name)
 FrameType = typing.Tuple[str, int, str]
 
