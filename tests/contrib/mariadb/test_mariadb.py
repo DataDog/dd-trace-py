@@ -221,7 +221,7 @@ def test_query_proc(connection, tracer):
     # number of spans depends on mariadb implementation details,
     # typically, internal calls to execute, but at least we
     # can expect the last closed span to be our proc.
-    span = spans[len(spans) - 1]
+    span = spans[-1]
     assert_is_measured(span)
     assert span.service == "mariadb"
     assert span.name == "mariadb.query"
