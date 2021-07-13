@@ -1,5 +1,5 @@
 """
-The mariadb integration instruments the mariadb library to trace mariadb queries.
+The MariaDB integration instruments the :ref:`MariaDB library<https://mariadb-corporation.github.io/mariadb-connector-python/usage.html>` to trace queries.
 
 
 Enabling
