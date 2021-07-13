@@ -27,7 +27,6 @@ def tracer():
 
 
 def get_connection(tracer):
-    # Some test cases need a connection to be created post-configuration
     connection = mariadb.connect(**MARIADB_CONFIG)
     Pin.override(connection, tracer=tracer)
 
