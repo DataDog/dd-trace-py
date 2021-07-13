@@ -37,7 +37,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.utils import from_wsgi_header
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from . import utils
@@ -207,10 +206,6 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         return ret
 
     settings = django.conf.settings
-
-    if hasattr(settings, "DATADOG_TRACE"):
-        debtcollector.deprecate(("Using DATADOG_TRACE Django settings are no longer supported. "))
-        conf.configure_from_settings(pin, config.django, settings.DATADOG_TRACE)
 
     # Instrument databases
     if config.django.instrument_databases:
