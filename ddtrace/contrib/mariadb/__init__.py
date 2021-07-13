@@ -34,8 +34,11 @@ To configure the mariadb integration on an per-connection basis use the
 ``Pin`` API::
 
     from ddtrace import Pin
-    # Make sure to import mariadb.connector and not the 'connect' function,
-    # otherwise you won't have access to the patched version
+    from ddtrace import patch
+
+    # Make sure to patch before importing mariadb
+    patch(mariadb=True)
+    
     import mariadb.connector
 
     # This will report a span with the default settings
@@ -46,10 +49,6 @@ To configure the mariadb integration on an per-connection basis use the
 
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
-
-
-Only the default full-Python integration works. The binary C connector,
-provided by _mariadb_connector, is not supported.
 
 Help on mariadb.connector can be found on:
 https://mariadb-corporation.github.io/mariadb-connector-python/usage.html

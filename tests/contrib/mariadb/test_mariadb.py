@@ -16,6 +16,7 @@ from tests.contrib.config import MARIADB_CONFIG
 import unittest
 
 
+
 @pytest.fixture
 def tracer():
     tracer = DummyTracer()

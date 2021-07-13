@@ -58,7 +58,7 @@ class MySQLCore(object):
             },
         )
 
-    def test_simple_query_fetchall(self):
+    def test_simple_query_fetchll(self):
         with self.override_config("mysql", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer()
             cursor = conn.cursor()

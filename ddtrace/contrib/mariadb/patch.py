@@ -10,6 +10,7 @@ from ...ext import net
 
 from ...utils.formats import asbool
 from ...utils.formats import get_env
+from ...utils.wrappers import unwrap
 
 
 config._add(
@@ -31,10 +32,7 @@ def patch():
 def unpatch():
     if getattr(mariadb, "_datadog_patch", False):
         setattr(mariadb, "_datadog_patch", False)
-        if isinstance(mariadb.connect, wrapt.ObjectProxy):
-            mariadb.connect = mariadb.connect.__wrapped__
-            if hasattr(mariadb, "Connect"):
-                mariadb.Connect = mariadb.connect
+        unwrap(mariadb, "connect")
 
 
 def _connect(func, instance, args, kwargs):
