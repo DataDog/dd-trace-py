@@ -270,7 +270,6 @@ def test_span_types(span, tags):
     span.finish()
 
     trace = [span]
-    assert decode(refencoder.encode_trace(trace)) == decode(encoder.encode_trace(trace))
     encoder.put(trace)
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
@@ -285,8 +284,8 @@ def test_encoder_propagates_dd_origin():
                 pass
     # Ensure encoded trace contains dd_origin tag in all spans
     trace = tracer.writer.pop()
-    encoded_trace = encoder.encode_trace(trace)
-    decoded_trace = encoder._decode(encoded_trace)
+    encoder.put(trace)
+    decoded_trace = decode(encoder.encode())[0]
     for span in decoded_trace:
         assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 
