@@ -114,35 +114,29 @@ class TracedServer(ObjectProxy):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
         return span
 
-    # Pymongo >= 3.9
-    def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
-        span = self._datadog_trace_operation(operation)
-        if not span:
-            return self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
-
-        try:
-            result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
-
+    # Pymongo >= 3.12
+    def run_operation(self, sock_info, operation, *args, **kwargs):
+        with self._datadog_trace_operation(operation) as span:
+            result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
             if result and result.address:
                 set_address_tags(span, result.address)
             return result
-        finally:
-            span.finish()
+
+    # Pymongo >= 3.9, <3.12
+    def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
+        with self._datadog_trace_operation(operation) as span:
+            result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
+            if result and result.address:
+                set_address_tags(span, result.address)
+            return result
 
     # Pymongo < 3.9
     def send_message_with_response(self, operation, *args, **kwargs):
-        span = self._datadog_trace_operation(operation)
-        if not span:
-            return self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-
-        try:
+        with self._datadog_trace_operation(operation) as span:
             result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-
             if result and result.address:
                 set_address_tags(span, result.address)
             return result
-        finally:
-            span.finish()
 
     @contextlib.contextmanager
     def get_socket(self, *args, **kwargs):
