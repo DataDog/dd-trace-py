@@ -87,15 +87,19 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2"},
+            pkgs={"black": "==21.4b2", "isort": [latest]},
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black .",
+                    command="isort . && black .",
                 ),
                 Venv(
                     name="black",
                     command="black {cmdargs}",
+                ),
+                Venv(
+                    name="isort",
+                    command="isort {cmdargs}",
                 ),
             ],
         ),
