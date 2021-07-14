@@ -21,4 +21,4 @@ PYTHONPATH=/app/.venv_2/lib/python3.9/site-packages \
     --copy-env \
     -o ${RESULTS_2}
 
-pyperf compare_to ${RESULTS_2} ${RESULTS_1}
+pyperf compare_to --table ${RESULTS_2} ${RESULTS_1}
