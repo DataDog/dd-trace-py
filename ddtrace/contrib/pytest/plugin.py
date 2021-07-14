@@ -128,6 +128,7 @@ def pytest_runtest_protocol(item, nextitem):
         resource=item.nodeid,
         span_type=SpanTypes.TEST.value,
     ) as span:
+        span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
