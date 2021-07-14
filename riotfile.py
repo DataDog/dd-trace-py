@@ -87,15 +87,19 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2"},
+            pkgs={"black": "==21.4b2", "isort": [latest]},
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black .",
+                    command="isort . && black .",
                 ),
                 Venv(
                     name="black",
                     command="black {cmdargs}",
+                ),
+                Venv(
+                    name="isort",
+                    command="isort {cmdargs}",
                 ),
             ],
         ),
@@ -380,6 +384,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -399,6 +404,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
