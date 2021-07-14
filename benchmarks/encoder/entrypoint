@@ -4,6 +4,10 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+if [[ -z "${RUN_ID}" ]]; then
+    RUN_ID=$(uuidgen)
+fi
+
 python3 -m venv /app/.venv_1
 python3 -m venv /app/.venv_2
 

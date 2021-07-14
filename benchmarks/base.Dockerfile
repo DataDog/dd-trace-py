@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   curl \
   git \
   build-essential \
+  uuid-runtime \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
@@ -37,6 +38,7 @@ RUN pip install -r requirements.txt
 
 # For performance testing
 ENV DDTRACE_GIT_COMMIT_ID ""
+ENV RUN_ID ""
 ENV PIP_INSTALL_WHEELS ""
 ENV SIRUN_NO_STDIO 0
 
