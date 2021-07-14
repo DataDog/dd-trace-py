@@ -195,7 +195,7 @@ Mako
 
 .. _mariadb:
 
-Mariadb
+MariaDB
 ^^^^^^^
 .. automodule:: ddtrace.contrib.mariadb
 

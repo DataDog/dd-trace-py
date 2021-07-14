@@ -46,7 +46,6 @@ def _connect(func, instance, args, kwargs):
 
     pin = Pin(app="mariadb", tags=tags)
 
-    # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mariadb)
     pin.onto(wrapped)
     return wrapped

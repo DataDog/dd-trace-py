@@ -1,11 +1,11 @@
 """
-The mariadb integration instruments the mariadb library to trace mariadb queries.
+The MariaDB integration instruments the :ref:`MariaDB library<https://mariadb-corporation.github.io/mariadb-connector-python/usage.html>` to trace queries.
 
 
 Enabling
 ~~~~~~~~
 
-The mariadb integration is enabled automatically when using
+The MariaDB integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
 
 Or use :ref:`patch()<patch>` to manually enable the integration::
@@ -19,7 +19,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.mariadb["service"]
 
-   The service name reported by default for mariadb spans.
+   The service name reported by default for MariaDB spans.
 
    This option can also be set with the ``DD_MARIADB_SERVICE`` environment
    variable.
@@ -56,7 +56,6 @@ https://mariadb-corporation.github.io/mariadb-connector-python/usage.html
 from ...utils.importlib import require_modules
 
 
-# check `mariadb-connector` availability
 required_modules = ["mariadb"]
 
 with require_modules(required_modules) as missing_modules:

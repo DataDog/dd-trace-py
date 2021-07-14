@@ -20,7 +20,6 @@ import unittest
 def tracer():
     tracer = DummyTracer()
     patch()
-    # Yield to our test
     try:
         yield tracer
     finally:
@@ -28,7 +27,6 @@ def tracer():
 
 
 def get_connection(tracer):
-    # Some test cases need a connection to be created post-configuration
     connection = mariadb.connect(**MARIADB_CONFIG)
     Pin.override(connection, tracer=tracer)
 
@@ -101,6 +99,101 @@ def test_query_many(connection, tracer):
     cursor.execute("drop table if exists dummy")
 
 
+<<<<<<< HEAD
+=======
+def test_query_many_fetchall(tracer):
+    with override_config("mariadb", dict(trace_fetch_methods=True)):
+        connection = get_connection(tracer)
+
+        # tests that the executemany method is correctly wrapped.
+        tracer.enabled = False
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            create table if not exists dummy (
+                dummy_key VARCHAR(32) PRIMARY KEY,
+                dummy_value TEXT NOT NULL)"""
+        )
+        tracer.enabled = True
+
+        stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
+        data = [
+            ("foo", "this is foo"),
+            ("bar", "this is bar"),
+        ]
+        cursor.executemany(stmt, data)
+        query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        assert len(rows) == 2
+        assert rows[0][0] == "bar"
+        assert rows[0][1] == "this is bar"
+        assert rows[1][0] == "foo"
+        assert rows[1][1] == "this is foo"
+
+        spans = tracer.pop()
+        assert len(spans) == 3
+        span = spans[-1]
+        assert span.get_tag("mariadb.query") is None
+        cursor.execute("drop table if exists dummy")
+
+        assert spans[2].name == "mariadb.query.fetchall"
+
+
+def test_query_proc(connection, tracer):
+
+    # create a procedure
+    tracer.enabled = False
+    cursor = connection.cursor()
+    cursor.execute("DROP PROCEDURE IF EXISTS sp_sum")
+    cursor.execute(
+        """
+        CREATE PROCEDURE sp_sum (IN p1 INTEGER, IN p2 INTEGER, OUT p3 INTEGER)
+        BEGIN
+            SET p3 := p1 + p2;
+        END;"""
+    )
+
+    tracer.enabled = True
+    proc = "sp_sum"
+    data = (40, 2, None)
+    cursor.callproc(proc, data)
+
+    spans = tracer.pop()
+    assert spans, spans
+
+    # number of spans depends on mariadb implementation details,
+    # typically, internal calls to execute, but at least we
+    # can expect the last closed span to be our proc.
+    span = spans[-1]
+    assert_is_measured(span)
+    assert span.service == "mariadb"
+    assert span.name == "mariadb.query"
+    assert span.span_type == "sql"
+    assert span.error == 0
+    assert span.get_metric("out.port") == 3306
+    assert_dict_issuperset(
+        span.meta,
+        {
+            "out.host": u"127.0.0.1",
+            "db.name": u"test",
+            "db.user": u"test",
+        },
+    )
+    assert span.get_tag("mariadb.query") is None
+
+
+def test_commit(connection, tracer):
+    connection.commit()
+    spans = tracer.pop()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.service == "mariadb"
+    assert span.name == "mariadb.connection.commit"
+
+
+>>>>>>> faad6ebd654e6c8d8202997d87b102bbb83fa31b
 def test_rollback(connection, tracer):
     connection.rollback()
     spans = tracer.pop()
