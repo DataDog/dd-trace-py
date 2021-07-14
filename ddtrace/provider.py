@@ -79,8 +79,23 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         """
         return self.active()
 
+
+class DatadogContextMixin(object):
+    """Mixin that provides active span updating suitable for synchronous
+    and asynchronous executions.
+    """
+
+    def activate(self, ctx):
+        # type: (Optional[Union[Context, Span]]) -> None
+        raise NotImplementedError
+
     def _update_active(self, span):
         # type: (Span) -> Optional[Span]
+        """Updates the active span in an executor.
+
+        The active span is updated to be the span's parent if the span has
+        finished until an unfinished span is found.
+        """
         if span.finished:
             new_active = span  # type: Optional[Span]
             while new_active and new_active.finished:
@@ -90,9 +105,8 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         return span
 
 
-class DefaultContextProvider(BaseContextProvider):
-    """
-    Default context provider that retrieves all contexts from a context variable.
+class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
+    """Context provider that retrieves contexts from a context variable.
 
     It is suitable for synchronous programming and for asynchronous executors
     that support contextvars.
