@@ -28,6 +28,9 @@ _MongoClient = pymongo.MongoClient
 log = get_logger(__name__)
 
 
+VERSION = pymongo.version_tuple
+
+
 class TracedMongoClient(ObjectProxy):
     def __init__(self, client=None, *args, **kwargs):
         # To support the former trace_mongo_client interface, we have to keep this old interface
@@ -115,28 +118,34 @@ class TracedServer(ObjectProxy):
         return span
 
     # Pymongo >= 3.12
-    def run_operation(self, sock_info, operation, *args, **kwargs):
-        with self._datadog_trace_operation(operation) as span:
-            result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
-            if result and result.address:
-                set_address_tags(span, result.address)
-            return result
+    if VERSION >= (3, 12, 0):
+
+        def run_operation(self, sock_info, operation, *args, **kwargs):
+            with self._datadog_trace_operation(operation) as span:
+                result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
+                if result and result.address:
+                    set_address_tags(span, result.address)
+                return result
 
     # Pymongo >= 3.9, <3.12
-    def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
-        with self._datadog_trace_operation(operation) as span:
-            result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
-            if result and result.address:
-                set_address_tags(span, result.address)
-            return result
+    elif (3, 9, 0) <= VERSION < (3, 12, 0):
+
+        def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
+            with self._datadog_trace_operation(operation) as span:
+                result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
+                if result and result.address:
+                    set_address_tags(span, result.address)
+                return result
 
     # Pymongo < 3.9
-    def send_message_with_response(self, operation, *args, **kwargs):
-        with self._datadog_trace_operation(operation) as span:
-            result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-            if result and result.address:
-                set_address_tags(span, result.address)
-            return result
+    else:
+
+        def send_message_with_response(self, operation, *args, **kwargs):
+            with self._datadog_trace_operation(operation) as span:
+                result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
+                if result and result.address:
+                    set_address_tags(span, result.address)
+                return result
 
     @contextlib.contextmanager
     def get_socket(self, *args, **kwargs):
