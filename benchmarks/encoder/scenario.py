@@ -1,8 +1,22 @@
 import os
+
 import pyperf
 from util import gen_traces
 
-from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import Encoder
+
+
+try:
+    from ddtrace.internal._encoding import BufferedEncoder
+
+    def init_encoder(max_size=8 << 20, max_item_size=8 << 20):
+        return Encoder(max_size, max_item_size)
+
+
+except:
+
+    def init_encoder():
+        return Encoder()
 
 
 VARIANTS = [
@@ -29,8 +43,8 @@ if __name__ == "__main__":
     runner = pyperf.Runner()
     runner.metadata["scenario"] = "encoder"
     for variant in VARIANTS:
+        encoder = init_encoder()
         traces = gen_traces(**variant)
-        encoder = MsgpackEncoder()
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
         metadata = {}
         runner.bench_time_func(name, time_encode, encoder, traces, metadata=metadata)
