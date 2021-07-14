@@ -22,11 +22,10 @@ except:
 VARIANTS = [
     dict(ntraces=1, nspans=1000),
     dict(ntraces=100, nspans=1000),
-    dict(ntraces=100, nspans=100),
-    dict(ntraces=100, nspans=100, ntags=1, ltags=16),
-    dict(ntraces=100, nspans=100, ntags=100, ltags=128),
-    dict(ntraces=100, nspans=100, nmetrics=1),
-    dict(ntraces=100, nspans=100, nmetrics=100),
+    dict(ntraces=1, nspans=1000, ntags=1, ltags=16),
+    dict(ntraces=1, nspans=1000, ntags=100, ltags=128),
+    dict(ntraces=1, nspans=1000, nmetrics=1),
+    dict(ntraces=1, nspans=1000, nmetrics=100),
 ]
 
 
