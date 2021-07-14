@@ -1,43 +1,43 @@
 [[{"name" "mariadb.query"
    "service" "mariadb"
-   "resource" "SELECT 1"
+   "resource" "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
    "type" "sql"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1626220628154313200
-   "duration" 2072900
-   "meta" {"runtime-id" "0d2b28a27ae249f88ff7ed45801df80a"
+   "start" 1626232121340582800
+   "duration" 3323200
+   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 11226
+              "system.pid" 12141
               "out.port" 3306
               "db.rowcount" 0
               "sql.rows" 0
               "_dd.tracer_kr" 1.0}}]
  [{"name" "mariadb.query.fetchall"
    "service" "mariadb"
-   "resource" "SELECT 1"
+   "resource" "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
    "type" "sql"
    "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1626220628157443800
-   "duration" 145100
-   "meta" {"runtime-id" "0d2b28a27ae249f88ff7ed45801df80a"
+   "start" 1626232121344409200
+   "duration" 76200
+   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 11226
+              "system.pid" 12141
               "out.port" 3306
-              "db.rowcount" 1
-              "sql.rows" 1
+              "db.rowcount" 3
+              "sql.rows" 3
               "_dd.tracer_kr" 1.0}}]]

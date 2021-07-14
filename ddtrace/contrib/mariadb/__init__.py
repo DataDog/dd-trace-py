@@ -38,7 +38,7 @@ To configure the mariadb integration on an per-connection basis use the
 
     # Make sure to patch before importing mariadb
     patch(mariadb=True)
-    
+
     import mariadb.connector
 
     # This will report a span with the default settings

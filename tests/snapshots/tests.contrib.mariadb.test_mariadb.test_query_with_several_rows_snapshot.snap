@@ -1,21 +1,21 @@
 [[{"name" "mariadb.query"
    "service" "mariadb"
-   "resource" "SELECT 1"
+   "resource" "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
    "type" "sql"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1626220627053687400
-   "duration" 894700
-   "meta" {"runtime-id" "ef4c507bd1084bdab3a7cae496209583"
+   "start" 1626232121313193600
+   "duration" 3258500
+   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 11230
+              "system.pid" 12141
               "out.port" 3306
               "db.rowcount" 0
               "sql.rows" 0

@@ -42,10 +42,10 @@ MYSQL_CONFIG = {
 
 MARIADB_CONFIG = {
     'host': '127.0.0.1',
-    'port': int(os.getenv('TEST_MYSQL_PORT', 3306)),
-    'user': os.getenv('TEST_MYSQL_USER', 'test'),
-    'password': os.getenv('TEST_MYSQL_PASSWORD', 'test'),
-    'database': os.getenv('TEST_MYSQL_DATABASE', 'test'),
+    'port': int(os.getenv('TEST_MARIADB_PORT', 3306)),
+    'user': os.getenv('TEST_MARIADB_USER', 'test'),
+    'password': os.getenv('TEST_MARIADB_PASSWORD', 'test'),
+    'database': os.getenv('TEST_MARIADB_DATABASE', 'test'),
 }
 
 REDIS_CONFIG = {
