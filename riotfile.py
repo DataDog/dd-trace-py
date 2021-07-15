@@ -118,10 +118,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs} ddtrace/ tests/",
-                ),
-                Venv(
-                    name="hook-flake8",
                     command="flake8 {cmdargs}",
                 ),
             ],
