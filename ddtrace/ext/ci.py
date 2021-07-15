@@ -12,6 +12,9 @@ from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
 
 
+# CI app dd_origin tag
+CI_APP_TEST_ORIGIN = "ciapp-test"
+
 # Stage Name
 STAGE_NAME = "ci.stage.name"
 
