@@ -5,12 +5,11 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.vendor import wrapt
 from ddtrace.utils import get_argument_value
 
-from ...ext import db
-from ...ext import net
-
-from ...utils.formats import asbool
-from ...utils.formats import get_env
-from ...utils.wrappers import unwrap
+from ddtrace.ext import db
+from ddtrace.ext import net
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
+from ddtrace.utils.wrappers import unwrap
 
 
 config._add(
