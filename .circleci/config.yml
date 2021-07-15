@@ -625,11 +625,11 @@ jobs:
           pattern: "grpc"
           snapshot: true
 
-  maridb:
+  mariadb:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'maridb$'
+          pattern: 'mariadb$'
           snapshot: true
           docker_services: "mariadb"
 
