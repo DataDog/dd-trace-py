@@ -45,7 +45,7 @@ To configure the mariadb integration on an per-connection basis use the
     conn = mariadb.connector.connect(user="alice", password="b0b", host="localhost", port=3306, database="test")
 
     # Use a pin to override the service name for this connection.
-    Pin.override(conn, service='mariadb-users')
+    Pin.override(conn, service="mariadb-users")
 
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
