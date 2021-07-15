@@ -64,7 +64,7 @@ def test_simple_query(connection, tracer):
     )
 
 
-def test_query_many(connection, tracer):
+def test_query_executemany(connection, tracer):
     # tests that the executemany method is correctly wrapped.
     tracer.enabled = False
     cursor = connection.cursor()
