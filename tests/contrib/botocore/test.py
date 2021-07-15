@@ -533,7 +533,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_lambda
     def test_lambda_invoke_with_old_style_trace_propagation(self):
-        with self.override_config("botocore", dict(clientcontext_custom_add_datadog_object=True)):
+        with self.override_config("botocore", dict(invoke_with_legacy_context=True)):
             lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
             lamb.create_function(
                 FunctionName="ironmaiden",

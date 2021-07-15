@@ -24,7 +24,7 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.botocore['clientcontext_custom_add_datadog_object']
+.. py:data:: ddtrace.config.botocore['invoke_with_legacy_context']
 
     This preserves legacy behavior when tracing directly invoked Node and Python Lambda functions,
     and is not compatible with directly invoking Go or Java Lambda functions.
@@ -32,7 +32,7 @@ Configuration
     Please note: setting this to True is required for propagating traces to Lambda
     functions instrumented with datadog-lambda-python < v41 or datadog-lambda-js < v3.58.0.
 
-    Can also be enabled with the ``DD_BOTOCORE_CLIENTCONTEXT_CUSTOM_ADD_DATADOG_OBJECT``
+    Can also be enabled with the ``DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT``
     environment variable.
 
     Default: ``False``

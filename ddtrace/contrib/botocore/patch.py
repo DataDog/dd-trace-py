@@ -37,8 +37,8 @@ config._add(
     "botocore",
     {
         "distributed_tracing": get_env("botocore", "distributed_tracing", default=True),
-        "clientcontext_custom_add_datadog_object": get_env(
-            "botocore", "clientcontext_custom_add_datadog_object", default=False
+        "invoke_with_legacy_context": get_env(
+            "botocore", "invoke_with_legacy_context", default=False
         ),
     },
 )
@@ -72,7 +72,7 @@ def inject_trace_to_sqs_message(args, span):
 
 
 def modify_client_context(client_context_object, trace_headers):
-    if config.botocore["clientcontext_custom_add_datadog_object"]:
+    if config.botocore["invoke_with_legacy_context"]:
         trace_headers = {"_datadog": trace_headers}
 
     if "custom" in client_context_object:
