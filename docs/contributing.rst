@@ -75,7 +75,7 @@ How-to: Write an Integration
 ============================
 
 An integration should provide concise, insightful data about the library or
-framework that will aid developers in monitor their application's health and
+framework that will aid developers in monitoring their application's health and
 performance.
 
 The best way to get started writing a new integration is to refer to existing
