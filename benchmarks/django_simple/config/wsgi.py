@@ -14,10 +14,11 @@ framework.
 
 """
 import os
-import sys
 from pathlib import Path
+import sys
 
 from django.core.wsgi import get_wsgi_application
+
 
 # This allows easy placement of apps within the interior
 # ddtrace_django directory.
@@ -40,4 +41,4 @@ application = get_wsgi_application()
 
 # Enable only profiler to be used without ddtrace-run
 if os.getenv("BENCHMARK_PROFILING_ENABLED", False) is not False:
-    import ddtrace.profiling.auto
+    import ddtrace.profiling.auto  # noqa
