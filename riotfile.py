@@ -118,10 +118,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs} ddtrace/ tests/",
-                ),
-                Venv(
-                    name="hook-flake8",
                     command="flake8 {cmdargs}",
                 ),
             ],
@@ -889,7 +885,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6"},
+                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
@@ -901,6 +897,7 @@ venv = Venv(
                             ">=6.0,<7.0",
                             latest,
                         ],
+                        "msgpack": latest,
                     },
                 ),
             ],
