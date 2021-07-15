@@ -40,10 +40,10 @@ def time_encode(loops, encoder, traces):
 
 if __name__ == "__main__":
     runner = pyperf.Runner()
-    runner.metadata["scenario"] = "encoder"
     for variant in VARIANTS:
         encoder = init_encoder()
         traces = gen_traces(**variant)
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
+        name = f"scenario:encoder|{name}"
         metadata = {}
         runner.bench_time_func(name, time_encode, encoder, traces, metadata=metadata)
