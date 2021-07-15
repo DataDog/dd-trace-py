@@ -93,7 +93,7 @@ def inject_trace_to_client_context(args, span):
         except Exception:
             log.warning("malformed client_context=%s", params["ClientContext"], exc_info=True)
             return
-    client_context_object = modify_client_context(client_context_object, trace_headers)
+    modify_client_context(client_context_object, trace_headers)
     try:
         json_context = json.dumps(client_context_object).encode("utf-8")
     except Exception:
