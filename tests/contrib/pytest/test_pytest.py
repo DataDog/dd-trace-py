@@ -349,6 +349,34 @@ class TestPytest(TracerTestCase):
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
+    def test_dd_origin_tag_propagated_to_every_span(self):
+        """Test that every span in generated trace has the dd_origin tag."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+            import ddtrace
+            from ddtrace import Pin
+
+            def test_service(ddspan, pytestconfig):
+                tracer = Pin.get_from(pytestconfig).tracer
+                with tracer.trace("SPAN2") as span2:
+                    with tracer.trace("SPAN3") as span3:
+                        with tracer.trace("SPAN4") as span4:
+                            assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+
+        spans = self.pop_spans()
+        # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
+        trace = self.tracer.writer.msgpack_encoder.encode_trace(spans)
+        decoded_trace = self.tracer.writer.msgpack_encoder._decode(trace)
+        assert len(decoded_trace) == 4
+        for span in decoded_trace:
+            assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
+
 
 class A(object):
     def __init__(self, name, value):
