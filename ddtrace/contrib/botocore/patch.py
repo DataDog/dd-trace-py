@@ -79,7 +79,6 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"].update(trace_headers)
     else:
         client_context_object["custom"] = trace_headers
-    return client_context_object
 
 
 def inject_trace_to_client_context(args, span):
