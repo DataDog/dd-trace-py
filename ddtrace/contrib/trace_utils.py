@@ -16,7 +16,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
-from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation import http as propagation_http
 from ddtrace.utils.cache import cached
 from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
@@ -276,7 +276,7 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         return None
 
     if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
-        context = HTTPPropagator.extract(request_headers)
+        context = propagation_http.HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
             tracer.context_provider.activate(context)
@@ -312,3 +312,31 @@ def set_flattened_tags(
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
+
+
+@cached()
+def get_wsgi_header(header):
+    # type: (str) -> str
+    """Returns a WSGI compliant HTTP header.
+    See https://www.python.org/dev/peps/pep-3333/#environ-variables for
+    information from the spec.
+    """
+    return "HTTP_{}".format(header.upper().replace("-", "_"))
+
+
+@cached()
+def from_wsgi_header(header):
+    # type: (str) -> Optional[str]
+    """Convert a WSGI compliant HTTP header into the original header.
+    See https://www.python.org/dev/peps/pep-3333/#environ-variables for
+    information from the spec.
+    """
+    HTTP_PREFIX = "HTTP_"
+    # PEP 333 gives two headers which aren't prepended with HTTP_.
+    UNPREFIXED_HEADERS = {"CONTENT_TYPE", "CONTENT_LENGTH"}
+
+    if header.startswith(HTTP_PREFIX):
+        header = header[len(HTTP_PREFIX) :]
+    elif header not in UNPREFIXED_HEADERS:
+        return None
+    return header.replace("_", "-").title()

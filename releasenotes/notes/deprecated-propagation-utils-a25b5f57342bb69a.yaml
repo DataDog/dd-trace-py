@@ -2,3 +2,4 @@
 deprecations:
   - |
     The ``ddtrace.propagation.utils`` module has been deprecated and will be removed in ddtrace version 1.0.
+    The ``from_wsgi_header`` and ``get_wsgi_header`` functions have been moved into ``ddtrace.contrib.trace_utils``.

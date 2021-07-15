@@ -37,7 +37,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.http import from_wsgi_header
 from ddtrace.internal.logger import get_logger
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
@@ -438,7 +437,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             else:
                 request_headers = {}
                 for header, value in request.META.items():
-                    name = from_wsgi_header(header)
+                    name = trace_utils.from_wsgi_header(header)
                     if name:
                         request_headers[name] = value
 

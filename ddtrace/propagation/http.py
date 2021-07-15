@@ -3,7 +3,7 @@ from typing import FrozenSet
 from typing import Optional
 
 from ddtrace.context import Context
-from ddtrace.internal.http import get_wsgi_header
+from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 
 
@@ -19,12 +19,16 @@ HTTP_HEADER_ORIGIN = "x-datadog-origin"
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
 # versions of these headers
-POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset([HTTP_HEADER_TRACE_ID, get_wsgi_header(HTTP_HEADER_TRACE_ID).lower()])
-POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset([HTTP_HEADER_PARENT_ID, get_wsgi_header(HTTP_HEADER_PARENT_ID).lower()])
-POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
-    [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY).lower()]
+POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset(
+    [HTTP_HEADER_TRACE_ID, trace_utils.get_wsgi_header(HTTP_HEADER_TRACE_ID).lower()]
 )
-POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
+POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset(
+    [HTTP_HEADER_PARENT_ID, trace_utils.get_wsgi_header(HTTP_HEADER_PARENT_ID).lower()]
+)
+POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
+    [HTTP_HEADER_SAMPLING_PRIORITY, trace_utils.get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY).lower()]
+)
+POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, trace_utils.get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
 
 
 class HTTPPropagator(object):

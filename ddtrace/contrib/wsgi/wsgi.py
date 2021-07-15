@@ -20,7 +20,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.http import from_wsgi_header
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -71,7 +70,7 @@ def get_request_headers(environ):
     request_headers = {}
     for key in environ.keys():
         if key.startswith("HTTP"):
-            request_headers[from_wsgi_header(key)] = environ[key]
+            request_headers[trace_utils.from_wsgi_header(key)] = environ[key]
     return request_headers
 
 
