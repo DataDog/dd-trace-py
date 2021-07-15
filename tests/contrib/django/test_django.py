@@ -1,5 +1,4 @@
 import itertools
-import os
 import subprocess
 
 import django
@@ -37,9 +36,6 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
-
-
-pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
