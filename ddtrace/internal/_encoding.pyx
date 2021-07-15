@@ -360,6 +360,12 @@ cdef class Packer(object):
 
 cdef class BufferedEncoder(object):
     content_type: str = None
+
+    def encode_item(self, item): ...
+    def encode(self): ...
+
+
+cdef class ListBufferedEncoder(BufferedEncoder):
     cdef int _max_size
     cdef int _max_item_size
     cdef int _size
@@ -420,11 +426,8 @@ cdef class BufferedEncoder(object):
                 self._buffer[:] = []
                 self._size = 0
 
-    def encode_item(self, item): ...
-    def encode(self): ...
 
-
-cdef class MsgpackEncoder(BufferedEncoder):
+cdef class MsgpackEncoder(ListBufferedEncoder):
     content_type = "application/msgpack"
 
     cpdef _decode(self, data):
