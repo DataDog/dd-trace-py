@@ -37,9 +37,7 @@ config._add(
     "botocore",
     {
         "distributed_tracing": get_env("botocore", "distributed_tracing", default=True),
-        "invoke_with_legacy_context": get_env(
-            "botocore", "invoke_with_legacy_context", default=False
-        ),
+        "invoke_with_legacy_context": get_env("botocore", "invoke_with_legacy_context", default=False),
     },
 )
 
