@@ -917,7 +917,6 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True,
             else token_override
         )
 
-
         # Use variant that applies to update test token. One must apply. If none
         # apply, the test should have been marked as skipped.
         if variants:
