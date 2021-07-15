@@ -4,7 +4,7 @@ on:
     branches: [master]
   pull_request:
 jobs:
-  django-testsuite-3_1_7:
+  django-testsuite-3_1:
     runs-on: ubuntu-latest
     env:
       DD_TESTING_RAISE: true
@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: django/django
-          ref: 3.1.7
+          ref: stable/3.1.x
           path: django
       - uses: actions/setup-python@v2
         with:
