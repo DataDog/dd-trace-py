@@ -8,8 +8,12 @@ from typing import Dict
 from typing import MutableMapping
 from typing import Optional
 
-from . import git
+from ddtrace.ext import git
+from ddtrace.internal.logger import get_logger
 
+
+# CI app dd_origin tag
+CI_APP_TEST_ORIGIN = "ciapp-test"
 
 # Stage Name
 STAGE_NAME = "ci.stage.name"
@@ -59,6 +63,9 @@ _RE_TAGS = re.compile(r"^tags/")
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
+log = get_logger(__name__)
+
+
 def _normalize_ref(name):
     # type: (Optional[str]) -> Optional[str]
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
@@ -91,6 +98,13 @@ def tags(env=None, cwd=None):
             break
 
     git_info = git.extract_git_metadata(cwd=cwd)
+    try:
+        git_info[WORKSPACE_PATH] = git.extract_workspace_path(cwd=cwd)
+    except git.GitNotFoundError:
+        log.error("Git executable not found, cannot extract git metadata.")
+    except ValueError:
+        log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.
     tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
@@ -243,7 +257,7 @@ def extract_circle_ci(env):
         PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
         PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
         PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
-        PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
+        PIPELINE_URL: "https://app.circleci.com/pipelines/workflows/{0}".format(env.get("CIRCLE_WORKFLOW_ID")),
         JOB_URL: env.get("CIRCLE_BUILD_URL"),
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
@@ -319,7 +333,7 @@ def extract_jenkins(env):
     return {
         git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
-        git.REPOSITORY_URL: env.get("GIT_URL"),
+        git.REPOSITORY_URL: env.get("GIT_URL", env.get("GIT_URL_1")),
         git.TAG: tag,
         PIPELINE_ID: env.get("BUILD_TAG"),
         PIPELINE_NAME: name,
