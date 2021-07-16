@@ -336,3 +336,42 @@ async def test_multiple_requests(tracer, test_spans):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+
+
+async def test_get_asgi_span(tracer, test_spans):
+    async def test_app(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            asgi_span = TraceMiddleware._get_asgi_span(tracer)
+            assert asgi_span is not None
+            assert asgi_span.name == "asgi.request"
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    app = TraceMiddleware(test_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
+
+    with override_http_config("asgi", dict(trace_query_string=True)):
+        app = TraceMiddleware(test_app, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+    async def test_app(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            root = tracer.current_root_span()
+            assert root.name == "root"
+            asgi_span = TraceMiddleware._get_asgi_span(tracer)
+            assert asgi_span is not None
+            assert asgi_span.name == "asgi.request"
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    app = TraceMiddleware(test_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        with tracer.trace("root"):
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200

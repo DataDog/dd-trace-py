@@ -422,6 +422,19 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
 
 
+@trace_utils.with_traced_module
+def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
+    from ddtrace.contrib.asgi import TraceMiddleware
+
+    # Disable Django's distributed tracing because it'll be handled by the middleware.
+    config.django.distributed_tracing_enabled = False
+
+    def django_asgi_modifier(span, scope):
+        span.name = "django.request"
+
+    return TraceMiddleware(func(*args, **kwargs), span_modifier=django_asgi_modifier)
+
+
 def _patch(django):
     Pin().onto(django)
     trace_utils.wrap(django, "apps.registry.Apps.populate", traced_populate(django))
@@ -434,6 +447,11 @@ def _patch(django):
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.load_middleware", traced_load_middleware(django))
 
     trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response", traced_get_response(django))
+    if hasattr(django.core.handlers.base.BaseHandler, "get_response_async"):
+        # Have to inline this import as the module contains syntax incompatible with Python 3.5 and below
+        from ._asgi import traced_get_response_async
+
+        trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response_async", traced_get_response_async(django))
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.template.base" not in sys.modules:
@@ -452,6 +470,14 @@ def _patch(django):
     if "django.views.generic.base" not in sys.modules:
         import django.views.generic.base
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
+
+    if "django.core.asgi" not in sys.modules:
+        try:
+            import django.core.asgi
+        except ImportError:
+            pass
+        else:
+            trace_utils.wrap(django, "core.asgi.get_asgi_application", traced_get_asgi_application(django))
 
 
 def patch():
@@ -476,6 +502,7 @@ def _unpatch(django):
     trace_utils.unwrap(django.apps.registry.Apps, "populate")
     trace_utils.unwrap(django.core.handlers.base.BaseHandler, "load_middleware")
     trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response")
+    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response_async")
     trace_utils.unwrap(django.template.base.Template, "render")
     trace_utils.unwrap(django.conf.urls.static, "static")
     trace_utils.unwrap(django.conf.urls, "url")

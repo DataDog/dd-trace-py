@@ -1,4 +1,5 @@
 import sys
+from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
@@ -10,6 +11,13 @@ from .. import trace_utils
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
+
+
+if TYPE_CHECKING:
+    from typing import Optional
+
+    from ddtrace import Span
+    from ddtrace import Tracer
 
 
 log = get_logger(__name__)
@@ -80,6 +88,15 @@ class TraceMiddleware:
         self.integration_config = integration_config
         self.handle_exception_span = handle_exception_span
         self.span_modifier = span_modifier
+
+    @staticmethod
+    def _get_asgi_span(tracer):
+        # type: (Tracer) -> Optional[Span]
+        """Return the ASGI span of the current trace (if available)."""
+        current_span = tracer.current_span()
+        while current_span and ASGI_VERSION not in current_span.meta:
+            current_span = current_span._parent
+        return current_span
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
