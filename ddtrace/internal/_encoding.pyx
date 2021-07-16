@@ -361,7 +361,7 @@ cdef class Packer(object):
 cdef class BufferedEncoder(object):
     content_type: str = None
 
-    def encode_item(self, item): ...
+    def put(self, item): ...
     def encode(self): ...
 
 
@@ -395,11 +395,6 @@ cdef class ListBufferedEncoder(BufferedEncoder):
         with self._lock:
             return self._size
 
-    cpdef clear(self):
-        with self._lock:
-            self._buffer[:] = []
-            self._size = 0
-
     cpdef put(self, item):
         """Put an item to be serialized in the buffer."""
         cdef int item_len
@@ -425,6 +420,8 @@ cdef class ListBufferedEncoder(BufferedEncoder):
             finally:
                 self._buffer[:] = []
                 self._size = 0
+
+    def encode_item(self, item): ...
 
 
 cdef class MsgpackEncoder(ListBufferedEncoder):
