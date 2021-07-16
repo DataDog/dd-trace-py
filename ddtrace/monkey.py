@@ -20,6 +20,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 from .internal.logger import get_logger
 from .settings import _config as config
 from .utils import formats
+from .utils.deprecation import deprecated
 
 
 log = get_logger(__name__)
@@ -178,7 +179,7 @@ def patch(raise_errors=True, **patch_modules):
             for m in modules_to_poi:
                 # If the module has already been imported then patch immediately
                 if m in sys.modules:
-                    patch_module(module, raise_errors=raise_errors)
+                    _patch_module(module, raise_errors=raise_errors)
                     break
                 # Otherwise, add a hook to patch when it is imported for the first time
                 else:
@@ -189,9 +190,9 @@ def patch(raise_errors=True, **patch_modules):
             with _LOCK:
                 _PATCHED_MODULES.add(module)
         else:
-            patch_module(module, raise_errors=raise_errors)
+            _patch_module(module, raise_errors=raise_errors)
 
-    patched_modules = get_patched_modules()
+    patched_modules = _get_patched_modules()
     log.info(
         "patched %s/%s modules (%s)",
         len(patched_modules),
@@ -200,14 +201,23 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
+@deprecated(
+    message="This function will be removed.",
+    version="1.0.0",
+)
 def patch_module(module, raise_errors=True):
+    # type: (str, bool) -> bool
+    return _patch_module(module, raise_errors=raise_errors)
+
+
+def _patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
     """Patch a single module
 
     Returns if the module got properly patched.
     """
     try:
-        return _patch_module(module)
+        return _attempt_patch_module(module)
     except ModuleNotFoundException:
         if raise_errors:
             raise
@@ -219,14 +229,23 @@ def patch_module(module, raise_errors=True):
         return False
 
 
+@deprecated(
+    message="This function will be removed.",
+    version="1.0.0",
+)
 def get_patched_modules():
+    # type: () -> List[str]
+    return _get_patched_modules()
+
+
+def _get_patched_modules():
     # type: () -> List[str]
     """Get the list of patched modules"""
     with _LOCK:
         return sorted(_PATCHED_MODULES)
 
 
-def _patch_module(module):
+def _attempt_patch_module(module):
     # type: (str) -> bool
     """_patch_module will attempt to monkey patch the module.
 

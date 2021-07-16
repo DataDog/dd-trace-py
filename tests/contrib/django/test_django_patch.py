@@ -1,12 +1,5 @@
-import os
-
-import pytest
-
 from ddtrace.contrib.django import patch
 from tests.contrib.patch import PatchTestCase
-
-
-pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
 
 class TestDjangoPatch(PatchTestCase.Base):

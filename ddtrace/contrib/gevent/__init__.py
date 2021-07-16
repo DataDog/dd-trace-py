@@ -5,9 +5,11 @@ The gevent integration adds support for tracing across greenlets.
 The integration patches the gevent internals to add context management logic.
 
 .. note::
-    If you are using :ref:`ddtrace-run<ddtracerun>` you must set ``DD_GEVENT_PATCH_ALL=true`` and ``ddtrace-run`` will
-    call ``gevent.monkey.patch_all()`` as early as possible in your application to avoid patching conflicts.
-    If you are doing manual instrumentation, you must call ``gevent.monkey.patch_all`` before importing ``ddtrace``.
+    If :ref:`ddtrace-run<ddtracerun>` is being used set ``DD_GEVENT_PATCH_ALL=true`` and
+    ``gevent.monkey.patch_all()`` will be called as early as possible in the application
+    to avoid patching conflicts.
+    If ``ddtrace-run`` is not being used then be sure to call ``gevent.monkey.patch_all``
+    before importing ``ddtrace`` and calling ``ddtrace.patch`` or `ddtrace.patch_all``.
 
 
 The integration also configures the global tracer instance to use a gevent

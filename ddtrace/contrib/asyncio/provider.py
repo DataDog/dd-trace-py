@@ -1,10 +1,11 @@
 import asyncio
 
 from ...provider import BaseContextProvider
+from ...provider import DatadogContextMixin
 from ...span import Span
 
 
-class AsyncioContextProvider(BaseContextProvider):
+class AsyncioContextProvider(BaseContextProvider, DatadogContextMixin):
     """Manages the active context for asyncio execution. Framework
     instrumentation that is built on top of the ``asyncio`` library, should
     use this provider when contextvars are not available (Python versions

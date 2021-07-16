@@ -130,7 +130,10 @@ def patched_api_call(original_func, instance, args, kwargs):
         operation = None
         if args:
             operation = args[0]
-            span.resource = "%s.%s" % (endpoint_name, operation.lower())
+            # DEV: join is the fastest way of concatenating strings that is compatible
+            # across Python versions (see
+            # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
+            span.resource = ".".join((endpoint_name, operation.lower()))
 
             if config.botocore["distributed_tracing"]:
                 if endpoint_name == "lambda" and operation == "Invoke":
@@ -147,12 +150,11 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         region_name = deep_getattr(instance, "meta.region_name")
 
-        meta = {
-            "aws.agent": "botocore",
-            "aws.operation": operation,
-            "aws.region": region_name,
-        }
-        span.set_tags(meta)
+        span._set_str_tag("aws.agent", "botocore")
+        if operation is not None:
+            span._set_str_tag("aws.operation", operation)
+        if region_name is not None:
+            span._set_str_tag("aws.region", region_name)
 
         result = original_func(*args, **kwargs)
 
