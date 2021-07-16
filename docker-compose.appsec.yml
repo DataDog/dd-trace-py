@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+    agent:
+        image: datadog/agent-dev:master
+        environment:
+         - DD_APPSEC_ENABLED=true
+         - DD_APM_NON_LOCAL_TRAFFIC=true
+         - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+         - DD_SITE
+         - DD_API_KEY
+    app:
+        build:
+            context: https://github.com/nizox/dd-trace-py.git#appsec
+            dockerfile: Dockerfile.appsec
+        ports:
+         - "8080:80"
+        environment:
+         - DD_APPSEC_ENABLED=true
+         - DD_AGENT_HOST=agent
+         - DD_TRACE_HEALTH_METRICS_ENABLED=true
+         - DD_TRACE_DEBUG
