@@ -1,7 +1,5 @@
-# stdlib
 import asyncio
 
-# 3p
 import aiopg
 
 # project
