@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: sqlalchemy/mako
-          ref: 1.1.4
+          ref: rel_1_1_4
           path: mako
       - uses: actions/setup-python@v2
         with:
