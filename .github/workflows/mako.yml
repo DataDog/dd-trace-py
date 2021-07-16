@@ -34,3 +34,4 @@ jobs:
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
       - name: Run tests
         run: tox -e py
+        
