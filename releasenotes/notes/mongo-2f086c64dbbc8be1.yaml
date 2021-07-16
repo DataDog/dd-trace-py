@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix pymongo 3.12.0+ spans not being generated.

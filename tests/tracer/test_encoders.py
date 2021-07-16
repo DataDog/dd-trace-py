@@ -13,6 +13,7 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal.compat import msgpack_type
@@ -24,6 +25,7 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
+from tests.utils import DummyTracer
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -270,6 +272,22 @@ def test_span_types(span, tags):
     trace = [span]
     encoder.put(trace)
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+
+
+def test_encoder_propagates_dd_origin():
+    tracer = DummyTracer()
+    encoder = MsgpackEncoder(1 << 20, 1 << 20)
+    with tracer.trace("Root") as root:
+        root.context.dd_origin = CI_APP_TEST_ORIGIN
+        for _ in range(999):
+            with tracer.trace("child"):
+                pass
+    # Ensure encoded trace contains dd_origin tag in all spans
+    trace = tracer.writer.pop()
+    encoder.put(trace)
+    decoded_trace = decode(encoder.encode())[0]
+    for span in decoded_trace:
+        assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 
 
 @given(

@@ -87,15 +87,19 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2"},
+            pkgs={"black": "==21.4b2", "isort": [latest]},
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black .",
+                    command="isort . && black .",
                 ),
                 Venv(
                     name="black",
                     command="black {cmdargs}",
+                ),
+                Venv(
+                    name="isort",
+                    command="isort {cmdargs}",
                 ),
             ],
         ),
@@ -114,10 +118,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs} ddtrace/ tests/",
-                ),
-                Venv(
-                    name="hook-flake8",
                     command="flake8 {cmdargs}",
                 ),
             ],
@@ -380,6 +380,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -399,6 +400,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -899,7 +901,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6"},
+                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
@@ -911,6 +913,7 @@ venv = Venv(
                             ">=6.0,<7.0",
                             latest,
                         ],
+                        "msgpack": latest,
                     },
                 ),
             ],
@@ -962,6 +965,27 @@ venv = Venv(
             pys=select_pys(),
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
+        ),
+        Venv(
+            name="aiopg",
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6"],
+                    pkgs={
+                        "aiopg": ["~=0.12.0", "~=0.15.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
+                    },
+                ),
+            ],
+            pkgs={
+                "sqlalchemy": latest,
+            },
+            command="pytest {cmdargs} tests/contrib/aiopg",
         ),
         Venv(
             name="jinja2",
