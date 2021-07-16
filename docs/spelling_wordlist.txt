@@ -28,7 +28,6 @@ botocore
 CGroup
 cgroups
 cherrypy
-clientContext
 compat
 composable
 config
