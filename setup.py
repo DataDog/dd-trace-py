@@ -158,7 +158,7 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
     package_data={
-        "ddtrace.appsec": ["rules.json"],
+        "ddtrace.appsec.internal": ["rules.json"],
     },
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
