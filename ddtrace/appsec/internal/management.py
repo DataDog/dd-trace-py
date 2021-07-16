@@ -47,7 +47,7 @@ class Management(object):
             dogstatsd = None
 
         root_dir = os.path.dirname(os.path.abspath(__file__))
-        default_rules = os.path.join(root_dir, "rules.json")
+        default_rules = os.path.join(root_dir, "rules.yaml")
         path = get_env("appsec", "rules", default=default_rules)
 
         sqreen_budget_ms = get_env("appsec", "sqreen", "budget_ms")
@@ -56,9 +56,13 @@ class Management(object):
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
             with open(path, "r") as f:
-                rules = f.read()
+                event_rules = f.read()
 
-            self.protections = [SqreenLibrary(rules, float(sqreen_budget_ms) if sqreen_budget_ms is not None else None)]
+            self.protections = [
+                SqreenLibrary.from_event_rules(
+                    event_rules, float(sqreen_budget_ms) if sqreen_budget_ms is not None else None
+                )
+            ]
             self.writer.flush(timeout=0)
             self.writer = HTTPEventWriter(api_key=get_env("api_key"), dogstatsd=dogstatsd)
         except Exception:

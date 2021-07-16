@@ -1,5 +1,6 @@
 import flask
 import werkzeug
+import werkzeug.datastructures
 
 from ddtrace import Pin
 from ddtrace import appsec
@@ -333,8 +334,9 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             span,
             method=request.method,
             target=request.url,
-            headers=request.headers,
-            query=request.query_string,
+            query=request.args,
+            headers=werkzeug.datastructures.MultiDict(request.headers).to_dict(flat=False),
+            cookies=request.cookies,
         )
 
         return wrapped(environ, start_response)

@@ -158,7 +158,7 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
     package_data={
-        "ddtrace.appsec.internal": ["rules.json"],
+        "ddtrace.appsec.internal": ["rules.yaml"],
     },
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
@@ -175,6 +175,7 @@ setup(
         "six>=1.12.0",
         "pep562; python_version<'3.7'",
         "sq-native>=1.0",
+        "PyYAML",
     ],
     extras_require={
         # users can include opentracing by having:

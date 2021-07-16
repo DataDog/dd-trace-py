@@ -2,6 +2,7 @@ from flask import g
 from flask import request
 from flask import signals
 import flask.templating
+import werkzeug.datastructures
 
 from ddtrace import appsec
 from ddtrace import config
@@ -131,8 +132,9 @@ class TraceMiddleware(object):
                 span,
                 method=request.method,
                 target=request.url,
-                headers=request.headers,
-                query=request.query_string,
+                query=request.args,
+                headers=werkzeug.datastructures.MultiDict(request.headers).to_dict(flat=False),
+                cookies=request.cookies,
             )
         except Exception:
             log.debug("flask: error tracing request", exc_info=True)

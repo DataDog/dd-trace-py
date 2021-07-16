@@ -26,7 +26,7 @@ class TestSqreenLibrary(TracerTestCase):
         assert "_dd.sq.process_ms" in span.metrics
 
         with self.trace("test") as span:
-            appsec.process_request(span, query="q=<script>alert(1);")
+            appsec.process_request(span, headers={"user-agent": "Arachni/v1"})
         assert "_dd.sq.process_ms" in span.metrics
         assert "_dd.sq.reports" in span.metrics
 
@@ -41,5 +41,5 @@ class TestSqreenLibrary(TracerTestCase):
 
     def test_attack_event(self):
         with self.trace("test") as span:
-            appsec.process_request(span, query="q=<script>alert(1);")
+            appsec.process_request(span, headers={"user-agent": "Arachni/v1"})
         assert self.writer.events[0].event_type == "appsec.threat.attack"

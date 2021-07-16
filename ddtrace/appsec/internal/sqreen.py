@@ -19,6 +19,7 @@ from ddtrace.appsec.internal.events.attack import Rule
 from ddtrace.appsec.internal.events.attack import RuleMatch
 from ddtrace.appsec.internal.events.context import get_required_context
 from ddtrace.appsec.internal.protections import BaseProtection
+from ddtrace.appsec.internal.utils import event_rules_to_sqreen
 from ddtrace.internal.compat import utc
 from ddtrace.utils.time import StopWatch
 
@@ -77,3 +78,8 @@ class SqreenLibrary(BaseProtection):
             ),
             context=get_required_context(),
         )
+
+    @classmethod
+    def from_event_rules(cls, rules, budget_ms=None):
+        """Load the Sqreen library from event rules."""
+        return cls(event_rules_to_sqreen(rules), budget_ms=budget_ms)
