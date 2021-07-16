@@ -318,9 +318,13 @@ def set_flattened_tags(
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-def get_correlation_log_record(tracer=None):
+def get_logs_correlation_context(tracer=None):
     # type: (Optional[Union[Tracer, OT_Tracer]]) -> Optional[DDLogRecord]
-    """Generates a DDLogRecord for the current active ``Trace``."""
+    """Retrieves the Correlation Identifiers for the current active ``Trace``
+    This helper method generates a DDLogRecord including the trace_id and span_id of the current active span,
+    as well as the configuration's service, version, and env names. If there is no active span, an empty
+    DDLogRecord will be returned.
+    """
     if not tracer:
         tracer = ddtrace.tracer
     if isinstance(tracer, OT_Tracer):

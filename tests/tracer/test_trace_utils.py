@@ -561,10 +561,10 @@ def test_set_flattened_tags_exclude_policy():
     assert span.metrics == e
 
 
-def test_get_correlation_log_record(global_config):
+def test_get_logs_correlation_context(global_config):
     """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
     with tracer.trace("test-span-1") as span1:
-        dd_log_record = trace_utils.get_correlation_log_record()
+        dd_log_record = trace_utils.get_logs_correlation_context()
     assert dd_log_record.span_id == str(span1.span_id)
     assert dd_log_record.trace_id == str(span1.trace_id)
     assert dd_log_record.service == "test-service"
@@ -573,7 +573,7 @@ def test_get_correlation_log_record(global_config):
 
     test_tracer = Tracer()
     with test_tracer.trace("test-span-2") as span2:
-        dd_log_record = trace_utils.get_correlation_log_record(test_tracer)
+        dd_log_record = trace_utils.get_logs_correlation_context(test_tracer)
     assert dd_log_record.span_id == str(span2.span_id)
     assert dd_log_record.trace_id == str(span2.trace_id)
     assert dd_log_record.service == "test-service"
@@ -581,12 +581,12 @@ def test_get_correlation_log_record(global_config):
     assert dd_log_record.version == "test-version"
 
 
-def test_get_correlation_log_record_opentracer(global_config):
+def test_get_logs_correlation_context_opentracer(global_config):
     """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
     ot_tracer = OT_Tracer()
     with ot_tracer.start_active_span("operation") as scope:
         dd_span = scope._span._dd_span
-        dd_log_record = trace_utils.get_correlation_log_record(ot_tracer)
+        dd_log_record = trace_utils.get_logs_correlation_context(ot_tracer)
     assert dd_log_record.span_id == str(dd_span.span_id)
     assert dd_log_record.trace_id == str(dd_span.trace_id)
     assert dd_log_record.service == "test-service"
@@ -594,9 +594,9 @@ def test_get_correlation_log_record_opentracer(global_config):
     assert dd_log_record.version == "test-version"
 
 
-def test_get_correlation_log_record_no_active_span():
+def test_get_logs_correlation_context_no_active_span():
     """Ensure empty DDLogRecord generated if no active span."""
-    dd_log_record = trace_utils.get_correlation_log_record()
+    dd_log_record = trace_utils.get_logs_correlation_context()
     assert dd_log_record.span_id == "0"
     assert dd_log_record.trace_id == "0"
     assert dd_log_record.service == ""
@@ -604,10 +604,10 @@ def test_get_correlation_log_record_no_active_span():
     assert dd_log_record.version == ""
 
 
-def test_get_correlation_log_record_disabled_tracer():
+def test_get_logs_correlation_context_disabled_tracer():
     """Ensure get_correlation_log_record returns None if tracer is disabled."""
     tracer = Tracer()
     tracer.enabled = False
     with tracer.trace("test-span"):
-        dd_log_record = trace_utils.get_correlation_log_record(tracer)
+        dd_log_record = trace_utils.get_logs_correlation_context(tracer)
     assert dd_log_record is None
