@@ -1,10 +1,8 @@
+from ddtrace_django.users.views import user_detail_view
+from ddtrace_django.users.views import user_redirect_view
+from ddtrace_django.users.views import user_update_view
 from django.urls import path
 
-from ddtrace_django.users.views import (
-    user_detail_view,
-    user_redirect_view,
-    user_update_view,
-)
 
 app_name = "users"
 urlpatterns = [

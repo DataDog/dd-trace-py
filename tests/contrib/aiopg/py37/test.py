@@ -1,4 +1,3 @@
-# 3p
 import aiopg
 
 # project
