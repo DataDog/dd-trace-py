@@ -59,8 +59,6 @@ RUN \
   && rm -rf /var/lib/apt/lists/*
 
 
-
-
 # Configure PATH environment for pyenv
 ENV PYENV_ROOT /root/.pyenv
 ENV PATH ${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH
