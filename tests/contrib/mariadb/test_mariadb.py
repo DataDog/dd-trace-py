@@ -1,19 +1,16 @@
-from logging import ERROR
-import pytest
 import mariadb
-from tests.utils import DummyTracer
-from tests.utils import assert_is_measured
-from tests.utils import assert_dict_issuperset
-from tests.utils import override_config
-from tests.utils import TracerTestCase
+import pytest
+
+from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mariadb import patch
 from ddtrace.contrib.mariadb import unpatch
-from ddtrace import Pin
-from ddtrace import tracer as global_tracer
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from tests.utils import snapshot
 from tests.contrib.config import MARIADB_CONFIG
-import unittest
+from tests.utils import DummyTracer
+from tests.utils import assert_dict_issuperset
+from tests.utils import assert_is_measured
+from tests.utils import override_config
+from tests.utils import snapshot
 
 
 @pytest.fixture

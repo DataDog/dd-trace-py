@@ -1,15 +1,14 @@
 import mariadb
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
-from ddtrace.vendor import wrapt
-from ddtrace.utils import get_argument_value
-
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap
+from ddtrace.vendor import wrapt
 
 
 config._add(
