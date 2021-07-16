@@ -951,6 +951,27 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/urllib3",
         ),
         Venv(
+            name="aiopg",
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6"],
+                    pkgs={
+                        "aiopg": ["~=0.12.0", "~=0.15.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
+                    },
+                ),
+            ],
+            pkgs={
+                "sqlalchemy": latest,
+            },
+            command="pytest {cmdargs} tests/contrib/aiopg",
+        ),
+        Venv(
             name="jinja2",
             venvs=[
                 Venv(

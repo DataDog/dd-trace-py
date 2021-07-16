@@ -1,8 +1,6 @@
-# stdlib
 import asyncio
 import time
 
-# 3p
 import aiopg
 from psycopg2 import extras
 
