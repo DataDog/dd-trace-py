@@ -87,15 +87,19 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2"},
+            pkgs={"black": "==21.4b2", "isort": [latest]},
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black .",
+                    command="isort . && black .",
                 ),
                 Venv(
                     name="black",
                     command="black {cmdargs}",
+                ),
+                Venv(
+                    name="isort",
+                    command="isort {cmdargs}",
                 ),
             ],
         ),
@@ -114,10 +118,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs} ddtrace/ tests/",
-                ),
-                Venv(
-                    name="hook-flake8",
                     command="flake8 {cmdargs}",
                 ),
             ],
@@ -380,6 +380,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -399,6 +400,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -455,30 +457,6 @@ venv = Venv(
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
                         "psycopg2": ["~=2.8.0"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(max_version="3.6"),
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=1.8,<1.9", ">=1.11,<1.12"],
-                    },
-                ),
-                Venv(
-                    pys=["3.5"],
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6"),
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", latest],
                     },
                 ),
             ],
@@ -907,7 +885,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6"},
+                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
@@ -919,6 +897,7 @@ venv = Venv(
                             ">=6.0,<7.0",
                             latest,
                         ],
+                        "msgpack": latest,
                     },
                 ),
             ],
@@ -975,6 +954,27 @@ venv = Venv(
             name="appsec",
             command="pytest {cmdargs} tests/appsec/",
             venvs=[Venv(pys=select_pys())],
+        ),
+        Venv(
+            name="aiopg",
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6"],
+                    pkgs={
+                        "aiopg": ["~=0.12.0", "~=0.15.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
+                    },
+                ),
+            ],
+            pkgs={
+                "sqlalchemy": latest,
+            },
+            command="pytest {cmdargs} tests/contrib/aiopg",
         ),
         Venv(
             name="jinja2",

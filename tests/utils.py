@@ -424,18 +424,19 @@ class DummyWriter(AgentWriter):
         self.spans = []
         self.traces = []
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = MsgpackEncoder()
+        self.msgpack_encoder = MsgpackEncoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
             # with both encoders
-            trace = [spans]
-            self.json_encoder.encode_traces(trace)
-            self.msgpack_encoder.encode_traces(trace)
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
             self.spans += spans
-            self.traces += trace
+            self.traces += traces
 
     def pop(self):
         # type: () -> List[Span]

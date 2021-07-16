@@ -43,13 +43,15 @@ class Context(object):
         del self._sampling_priority
 
     def __eq__(self, other):
-        with self._lock:
-            return (
-                self.trace_id == other.trace_id
-                and self.span_id == other.span_id
-                and self._meta == other._meta
-                and self._metrics == other._metrics
-            )
+        if isinstance(other, Context):
+            with self._lock:
+                return (
+                    self.trace_id == other.trace_id
+                    and self.span_id == other.span_id
+                    and self._meta == other._meta
+                    and self._metrics == other._metrics
+                )
+        return False
 
     def _with_span(self, span):
         # type: (Span) -> Context
