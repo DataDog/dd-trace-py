@@ -14,8 +14,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install --no-install-recommends -y \
   curl \
   git \
-  build-essential \
-  uuid-runtime \
+  # ddtrace includes c extensions
+  build-essential \ 
+  # uuid is used to generate identifier for run if one is not provided
+  uuid-runtime \ 
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
