@@ -114,6 +114,7 @@ def test_analytics_default(connection, tracer):
     span = spans[0]
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
+
 @snapshot(async_mode=False)
 def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
     """
@@ -122,7 +123,7 @@ def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
     """
 
     out, err, status, pid = run_python_code_in_subprocess(
-            """
+        """
 from ddtrace import config
 from ddtrace import patch
 from ddtrace import tracer
@@ -136,9 +137,10 @@ rows = cursor.fetchall()
 assert len(rows) == 1
 tracer.shutdown()
 """,
-            env={"DD_SERVICE": "mysvc"},
-        )
+        env={"DD_SERVICE": "mysvc"},
+    )
     assert status == 0, err
+
 
 @snapshot(async_mode=False)
 def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subprocess):
@@ -148,7 +150,7 @@ def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subproces
     """
 
     out, err, status, pid = run_python_code_in_subprocess(
-            """
+        """
 from ddtrace import config
 from ddtrace import patch
 from ddtrace import tracer
@@ -162,8 +164,8 @@ rows = cursor.fetchall()
 assert len(rows) == 1
 tracer.shutdown()
 """,
-            env={"DD_MARIADB_SERVICE": "mysvc"},
-        )
+        env={"DD_MARIADB_SERVICE": "mysvc"},
+    )
     assert status == 0, err
 
 
