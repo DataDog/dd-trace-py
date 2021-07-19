@@ -114,24 +114,14 @@ def test_analytics_default(connection, tracer):
     span = spans[0]
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
-
-@pytest.mark.parametrize(
-    "service_env_key,service_env_value", [("DD_SERVICE", "mysvc"), ("DD_MARIADB_SERVICE", "mysvc")]
-)
-def test_user_specified_service_snapshot(run_python_code_in_subprocess, service_env_key, service_env_value):
+@snapshot(async_mode=False)
+def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
     """
     When a user specifies a service for the app
         The mariadb integration should not use it.
     """
 
-    @snapshot(
-        async_mode=False,
-        token_override="tests.contrib.mariadb.test_mariadb.test_user_specified_service_snapshot_{}_{}".format(
-            service_env_key, service_env_value
-        ),
-    )
-    def testcase():
-        out, err, status, pid = run_python_code_in_subprocess(
+    out, err, status, pid = run_python_code_in_subprocess(
             """
 from ddtrace import config
 from ddtrace import patch
@@ -146,11 +136,35 @@ rows = cursor.fetchall()
 assert len(rows) == 1
 tracer.shutdown()
 """,
-            env={service_env_key: service_env_value},
+            env={"DD_SERVICE": "mysvc"},
         )
-        assert status == 0, err
+    assert status == 0, err
 
-    testcase()
+@snapshot(async_mode=False)
+def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subprocess):
+    """
+    When a user specifies a service for the app
+        The mariadb integration should not use it.
+    """
+
+    out, err, status, pid = run_python_code_in_subprocess(
+            """
+from ddtrace import config
+from ddtrace import patch
+from ddtrace import tracer
+import mariadb
+patch(mariadb=True)
+from tests.contrib.config import MARIADB_CONFIG
+connection = mariadb.connect(**MARIADB_CONFIG)
+cursor = connection.cursor()
+cursor.execute("SELECT 1")
+rows = cursor.fetchall()
+assert len(rows) == 1
+tracer.shutdown()
+""",
+            env={"DD_MARIADB_SERVICE": "mysvc"},
+        )
+    assert status == 0, err
 
 
 @snapshot(include_tracer=True)
