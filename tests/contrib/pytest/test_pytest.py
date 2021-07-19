@@ -133,6 +133,7 @@ class TestPytest(TracerTestCase):
         """Test parametrize case with complex objects."""
         py_file = self.testdir.makepyfile(
             """
+            from mock import MagicMock
             import pytest
 
             class A:
@@ -150,6 +151,7 @@ class TestPytest(TracerTestCase):
                 pytest.param(A("test_name", A("inner_name", "value")), marks=pytest.mark.skip),
                 pytest.param(item_param, marks=pytest.mark.skip),
                 pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
+                pytest.param(MagicMock(value=MagicMock()), marks=pytest.mark.skip),
             ]
             )
             class Test1(object):
@@ -159,7 +161,7 @@ class TestPytest(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(skipped=4)
+        rec.assertoutcome(skipped=5)
         spans = self.pop_spans()
 
         # Since object will have arbitrary addresses, only need to ensure that
@@ -169,8 +171,9 @@ class TestPytest(TracerTestCase):
             "test_parameterize_case_complex_objects.A object at 0x",
             "<function item_param at 0x",
             '{"a": "<test_parameterize_case_complex_objects.A object at 0x',
+            "<MagicMock id=",
         ]
-        assert len(spans) == 4
+        assert len(spans) == 5
         for i in range(len(expected_params_contains)):
             assert expected_params_contains[i] in spans[i].meta[test.PARAMETERS]
 
