@@ -48,7 +48,7 @@ branch, run the following command:
 #### Environment
 
 The test suite requires many backing services such as PostgreSQL, MySQL, Redis
-and more. We use ``docker`` and ``docker-compose`` to run the services in our CI
+and more. We use `docker` and ``docker-compose`` to run the services in our CI
 and for development. To run the test matrix, please [install docker][docker] and
 [docker-compose][docker-compose] using the instructions provided by your platform. Then
 launch them through:
