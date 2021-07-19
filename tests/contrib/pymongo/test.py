@@ -571,8 +571,8 @@ class TestPymongoSocketTracing(TracerTestCase):
     def check_socket_metadata(span):
         assert span.name == "pymongo.get_socket"
         assert span.service == mongox.SERVICE
-        assert span.span_type == SpanTypes.MONGODB.value
-        assert span.get_tag("out.host") == "localhost"
+        assert span.span_type == SpanTypes.MONGODB
+        assert span.meta.get("out.host") == "localhost"
         assert span.metrics.get("out.port") == MONGO_CONFIG["port"]
 
     def test_single_op(self):
