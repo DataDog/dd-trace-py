@@ -6,9 +6,9 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1626232121383370200
-   "duration" 1907900
-   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
+   "start" 1626232692394915800
+   "duration" 1561300
+   "meta" {"runtime-id" "a0baeb301d0f450681538923d7de700f"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"
@@ -16,7 +16,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 12141
+              "system.pid" 12385
               "out.port" 3306
               "db.rowcount" 2
               "sql.rows" 2
@@ -29,16 +29,16 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1626232121385712800
-   "duration" 1929600
-   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
+   "start" 1626232692397364100
+   "duration" 1868900
+   "meta" {"runtime-id" "a0baeb301d0f450681538923d7de700f"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 12141
+              "system.pid" 12385
               "out.port" 3306
               "db.rowcount" 0
               "sql.rows" 0
@@ -51,15 +51,15 @@
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1626232121387781100
-   "duration" 62900
-   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
+   "start" 1626232692399424200
+   "duration" 75000
+   "meta" {"runtime-id" "a0baeb301d0f450681538923d7de700f"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 12141
+              "system.pid" 12385
               "out.port" 3306
               "db.rowcount" 2
               "sql.rows" 2

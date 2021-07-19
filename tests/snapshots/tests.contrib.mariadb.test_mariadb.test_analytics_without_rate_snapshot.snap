@@ -6,9 +6,9 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1626232121520795500
-   "duration" 1208900
-   "meta" {"runtime-id" "1a5d5390d899424fa102e911eab81c65"
+   "start" 1626232692662242600
+   "duration" 636100
+   "meta" {"runtime-id" "a0baeb301d0f450681538923d7de700f"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
@@ -16,7 +16,7 @@
               "_dd.measured" 1
               "_dd1.sr.eausr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 12141
+              "system.pid" 12385
               "_dd.tracer_kr" 1.0
               "sql.rows" 0
               "db.rowcount" 0
