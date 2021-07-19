@@ -171,12 +171,12 @@ class TestPytest(TracerTestCase):
         # Since object will have arbitrary addresses, only need to ensure that
         # the params string contains most of the string representation of the object.
         expected_params_contains = [
-            "test_parameterize_case_complex_objects.A object at 0x",
-            "test_parameterize_case_complex_objects.A object at 0x",
+            "test_parameterize_case_complex_objects.A",
+            "test_parameterize_case_complex_objects.A",
             "<function item_param at 0x",
-            '{"a": "<test_parameterize_case_complex_objects.A object at 0x',
+            '"a": "<test_parameterize_case_complex_objects.A',
             "<MagicMock id=",
-            "test_parameterize_case_complex_objects.A object at 0x",
+            "test_parameterize_case_complex_objects.A",
         ]
         assert len(spans) == 6
         for i in range(len(expected_params_contains)):
