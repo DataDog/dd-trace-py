@@ -27,7 +27,6 @@ from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .constants import VERSION_KEY
 from .context import Context
-from .ext import SpanTypes
 from .ext import http
 from .ext import net
 from .internal import _rand
@@ -70,7 +69,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
-        "_span_type",
+        "span_type",
         "start_ns",
         "duration_ns",
         "_tracer",
@@ -134,7 +133,6 @@ class Span(object):
         self.name = name
         self.service = service
         self._resource = [resource or name]
-        self._span_type = None
         self.span_type = span_type
 
         # tags / metadata
@@ -203,14 +201,6 @@ class Span(object):
     @resource.setter
     def resource(self, value):
         self._resource[0] = value
-
-    @property
-    def span_type(self):
-        return self._span_type
-
-    @span_type.setter
-    def span_type(self, value):
-        self._span_type = value.value if isinstance(value, SpanTypes) else value
 
     @property
     def finished(self):
