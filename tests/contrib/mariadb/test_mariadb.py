@@ -135,6 +135,7 @@ def test_user_specified_service_snapshot(run_python_code_in_subprocess, service_
             """
 from ddtrace import config
 from ddtrace import patch
+from ddtrace import tracer
 import mariadb
 patch(mariadb=True)
 from tests.contrib.config import MARIADB_CONFIG
@@ -143,6 +144,7 @@ cursor = connection.cursor()
 cursor.execute("SELECT 1")
 rows = cursor.fetchall()
 assert len(rows) == 1
+tracer.shutdown()
 """,
             env={service_env_key: service_env_value},
         )
