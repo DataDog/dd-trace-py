@@ -144,6 +144,9 @@ class TestPytest(TracerTestCase):
             def item_param():
                 return 42
 
+            circular_reference = A("circular_reference", A("child", None))
+            circular_reference.value.value = circular_reference
+
             @pytest.mark.parametrize(
             'item',
             [
@@ -152,6 +155,7 @@ class TestPytest(TracerTestCase):
                 pytest.param(item_param, marks=pytest.mark.skip),
                 pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
                 pytest.param(MagicMock(value=MagicMock()), marks=pytest.mark.skip),
+                pytest.param(circular_reference, marks=pytest.mark.skip),
             ]
             )
             class Test1(object):
@@ -161,7 +165,7 @@ class TestPytest(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(skipped=5)
+        rec.assertoutcome(skipped=6)
         spans = self.pop_spans()
 
         # Since object will have arbitrary addresses, only need to ensure that
@@ -172,8 +176,9 @@ class TestPytest(TracerTestCase):
             "<function item_param at 0x",
             '{"a": "<test_parameterize_case_complex_objects.A object at 0x',
             "<MagicMock id=",
+            "test_parameterize_case_complex_objects.A object at 0x",
         ]
-        assert len(spans) == 5
+        assert len(spans) == 6
         for i in range(len(expected_params_contains)):
             assert expected_params_contains[i] in spans[i].meta[test.PARAMETERS]
 
