@@ -16,6 +16,7 @@ import pytest
 import six
 
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
@@ -30,7 +31,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
-from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
 
