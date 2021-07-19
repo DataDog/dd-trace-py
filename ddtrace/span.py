@@ -66,7 +66,7 @@ class Span(object):
         "meta",
         "error",
         "metrics",
-        "_span_type",
+        "span_type",
         "start_ns",
         "duration_ns",
         "tracer",
@@ -127,7 +127,6 @@ class Span(object):
         self.name = name
         self.service = service
         self._resource = [resource or name]
-        self._span_type = None
         self.span_type = span_type
 
         # tags / metadata
@@ -179,14 +178,6 @@ class Span(object):
     @resource.setter
     def resource(self, value):
         self._resource[0] = value
-
-    @property
-    def span_type(self):
-        return self._span_type
-
-    @span_type.setter
-    def span_type(self, value):
-        self._span_type = value.value if isinstance(value, SpanTypes) else value
 
     @property
     def finished(self):

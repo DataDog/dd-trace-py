@@ -113,7 +113,7 @@ def pytest_runtest_protocol(item, nextitem):
         ddtrace.config.pytest.operation_name,
         service=int_service(pin, ddtrace.config.pytest),
         resource=item.nodeid,
-        span_type=SpanTypes.TEST.value,
+        span_type=SpanTypes.TEST,
     ) as span:
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.context.sampling_priority = AUTO_KEEP
@@ -125,7 +125,7 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tag(test.SUITE, item.module.__name__)
         elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
-        span.set_tag(test.TYPE, SpanTypes.TEST.value)
+        span.set_tag(test.TYPE, SpanTypes.TEST)
 
         span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
 

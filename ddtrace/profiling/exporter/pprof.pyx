@@ -383,6 +383,12 @@ class PprofExporter(exporter.Exporter):
         event,  # type: stack.StackSampleEvent
     ):
         # type: (...) -> _stack_event_group_key_T
+        if event.trace_type == ext.SpanTypes.WEB:
+            trace_resource = self._none_to_str(event.trace_resource)
+        else:
+            # Do not export trace_resource for privacy concerns.
+            trace_resource = ""
+
         return (
             event.thread_id,
             event.thread_native_id,
@@ -410,6 +416,12 @@ class PprofExporter(exporter.Exporter):
     def _lock_event_group_key(
         self, event  # type: lock.LockEventBase
     ):
+        if event.trace_type == ext.SpanTypes.WEB:
+            trace_resource = self._none_to_str(event.trace_resource)
+        else:
+            # Do not export trace_resource for privacy concerns.
+            trace_resource = ""
+
         return (
             event.lock_name,
             event.thread_id,

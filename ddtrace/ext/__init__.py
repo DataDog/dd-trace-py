@@ -1,7 +1,4 @@
-from enum import Enum
-
-
-class SpanTypes(Enum):
+class SpanTypes(object):
     CACHE = "cache"
     CASSANDRA = "cassandra"
     ELASTICSEARCH = "elasticsearch"
