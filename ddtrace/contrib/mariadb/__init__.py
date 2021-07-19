@@ -51,7 +51,6 @@ To configure the mariadb integration on an per-connection basis use the
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
 
-https://mariadb-corporation.github.io/mariadb-connector-python/usage.html
 """
 from ...utils.importlib import require_modules
 
