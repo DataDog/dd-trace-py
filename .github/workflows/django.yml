@@ -43,6 +43,6 @@ jobs:
           sed -i'' '/def test_supports_json_field_operational_error/i \ \ \ \ @skipUnless(False, "test not supported by dd-trace-py")' tests/backends/sqlite/test_features.py
       - name: Run tests
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
+        run: DD_TRACE_REQUESTS_ENABLED=0 DD_PROFILING_ENABLED=1 ddtrace-run tests/runtests.py
 
 
