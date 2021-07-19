@@ -32,7 +32,7 @@ documentation][visualization docs].
 See [docs/contributing.rst](docs/contributing.rst).
 
 
-### Pre-commit Hooks
+### Pre-Commit Hooks
 
 The tracer library uses formatting/linting tools including black, flake8, and mypy.
 While these are run in each CI pipeline for pull requests, they are automated to run
