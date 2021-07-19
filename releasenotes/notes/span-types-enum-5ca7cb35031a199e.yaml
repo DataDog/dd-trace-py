@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ``SpanTypes`` is no longer an ``Enum``.
