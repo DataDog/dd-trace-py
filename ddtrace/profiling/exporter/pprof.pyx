@@ -473,7 +473,7 @@ class PprofExporter(exporter.Exporter):
     def _get_event_trace_resource(self, event):
         trace_resource = None
         # Do not export trace_resource for non Web spans for privacy concerns.
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
         return trace_resource
 

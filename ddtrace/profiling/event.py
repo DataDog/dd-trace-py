@@ -66,6 +66,6 @@ class StackBasedEvent(SampleEvent):
             self.span_id = span.span_id
             if span._local_root is not None:
                 self.local_root_span_id = span._local_root.span_id
-                self.trace_type = span._local_root._span_type
+                self.trace_type = span._local_root.span_type
                 if endpoint_collection_enabled:
                     self.trace_resource_container = span._local_root._resource
