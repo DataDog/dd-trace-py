@@ -1,6 +1,6 @@
 """
 The MariaDB integration instruments the
-:ref:`MariaDB library<https://mariadb-corporation.github.io/mariadb-connector-python/usage.html>` to trace queries.
+`MariaDB library<https://mariadb-corporation.github.io/mariadb-connector-python/usage.html>`_ to trace queries.
 
 
 Enabling
@@ -51,7 +51,6 @@ To configure the mariadb integration on an per-connection basis use the
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
 
-https://mariadb-corporation.github.io/mariadb-connector-python/usage.html
 """
 from ...utils.importlib import require_modules
 
