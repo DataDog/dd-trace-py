@@ -6,16 +6,16 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1626232692364655200
-   "duration" 640800
-   "meta" {"runtime-id" "a0baeb301d0f450681538923d7de700f"
+   "start" 1626718453355264000
+   "duration" 1786000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 12385
+              "system.pid" 1502
               "out.port" 3306
               "db.rowcount" 0
               "sql.rows" 0
@@ -28,15 +28,15 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1626232692365859200
-   "duration" 70000
-   "meta" {"runtime-id" "a0baeb301d0f450681538923d7de700f"
+   "start" 1626718453359605000
+   "duration" 113000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 12385
+              "system.pid" 1502
               "out.port" 3306
               "db.rowcount" 3
               "sql.rows" 3

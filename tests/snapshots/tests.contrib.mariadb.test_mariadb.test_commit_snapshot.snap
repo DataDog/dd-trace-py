@@ -5,14 +5,14 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1626220628211178100
-   "duration" 952600
-   "meta" {"runtime-id" "0d2b28a27ae249f88ff7ed45801df80a"
+   "start" 1626718453452681000
+   "duration" 1324000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
            "out.host" "127.0.0.1"
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 11226
+              "system.pid" 1502
               "out.port" 3306
               "_dd.tracer_kr" 1.0}}]]
