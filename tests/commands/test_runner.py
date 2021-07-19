@@ -86,16 +86,16 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_debug_enabling(self):
         """
-        {DD,DATADOG}_TRACE_DEBUG=true allows setting debug logging of the global tracer
+        DD_TRACE_DEBUG=true allows setting debug logging of the global tracer.
         """
-        with self.override_env(dict(DATADOG_TRACE_DEBUG="false")):
+        with self.override_env(dict(DD_TRACE_DEBUG="false")):
             out = subprocess.check_output(
                 ["ddtrace-run", "python", "tests/commands/ddtrace_run_no_debug.py"], stderr=subprocess.STDOUT
             )
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" not in out
 
-        with self.override_env(dict(DATADOG_TRACE_DEBUG="true")):
+        with self.override_env(dict(DD_TRACE_DEBUG="true")):
             out = subprocess.check_output(
                 ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
                 stderr=subprocess.STDOUT,

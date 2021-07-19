@@ -54,7 +54,7 @@ def override_env(env):
     """
     Temporarily override ``os.environ`` with provided values::
 
-        >>> with self.override_env(dict(DATADOG_TRACE_DEBUG=True)):
+        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
             # Your test
     """
     # Copy the full original environment
