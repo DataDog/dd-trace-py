@@ -126,7 +126,7 @@ def pytest_runtest_protocol(item, nextitem):
         ddtrace.config.pytest.operation_name,
         service=int_service(pin, ddtrace.config.pytest),
         resource=item.nodeid,
-        span_type=SpanTypes.TEST.value,
+        span_type=SpanTypes.TEST,
     ) as span:
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.set_tags(pin.tags)
@@ -134,7 +134,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.NAME, item.name)
         span.set_tag(test.SUITE, item.module.__name__)
-        span.set_tag(test.TYPE, SpanTypes.TEST.value)
+        span.set_tag(test.TYPE, SpanTypes.TEST)
 
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
