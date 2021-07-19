@@ -1,6 +1,4 @@
 import json
-from typing import Any
-from typing import Dict
 
 import pytest
 
@@ -32,6 +30,7 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
+<<<<<<< HEAD
 def _json_encode(params):
     # type: (Dict[str, Any]) -> str
     """JSON encode parameters. If complex object show inner values, otherwise default to string representation."""
@@ -47,6 +46,17 @@ def _json_encode(params):
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+=======
+def _extract_repository_name(repository_url):
+    # type: (str) -> str
+    """Extract repository name from repository url."""
+    try:
+        return compat.parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
+    except ValueError:
+        # In case of parsing error, default to repository url
+        log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
+        return repository_url
+>>>>>>> 5e6fc1ba (fix[pytest]: Default JSON encoding for non-serializable types to __repr__ (#2660))
 
 
 def pytest_addoption(parser):
@@ -124,7 +134,7 @@ def pytest_runtest_protocol(item, nextitem):
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
             params = {"arguments": item.callspec.params, "metadata": {}}
-            span.set_tag(test.PARAMETERS, _json_encode(params))
+            span.set_tag(test.PARAMETERS, json.dumps(params, default=repr))
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
