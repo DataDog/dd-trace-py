@@ -97,7 +97,7 @@ class DDWSGIMiddleware(object):
     def __call__(self, environ, start_response):
         def intercept_start_response(status, response_headers, exc_info=None):
             span = self.tracer.current_root_span()
-            if span:
+            if span is not None:
                 status_code, status_msg = status.split(" ", 1)
                 span.set_tag("http.status_msg", status_msg)
                 trace_utils.set_http_meta(span, config.wsgi, status_code=status_code, response_headers=response_headers)
