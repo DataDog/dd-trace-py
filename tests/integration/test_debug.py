@@ -391,8 +391,8 @@ def test_partial_flush_log(run_python_code_in_subprocess):
 
     partial_flush_min_spans = "2"
     env = os.environ.copy()
-    env["DD_TRACER_PARTIAL_FLUSH_ENABLED"] = "true"
-    env["DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
+    env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "true"
+    env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
 
     out, err, status, pid = run_python_code_in_subprocess(
         """

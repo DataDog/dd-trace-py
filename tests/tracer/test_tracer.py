@@ -1140,7 +1140,7 @@ def test_early_exit(tracer, test_spans):
 
 class TestPartialFlush(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush(self):
         root = self.tracer.trace("root")
@@ -1159,7 +1159,7 @@ class TestPartialFlush(TracerTestCase):
         assert traces[0][0].name == "root"
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="1")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1")
     )
     def test_partial_flush_too_many(self):
         root = self.tracer.trace("root")
@@ -1180,7 +1180,7 @@ class TestPartialFlush(TracerTestCase):
         assert traces[0][0].name == "root"
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
     )
     def test_partial_flush_too_few(self):
         root = self.tracer.trace("root")
@@ -1207,7 +1207,7 @@ class TestPartialFlush(TracerTestCase):
         self.test_partial_flush_too_few()
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="false", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="false", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
     )
     def test_partial_flush_configure_precedence(self):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
