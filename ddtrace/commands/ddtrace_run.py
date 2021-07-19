@@ -56,8 +56,7 @@ def main():
     )
     parser.add_argument("command", nargs=argparse.REMAINDER, type=str, help="Command string to execute.")
     parser.add_argument("-d", "--debug", help="enable debug mode (disabled by default)", action="store_true")
-    parser.add_argument("-i", "--info", help="print library info useful for debugging", action="store_true")
-    parser.add_argument("-s", "--status", help="print easily readable tracer health check, does not reflect configuration changes made during runtime", action="store_true")
+    parser.add_argument("-i", "--info", help="print library info useful for debugging. Does not reflect configuration changes made during runtime", action="store_true")
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
     args = parser.parse_args()
@@ -72,25 +71,6 @@ def main():
         os.environ["DD_TRACE_DEBUG"] = "true"
 
     if args.info:
-        # Inline imports for performance.
-        import pprint
-
-        from ddtrace.internal.debug import collect
-
-        pprint.pprint(collect(ddtrace.tracer))
-        sys.exit(0)
-
-    root_dir = os.path.dirname(ddtrace.__file__)
-    log.debug("ddtrace root: %s", root_dir)
-
-    bootstrap_dir = os.path.join(root_dir, "bootstrap")
-    log.debug("ddtrace bootstrap: %s", bootstrap_dir)
-
-    _add_bootstrap_to_pythonpath(bootstrap_dir)
-    log.debug("PYTHONPATH: %s", os.environ["PYTHONPATH"])
-    log.debug("sys.path: %s", sys.path)
-
-    if args.status:
         # Inline imports for performance.
         import pprint
 
