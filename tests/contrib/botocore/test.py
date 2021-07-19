@@ -21,6 +21,7 @@ from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.utils.version import parse_version
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -28,7 +29,7 @@ from tests.utils import assert_span_http_status_code
 
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
-BOTOCORE_VERSION = tuple(int(x) for x in botocore.__version__.split("."))
+BOTOCORE_VERSION = parse_version(botocore.__version__)
 
 
 def get_zip_lambda():
@@ -170,6 +171,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "ListQueues")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -188,6 +190,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -218,6 +221,7 @@ class BotocoreTest(TracerTestCase):
             self.assertEqual(len(spans), 1)
             self.assertEqual(span.get_tag("aws.region"), "us-east-1")
             self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+            self.assertIsNone(span.get_tag("params.MessageBody"))
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -253,6 +257,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -293,6 +298,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -323,6 +329,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -365,6 +372,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -408,6 +416,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")

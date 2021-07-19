@@ -7,7 +7,17 @@ ALLOWED_HOSTS = [
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+DATABASES = {
+    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
+    "postgres": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "postgres",
+        "USER": "postgres",
+        "PASSWORD": "postgres",
+        "HOST": "127.0.0.1",
+        "PORT": 5432,
+    },
+}
 
 CACHES = {
     "default": {
@@ -72,25 +82,3 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
 ]
-
-# Allows for testing django instrumentation before migration to tracer config api
-if os.environ.get("TEST_DATADOG_DJANGO_MIGRATION"):
-    INSTALLED_APPS.append("ddtrace.contrib.django")
-    DATADOG_TRACE = {
-        "AGENT_HOSTNAME": "host-test",
-        "AGENT_PORT": 1234,
-        "AUTO_INSTRUMENT": True,
-        "INSTRUMENT_CACHE": True,
-        "INSTRUMENT_DATABASE": True,
-        "INSTRUMENT_TEMPLATE": True,
-        "DEFAULT_DATABASE_PREFIX": "db-test-",
-        "DEFAULT_SERVICE": "django-test",
-        "DEFAULT_CACHE_SERVICE": "cache-test",
-        "ENABLED": True,
-        "DISTRIBUTED_TRACING": True,
-        "ANALYTICS_ENABLED": True,
-        "ANALYTICS_SAMPLE_RATE": True,
-        "TRACE_QUERY_STRING": True,
-        "TAGS": {"env": "env-test"},
-        "TRACER": "ddtrace.tracer",
-    }

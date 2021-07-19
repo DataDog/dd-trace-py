@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import subprocess
@@ -221,7 +222,7 @@ def test_single_trace_too_large():
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        calls = [mock.call("trace (%db) larger than payload limit (%db), dropping", AnyInt(), AnyInt())]
+        calls = [mock.call("trace (%db) larger than payload buffer limit (%db), dropping", AnyInt(), AnyInt())]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
@@ -326,11 +327,17 @@ def test_bad_payload():
     t = Tracer()
 
     class BadEncoder:
-        def encode_trace(self, spans):
-            return []
+        def __len__(self):
+            return 0
 
-        def join_encoded(self, traces):
-            return "not msgpack"
+        def put(self, trace):
+            pass
+
+        def encode(self):
+            return ""
+
+        def encode_traces(self, traces):
+            return ""
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -351,11 +358,17 @@ def test_bad_encoder():
     t = Tracer()
 
     class BadEncoder:
-        def encode_trace(self, spans):
+        def __len__(self):
+            return 0
+
+        def put(self, trace):
+            pass
+
+        def encode(self):
             raise Exception()
 
-        def join_encoded(self, traces):
-            pass
+        def encode_traces(self, traces):
+            raise Exception()
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -369,7 +382,7 @@ def test_bad_encoder():
 def test_downgrade():
     t = Tracer()
     t.writer._downgrade(None, None)
-    assert t.writer._endpoint == "/v0.3/traces"
+    assert t.writer._endpoint == "v0.3/traces"
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
@@ -418,3 +431,173 @@ def test_flush_log(caplog):
             )
         ]
         log.log.assert_has_calls(calls)
+
+
+@pytest.mark.parametrize("logs_injection,debug_mode,patch_logging", itertools.product([True, False], repeat=3))
+def test_regression_logging_in_context(tmpdir, logs_injection, debug_mode, patch_logging):
+    """
+    When logs injection is enabled and the logger is patched
+        When a parent span closes before a child
+            The application does not deadlock due to context lock acquisition
+    """
+    f = tmpdir.join("test.py")
+    f.write(
+        """
+import ddtrace
+ddtrace.patch(logging=%s)
+
+s1 = ddtrace.tracer.trace("1")
+s2 = ddtrace.tracer.trace("2")
+s1.finish()
+s2.finish()
+""".lstrip()
+        % str(patch_logging)
+    )
+    p = subprocess.Popen(
+        [sys.executable, "test.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(tmpdir),
+        env=dict(
+            DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
+            DD_TRACE_DEBUG=str(debug_mode).lower(),
+        ),
+    )
+    try:
+        p.wait(timeout=2)
+    except TypeError:
+        # timeout argument added in Python 3.3
+        p.wait()
+    assert p.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "call_basic_config,debug_mode",
+    itertools.permutations((True, False, None), 2),
+)
+def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_config, debug_mode):
+    """
+    When setting DD_CALL_BASIC_CONFIG env variable
+        When true
+            We call logging.basicConfig()
+        When false
+            We do not call logging.basicConfig()
+        When not set
+            We call logging.basicConfig()
+    """
+    env = os.environ.copy()
+
+    if debug_mode is not None:
+        env["DD_TRACE_DEBUG"] = str(debug_mode).lower()
+    if call_basic_config is not None:
+        env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
+        has_root_handlers = call_basic_config
+    else:
+        has_root_handlers = True
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+root = logging.getLogger()
+print(len(root.handlers))
+""",
+        env=env,
+    )
+
+    assert status == 0
+    if has_root_handlers:
+        assert out == six.b("1\n")
+    else:
+        assert out == six.b("0\n")
+
+
+def test_writer_env_configuration(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._encoder.max_size == 1000
+assert ddtrace.tracer.writer._encoder.max_item_size == 5000
+assert ddtrace.tracer.writer._interval == 5.0
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer.writer._interval == 1.0
+""",
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._encoder.max_size == 1000
+assert ddtrace.tracer.writer._encoder.max_item_size == 5000
+assert ddtrace.tracer.writer._interval == 5.0
+""",
+        env=env,
+    )
+    assert status == 0, (out, err)
+
+
+def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_in_subprocess):
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+
+assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer.writer._interval == 1.0
+""",
+    )
+    assert status == 0, (out, err)
+
+
+def test_partial_flush_log(run_python_code_in_subprocess):
+    partial_flush_min_spans = 2
+    t = Tracer()
+
+    t.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=partial_flush_min_spans,
+    )
+
+    s1 = t.trace("1")
+    s2 = t.trace("2")
+    s3 = t.trace("3")
+    t_id = s3.trace_id
+
+    with mock.patch("ddtrace.internal.processor.trace.log") as log:
+        s3.finish()
+        s2.finish()
+
+    calls = [
+        mock.call("trace %d has %d spans, %d finished", t_id, 3, 1),
+        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
+    ]
+
+    log.debug.assert_has_calls(calls)
+    s1.finish()
+    t.shutdown()

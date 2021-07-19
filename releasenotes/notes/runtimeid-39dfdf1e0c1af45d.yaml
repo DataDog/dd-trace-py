@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix runtime-id and system.pid tags not being set on distributed traces.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed the optional argument of ``Span.finish`` to ``Optional[float]``
+    instead of ``Optional[int]``.

@@ -1,5 +1,3 @@
-import warnings
-
 import mock
 import pytest
 
@@ -8,8 +6,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.span import Span
-from ddtrace.utils.attrdict import AttrDict
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -193,7 +191,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, app="my_app", tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = AttrDict(service="cfg-service")
+        cfg = IntegrationConfig(None, "db-test", service="cfg-service")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -222,7 +220,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, app="my_app", tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = AttrDict(_default_service="default-svc")
+        cfg = IntegrationConfig(None, "db-test", _default_service="default-svc")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -237,7 +235,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin("pin-svc", app="my_app", tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = AttrDict(_default_service="cfg-svc")
+        cfg = IntegrationConfig(None, "db-test", _default_service="default-svc")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -279,39 +277,12 @@ class TestTracedCursor(TracerTestCase):
         span = self.pop_spans()[0]
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    def test_cursor_analytics_with_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            cursor = self.cursor
-            cursor.rowcount = 0
-            cursor.execute.return_value = "__result__"
-
-            pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = TracedCursor(cursor, pin, {})
-            # DEV: We always pass through the result
-            assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
-
-            span = self.pop_spans()[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
-
-    def test_cursor_analytics_without_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True)):
-            cursor = self.cursor
-            cursor.rowcount = 0
-            cursor.execute.return_value = "__result__"
-
-            pin = Pin("pin_name", tracer=self.tracer)
-            traced_cursor = TracedCursor(cursor, pin, {})
-            # DEV: We always pass through the result
-            assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
-
-            span = self.pop_spans()[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
-
 
 class TestFetchTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestFetchTracedCursor, self).setUp()
         self.cursor = mock.Mock()
+        self.config = IntegrationConfig(None, "db-test", _default_service="default-svc")
 
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
@@ -584,15 +555,8 @@ class TestTracedConnection(TracerTestCase):
 
         # Trace fetched methods
         with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
-            with warnings.catch_warnings(record=True) as ws:
-                warnings.simplefilter("always")
-
-                traced_connection = TracedConnection(self.connection, pin=pin)
-                self.assertTrue(traced_connection._self_cursor_cls is FetchTracedCursor)
-
-                (w,) = ws
-                self.assertTrue(issubclass(w.category, DeprecationWarning))
-                self.assertTrue("ddtrace.config.dbapi2.trace_fetch_methods is now deprecated" in str(w.message))
+            traced_connection = TracedConnection(self.connection, pin=pin)
+            self.assertTrue(traced_connection._self_cursor_cls is FetchTracedCursor)
 
         # Manually provided cursor class
         with self.override_config("dbapi2", dict(trace_fetch_methods=True)):

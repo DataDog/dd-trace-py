@@ -7,6 +7,8 @@ on:
 jobs:
   fastapi-test:
     runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
     defaults:
       run:
         working-directory: fastapi

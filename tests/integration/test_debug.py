@@ -359,3 +359,50 @@ def test_error_output_ddtracerun():
     stderr = p.stderr.read()
     assert b"DATADOG TRACER CONFIGURATION" not in stderr
     assert b"DATADOG TRACER DIAGNOSTIC - Agent not reachable" not in stderr
+
+
+def test_debug_span_log():
+    p = subprocess.Popen(
+        ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
+        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    p.wait()
+    stderr = p.stderr.read()
+    assert b"finishing span name='span'" in stderr
+
+
+def test_partial_flush_log(run_python_code_in_subprocess):
+    tracer = ddtrace.Tracer()
+
+    tracer.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=300,
+    )
+
+    f = debug.collect(tracer)
+
+    partial_flush_enabled = f.get("partial_flush_enabled")
+    partial_flush_min_spans = f.get("partial_flush_min_spans")
+
+    assert partial_flush_enabled is True
+    assert partial_flush_min_spans == 300
+
+    partial_flush_min_spans = "2"
+    env = os.environ.copy()
+    env["DD_TRACER_PARTIAL_FLUSH_ENABLED"] = "true"
+    env["DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from ddtrace import tracer
+
+print(tracer._partial_flush_enabled)
+assert tracer._partial_flush_enabled == True
+assert tracer._partial_flush_min_spans == 2
+""",
+        env=env,
+    )
+
+    assert status == 0, (out, err)

@@ -1,3 +1,5 @@
+import typing
+
 import attr
 
 from ddtrace.internal import compat
@@ -42,5 +44,7 @@ class StackBasedEvent(SampleEvent):
     task_name = attr.ib(default=None)
     frames = attr.ib(default=None)
     nframes = attr.ib(default=None)
-    trace_ids = attr.ib(default=None)
-    span_ids = attr.ib(default=None)
+    trace_id = attr.ib(default=None)
+    span_id = attr.ib(default=None)
+    trace_type = attr.ib(default=None, type=typing.Optional[str])
+    trace_resource = attr.ib(default=None, type=typing.Optional[str])

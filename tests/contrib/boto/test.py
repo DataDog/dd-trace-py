@@ -134,7 +134,7 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.resource, "s3.head")
         self.assertEqual(span.name, "s3.command")
 
-        # Checking for resource incase of error
+        # Checking for resource in case of error
         try:
             s3.get_bucket("big_bucket")
         except Exception:

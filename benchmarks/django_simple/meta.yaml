@@ -1,0 +1,22 @@
+name: django-simple
+setup: bash -c "nohup /app/setup & echo $! > setup.pid"
+run: "./run"
+iterations: 5
+env:
+  DD_PROFILING_API_TIMEOUT: '0.1'
+  DD_PROFILING_UPLOAD_INTERVAL: '10'
+variants:
+  disabled:
+    env:
+      BENCHMARK_TRACING_ENABLED: '0'
+  tracer:
+    env:
+      BENCHMARK_TRACING_ENABLED: '1'
+  profiler:
+    env:
+      BENCHMARK_TRACING_ENABLED: '0'
+      BENCHMARK_PROFILING_ENABLED: '1'
+  tracer_profiler:
+    env:
+      BENCHMARK_TRACING_ENABLED: '1'
+      DD_PROFILING_ENABLED: 'true'

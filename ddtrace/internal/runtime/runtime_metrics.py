@@ -62,21 +62,24 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
+def _get_interval_or_default():
+    return float(get_env("runtime_metrics", "interval", default=10))
+
+
 @attr.s(eq=False)
 class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd
     client.
     """
 
-    _interval = attr.ib(
-        type=float, factory=lambda: float(get_env("runtime_metrics", "interval", default=10))  # type: ignore[arg-type]
-    )
+    _interval = attr.ib(type=float, factory=_get_interval_or_default)
     tracer = attr.ib(type=ddtrace.Tracer, default=None)
     dogstatsd_url = attr.ib(type=Optional[str], default=None)
     _dogstatsd_client = attr.ib(init=False, repr=False)
     _runtime_metrics = attr.ib(factory=RuntimeMetrics, repr=False)
     _services = attr.ib(type=Set[str], init=False, factory=set)
 
+    enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = RLock()
 
@@ -108,6 +111,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance.stop()
             cls._instance.join()
             cls._instance = None
+            cls.enabled = False
 
     @classmethod
     def _restart(cls):
@@ -120,6 +124,8 @@ class RuntimeWorker(periodic.PeriodicService):
         with cls._lock:
             if cls._instance is not None:
                 return
+            if flush_interval is None:
+                flush_interval = _get_interval_or_default()
             runtime_worker = cls(flush_interval, tracer, dogstatsd_url)  # type: ignore[arg-type]
             runtime_worker.start()
             # force an immediate update constant tags
@@ -128,6 +134,7 @@ class RuntimeWorker(periodic.PeriodicService):
             forksafe.register(cls._restart)
 
             cls._instance = runtime_worker
+            cls.enabled = True
 
     def flush(self):
         # type: () -> None
@@ -142,10 +149,11 @@ class RuntimeWorker(periodic.PeriodicService):
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.gauge(key, value)
 
-    def stop(self):
+    def _stop_service(self):  # type: ignore[override]
+        # type: (...) -> None
         # De-register span hook
+        super(RuntimeWorker, self)._stop_service()
         self.tracer.deregister_on_start_span(self._set_language_on_span)
-        super(RuntimeWorker, self).stop()
 
     def update_runtime_tags(self):
         # type: () -> None
