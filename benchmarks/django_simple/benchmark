@@ -4,16 +4,23 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-mkdir -p /artifacts/output/
+mkdir -p /artifacts/${RUN_ID}
 
-# cleanup any existing output artifacts
-rm -f /artifacts/output/*.*
+RESULTS_1=/artifacts/${RUN_ID}/${DDTRACE_GIT_COMMIT_ID_1}.json
+RESULTS_2=/artifacts/${RUN_ID}/${DDTRACE_GIT_COMMIT_ID_2}.json
 
-sirun meta.yaml | tee /artifacts/output/sirun.ndjson
+# append venvs with ddtrace to sys.path
 
-jq -s -f summarize_sirun.jq /artifacts/output/sirun.ndjson | tee /artifacts/output/summary_sirun.json
-jq -s -f summarize_k6.jq /artifacts/output/k6.ndjson | tee /artifacts/output/summary_k6.json
+PYTHONPATH=/app/.venv_1/lib/python3.9/site-packages \
+    python scenario.py \
+    --copy-env \
+    --fast \
+    -o ${RESULTS_1}
 
-# keep process alive before exiting
-# FIXME: remove once artifacts can be uploaded when run in CI
-sleep 30m
+PYTHONPATH=/app/.venv_2/lib/python3.9/site-packages \
+    python scenario.py \
+    --copy-env \
+    --fast \
+    -o ${RESULTS_2}
+
+pyperf compare_to --table ${RESULTS_2} ${RESULTS_1}

@@ -4,15 +4,19 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-# Install ddtrace
-if [[ -z "${DDTRACE_GIT_COMMIT_ID}" ]]; then
-    if [[ -z "${DDTRACE_WHEELS}" ]]; then
-        pip install ddtrace
-    else
-        pip install --no-cache-dir --no-index --find-links=${DDTRACE_WHEELS} ${DDTRACE_WHEELS}/*
-    fi
-else
-    pip install git+https://github.com/Datadog/dd-trace-py@${DDTRACE_GIT_COMMIT_ID}
+if [[ -z "${RUN_ID}" ]]; then
+    RUN_ID=$(uuidgen)
 fi
+
+python3 -m venv /app/.venv_1
+python3 -m venv /app/.venv_2
+
+source /app/.venv_1/bin/activate
+pip install git+https://github.com/Datadog/dd-trace-py@${DDTRACE_GIT_COMMIT_ID_1}
+deactivate
+
+source /app/.venv_2/bin/activate
+pip install git+https://github.com/Datadog/dd-trace-py@${DDTRACE_GIT_COMMIT_ID_2}
+deactivate
 
 exec "$@"

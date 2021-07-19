@@ -8,25 +8,13 @@ Build
 
 Use docker to build the image which will run tests and store output in an artifacts directory::
 
-  docker build -t django_simple -f benchmarks/django_simple.Dockerfile benchmarks/
+  docker build -t django_simple --build-arg BENCHMARK=django_simple -f base.Dockerfile .
 
 Run
 ---
 
 To run, execute::
 
-  docker run -it --rm django_simple
+  docker run -it --rm -e DDTRACE_GIT_COMMIT_ID_1=master -e DDTRACE_GIT_COMMIT_ID_2=v0.50.0 -e RUN_ID=(uuidgen) django_simple
 
-If you want to save the output, mount a volume to ``/app/output``::
-
-  docker run -it --rm -v "/path/to/output":"/artifacts/output" django_simple
-
-This image will by default install the release version of ``ddtrace``.
-
-You can install a different version by using git tags or commit hashes as the value for the ``DDTRACE_GIT_COMMIT_ID`` environment variable::
-
-  docker run -it --rm -e "DDTRACE_GIT_COMMIT_ID=v0.48.1" django_simple
-
-You can also install from a set of wheel by mounting a volume with the necessary wheels and setting the ``DDTRACE_WHEELS`` environment variable::
-
-  docker run -it --rm  -e "DDTRACE_WHEELS=/artifacts/wheels" -v "/path/to/wheels/":"/artifacts/wheels/" django_simple
+If you want to save the output, mount a volume to ``/artifacts/``.

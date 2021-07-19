@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+{% load static%}
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Mini Django</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mini.css/3.0.1/mini-default.min.css">
+    <style>
+      .card {
+        margin: auto;
+      }
+    </style>
+
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Hello {{name|default:"Anon"}}</h1>
+        <p>This is a demo of mini-django</p>
+      </div>
+    </div>
+  </body>
+</html>
