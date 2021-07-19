@@ -8,6 +8,7 @@ jobs:
   mako-testsuite-1_1_4:
     runs-on: ubuntu-latest
     env:
+      TOX_TESTENV_PASSENV: DD_TESTING_RAISE
       DD_TESTING_RAISE: true
     defaults:
       run:
