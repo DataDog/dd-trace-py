@@ -2,21 +2,9 @@ import json
 import os
 import sys
 
-<<<<<<< HEAD
-from hypothesis import given
-from hypothesis import strategies as st
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.pytest.plugin import _json_encode
-=======
-import mock
-import pytest
-
-from ddtrace import Pin
-from ddtrace.contrib.pytest.plugin import _extract_repository_name
-from ddtrace.ext import ci
->>>>>>> 5e6fc1ba (fix[pytest]: Default JSON encoding for non-serializable types to __repr__ (#2660))
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -361,98 +349,3 @@ class TestPytest(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
-
-
-<<<<<<< HEAD
-class A(object):
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
-
-
-simple_types = [st.none(), st.booleans(), st.text(), st.integers(), st.floats(allow_infinity=False, allow_nan=False)]
-complex_types = [st.functions(), st.dates(), st.decimals(), st.builds(A, name=st.text(), value=st.integers())]
-
-
-@given(
-    st.dictionaries(
-        st.text(),
-        st.one_of(
-            st.lists(st.one_of(*simple_types)), st.dictionaries(st.text(), st.one_of(*simple_types)), *simple_types
-        ),
-    )
-)
-def test_custom_json_encoding_simple_types(obj):
-    """Ensures the _json.encode helper encodes simple objects."""
-    encoded = _json_encode(obj)
-    decoded = json.loads(encoded)
-    assert obj == decoded
-
-
-@given(
-    st.dictionaries(
-        st.text(),
-        st.one_of(
-            st.lists(st.one_of(*complex_types)), st.dictionaries(st.text(), st.one_of(*complex_types)), *complex_types
-        ),
-    )
-)
-def test_custom_json_encoding_python_objects(obj):
-    """Ensures the _json_encode helper encodes complex objects into dicts of inner values or a string representation."""
-    encoded = _json_encode(obj)
-    obj = json.loads(
-        json.dumps(obj, default=lambda x: getattr(x, "__dict__", None) if getattr(x, "__dict__", None) else repr(x))
-    )
-    decoded = json.loads(encoded)
-    assert obj == decoded
-
-
-def test_custom_json_encoding_side_effects():
-    """Ensures the _json_encode helper encodes objects with side effects (getattr, repr) without raising exceptions."""
-    dict_side_effect = Exception("side effect __dict__")
-    repr_side_effect = Exception("side effect __repr__")
-
-    class B(object):
-        def __getattribute__(self, item):
-            if item == "__dict__":
-                raise dict_side_effect
-            raise AttributeError()
-
-    class C(object):
-        def __repr__(self):
-            raise repr_side_effect
-
-    obj = {"b": B(), "c": C()}
-    encoded = _json_encode(obj)
-    decoded = json.loads(encoded)
-    assert decoded["b"] == repr(dict_side_effect)
-    assert decoded["c"] == repr(repr_side_effect)
-=======
-@pytest.mark.parametrize(
-    "repository_url,repository_name",
-    [
-        ("https://github.com/DataDog/dd-trace-py.git", "dd-trace-py"),
-        ("https://github.com/DataDog/dd-trace-py", "dd-trace-py"),
-        ("git@github.com:DataDog/dd-trace-py.git", "dd-trace-py"),
-        ("git@github.com:DataDog/dd-trace-py", "dd-trace-py"),
-        ("dd-trace-py", "dd-trace-py"),
-        ("git@hostname.com:org/repo-name.git", "repo-name"),
-        ("git@hostname.com:org/repo-name", "repo-name"),
-        ("ssh://git@hostname.com:org/repo-name", "repo-name"),
-        ("git+git://github.com/org/repo-name.git", "repo-name"),
-        ("git+ssh://github.com/org/repo-name.git", "repo-name"),
-        ("git+https://github.com/org/repo-name.git", "repo-name"),
-    ],
-)
-def test_repository_name_extracted(repository_url, repository_name):
-    assert _extract_repository_name(repository_url) == repository_name
-
-
-def test_repository_name_not_extracted_warning():
-    """If provided an invalid repository url, should raise warning and return original repository url"""
-    repository_url = "https://github.com:organ[ization/repository-name"
-    with mock.patch("ddtrace.contrib.pytest.plugin.log") as mock_log:
-        extracted_repository_name = _extract_repository_name(repository_url)
-        assert extracted_repository_name == repository_url
-    mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
->>>>>>> 5e6fc1ba (fix[pytest]: Default JSON encoding for non-serializable types to __repr__ (#2660))
