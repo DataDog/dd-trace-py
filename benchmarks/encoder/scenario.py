@@ -1,4 +1,3 @@
-import os
 import random
 import string
 
@@ -11,13 +10,13 @@ from ddtrace.span import Span
 try:
     # the introduction of the buffered encoder changed the internal api
     # see https://github.com/DataDog/dd-trace-py/pull/2422
-    from ddtrace.internal._encoding import BufferedEncoder
+    from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
 
     def _init_encoder(max_size=8 << 20, max_item_size=8 << 20):
         return Encoder(max_size, max_item_size)
 
 
-except:
+except ImportError:
 
     def _init_encoder():
         return Encoder()
