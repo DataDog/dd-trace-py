@@ -1,3 +1,5 @@
+import os
+
 import mariadb
 import pytest
 
@@ -121,7 +123,8 @@ def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
     When a user specifies a service for the app
         The mariadb integration should not use it.
     """
-
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "mysvc"
     out, err, status, pid = run_python_code_in_subprocess(
         """
 from ddtrace import config
@@ -137,7 +140,7 @@ rows = cursor.fetchall()
 assert len(rows) == 1
 tracer.shutdown()
 """,
-        env={"DD_SERVICE": "mysvc"},
+        env=env,
     )
     assert status == 0, err
 
@@ -149,6 +152,8 @@ def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subproces
         The mariadb integration should not use it.
     """
 
+    env = os.environ.copy()
+    env["DD_MARIADB_SERVICE"] = "mysvc"
     out, err, status, pid = run_python_code_in_subprocess(
         """
 from ddtrace import config
@@ -164,7 +169,7 @@ rows = cursor.fetchall()
 assert len(rows) == 1
 tracer.shutdown()
 """,
-        env={"DD_MARIADB_SERVICE": "mysvc"},
+        env=env,
     )
     assert status == 0, err
 
@@ -222,7 +227,7 @@ def test_query_many_fetchall_snapshot(tracer):
     with override_config("mariadb", dict(trace_fetch_methods=True)):
         with get_connection(tracer) as connection:
 
-        # tests that the executemany method is correctly wrapped.
+            # tests that the executemany method is correctly wrapped.
             tracer.enabled = False
             cursor = connection.cursor()
 
@@ -254,7 +259,7 @@ def test_commit_snapshot(tracer):
 
 @snapshot(include_tracer=True)
 def test_query_proc_snapshot(tracer):
-   with get_connection(tracer) as connection:
+    with get_connection(tracer) as connection:
         # create a procedure
         tracer.enabled = False
         cursor = connection.cursor()
