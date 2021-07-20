@@ -826,10 +826,10 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]},
+            pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5")),
-                Venv(pys=["2.7"], pkgs={"rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": [">=1.0,<2.0"]}),
+                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
@@ -949,6 +949,27 @@ venv = Venv(
             pys=select_pys(),
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
+        ),
+        Venv(
+            name="aiopg",
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6"],
+                    pkgs={
+                        "aiopg": ["~=0.12.0", "~=0.15.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
+                    },
+                ),
+            ],
+            pkgs={
+                "sqlalchemy": latest,
+            },
+            command="pytest {cmdargs} tests/contrib/aiopg",
         ),
         Venv(
             name="jinja2",

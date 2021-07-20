@@ -231,7 +231,7 @@ else:
 
 
 try:
-    from pep562 import Pep562  # type: ignore[import]  # noqa
+    from pep562 import Pep562  # noqa
 
     def ensure_pep562(module_name):
         # type: (str) -> None
