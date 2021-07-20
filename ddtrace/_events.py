@@ -80,7 +80,7 @@ class WebResponse(IntegrationEvent):
     if config._raise:
         @status_code.validator  # type: ignore
         def check_status_code(self, attribute, value):
-            assert int(value) in compat.httplib.responses
+            int(value)
 
 
 def emit(event):
