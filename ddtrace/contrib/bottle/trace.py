@@ -1,5 +1,5 @@
 from bottle import HTTPError
-from bottle import WebResponse
+from bottle import HTTPResponse
 from bottle import request
 from bottle import response
 
@@ -70,7 +70,7 @@ class TracePlugin(object):
                 try:
                     result = callback(*args, **kwargs)
                     return result
-                except (HTTPError, WebResponse) as e:
+                except (HTTPError, HTTPResponse) as e:
                     # you can interrupt flows using abort(status_code, 'message')...
                     # we need to respect the defined status_code.
                     # we also need to handle when response is raised as is the
@@ -83,7 +83,7 @@ class TracePlugin(object):
                     code = 500
                     raise
                 finally:
-                    if isinstance(result, WebResponse):
+                    if isinstance(result, HTTPResponse):
                         response_code = result.status_code
                     elif code:
                         response_code = code
