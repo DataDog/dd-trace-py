@@ -58,7 +58,7 @@ if os.environ.get("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
-        import ddtrace.vendor.wrapt._wrappers as _w  # type: ignore[import] # noqa: F401
+        import ddtrace.vendor.wrapt._wrappers as _w  # noqa: F401
     except ImportError:
         WRAPT_C_EXT = False
     else:
