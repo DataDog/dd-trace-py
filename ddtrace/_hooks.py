@@ -129,5 +129,9 @@ class Hooks(object):
         for func in self._hooks.get(hook, ()):
             try:
                 func(*args, **kwargs)
-            except Exception:
+            except Exception as e:
+                from ddtrace import config
+
+                if config._raise:
+                    raise e
                 log.error("Failed to run hook %s function %s", hook, func, exc_info=True)

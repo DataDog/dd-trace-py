@@ -8,6 +8,7 @@ from ddtrace.settings import Config
 
 from ..utils import DummyTracer
 from ..utils import override_env
+from ..utils import override_global_config
 
 
 class GlobalConfigTestCase(TestCase):
@@ -162,8 +163,11 @@ class GlobalConfigTestCase(TestCase):
         assert "web.request" not in span.meta
 
         # Emit the span
+        with pytest.raises(TypeError):
+            self.config.web.hooks.emit("request", span, "request", response="response")
         # DEV: This also asserts that no exception was raised
-        self.config.web.hooks.emit("request", span, "request", response="response")
+        with override_global_config(dict(_raise=False)):
+            self.config.web.hooks.emit("request", span, "request", response="response")
 
         # Assert we did not update the span
         assert "web.request" not in span.meta
@@ -215,8 +219,12 @@ class GlobalConfigTestCase(TestCase):
         span = self.tracer.start_span("web.request")
 
         # Emit the span
+        with pytest.raises(Exception):
+            self.config.web.hooks.emit("request", span)
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks.emit("request", span)
+        with override_global_config(dict(_raise=False)):
+            self.config.web.hooks.emit("request", span)
+
         on_web_request.assert_called()
 
     def test_settings_no_hook(self):
@@ -244,8 +252,11 @@ class GlobalConfigTestCase(TestCase):
             span.set_tag("web.request", "/")
 
         # Emit the span
+        with pytest.raises(AttributeError):
+            self.config.web.hooks.emit("request", None)
         # DEV: This is the test, to ensure no exceptions are raised
-        self.config.web.hooks.emit("request", None)
+        with override_global_config(dict(_raise=False)):
+            self.config.web.hooks.emit("request", None)
 
     def test_dd_version(self):
         c = Config()
