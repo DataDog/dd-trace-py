@@ -71,7 +71,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install -U riot
+      - run: pip3 install riot==0.6
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"

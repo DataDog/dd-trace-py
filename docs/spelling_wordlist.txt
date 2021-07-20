@@ -64,6 +64,7 @@ iPython
 initializer
 integration
 integrations
+JSON
 jinja
 kombu
 kubernetes
@@ -111,6 +112,7 @@ runnable
 runtime
 runtime-id
 sanic
+serializable
 sql
 sqlalchemy
 sqlite
