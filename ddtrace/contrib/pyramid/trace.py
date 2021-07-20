@@ -80,7 +80,7 @@ def trace_tween_factory(handler, registry):
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
 
-                _events.HTTPRequest(
+                _events.WebRequest(
                     span=span,
                     method=request.method,
                     url=request.path_url,
@@ -116,7 +116,7 @@ def trace_tween_factory(handler, registry):
                     else:
                         response_headers = None
 
-                    _events.HTTPResponse(
+                    _events.WebResponse(
                         span=span,
                         status_code=status,
                         headers=response_headers,

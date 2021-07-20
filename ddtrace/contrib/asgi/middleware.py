@@ -122,7 +122,7 @@ class TraceMiddleware:
         if len(query_string) > 0:
             query_string = bytes_to_str(query_string)
 
-        _events.HTTPRequest(
+        _events.WebRequest(
             span=span,
             method=method,
             url=url,
@@ -145,7 +145,7 @@ class TraceMiddleware:
             else:
                 response_headers = None
 
-            _events.HTTPResponse(
+            _events.WebResponse(
                 span=span,
                 status_code=status_code,
                 headers=response_headers,

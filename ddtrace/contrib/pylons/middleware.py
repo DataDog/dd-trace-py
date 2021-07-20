@@ -58,7 +58,7 @@ class PylonsTraceMiddleware(object):
             # set analytics sample rate with global config enabled
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
-            _events.HTTPRequest(
+            _events.WebRequest(
                 span=span,
                 method=request.method,
                 url=request.url,
@@ -78,7 +78,7 @@ class PylonsTraceMiddleware(object):
                 else:
                     response_headers = kwargs.get("response_headers", {})
                 http_code = int(status.split()[0])
-                _events.HTTPResponse(
+                _events.WebResponse(
                     span=span,
                     status_code=http_code,
                     headers=response_headers,
@@ -99,7 +99,7 @@ class PylonsTraceMiddleware(object):
                 except (TypeError, ValueError):
                     code = 500
 
-                _events.HTTPResponse(
+                _events.WebResponse(
                     span=span,
                     status_code=code,
                     headers={},

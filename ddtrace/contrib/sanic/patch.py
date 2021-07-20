@@ -24,14 +24,14 @@ SANIC_PRE_21 = None
 
 
 def update_span(span, response):
-    if isinstance(response, sanic.response.BaseHTTPResponse):
+    if isinstance(response, sanic.response.BaseWebResponse):
         status_code = response.status
         response_headers = response.headers
     else:
         # invalid response causes ServerError exception which must be handled
         status_code = 500
         response_headers = None
-    _events.HTTPResponse(
+    _events.WebResponse(
         span=span, status_code=status_code, headers=response_headers, integration=config.sanic.integration_name
     ).emit()
 
@@ -164,7 +164,7 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
 
-        _events.HTTPRequest(
+        _events.WebRequest(
             span=span,
             method=method,
             url=url,

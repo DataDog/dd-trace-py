@@ -14,8 +14,8 @@ from typing import Tuple
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace._events import HTTPRequest
-from ddtrace._events import HTTPResponse
+from ddtrace._events import WebRequest
+from ddtrace._events import WebResponse
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -316,9 +316,9 @@ def set_flattened_tags(
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-@HTTPRequest.register()
+@WebRequest.register()
 def http_request_handler(event):
-    # type: (HTTPRequest) -> None
+    # type: (WebRequest) -> None
     set_http_meta(
         event.span,
         getattr(config, event.integration),
@@ -329,9 +329,9 @@ def http_request_handler(event):
     )
 
 
-@HTTPResponse.register()
+@WebResponse.register()
 def http_response_handler(event):
-    # type: (HTTPResponse) -> None
+    # type: (WebResponse) -> None
     set_http_meta(
         event.span,
         getattr(config, event.integration),

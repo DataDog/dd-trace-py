@@ -115,7 +115,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
                 # if route never resolve, update root resource
                 span.resource = u"{} {}".format(request.method, code)
 
-            _events.HTTPResponse(
+            _events.WebResponse(
                 span=span, status_code=code, headers=headers, integration=config.molten.integration_name
             ).emit()
 
@@ -132,7 +132,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         )
         query = urlencode(dict(request.params))
 
-        _events.HTTPRequest(
+        _events.WebRequest(
             span=span,
             method=request.method,
             url=url,

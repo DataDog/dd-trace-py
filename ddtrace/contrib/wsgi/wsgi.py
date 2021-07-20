@@ -100,7 +100,7 @@ class DDWSGIMiddleware(object):
             span = self.tracer.current_root_span()
             if span is not None:
                 status_code, status_msg = status.split(" ", 1)
-                _events.HTTPResponse(
+                _events.WebResponse(
                     span=span,
                     status_code=status_code,
                     status_msg=status_msg,
@@ -143,7 +143,7 @@ class DDWSGIMiddleware(object):
             query_string = environ.get("QUERY_STRING")
             request_headers = get_request_headers(environ)
 
-            _events.HTTPRequest(
+            _events.WebRequest(
                 span=span,
                 method=method,
                 url=url,

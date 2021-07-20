@@ -44,7 +44,7 @@ def execute(func, handler, args, kwargs):
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
-        _events.HTTPRequest(
+        _events.WebRequest(
             span=request_span,
             method=handler.request.method,
             url=handler.request.full_url(),
@@ -70,7 +70,7 @@ def on_finish(func, handler, args, kwargs):
         # space here
         klass = handler.__class__
         request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
-        _events.HTTPResponse(
+        _events.WebResponse(
             span=request_span,
             status_code=handler.get_status(),
             headers={},

@@ -81,7 +81,7 @@ class TraceTool(cherrypy.Tool):
 
         url = compat.to_unicode(cherrypy.request.base + cherrypy.request.path_info)
 
-        _events.HTTPRequest(
+        _events.WebRequest(
             span=span,
             method=cherrypy.request.method,
             url=url,
@@ -131,7 +131,7 @@ class TraceTool(cherrypy.Tool):
 
         status_code, _, _ = valid_status(cherrypy.response.status)
 
-        _events.HTTPResponse(
+        _events.WebResponse(
             span=span,
             status_code=status_code,
             headers=cherrypy.response.headers,

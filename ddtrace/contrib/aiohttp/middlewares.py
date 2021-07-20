@@ -59,7 +59,7 @@ async def trace_middleware(app, handler):
         request[REQUEST_SPAN_KEY] = request_span
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
 
-        _events.HTTPRequest(
+        _events.WebRequest(
             span=request_span,
             method=request.method,
             url=str(request.url),  # DEV: request.url is a yarl's URL object
@@ -114,7 +114,7 @@ async def on_prepare(request, response):
     elif trace_query_string is False:
         request_span.set_tag(http.QUERY_STRING, None)
 
-    _events.HTTPResponse(
+    _events.WebResponse(
         span=request_span,
         status_code=response.status,
         headers=response.headers,
