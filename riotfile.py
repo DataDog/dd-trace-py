@@ -682,7 +682,7 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
                 ),
             ],
@@ -775,7 +775,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
