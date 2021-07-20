@@ -120,7 +120,7 @@ def trace_tween_factory(handler, registry):
                         span,
                         status_code=status,
                         headers=response_headers,
-                        integration=config.pyramid,
+                        integration=config.pyramid.integration_name,
                     )
 
                 return response
