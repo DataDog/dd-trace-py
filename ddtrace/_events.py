@@ -15,7 +15,7 @@ from ddtrace.internal import compat
 _HOOKS = _hooks.Hooks()
 
 
-@attr.s(frozen=True, slots=True)
+@attr.s(frozen=True)
 class IntegrationEvent(object):
     """
     An IntegrationEvent is emitted by an integration (e.g. the flask framework integration)
@@ -48,7 +48,7 @@ class IntegrationEvent(object):
             assert value in config._config
 
 
-@attr.s(frozen=True, slots=True)
+@attr.s(frozen=True)
 class WebRequest(IntegrationEvent):
     """
     The WebRequest event is emitted by web framework integrations before the WebResponse event.
@@ -61,14 +61,14 @@ class WebRequest(IntegrationEvent):
     if config._raise:
         @method.validator  # type: ignore
         def check_method(self, attribute, value):
-            assert value in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "PROPFIND")
+            assert value in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "PROPFIND", "TRACE", "CONNECT")
 
         @url.validator  # type: ignore
         def check_url(self, attribute, value):
             compat.parse.urlparse(value)
 
 
-@attr.s(frozen=True, slots=True)
+@attr.s(frozen=True)
 class WebResponse(IntegrationEvent):
     """
     The WebResponse event is emitted by web frameworks after the WebRequest event.
