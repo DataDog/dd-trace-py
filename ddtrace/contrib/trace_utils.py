@@ -11,16 +11,12 @@ from typing import Iterator
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
-from typing import Union
 
 from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace import config
-from ddtrace.contrib.logging.patch import DDLogRecord
-from ddtrace.contrib.logging.patch import RECORD_ATTR_VALUE_ZERO
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
-from ddtrace.opentracer.tracer import Tracer as OT_Tracer
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.cache import cached
 from ddtrace.utils.http import normalize_header_name
@@ -316,27 +312,3 @@ def set_flattened_tags(
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
-
-
-def get_logs_correlation_context(tracer=None):
-    # type: (Optional[Union[Tracer, OT_Tracer]]) -> Optional[DDLogRecord]
-    """Retrieves the Correlation Identifiers for the current active ``Trace``
-    This helper method generates a DDLogRecord including the trace_id and span_id of the current active span,
-    as well as the configuration's service, version, and env names. If there is no active span, an empty
-    DDLogRecord will be returned.
-    """
-    if not tracer:
-        tracer = ddtrace.tracer
-    if isinstance(tracer, OT_Tracer):
-        tracer = tracer._dd_tracer
-    if not tracer.enabled:
-        return None
-    span = tracer.current_span()
-
-    return DDLogRecord(
-        trace_id=str(span.trace_id) if span else RECORD_ATTR_VALUE_ZERO,
-        span_id=str(span.span_id) if span else RECORD_ATTR_VALUE_ZERO,
-        service=config.service or "",
-        version=config.version or "",
-        env=config.env or "",
-    )

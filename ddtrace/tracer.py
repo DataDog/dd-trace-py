@@ -26,6 +26,8 @@ from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
+from .contrib.logging.patch import DDLogRecord
+from .contrib.logging.patch import RECORD_ATTR_VALUE_ZERO
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
@@ -245,6 +247,25 @@ class Tracer(object):
         elif isinstance(active, Span):
             return active.context
         return None
+
+    def get_log_correlation_context(self):
+        # type: () -> Optional[DDLogRecord]
+        """Retrieves the Correlation Identifiers for the current active ``Trace``
+        This helper method generates a DDLogRecord for custom logging instrumentation including the
+        trace_id and span_id of the current active span, as well as the configuration's service, version, and env names.
+        If there is no active span, an empty DDLogRecord will be returned.
+        """
+        if not self.enabled:
+            return None
+        span = self.current_span()
+
+        return DDLogRecord(
+            trace_id=str(span.trace_id) if span else RECORD_ATTR_VALUE_ZERO,  # type: ignore
+            span_id=str(span.span_id) if span else RECORD_ATTR_VALUE_ZERO,  # type: ignore
+            service=config.service or "",
+            version=config.version or "",
+            env=config.env or "",
+        )
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")

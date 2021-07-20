@@ -18,7 +18,6 @@ from ddtrace import tracer
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal.compat import stringify
-from ddtrace.opentracer.tracer import Tracer as OT_Tracer
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
@@ -38,15 +37,6 @@ def span(tracer):
     span = tracer.trace(name="myint")
     yield span
     span.finish()
-
-
-@pytest.fixture
-def global_config():
-    config.service = "test-service"
-    config.env = "test-env"
-    config.version = "test-version"
-    yield
-    config.service = config.env = config.version = None
 
 
 class TestHeaders(object):
@@ -559,55 +549,3 @@ def test_set_flattened_tags_exclude_policy():
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
     assert span.metrics == e
-
-
-def test_get_logs_correlation_context(global_config):
-    """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
-    with tracer.trace("test-span-1") as span1:
-        dd_log_record = trace_utils.get_logs_correlation_context()
-    assert dd_log_record.span_id == str(span1.span_id)
-    assert dd_log_record.trace_id == str(span1.trace_id)
-    assert dd_log_record.service == "test-service"
-    assert dd_log_record.env == "test-env"
-    assert dd_log_record.version == "test-version"
-
-    test_tracer = Tracer()
-    with test_tracer.trace("test-span-2") as span2:
-        dd_log_record = trace_utils.get_logs_correlation_context(test_tracer)
-    assert dd_log_record.span_id == str(span2.span_id)
-    assert dd_log_record.trace_id == str(span2.trace_id)
-    assert dd_log_record.service == "test-service"
-    assert dd_log_record.env == "test-env"
-    assert dd_log_record.version == "test-version"
-
-
-def test_get_logs_correlation_context_opentracer(global_config):
-    """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
-    ot_tracer = OT_Tracer()
-    with ot_tracer.start_active_span("operation") as scope:
-        dd_span = scope._span._dd_span
-        dd_log_record = trace_utils.get_logs_correlation_context(ot_tracer)
-    assert dd_log_record.span_id == str(dd_span.span_id)
-    assert dd_log_record.trace_id == str(dd_span.trace_id)
-    assert dd_log_record.service == "test-service"
-    assert dd_log_record.env == "test-env"
-    assert dd_log_record.version == "test-version"
-
-
-def test_get_logs_correlation_context_no_active_span():
-    """Ensure empty DDLogRecord generated if no active span."""
-    dd_log_record = trace_utils.get_logs_correlation_context()
-    assert dd_log_record.span_id == "0"
-    assert dd_log_record.trace_id == "0"
-    assert dd_log_record.service == ""
-    assert dd_log_record.env == ""
-    assert dd_log_record.version == ""
-
-
-def test_get_logs_correlation_context_disabled_tracer():
-    """Ensure get_correlation_log_record returns None if tracer is disabled."""
-    tracer = Tracer()
-    tracer.enabled = False
-    with tracer.trace("test-span"):
-        dd_log_record = trace_utils.get_logs_correlation_context(tracer)
-    assert dd_log_record is None

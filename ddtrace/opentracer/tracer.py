@@ -1,3 +1,5 @@
+from typing import Optional
+
 import opentracing
 from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
@@ -6,6 +8,7 @@ import ddtrace
 from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
+from ddtrace.contrib.logging.patch import DDLogRecord
 from ddtrace.settings import ConfigException
 from ddtrace.utils.config import get_application_name
 
@@ -337,3 +340,12 @@ class Tracer(opentracing.Tracer):
         dd_span_ctx = ot_span_ctx._dd_context
         self._dd_tracer.context_provider.activate(dd_span_ctx)
         return ot_span_ctx
+
+    def get_log_correlation_context(self):
+        # type: () -> Optional[DDLogRecord]
+        """Retrieves the Correlation Identifiers for the current active ``Trace``
+        This helper method generates a DDLogRecord for custom logging instrumentation including the
+        trace_id and span_id of the current active span, as well as the configuration's service, version, and env names.
+        If there is no active span, an empty DDLogRecord will be returned.
+        """
+        return self._dd_tracer.get_log_correlation_context()
