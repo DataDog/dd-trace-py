@@ -39,11 +39,11 @@ class IntegrationEvent(object):
         deregister(cls, func, integration=integration)
 
     if config._raise:
-        @span.validator
+        @span.validator  # type: ignore
         def check_span(self, attribute, value):
             assert isinstance(value, Span)
 
-        @integration.validator
+        @integration.validator  # type: ignore
         def check_integration(self, attribute, value):
             assert value in config._config
 
@@ -59,11 +59,11 @@ class WebRequest(IntegrationEvent):
     query = attr.ib(type=Optional[str], default=None)
 
     if config._raise:
-        @method.validator
+        @method.validator  # type: ignore
         def check_method(self, attribute, value):
             assert value in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "PROPFIND")
 
-        @url.validator
+        @url.validator  # type: ignore
         def check_url(self, attribute, value):
             compat.parse.urlparse(value)
 
@@ -78,7 +78,7 @@ class WebResponse(IntegrationEvent):
     headers = attr.ib(type=Mapping[str, str], factory=dict)
 
     if config._raise:
-        @status_code.validator
+        @status_code.validator  # type: ignore
         def check_status_code(self, attribute, value):
             assert int(value) in compat.httplib.responses
 
