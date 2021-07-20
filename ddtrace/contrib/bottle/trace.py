@@ -56,14 +56,14 @@ class TracePlugin(object):
                 method = request.method
                 url = request.urlparts._replace(query="").geturl()
 
-                _events.emit_http_request(
-                    s,
+                _events.HTTPRequest(
+                    span=s,
                     method=method,
                     url=url,
                     headers=request.headers,
                     query=request.query_string,
                     integration=config.bottle.integration_name,
-                )
+                ).emit()
 
                 code = None
                 result = None
@@ -92,11 +92,11 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    _events.emit_http_response(
-                        s,
+                    _events.HTTPResponse(
+                        span=s,
                         status_code=response_code,
                         headers=response.headers,
                         integration=config.bottle.integration_name,
-                    )
+                    ).emit()
 
         return wrapped

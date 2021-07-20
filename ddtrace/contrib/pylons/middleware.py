@@ -58,14 +58,14 @@ class PylonsTraceMiddleware(object):
             # set analytics sample rate with global config enabled
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
-            _events.emit_http_request(
-                span,
+            _events.HTTPRequest(
+                span=span,
                 method=request.method,
                 url=request.url,
                 query=request.query_string,
                 headers=request.headers,
                 integration=ddconfig.pylons.integration_name,
-            )
+            ).emit()
 
             if not span.sampled:
                 return self.app(environ, start_response)
@@ -78,12 +78,12 @@ class PylonsTraceMiddleware(object):
                 else:
                     response_headers = kwargs.get("response_headers", {})
                 http_code = int(status.split()[0])
-                _events.emit_http_response(
-                    span,
+                _events.HTTPResponse(
+                    span=span,
                     status_code=http_code,
                     headers=response_headers,
                     integration=ddconfig.pylons.integration_name,
-                )
+                ).emit()
                 return start_response(status, *args, **kwargs)
 
             try:
@@ -99,12 +99,12 @@ class PylonsTraceMiddleware(object):
                 except (TypeError, ValueError):
                     code = 500
 
-                _events.emit_http_response(
-                    span,
+                _events.HTTPResponse(
+                    span=span,
                     status_code=code,
                     headers={},
                     integration=ddconfig.pylons.integration_name,
-                )
+                ).emit()
 
                 # re-raise the original exception with its original traceback
                 reraise(typ, val, tb=tb)

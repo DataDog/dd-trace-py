@@ -273,7 +273,9 @@ def _wrap_start_response(func, span, request):
         if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
             span.resource = u" ".join((request.method, code))
 
-        _events.emit_http_response(span, status_code=code, headers=headers, integration=config.flask.integration_name)
+        _events.HTTPResponse(
+            span=span, status_code=code, headers=headers, integration=config.flask.integration_name
+        ).emit()
         return func(status_code, headers)
 
     return traced_start_response
@@ -319,14 +321,14 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         start_response = _wrap_start_response(start_response, span, request)
 
         # DEV: We set response status code in `_wrap_start_response`
-        _events.emit_http_request(
-            span,
+        _events.HTTPRequest(
+            span=span,
             method=request.method,
             url=request.url,
             headers=request.headers,
             query=request.query_string,
             integration=config.flask.integration_name,
-        )
+        ).emit()
 
         return wrapped(environ, start_response)
 

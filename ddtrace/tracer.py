@@ -19,7 +19,6 @@ from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.vendor import debtcollector
 
-from . import _events
 from . import _hooks
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
@@ -156,12 +155,6 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-
-        # FIXME it shouldn't import contrib here, move handlers to internal?
-        from .contrib import trace_utils
-
-        _events.register_http_request(trace_utils.http_request_handler)
-        _events.register_http_response(trace_utils.http_response_handler)
 
     def _atexit(self):
         # type: () -> None

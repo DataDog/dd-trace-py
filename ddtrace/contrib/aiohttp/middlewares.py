@@ -59,14 +59,14 @@ async def trace_middleware(app, handler):
         request[REQUEST_SPAN_KEY] = request_span
         request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
 
-        _events.emit_http_request(
-            request_span,
+        _events.HTTPRequest(
+            span=request_span,
             method=request.method,
             url=str(request.url),  # DEV: request.url is a yarl's URL object
             headers=request.headers,
             query=request.query_string,
             integration=config.aiohttp.integration_name,
-        )
+        ).emit()
 
         try:
             response = await handler(request)
@@ -114,12 +114,12 @@ async def on_prepare(request, response):
     elif trace_query_string is False:
         request_span.set_tag(http.QUERY_STRING, None)
 
-    _events.emit_http_response(
-        request_span,
+    _events.HTTPResponse(
+        span=request_span,
         status_code=response.status,
         headers=response.headers,
         integration=config.aiohttp.integration_name,
-    )
+    ).emit()
 
     request_span.finish()
 

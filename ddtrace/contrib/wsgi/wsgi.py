@@ -100,13 +100,13 @@ class DDWSGIMiddleware(object):
             span = self.tracer.current_root_span()
             if span is not None:
                 status_code, status_msg = status.split(" ", 1)
-                _events.emit_http_response(
-                    span,
+                _events.HTTPResponse(
+                    span=span,
                     status_code=status_code,
                     status_msg=status_msg,
                     headers=response_headers,
                     integration=config.wsgi.integration_name,
-                )
+                ).emit()
             with self.tracer.trace(
                 "wsgi.start_response",
                 service=trace_utils.int_service(None, config.wsgi),
@@ -143,14 +143,14 @@ class DDWSGIMiddleware(object):
             query_string = environ.get("QUERY_STRING")
             request_headers = get_request_headers(environ)
 
-            _events.emit_http_request(
-                span,
+            _events.HTTPRequest(
+                span=span,
                 method=method,
                 url=url,
                 query=query_string,
                 headers=request_headers,
                 integration=config.wsgi.integration_name,
-            )
+            ).emit()
 
             if self.span_modifier:
                 self.span_modifier(span, environ)

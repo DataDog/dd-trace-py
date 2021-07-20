@@ -209,14 +209,14 @@ def _before_request_tags(pin, span, request):
 
     qs = request.META.get("QUERY_STRING", None)
 
-    _events.emit_http_request(
-        span,
+    _events.HTTPRequest(
+        span=span,
         method=request.method,
         url=url,
         query=qs,
         headers=request_headers,
         integration=config.django.integration_name,
-    )
+    ).emit()
 
 
 def _after_request_tags(pin, span, request, response):
@@ -275,6 +275,6 @@ def _after_request_tags(pin, span, request, response):
             set_tag_array(span, "django.response.template", template_names)
 
         response_headers = dict(response.items())
-        _events.emit_http_response(
-            span, status_code=status, headers=response_headers, integration=config.django.integration_name
-        )
+        _events.HTTPResponse(
+            span=span, status_code=status, headers=response_headers, integration=config.django.integration_name
+        ).emit()

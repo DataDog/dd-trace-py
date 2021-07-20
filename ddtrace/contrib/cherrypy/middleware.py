@@ -81,13 +81,13 @@ class TraceTool(cherrypy.Tool):
 
         url = compat.to_unicode(cherrypy.request.base + cherrypy.request.path_info)
 
-        _events.emit_http_request(
-            span,
+        _events.HTTPRequest(
+            span=span,
             method=cherrypy.request.method,
             url=url,
             headers=cherrypy.request.headers,
             integration=config.cherrypy.integration_name,
-        )
+        ).emit()
 
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)
@@ -131,12 +131,12 @@ class TraceTool(cherrypy.Tool):
 
         status_code, _, _ = valid_status(cherrypy.response.status)
 
-        _events.emit_http_response(
-            span,
+        _events.HTTPResponse(
+            span=span,
             status_code=status_code,
             headers=cherrypy.response.headers,
             integration=config.cherrypy.integration_name,
-        )
+        ).emit()
 
         span.finish()
 

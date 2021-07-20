@@ -31,9 +31,9 @@ def update_span(span, response):
         # invalid response causes ServerError exception which must be handled
         status_code = 500
         response_headers = None
-    _events.emit_http_response(
-        span, status_code=status_code, headers=response_headers, integration=config.sanic.integration_name
-    )
+    _events.HTTPResponse(
+        span=span, status_code=status_code, headers=response_headers, integration=config.sanic.integration_name
+    ).emit()
 
 
 def _wrap_response_callback(span, callback):
@@ -164,14 +164,14 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
 
-        _events.emit_http_request(
-            span,
+        _events.HTTPRequest(
+            span=span,
             method=method,
             url=url,
             query=query_string,
             headers=headers,
             integration=config.sanic.integration_name,
-        )
+        ).emit()
 
         if write_callback is not None:
             new_kwargs["write_callback"] = _wrap_response_callback(span, write_callback)

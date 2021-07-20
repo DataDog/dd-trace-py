@@ -80,14 +80,14 @@ def trace_tween_factory(handler, registry):
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
 
-                _events.emit_http_request(
-                    span,
+                _events.HTTPRequest(
+                    span=span,
                     method=request.method,
                     url=request.path_url,
                     headers=request.headers,
                     query=request.query_string,
                     integration=config.pyramid.integration_name,
-                )
+                ).emit()
 
                 response = None
                 status = None
@@ -116,12 +116,12 @@ def trace_tween_factory(handler, registry):
                     else:
                         response_headers = None
 
-                    _events.emit_http_response(
-                        span,
+                    _events.HTTPResponse(
+                        span=span,
                         status_code=status,
                         headers=response_headers,
                         integration=config.pyramid.integration_name,
-                    )
+                    ).emit()
 
                 return response
 

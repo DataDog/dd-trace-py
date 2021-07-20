@@ -1,98 +1,78 @@
-from typing import List
+from typing import Callable
 from typing import Mapping
 from typing import Optional
-from typing import TYPE_CHECKING
+from typing import Type
 from typing import Union
 
-from ._hooks import Hooks
+import attr
+
+from ddtrace._hooks import Hooks
+from ddtrace.span import Span
 
 
-if TYPE_CHECKING:
-    from ddtrace.span import Span
+_HOOKS = Hooks()
 
 
-_HTTP_HOOKS = Hooks()
+@attr.s(frozen=True, slots=True)
+class IntegrationEvent(object):
+    span = attr.ib(type=Span)
+    integration = attr.ib(type=str)
 
-REQUEST = "request"
-RESPONSE = "response"
+    def emit(self):
+        """Shotcurt for emitting this event."""
+        emit(self)
+
+    @classmethod
+    def register(cls, func=None, integration=None):
+        """Shotcurt for registering a listener for this event."""
+        return register(cls, func=func, integration=integration)
+
+    @classmethod
+    def deregister(cls, func, integration=None):
+        """Shotcurt for deregistering a listener for this event."""
+        deregister(cls, func, integration=integration)
 
 
-def emit_http_request(
-    span,         # type: Span
-    integration,  # type: str
-    method,       # type: str
-    url,          # type: str
-    headers,      # type: Mapping[str, str]
-    query=None,   # type: Optional[Mapping[str, List[str]]]
-):
+@attr.s(frozen=True, slots=True)
+class HTTPRequest(IntegrationEvent):
     """
-    Notify registered listeners about an HTTP request received
+    Notify registered listeners about an event received
     by an instrumented framework. It is emitted before the HTTP
     response event.
+    """
+    method = attr.ib(type=str)
+    url = attr.ib(type=str)
+    headers = attr.ib(type=Mapping[str, str], factory=dict)
+    query = attr.ib(type=Optional[str], default=None)
 
+
+@attr.s(frozen=True, slots=True)
+class HTTPResponse(IntegrationEvent):
+    status_code = attr.ib(type=Union[int, str])
+    status_msg = attr.ib(type=Optional[str], default=None)
+    headers = attr.ib(type=Mapping[str, str], factory=dict)
+
+
+def emit(event):
+    # type: (IntegrationEvent) -> None
+    """
     Integration-specific listeners are notified before global listeners.
     """
     # Integration-specific hook listeners
-    _HTTP_HOOKS.emit(
-        (integration, REQUEST),
-        span,
-        integration,
-        method,
-        url,
-        headers,
-        query=query,
-    )
+    _HOOKS.emit((event.integration, event.__class__), event)
     # Global hook listeners
-    _HTTP_HOOKS.emit(
-        (None, REQUEST), span, integration, method, url, headers, query=query
-    )
+    _HOOKS.emit((None, event.__class__), event)
 
 
-def register_http_request(f, integration=None):
-    _HTTP_HOOKS.register((integration, REQUEST), f)
-
-
-def deregister_http_request(f, integration=None):
-    _HTTP_HOOKS.deregister((integration, REQUEST), f)
-
-
-def emit_http_response(
-    span,             # type: Span
-    integration,      # type: str
-    status_code,      # type: Union[int, str]
-    headers,          # type: Mapping[str, str]
-    status_msg=None,  # type: Optional[str]
-):
+def register(event_type, func=None, integration=None):
+    # type: (Type[IntegrationEvent], Optional[Callable], Optional[str]) -> Optional[Callable]
     """
-    Notify registered listeners about an HTTP response sent
-    by an instrumented framework. It is emitted after the HTTP
-    request event.
-
-    Integration-specific listeners are notified before global listeners.
     """
-    # Integration-specific hook listeners
-    _HTTP_HOOKS.emit(
-        (integration, RESPONSE),
-        span,
-        integration,
-        status_code,
-        headers,
-        status_msg=status_msg,
-    )
-    # Global hook listeners
-    _HTTP_HOOKS.emit(
-        (None, RESPONSE),
-        span,
-        integration,
-        status_code,
-        headers,
-        status_msg=status_msg,
-    )
+    return _HOOKS.register((integration, event_type), func)
 
 
-def register_http_response(f, integration=None):
-    _HTTP_HOOKS.register((integration, RESPONSE), f)
-
-
-def deregister_http_response(f, integration=None):
-    _HTTP_HOOKS.deregister((integration, RESPONSE), f)
+def deregister(event_type, func, integration=None):
+    # type: (Type[IntegrationEvent], Callable, Optional[str]) -> None
+    """
+    """
+    _HOOKS.deregister((integration, event_type), func)

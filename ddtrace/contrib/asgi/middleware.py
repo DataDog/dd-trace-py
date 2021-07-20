@@ -122,14 +122,14 @@ class TraceMiddleware:
         if len(query_string) > 0:
             query_string = bytes_to_str(query_string)
 
-        _events.emit_http_request(
-            span,
+        _events.HTTPRequest(
+            span=span,
             method=method,
             url=url,
             headers=headers,
             query=query_string,
             integration=self.integration_config.integration_name,
-        )
+        ).emit()
 
         tags = _extract_versions_from_scope(scope, self.integration_config)
         span.set_tags(tags)
@@ -145,12 +145,12 @@ class TraceMiddleware:
             else:
                 response_headers = None
 
-            _events.emit_http_response(
-                span,
+            _events.HTTPResponse(
+                span=span,
                 status_code=status_code,
                 headers=response_headers,
                 integration=self.integration_config.integration_name,
-            )
+            ).emit()
 
             return await send(message)
 

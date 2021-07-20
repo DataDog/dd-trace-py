@@ -33,14 +33,14 @@ class TraceMiddleware(object):
         # set analytics sample rate with global config enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))
 
-        _events.emit_http_request(
-            span,
+        _events.HTTPRequest(
+            span=span,
             method=req.method,
             url=req.url,
             query=req.query_string or None,
             headers=req.headers,
             integration=config.falcon.integration_name,
-        )
+        ).emit()
 
     def process_resource(self, req, resp, resource, params):
         span = self.tracer.current_span()
@@ -63,9 +63,9 @@ class TraceMiddleware(object):
         if resource is None:
             status = "404"
             span.resource = "%s 404" % req.method
-            _events.emit_http_response(
-                span, status_code=status, headers=resp._headers, integration=config.falcon.integration_name
-            )
+            _events.HTTPResponse(
+                span=span, status_code=status, headers=resp._headers, integration=config.falcon.integration_name
+            ).emit()
             span.finish()
             return
 
@@ -85,9 +85,9 @@ class TraceMiddleware(object):
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
         config.falcon.hooks.emit("request", span, req, resp)
 
-        _events.emit_http_response(
-            span, status_code=status, headers=resp._headers, integration=config.falcon.integration_name
-        )
+        _events.HTTPResponse(
+            span=span, status_code=status, headers=resp._headers, integration=config.falcon.integration_name
+        ).emit()
 
         # Close the span
         span.finish()

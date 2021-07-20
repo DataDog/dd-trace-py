@@ -44,14 +44,14 @@ def execute(func, handler, args, kwargs):
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
-        _events.emit_http_request(
-            request_span,
+        _events.HTTPRequest(
+            span=request_span,
             method=handler.request.method,
             url=handler.request.full_url(),
             headers=handler.request.headers,
             query=handler.request.query,
             integration=config.tornado.integration_name,
-        )
+        ).emit()
 
         return func(*args, **kwargs)
 
@@ -70,12 +70,12 @@ def on_finish(func, handler, args, kwargs):
         # space here
         klass = handler.__class__
         request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
-        _events.emit_http_response(
-            request_span,
+        _events.HTTPResponse(
+            span=request_span,
             status_code=handler.get_status(),
             headers={},
             integration=config.tornado.integration_name,
-        )
+        ).emit()
         request_span.finish()
 
     return func(*args, **kwargs)
