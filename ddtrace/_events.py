@@ -6,9 +6,9 @@ from typing import Union
 
 import attr
 
+from ddtrace import Span
 from ddtrace import _hooks
 from ddtrace import config
-from ddtrace import Span
 from ddtrace.internal import compat
 
 

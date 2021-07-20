@@ -135,22 +135,20 @@ class TraceMiddleware:
         span.set_tags(tags)
 
         async def wrapped_send(message):
-            if span and message.get("type") == "http.response.start" and "status" in message:
-                status_code = message["status"]
-            else:
-                status_code = None
-
-            if "headers" in message:
-                response_headers = message["headers"]
-            else:
-                response_headers = None
-
-            _events.WebResponse(
-                span=span,
-                status_code=status_code,
-                headers=response_headers,
-                integration=self.integration_config.integration_name,
-            ).emit()
+            status = message.get("status")
+            response_headers = message.get("headers")
+            if (
+                span
+                and message.get("type") == "http.response.start"
+                and status is not None
+                and response_headers is not None
+            ):
+                _events.WebResponse(
+                    span=span,
+                    status_code=status,
+                    headers=response_headers,
+                    integration=self.integration_config.integration_name,
+                ).emit()
 
             return await send(message)
 
