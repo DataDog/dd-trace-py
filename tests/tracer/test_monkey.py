@@ -34,9 +34,8 @@ class TestPatching(SubprocessTestCase):
     @run_in_subprocess(env_overrides=dict())
     def test_patch_raise_exception_manual_patch(self):
         # Manual patching should not be affected by the environment variable override.
-        with self.assertRaises(monkey.ModuleNotFoundException) as _:
+        with self.assertRaises(monkey.ModuleNotFoundException):
             monkey.patch(scary_non_existent_module=True)
-
         assert "scary_non_existent_module" not in monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict())
