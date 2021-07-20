@@ -98,14 +98,15 @@ class DDWSGIMiddleware(object):
     def __call__(self, environ, start_response):
         def intercept_start_response(status, response_headers, exc_info=None):
             span = self.tracer.current_root_span()
-            status_code, status_msg = status.split(" ", 1)
-            _events.emit_http_response(
-                span,
-                status_code=status_code,
-                status_msg=status_msg,
-                headers=response_headers,
-                integration=config.wsgi.integration_name,
-            )
+            if span is not None:
+                status_code, status_msg = status.split(" ", 1)
+                _events.emit_http_response(
+                    span,
+                    status_code=status_code,
+                    status_msg=status_msg,
+                    headers=response_headers,
+                    integration=config.wsgi.integration_name,
+                )
             with self.tracer.trace(
                 "wsgi.start_response",
                 service=trace_utils.int_service(None, config.wsgi),
