@@ -344,8 +344,8 @@ class Tracer(opentracing.Tracer):
     def get_log_correlation_context(self):
         # type: () -> Optional[DDLogRecord]
         """Retrieves the Correlation Identifiers for the current active ``Trace``
-        This helper method generates a DDLogRecord for custom logging instrumentation including the
-        trace_id and span_id of the current active span, as well as the configuration's service, version, and env names.
+        This helper method generates a DDLogRecord for custom logging instrumentation including the trace id and
+        span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, an empty DDLogRecord will be returned.
         """
         return self._dd_tracer.get_log_correlation_context()
