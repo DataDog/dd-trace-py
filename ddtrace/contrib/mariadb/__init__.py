@@ -1,6 +1,6 @@
 """
 The MariaDB integration instruments the
-`MariaDB library<https://mariadb-corporation.github.io/mariadb-connector-python/usage.html>`_ to trace queries.
+`MariaDB library <https://mariadb-corporation.github.io/mariadb-connector-python/usage.html>`_ to trace queries.
 
 
 Enabling

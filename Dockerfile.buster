@@ -56,9 +56,7 @@ RUN \
   && apt-get install -y --no-install-recommends nodejs \
   && apt-get install -y libmariadb3 \
   # Cleaning up apt cache space
-  && rm -rf /var/lib/apt/lists/* \
-
-
+  && rm -rf /var/lib/apt/lists/*
 
 
 # Configure PATH environment for pyenv

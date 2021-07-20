@@ -117,16 +117,7 @@ def test_analytics_default(connection, tracer):
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
-@snapshot(async_mode=False)
-def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
-    """
-    When a user specifies a service for the app
-        The mariadb integration should not use it.
-    """
-    env = os.environ.copy()
-    env["DD_SERVICE"] = "mysvc"
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
+test_user_specified_code = """
 from ddtrace import config
 from ddtrace import patch
 from ddtrace import tracer
@@ -139,7 +130,19 @@ cursor.execute("SELECT 1")
 rows = cursor.fetchall()
 assert len(rows) == 1
 tracer.shutdown()
-""",
+"""
+
+
+@snapshot(async_mode=False)
+def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
+    """
+    When a user specifies a service for the app
+        The mariadb integration should not use it.
+    """
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "mysvc"
+    out, err, status, pid = run_python_code_in_subprocess(
+        test_user_specified_code,
         env=env,
     )
     assert status == 0, err
@@ -155,20 +158,7 @@ def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subproces
     env = os.environ.copy()
     env["DD_MARIADB_SERVICE"] = "mysvc"
     out, err, status, pid = run_python_code_in_subprocess(
-        """
-from ddtrace import config
-from ddtrace import patch
-from ddtrace import tracer
-import mariadb
-patch(mariadb=True)
-from tests.contrib.config import MARIADB_CONFIG
-connection = mariadb.connect(**MARIADB_CONFIG)
-cursor = connection.cursor()
-cursor.execute("SELECT 1")
-rows = cursor.fetchall()
-assert len(rows) == 1
-tracer.shutdown()
-""",
+        test_user_specified_code,
         env=env,
     )
     assert status == 0, err
