@@ -61,7 +61,7 @@ class WebRequest(IntegrationEvent):
     if config._raise:
         @method.validator
         def check_method(self, attribute, value):
-            assert value in ("GET", "POST", "PUT", "PATCH", "DELETE")
+            assert value in ("HEAD", "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "PROPFIND")
 
         @url.validator
         def check_url(self, attribute, value):
@@ -80,7 +80,7 @@ class WebResponse(IntegrationEvent):
     if config._raise:
         @status_code.validator
         def check_status_code(self, attribute, value):
-            int(value)
+            assert int(value) in compat.httplib.responses
 
 
 def emit(event):
