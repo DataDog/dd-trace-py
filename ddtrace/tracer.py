@@ -143,10 +143,22 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=False))
-        self._partial_flush_min_spans = int(
-            get_env("trace", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
+
+        partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=False))
+        if not partial_flush_enabled:
+            partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        self._partial_flush_enabled = partial_flush_enabled
+
+        default_min_spans = 500
+        partial_flush_min_spans = int(
+            get_env("trace", "partial_flush_min_spans", default=default_min_spans)  # type: ignore[arg-type]
         )
+        if partial_flush_min_spans == default_min_spans:
+            partial_flush_min_spans = int(
+                get_env("tracer", "partial_flush_min_spans", default=default_min_spans)  # type: ignore[arg-type]
+            )
+        self._partial_flush_min_spans = partial_flush_min_spans
+
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)

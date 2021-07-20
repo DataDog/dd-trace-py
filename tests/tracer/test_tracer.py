@@ -1140,7 +1140,7 @@ def test_early_exit(tracer, test_spans):
 
 class TestPartialFlush(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush(self):
         root = self.tracer.trace("root")
