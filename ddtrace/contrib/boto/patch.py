@@ -88,7 +88,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         span.set_tags(meta)
 
-        # Original func returns a boto.connection.WebResponse object
+        # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
@@ -152,7 +152,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         span.set_tags(meta)
 
-        # Original func returns a boto.connection.WebResponse object
+        # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))

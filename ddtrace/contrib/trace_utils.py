@@ -317,7 +317,7 @@ def set_flattened_tags(
 
 
 @WebRequest.register()
-def http_request_handler(event):
+def web_request_handler(event):
     # type: (WebRequest) -> None
     set_http_meta(
         event.span,
@@ -330,7 +330,7 @@ def http_request_handler(event):
 
 
 @WebResponse.register()
-def http_response_handler(event):
+def web_response_handler(event):
     # type: (WebResponse) -> None
     set_http_meta(
         event.span,

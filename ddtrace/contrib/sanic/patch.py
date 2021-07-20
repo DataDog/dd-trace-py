@@ -24,7 +24,7 @@ SANIC_PRE_21 = None
 
 
 def update_span(span, response):
-    if isinstance(response, sanic.response.BaseWebResponse):
+    if isinstance(response, sanic.response.BaseHTTPResponse):
         status_code = response.status
         response_headers = response.headers
     else:
