@@ -126,8 +126,10 @@ class TestPytest(TracerTestCase):
         expected_params = [1, 2, 3, 4, [1, 2, 3]]
         assert len(spans) == 5
         for i in range(len(expected_params)):
-            extracted_params = json.loads(spans[i].meta[test.PARAMETERS])
-            assert extracted_params == {"arguments": {"item": expected_params[i]}, "metadata": {}}
+            assert json.loads(spans[i].meta[test.PARAMETERS]) == {
+                "arguments": {"item": str(expected_params[i])},
+                "metadata": {},
+            }
 
     def test_parameterize_case_complex_objects(self):
         """Test parametrize case with complex objects."""
@@ -156,6 +158,7 @@ class TestPytest(TracerTestCase):
                 pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
                 pytest.param(MagicMock(value=MagicMock()), marks=pytest.mark.skip),
                 pytest.param(circular_reference, marks=pytest.mark.skip),
+                pytest.param({("x", "y"): 12345}, marks=pytest.mark.skip),
             ]
             )
             class Test1(object):
@@ -165,7 +168,7 @@ class TestPytest(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(skipped=6)
+        rec.assertoutcome(skipped=7)
         spans = self.pop_spans()
 
         # Since object will have arbitrary addresses, only need to ensure that
@@ -174,13 +177,39 @@ class TestPytest(TracerTestCase):
             "test_parameterize_case_complex_objects.A",
             "test_parameterize_case_complex_objects.A",
             "<function item_param at 0x",
-            '"a": "<test_parameterize_case_complex_objects.A',
+            "'a': <test_parameterize_case_complex_objects.A",
             "<MagicMock id=",
             "test_parameterize_case_complex_objects.A",
+            "{('x', 'y'): 12345}",
         ]
-        assert len(spans) == 6
+        assert len(spans) == 7
         for i in range(len(expected_params_contains)):
             assert expected_params_contains[i] in spans[i].meta[test.PARAMETERS]
+
+    def test_parameterize_case_encoding_error(self):
+        """Test parametrize case with complex objects that cannot be JSON encoded."""
+        py_file = self.testdir.makepyfile(
+            """
+            from mock import MagicMock
+            import pytest
+
+            class A:
+                def __repr__(self):
+                    raise Exception("Cannot __repr__")
+
+            @pytest.mark.parametrize('item',[A()])
+            class Test1(object):
+                def test_1(self, item):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert json.loads(spans[0].meta[test.PARAMETERS]) == {"arguments": {"item": "Could not encode"}, "metadata": {}}
 
     def test_skip(self):
         """Test parametrize case."""
