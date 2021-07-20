@@ -262,12 +262,16 @@ def _attempt_patch_module(module):
             imported_module = importlib.import_module(path)
         except ImportError:
             # if the import fails, the integration is not available
-            raise PatchException("integration '%s' not available" % path)
+            raise ModuleNotFoundException(
+                "integration '%s' not available in ddtrace.contrib, module will not have traces available" % path
+            )
         else:
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
             if not hasattr(imported_module, "patch"):
-                raise ModuleNotFoundException("module '%s' not installed" % module)
+                raise AttributeError(
+                    "%s.patch is not found. '%s' is not configured for this environment" % (imported_module, module)
+                )
 
             imported_module.patch()  # type: ignore
             _PATCHED_MODULES.add(module)

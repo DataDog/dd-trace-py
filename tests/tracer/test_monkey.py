@@ -32,6 +32,12 @@ class TestPatching(SubprocessTestCase):
         assert "sqlite3" in monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict())
+    def test_patch_raise_exception_manual_patch(self):
+        # Manual patching should not be affected by the environment variable override.
+        self.assertRaises(monkey.ModuleNotFoundException, monkey.patch(scary_non_existent_module=True))
+        assert "scary_non_existent_module" not in monkey._PATCHED_MODULES
+
+    @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_httplib_none(self):
         # Make sure httplib is disabled by default.
         monkey.patch_all()
