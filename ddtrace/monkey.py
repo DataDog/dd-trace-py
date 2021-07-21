@@ -43,6 +43,7 @@ PATCH_MODULES = {
     "mysql": True,
     "mysqldb": True,
     "pymysql": True,
+    "mariadb": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
