@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+mkdir -p /artifacts/${RUN_ID}
+
+RESULTS_1=/artifacts/${RUN_ID}/${DDTRACE_GIT_COMMIT_ID_1}.json
+RESULTS_2=/artifacts/${RUN_ID}/${DDTRACE_GIT_COMMIT_ID_2}.json
+
+# append venvs with ddtrace to sys.path
+
+PYTHONPATH=/app/.venv_1/lib/python3.9/site-packages \
+    python scenario.py \
+    --copy-env \
+    --fast \
+    -o ${RESULTS_1}
+
+PYTHONPATH=/app/.venv_2/lib/python3.9/site-packages \
+    python scenario.py \
+    --copy-env \
+    --fast \
+    -o ${RESULTS_2}
+
+pyperf compare_to --table ${RESULTS_2} ${RESULTS_1}
