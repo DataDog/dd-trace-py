@@ -21,7 +21,7 @@ def normalize_vendor(vendor):
 
 
 try:
-    from psycopg2.extensions import parse_dsn as parse_pg_dsn  # type: ignore[import]
+    from psycopg2.extensions import parse_dsn as parse_pg_dsn
 except ImportError:
 
     def parse_pg_dsn(dsn):
