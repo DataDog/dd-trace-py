@@ -271,7 +271,7 @@ def _attempt_patch_module(module):
             # that the library is not installed in the environment
             if not hasattr(imported_module, "patch"):
                 raise AttributeError(
-                    "%s.patch is not found. '%s' is not configured for this environment" % (imported_module, module)
+                    "%s.patch is not found. '%s' is not configured for this environment" % (path, module)
                 )
 
             imported_module.patch()  # type: ignore
