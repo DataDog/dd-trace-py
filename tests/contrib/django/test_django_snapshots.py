@@ -26,6 +26,15 @@ class Client(object):
         # type: (str) -> str
         return six.moves.urllib.parse.urljoin(self._base_url, path)
 
+    def get(self, path, **kwargs):
+        return self._session.get(self._url(path), **kwargs)
+
+    def post(self, path, *args, **kwargs):
+        return self._session.post(self._url(path), *args, **kwargs)
+
+    def request(self, method, path, *args, **kwargs):
+        return self._session.request(method, self._url(path), *args, **kwargs)
+
     def wait(self, path="/", max_tries=100, delay=0.1):
         # type: (str, int, float) -> None
         """Wait for the server to start by repeatedly http `get`ting `path` until a 200 is received."""
@@ -37,25 +46,20 @@ class Client(object):
 
         ping()
 
-    def get(self, path, **kwargs):
-        return self._session.get(self._url(path), **kwargs)
 
-    def post(self, path, *args, **kwargs):
-        return self._session.post(self._url(path), *args, **kwargs)
-
-    def request(self, method, path, *args, **kwargs):
-        return self._session.request(method, self._url(path), *args, **kwargs)
-
-
-@pytest.fixture(scope="module")
-def daphne_client():
+@pytest.fixture(scope="function")
+def daphne_client(snapshot):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
     Note that test cases using this fixture will have to wait for the traces
     to be flushed to the test agent.
     """
+
+    # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
+    # token) propagated to the new process.
     env = os.environ.copy()
+    assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env
     env.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
@@ -63,7 +67,7 @@ def daphne_client():
             # It would be nice to use the synchronous writer but this isn't currently configurable
             # via env var.
             # Note that even with a synchronous writer it would still be required to wait after a test
-            # case for the traces to come in because the trace wraps around the request and hence can
+            # case for the traces to be sent as the trace wraps around the request and hence can
             # only be sent _after_ the request has been completed.
             "DD_TRACE_WRITER_INTERVAL_SECONDS": "0.001",
         }
@@ -82,8 +86,13 @@ def daphne_client():
 
     client = Client("http://localhost:%d" % SERVER_PORT)
 
-    # TODO: process might fail to start, handle this and forward the output to help debug
+    # Wait for the server to start up
     client.wait()
+
+    # Wait for traces to be sent from the above polling
+    time.sleep(0.5)
+    # Clear the trace(s) generated from the polling
+    snapshot.clear()
 
     try:
         yield client
@@ -187,13 +196,37 @@ def test_psycopg_query_default(client, psycopg2_patched):
         assert rows[0][0] == "one"
 
 
+'''
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot(
-    async_mode=False,
+def test_asgi_start_client(daphne_client):
+    """
+    Test starting up the ASGI client.
+    """
+
+    def wait(max_tries=100, delay=0.1):
+        """Wait for the server to start by repeatedly http `get`ting `path` until a 200 is received."""
+
+        @tenacity.retry(stop=tenacity.stop_after_attempt(max_tries), wait=tenacity.wait_fixed(delay))
+        def ping():
+            r = daphne_client.get("/")
+            assert r.status_code == 200
+
+        ping()
+
+    wait()
+    resp = daphne_client.get("/")
+    assert resp.status_code == 200
+
+    # Wait for traces to be drained so they don't get correlated with the next test case.
+    time.sleep(0.1)
+'''
+
+
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@pytest.mark.snapshot(
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
-        # "32": (3, 2, 0) <= django.VERSION < (3, 3, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -201,17 +234,17 @@ def test_asgi_200(daphne_client):
     resp = daphne_client.get("/")
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
+    # Wait for traces to be sent from server
     time.sleep(0.1)
 
 
+"""
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    async_mode=False,
     ignores=["meta.error.stack"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
-        # "32": (3, 2, 0) <= django.VERSION < (3, 3, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
@@ -219,3 +252,4 @@ def test_asgi_500(daphne_client):
     resp = daphne_client.get("/error-500")
     assert resp.status_code == 500
     time.sleep(0.1)
+"""
