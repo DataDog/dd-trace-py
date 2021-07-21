@@ -144,7 +144,7 @@ class Tracer(object):
             )
         self.writer = writer  # type: TraceWriter
 
-        partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=False))
+        partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=asbool(get_env("tracer", "partial_flush_enabled", default=False))))
         if not partial_flush_enabled:
             partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
         self._partial_flush_enabled = partial_flush_enabled
