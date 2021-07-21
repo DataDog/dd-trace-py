@@ -92,5 +92,7 @@ if __name__ == "__main__":
     runner = pyperf.Runner()
     for variant in VARIANTS:
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items()).lower()
-        runner.bench_time_func("func:time_sync_requests|" + name, time_sync_requests, variant)
-        runner.bench_time_func("func:time_concurrent_requests|" + name, time_concurrent_requests, variant)
+        if variant.get("PERF_THREADS") == "0":
+            runner.bench_time_func("scenario:django_simple|case:sync_requests|" + name, time_sync_requests, variant)
+        else:
+            runner.bench_time_func("scenario:django_simple|case:concurrent_requests|" + name, time_concurrent_requests, variant)
