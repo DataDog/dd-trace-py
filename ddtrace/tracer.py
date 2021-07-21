@@ -144,6 +144,7 @@ class Tracer(object):
             )
         self.writer = writer  # type: TraceWriter
 
+        # TRACER_PARTIAL_FLUSH_ENABLED should be deprecated after version 1.0.0 is released
         partial_flush_enabled_default = asbool(get_env("tracer", "partial_flush_enabled", default=False))
         self._partial_flush_enabled = asbool(
             get_env(
@@ -153,6 +154,7 @@ class Tracer(object):
             )
         )
 
+        # TRACER_PARTIAL_FLUSH_MIN_SPANS should be deprecated after version 1.0.0 is released
         partial_flush_min_spans_default = int(
             get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
         )
