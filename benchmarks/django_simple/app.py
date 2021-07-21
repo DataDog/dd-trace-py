@@ -2,7 +2,6 @@ import os
 
 import django
 from django.db import connection
-from django.shortcuts import render
 from django.template import Context
 from django.template import Template
 from django.urls import path
@@ -64,8 +63,18 @@ def index(request):
         select * from cnt"""
             )
             cursor.fetchall()
-    return render(request, "index.html")
-
+    index = Template("""
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Django Simple</title>
+  </head>
+  <body>
+    <p>Hello {{name|default:"friend"}}!</p>
+  </body>
+</html>
+    """)
+    return django.http.HttpResponse(index.render(Context({})))
 
 urlpatterns = [path("", index)]
 
