@@ -1,5 +1,6 @@
 import asyncio
 
+from aiopg import __version__
 from aiopg.utils import _ContextManager
 
 from ddtrace import config
@@ -9,7 +10,11 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import sql
 from ddtrace.pin import Pin
+from ddtrace.utils.version import parse_version
 from ddtrace.vendor import wrapt
+
+
+AIOPG_VERSION = parse_version(__version__)
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -79,11 +84,23 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
 
-    def cursor(self, *args, **kwargs):
-        # unfortunately we also need to patch this method as otherwise "self"
-        # ends up being the aiopg connection object
-        coro = self._cursor(*args, **kwargs)
-        return _ContextManager(coro)
+    # unfortunately we also need to patch this method as otherwise "self"
+    # ends up being the aiopg connection object
+    if AIOPG_VERSION >= (0, 16, 0):
+
+        def cursor(self, *args, **kwargs):
+            # Only one cursor per connection is allowed, as per DB API spec
+            self.close_cursor()
+            self._last_usage = self._loop.time()
+
+            coro = self._cursor(*args, **kwargs)
+            return _ContextManager(coro)
+
+    else:
+
+        def cursor(self, *args, **kwargs):
+            coro = self._cursor(*args, **kwargs)
+            return _ContextManager(coro)
 
     @asyncio.coroutine
     def _cursor(self, *args, **kwargs):

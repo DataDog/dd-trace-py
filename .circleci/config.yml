@@ -71,7 +71,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install -U riot
+      - run: pip3 install riot==0.6
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -625,6 +625,14 @@ jobs:
           pattern: "grpc"
           snapshot: true
 
+  mariadb:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'mariadb$'
+          snapshot: true
+          docker_services: "mariadb"
+
   molten:
     <<: *contrib_job
     steps:
@@ -792,9 +800,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *postgres_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: postgres
-          pattern: '^aiopg_contrib-'
+          pattern: 'aiopg'
 
   redis:
     <<: *machine_executor
@@ -946,6 +954,7 @@ requires_tests: &requires_tests
     - jinja2
     - kombu
     - mako
+    - mariadb
     - molten
     - mongoengine
     - mysqlconnector
@@ -1027,6 +1036,7 @@ workflows:
       - jinja2: *requires_base_venvs
       - kombu: *requires_base_venvs
       - mako: *requires_base_venvs
+      - mariadb: *requires_base_venvs
       - molten: *requires_base_venvs
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
