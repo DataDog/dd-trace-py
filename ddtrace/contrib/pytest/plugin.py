@@ -1,4 +1,5 @@
 import json
+from typing import Dict
 
 import pytest
 
@@ -123,7 +124,7 @@ def pytest_runtest_protocol(item, nextitem):
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
-            parameters = {"arguments": {}, "metadata": {}}
+            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
             for param_name, param_val in item.callspec.params.items():
                 try:
                     parameters["arguments"][param_name] = repr(param_val)
