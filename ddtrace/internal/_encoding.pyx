@@ -360,35 +360,27 @@ cdef class Packer(object):
 
 cdef class BufferedEncoder(object):
     content_type: str = None
-    def __init__(self, max_size, max_item_size): ...
-    def __len__(self): ...
-    def put(self, trace): ...
+
+    def put(self, item): ...
     def encode(self): ...
 
 
-cdef class MsgpackEncoder(BufferedEncoder):
-    content_type = "application/msgpack"
+cdef class ListBufferedEncoder(BufferedEncoder):
     cdef int _max_size
     cdef int _max_item_size
     cdef int _size
     cdef object _lock
-    cdef list _traces
+    cdef list _buffer
 
     def __cinit__(self, max_size, max_item_size):
         self._max_size = max_size
         self._max_item_size = max_item_size
         self._size = 0
         self._lock = threading.Lock()
-        self._traces = []
+        self._buffer = []
 
     def __len__(self):
-        return len(self._traces)
-
-    cpdef _decode(self, data):
-        import msgpack
-        if msgpack.version[:2] < (0, 6):
-            return msgpack.unpackb(data)
-        return msgpack.unpackb(data, raw=True)
+        return len(self._buffer)
 
     @property
     def max_size(self):
@@ -400,30 +392,46 @@ cdef class MsgpackEncoder(BufferedEncoder):
 
     @property
     def size(self):
-        """Return the size in bytes of the encoder buffer."""
         with self._lock:
             return self._size
 
-    cpdef put(self, list trace):
-        """Put a trace (i.e. a list of spans) in the buffer."""
+    cpdef put(self, item):
+        """Put an item to be serialized in the buffer."""
         cdef int item_len
-        
-        encoded_trace = Packer().pack_trace(trace)
-        item_len = len(encoded_trace)
+
+        encoded_item = self.encode_item(item)
+        item_len = len(encoded_item)
 
         if item_len > self.max_item_size or item_len > self.max_size:
             raise BufferItemTooLarge(item_len)
 
         with self._lock:
             if self._size + item_len <= self.max_size:
-                self._traces.append(encoded_trace)
+                self._buffer.append(encoded_item)
                 self._size += item_len
             else:
                 raise BufferFull(item_len)
 
-    cpdef _clear(self):
-        self._traces[:] = []
-        self._size = 0
+    cpdef get(self):
+        """Get a copy of the buffer and clear it."""
+        with self._lock:
+            try:
+                return list(self._buffer)
+            finally:
+                self._buffer[:] = []
+                self._size = 0
+
+    def encode_item(self, item): ...
+
+
+cdef class MsgpackEncoder(ListBufferedEncoder):
+    content_type = "application/msgpack"
+
+    cpdef _decode(self, data):
+        import msgpack
+        if msgpack.version[:2] < (0, 6):
+            return msgpack.unpackb(data)
+        return msgpack.unpackb(data, raw=True)
 
     cpdef encode_trace(self, list trace):
         return Packer().pack_trace(trace)
@@ -431,10 +439,24 @@ cdef class MsgpackEncoder(BufferedEncoder):
     cpdef encode_traces(self, list traces):
         return Packer().pack_traces(traces)
 
-    cdef inline _join(self):
+    cpdef encode_item(self, item):
+        return self.encode_trace(item)
+
+    cpdef encode(self):
         """Join a list of encoded objects together as a msgpack array"""
-        cdef Py_ssize_t count = len(self._traces)
-        cdef bytes buf = b''.join(self._traces)
+        cdef Py_ssize_t count
+        cdef bytes buf
+
+        with self._lock:
+            try:
+                if not self._buffer:
+                    return None
+
+                count = len(self._buffer)
+                buf = b''.join(self._buffer)
+            finally:
+                self._buffer[:] = []
+                self._size = 0
 
         if count <= 0xf:
             return struct.pack("B", 0x90 + count) + buf
@@ -442,12 +464,3 @@ cdef class MsgpackEncoder(BufferedEncoder):
             return struct.pack(">BH", 0xdc, count) + buf
         else:
             return struct.pack(">BI", 0xdd, count) + buf
-
-    cpdef encode(self):
-        if not self._traces:
-            return None
-
-        try:
-            return self._join()
-        finally:
-            self._clear()

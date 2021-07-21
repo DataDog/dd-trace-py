@@ -8,8 +8,9 @@ jobs:
   flask-testsuite-1_1_4:
     runs-on: ubuntu-latest
     env:
-      TOX_TESTENV_PASSENV: DD_TESTING_RAISE
+      TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
     defaults:
       run:
         working-directory: flask

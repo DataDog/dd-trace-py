@@ -863,6 +863,22 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asgi",
         ),
         Venv(
+            name="mariadb",
+            command="pytest {cmdargs} tests/contrib/mariadb",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "mariadb": [
+                            "~=1.0.0",
+                            "~=1.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             venvs=[
