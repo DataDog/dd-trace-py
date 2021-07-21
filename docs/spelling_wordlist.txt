@@ -72,6 +72,7 @@ kwarg
 lifecycle
 lookups
 mako
+mariadb
 memcached
 metadata
 microservices

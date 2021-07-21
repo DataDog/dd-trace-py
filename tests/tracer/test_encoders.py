@@ -171,6 +171,22 @@ class TestEncoders(TestCase):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
 
+    def test_list_buffered_encoder(self):
+        # test encoding for MsgPack format
+        encoder = MsgpackEncoder(2 << 10, 2 << 10)
+        encoder.put(
+            [
+                Span(name="client.testing", tracer=None),
+            ]
+        )
+
+        trace = encoder.get()
+        assert len(trace) == 1
+
+        assert isinstance(trace[0], msgpack_type)
+        items = encoder._decode(trace[0])
+        assert len(items) == 1
+
 
 def decode(obj):
     if msgpack.version[:2] < (0, 6):
