@@ -622,7 +622,7 @@ sure your application has a route to the tracing Agent. An easy way to test
 this is with a::
 
 $ pip install ipython
-$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
+$ DD_TRACE_DEBUG=true ddtrace-run ipython
 
 Because iPython uses SQLite, it will be automatically instrumented and your
 traces should be sent off. If an error occurs, a message will be displayed in
