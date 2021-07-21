@@ -47,7 +47,7 @@ def time_finish_span(loops, spans):
 if __name__ == "__main__":
     runner = pyperf.Runner()
     runner.metadata["scenario"] = "span"
-    for variant in [dict(nspans=10000), dict(nspans=10000, trace_id=1)]:
+    for variant in [dict(nspans=1000), dict(nspans=1000, trace_id=1)]:
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
         runner.bench_time_func("perf_group:span|perf_case:init_span|" + name, time_start_span)
 
