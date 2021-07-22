@@ -36,10 +36,11 @@ class TestPatching(SubprocessTestCase):
         # Manual patching should not be affected by the environment variable override.
         with self.assertRaises(monkey.ModuleNotFoundException) as me:
             monkey.patch(scary_non_existent_module=True)
-            assert (
-                "integration module ddtrace.contrib.scary_non_existent_module does not exist, module will not have tracing available"
-                in str(me.exception)
-            )
+
+        assert (
+            "integration module ddtrace.contrib.scary_non_existent_module does not exist, module will not have tracing available"
+            in str(me.exception)
+        )
         assert "scary_non_existent_module" not in monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict())
