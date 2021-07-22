@@ -4,7 +4,7 @@ Performance Testing
 New scenario
 ------------
 
-Create a new directory for a scenario which includes a ``scenario.py`` script to be run. Add any additional dependencies in a ``requirements_scenario.py``.
+Create a new directory for a scenario which includes a ``scenario.py`` script to be run. Add any additional dependencies in a ``requirements_scenario.txt``.
 
 First you need to build the scenario image::
 
