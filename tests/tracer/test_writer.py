@@ -22,6 +22,7 @@ from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
+from tests.utils import override_env
 
 
 class DummyOutput:
@@ -538,3 +539,10 @@ def test_racing_start():
         t.join()
 
     assert len(writer._encoder) == 100
+
+
+def test_additional_headers():
+    with override_env(dict(_DD_TRACE_WRITER_ADDITIONAL_HEADERS="additional-header:additional-value,header2:value2")):
+        writer = AgentWriter(agent_url="http://localhost:9126")
+        assert writer._headers["additional-header"] == "additional-value"
+        assert writer._headers["header2"] == "value2"
