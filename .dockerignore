@@ -1,7 +1,0 @@
-.tox
-.benchmarks
-*.pyc
-*.pyo
-dist
-__pycache__
-.riot
