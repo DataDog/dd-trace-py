@@ -8,12 +8,12 @@ class TestSqreenLibrary(TracerTestCase):
 
         with self.trace("test") as span:
             appsec.process_request(span, query="foo=bar")
-        assert "sq.process_ms" in span.metrics
+        assert "_dd.sq.process_ms" in span.metrics
 
         with self.trace("test") as span:
             appsec.process_request(span, query="q=<script>alert(1);")
-        assert "sq.process_ms" in span.metrics
-        assert "sq.reports" in span.metrics
+        assert "_dd.sq.process_ms" in span.metrics
+        assert "_dd.sq.reports" in span.metrics
 
     def test_overtime(self):
         with override_env({"DD_APPSEC_SQREEN_BUDGET_MS": "0"}):
@@ -21,5 +21,5 @@ class TestSqreenLibrary(TracerTestCase):
 
             with self.trace("test") as span:
                 appsec.process_request(span, query="foo=bar")
-            assert "sq.process_ms" in span.metrics
-            assert span.metrics.get("sq.overtime_ms") == span.metrics.get("sq.process_ms")
+            assert "_dd.sq.process_ms" in span.metrics
+            assert span.metrics.get("_dd.sq.overtime_ms") == span.metrics.get("_dd.sq.process_ms")
