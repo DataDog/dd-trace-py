@@ -517,9 +517,9 @@ jobs:
           - MAX_HEAP_SIZE=512M
           - HEAP_NEWSIZE=256M
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: cassandra
-          pattern: '^cassandra_contrib-'
+          pattern: 'cassandra'
 
   celery:
     <<: *contrib_job
