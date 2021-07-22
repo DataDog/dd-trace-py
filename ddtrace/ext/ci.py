@@ -298,6 +298,7 @@ def extract_gitlab(env):
     author_name = None  # type: Optional[str]
     author_email = None  # type: Optional[str]
     if author:
+        # Extract name and email from `author` which is in the form "name <email>"
         author_name, author_email = author.strip("> ").split(" <")
     commit_timestamp = env.get("CI_COMMIT_TIMESTAMP")
     url = env.get("CI_PIPELINE_URL")
