@@ -264,7 +264,7 @@ def _attempt_patch_module(module):
         except ImportError:
             # if the import fails, the integration is not available
             raise ModuleNotFoundException(
-                "integration '%s' not available in ddtrace.contrib, module will not have traces available" % path
+                "integration module %s does not exist, module will not have tracing available" % path
             )
         else:
             # if patch() is not available in the module, it means
