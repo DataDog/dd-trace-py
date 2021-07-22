@@ -63,8 +63,8 @@ if __name__ == "__main__":
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
         runner.bench_time_func("perf_group:span|perf_case:add_metrics|" + name, time_add_metrics, span, metrics)
 
-    variant = dict(nspans=10000)
-    gen_spans(**variant)
-    spans = gen_spans(**variant)
-    name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
-    runner.bench_time_func("perf_group:span|perf_case:finish_span|" + name, time_finish_span, spans)
+    for variant in [dict(nspans=10000)]:
+        gen_spans(**variant)
+        spans = gen_spans(**variant)
+        name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
+        runner.bench_time_func("perf_group:span|perf_case:finish_span|" + name, time_finish_span, spans)
