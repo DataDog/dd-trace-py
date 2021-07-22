@@ -9,11 +9,16 @@ from ...constants import SPAN_KIND
 from ...ext import SpanTypes
 from ...ext import ci
 from ...ext import test
+from ...internal.logger import get_logger
 from ...pin import Pin
 from ..trace_utils import int_service
 from .constants import FRAMEWORK
 from .constants import HELP_MSG
 from .constants import KIND
+
+
+PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+log = get_logger(__name__)
 
 
 def is_enabled(config):
@@ -29,9 +34,6 @@ def _extract_span(item):
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
     setattr(item, "_datadog_span", span)
-
-
-PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
 def pytest_addoption(parser):
