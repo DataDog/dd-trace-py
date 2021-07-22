@@ -14,6 +14,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install --no-install-recommends -y \
   curl \
   git \
+  # ddtrace includes c extensions
+  build-essential \ 
+  # uuid is used to generate identifier for run if one is not provided
+  uuid-runtime \ 
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
@@ -36,6 +40,7 @@ RUN pip install -r requirements.txt
 
 # For performance testing
 ENV DDTRACE_GIT_COMMIT_ID ""
+ENV RUN_ID ""
 ENV PIP_INSTALL_WHEELS ""
 ENV SIRUN_NO_STDIO 0
 
