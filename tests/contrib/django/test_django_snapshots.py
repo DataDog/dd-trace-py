@@ -1,6 +1,5 @@
 import os
 import subprocess
-import time
 
 import django
 import pytest
@@ -8,6 +7,8 @@ import requests
 import six
 import tenacity
 
+from ddtrace.context import Context
+from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import snapshot
 
 
@@ -21,12 +22,26 @@ class Client(object):
         # type: (str) -> None
         self._base_url = base_url
         self._session = requests.Session()
+        # Propagate traces with trace_id = 0 for the ping trace so we can filter them out.
+        c, d = Context(trace_id=1, span_id=1), {}
+        HTTPPropagator.inject(c, d)
+        self._ignore_headers = d
 
     def _url(self, path):
         # type: (str) -> str
         return six.moves.urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):
+        return self._session.get(self._url(path), **kwargs)
+
+    def get_ignored(self, path, **kwargs):
+        """Do a normal get request but signal that the trace should be filtered out.
+
+        The signal is a distributed trace id header with the value 1.
+        """
+        headers = kwargs.get("headers", {}).copy()
+        headers.update(self._ignore_headers)
+        kwargs["headers"] = headers
         return self._session.get(self._url(path), **kwargs)
 
     def post(self, path, *args, **kwargs):
@@ -41,7 +56,7 @@ class Client(object):
 
         @tenacity.retry(stop=tenacity.stop_after_attempt(max_tries), wait=tenacity.wait_fixed(delay))
         def ping():
-            r = requests.get(self._url(path))
+            r = self.get_ignored(path)
             assert r.status_code == 200
 
         ping()
@@ -83,14 +98,9 @@ def daphne_client(snapshot):
     # Wait for the server to start up
     client.wait()
 
-    # Wait for traces to be sent from the above polling
-    time.sleep(0.5)
-    # Clear the trace(s) generated from the polling
-    snapshot.clear()
-
     try:
         yield client
-        resp = client.get("/shutdown-tracer")
+        resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
     finally:
         proc.terminate()

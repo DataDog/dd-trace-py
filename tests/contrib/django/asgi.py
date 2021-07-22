@@ -1,4 +1,6 @@
 from django.core.asgi import get_asgi_application
 
+from ddtrace.contrib.asgi import TraceMiddleware
 
-application = get_asgi_application()
+
+application = TraceMiddleware(get_asgi_application())
