@@ -2,14 +2,11 @@ import json
 import os
 import sys
 
-from hypothesis import given
-from hypothesis import strategies as st
 import mock
 import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
-from ddtrace.contrib.pytest.plugin import _json_encode
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
@@ -109,9 +106,36 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
 
     def test_parameterize_case(self):
-        """Test parametrize case."""
+        """Test parametrize case with simple objects."""
         py_file = self.testdir.makepyfile(
             """
+            import pytest
+
+
+            @pytest.mark.parametrize('item', [1, 2, 3, 4, pytest.param([1, 2, 3], marks=pytest.mark.skip)])
+            class Test1(object):
+                def test_1(self, item):
+                    assert item in {1, 2, 3}
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=3, failed=1, skipped=1)
+        spans = self.pop_spans()
+
+        expected_params = [1, 2, 3, 4, [1, 2, 3]]
+        assert len(spans) == 5
+        for i in range(len(expected_params)):
+            assert json.loads(spans[i].meta[test.PARAMETERS]) == {
+                "arguments": {"item": str(expected_params[i])},
+                "metadata": {},
+            }
+
+    def test_parameterize_case_complex_objects(self):
+        """Test parametrize case with complex objects."""
+        py_file = self.testdir.makepyfile(
+            """
+            from mock import MagicMock
             import pytest
 
             class A:
@@ -122,19 +146,20 @@ class TestPytest(TracerTestCase):
             def item_param():
                 return 42
 
+            circular_reference = A("circular_reference", A("child", None))
+            circular_reference.value.value = circular_reference
+
             @pytest.mark.parametrize(
-                'item',
-                [
-                    1,
-                    2,
-                    3,
-                    4,
-                    pytest.param(A("test_name", "value"), marks=pytest.mark.skip),
-                    pytest.param(A("test_name", A("inner_name", "value")), marks=pytest.mark.skip),
-                    pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
-                    pytest.param([1, 2, 3], marks=pytest.mark.skip),
-                    pytest.param(item_param, marks=pytest.mark.skip)
-                ]
+            'item',
+            [
+                pytest.param(A("test_name", "value"), marks=pytest.mark.skip),
+                pytest.param(A("test_name", A("inner_name", "value")), marks=pytest.mark.skip),
+                pytest.param(item_param, marks=pytest.mark.skip),
+                pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
+                pytest.param(MagicMock(value=MagicMock()), marks=pytest.mark.skip),
+                pytest.param(circular_reference, marks=pytest.mark.skip),
+                pytest.param({("x", "y"): 12345}, marks=pytest.mark.skip),
+            ]
             )
             class Test1(object):
                 def test_1(self, item):
@@ -143,24 +168,48 @@ class TestPytest(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=3, failed=1, skipped=5)
+        rec.assertoutcome(skipped=7)
         spans = self.pop_spans()
 
-        expected_params = [
-            1,
-            2,
-            3,
-            4,
-            {"name": "test_name", "value": "value"},
-            {"name": "test_name", "value": {"name": "inner_name", "value": "value"}},
-            {"a": {"name": "test_name", "value": "value"}, "b": [1, 2, 3]},
-            [1, 2, 3],
+        # Since object will have arbitrary addresses, only need to ensure that
+        # the params string contains most of the string representation of the object.
+        expected_params_contains = [
+            "test_parameterize_case_complex_objects.A",
+            "test_parameterize_case_complex_objects.A",
+            "<function item_param at 0x",
+            "'a': <test_parameterize_case_complex_objects.A",
+            "<MagicMock id=",
+            "test_parameterize_case_complex_objects.A",
+            "{('x', 'y'): 12345}",
         ]
-        assert len(spans) == 9
-        for i in range(len(spans) - 1):
-            extracted_params = json.loads(spans[i].meta[test.PARAMETERS])
-            assert extracted_params == {"arguments": {"item": expected_params[i]}, "metadata": {}}
-        assert "<function item_param at 0x" in json.loads(spans[8].meta[test.PARAMETERS])["arguments"]["item"]
+        assert len(spans) == 7
+        for i in range(len(expected_params_contains)):
+            assert expected_params_contains[i] in spans[i].meta[test.PARAMETERS]
+
+    def test_parameterize_case_encoding_error(self):
+        """Test parametrize case with complex objects that cannot be JSON encoded."""
+        py_file = self.testdir.makepyfile(
+            """
+            from mock import MagicMock
+            import pytest
+
+            class A:
+                def __repr__(self):
+                    raise Exception("Cannot __repr__")
+
+            @pytest.mark.parametrize('item',[A()])
+            class Test1(object):
+                def test_1(self, item):
+                    assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert json.loads(spans[0].meta[test.PARAMETERS]) == {"arguments": {"item": "Could not encode"}, "metadata": {}}
 
     def test_skip(self):
         """Test parametrize case."""
@@ -349,70 +398,33 @@ class TestPytest(TracerTestCase):
         rec = self.subprocess_run("--ddtrace", file_name)
         assert 0 == rec.ret
 
+    def test_dd_origin_tag_propagated_to_every_span(self):
+        """Test that every span in generated trace has the dd_origin tag."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+            import ddtrace
+            from ddtrace import Pin
 
-class A(object):
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
+            def test_service(ddspan, pytestconfig):
+                tracer = Pin.get_from(pytestconfig).tracer
+                with tracer.trace("SPAN2") as span2:
+                    with tracer.trace("SPAN3") as span3:
+                        with tracer.trace("SPAN4") as span4:
+                            assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
 
-
-simple_types = [st.none(), st.booleans(), st.text(), st.integers(), st.floats(allow_infinity=False, allow_nan=False)]
-complex_types = [st.functions(), st.dates(), st.decimals(), st.builds(A, name=st.text(), value=st.integers())]
-
-
-@given(
-    st.dictionaries(
-        st.text(),
-        st.one_of(
-            st.lists(st.one_of(*simple_types)), st.dictionaries(st.text(), st.one_of(*simple_types)), *simple_types
-        ),
-    )
-)
-def test_custom_json_encoding_simple_types(obj):
-    """Ensures the _json.encode helper encodes simple objects."""
-    encoded = _json_encode(obj)
-    decoded = json.loads(encoded)
-    assert obj == decoded
-
-
-@given(
-    st.dictionaries(
-        st.text(),
-        st.one_of(
-            st.lists(st.one_of(*complex_types)), st.dictionaries(st.text(), st.one_of(*complex_types)), *complex_types
-        ),
-    )
-)
-def test_custom_json_encoding_python_objects(obj):
-    """Ensures the _json_encode helper encodes complex objects into dicts of inner values or a string representation."""
-    encoded = _json_encode(obj)
-    obj = json.loads(
-        json.dumps(obj, default=lambda x: getattr(x, "__dict__", None) if getattr(x, "__dict__", None) else repr(x))
-    )
-    decoded = json.loads(encoded)
-    assert obj == decoded
-
-
-def test_custom_json_encoding_side_effects():
-    """Ensures the _json_encode helper encodes objects with side effects (getattr, repr) without raising exceptions."""
-    dict_side_effect = Exception("side effect __dict__")
-    repr_side_effect = Exception("side effect __repr__")
-
-    class B(object):
-        def __getattribute__(self, item):
-            if item == "__dict__":
-                raise dict_side_effect
-            raise AttributeError()
-
-    class C(object):
-        def __repr__(self):
-            raise repr_side_effect
-
-    obj = {"b": B(), "c": C()}
-    encoded = _json_encode(obj)
-    decoded = json.loads(encoded)
-    assert decoded["b"] == repr(dict_side_effect)
-    assert decoded["c"] == repr(repr_side_effect)
+        spans = self.pop_spans()
+        # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
+        trace = self.tracer.writer.msgpack_encoder.encode_trace(spans)
+        decoded_trace = self.tracer.writer.msgpack_encoder._decode(trace)
+        assert len(decoded_trace) == 4
+        for span in decoded_trace:
+            assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 
 
 @pytest.mark.parametrize(

@@ -625,11 +625,11 @@ def test_tracer_fork():
             with capture_failures(errors):
                 assert t._pid != original_pid
                 assert t.writer is not original_writer
-                assert t.writer._buffer is not original_writer._buffer
+                assert t.writer._encoder is not original_writer._encoder
 
         # Assert the trace got written into the correct queue
-        assert len(original_writer._buffer) == 0
-        assert len(t.writer._buffer) == 1
+        assert len(original_writer._encoder) == 0
+        assert len(t.writer._encoder) == 1
 
     # Assert tracer in a new process correctly recreates the writer
     errors = multiprocessing.Queue()
@@ -645,11 +645,11 @@ def test_tracer_fork():
     with t.trace("test", service="test"):
         assert t._pid == original_pid
         assert t.writer == original_writer
-        assert t.writer._buffer == original_writer._buffer
+        assert t.writer._encoder == original_writer._encoder
 
     # Assert the trace got written into the correct queue
-    assert len(original_writer._buffer) == 1
-    assert len(t.writer._buffer) == 1
+    assert len(original_writer._encoder) == 1
+    assert len(t.writer._encoder) == 1
 
 
 def test_tracer_with_version():

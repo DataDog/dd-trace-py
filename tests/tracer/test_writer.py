@@ -22,6 +22,7 @@ from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
+from tests.utils import override_env
 
 
 class DummyOutput:
@@ -208,14 +209,16 @@ class AgentWriterTests(BaseTestCase):
         assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
 
     def test_drop_reason_encoding_error(self):
+        n_traces = 10
         statsd = mock.Mock()
         writer_encoder = mock.Mock()
+        writer_encoder.__len__ = (lambda *args: n_traces).__get__(writer_encoder)
         writer_metrics_reset = mock.Mock()
-        writer_encoder.encode_trace.side_effect = Exception
+        writer_encoder.encode.side_effect = Exception
         writer = AgentWriter(agent_url="http://asdf:1234", dogstatsd=statsd, report_metrics=False)
         writer._encoder = writer_encoder
         writer._metrics_reset = writer_metrics_reset
-        for i in range(10):
+        for i in range(n_traces):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)]
             )
@@ -459,18 +462,18 @@ def test_agent_url_path(endpoint_assert_path):
     # test without base path
     endpoint_assert_path("/v0.")
     writer = AgentWriter(agent_url="http://%s:%s/" % (_HOST, _PORT))
-    writer._buffer.put(b"foobar")
+    writer._encoder.put([Span(None, "foobar")])
     writer.flush_queue(raise_exc=True)
 
     # test without base path nor trailing slash
     writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _PORT))
-    writer._buffer.put(b"foobar")
+    writer._encoder.put([Span(None, "foobar")])
     writer.flush_queue(raise_exc=True)
 
     # test with a base path
     endpoint_assert_path("/test/v0.")
     writer = AgentWriter(agent_url="http://%s:%s/test/" % (_HOST, _PORT))
-    writer._buffer.put(b"foobar")
+    writer._encoder.put([Span(None, "foobar")])
     writer.flush_queue(raise_exc=True)
 
 
@@ -481,14 +484,14 @@ def test_flush_connection_timeout_connect():
     else:
         exc_type = socket.error
     with pytest.raises(exc_type):
-        writer._buffer.put(b"foobar")
+        writer._encoder.put([Span(None, "foobar")])
         writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):
     writer = AgentWriter(agent_url="http://%s:%s" % (_HOST, _TIMEOUT_PORT))
     with pytest.raises(socket.timeout):
-        writer._buffer.put(b"foobar")
+        writer._encoder.put([Span(None, "foobar")])
         writer.flush_queue(raise_exc=True)
 
 
@@ -499,13 +502,13 @@ def test_flush_connection_reset(endpoint_test_reset_server):
     else:
         exc_types = (httplib.BadStatusLine,)
     with pytest.raises(exc_types):
-        writer._buffer.put(b"foobar")
+        writer._encoder.put([Span(None, "foobar")])
         writer.flush_queue(raise_exc=True)
 
 
 def test_flush_connection_uds(endpoint_uds_server):
     writer = AgentWriter(agent_url="unix://%s" % endpoint_uds_server.server_address)
-    writer._buffer.put(b"foobar")
+    writer._encoder.put([Span(None, "foobar")])
     writer.flush_queue(raise_exc=True)
 
 
@@ -535,4 +538,11 @@ def test_racing_start():
     for t in ts:
         t.join()
 
-    assert len(writer._buffer) == 100
+    assert len(writer._encoder) == 100
+
+
+def test_additional_headers():
+    with override_env(dict(_DD_TRACE_WRITER_ADDITIONAL_HEADERS="additional-header:additional-value,header2:value2")):
+        writer = AgentWriter(agent_url="http://localhost:9126")
+        assert writer._headers["additional-header"] == "additional-value"
+        assert writer._headers["header2"] == "value2"

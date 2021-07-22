@@ -87,15 +87,19 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2"},
+            pkgs={"black": "==21.4b2", "isort": [latest]},
             venvs=[
                 Venv(
                     name="fmt",
-                    command="black .",
+                    command="isort . && black .",
                 ),
                 Venv(
                     name="black",
                     command="black {cmdargs}",
+                ),
+                Venv(
+                    name="isort",
+                    command="isort {cmdargs}",
                 ),
             ],
         ),
@@ -114,10 +118,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="flake8",
-                    command="flake8 {cmdargs} ddtrace/ tests/",
-                ),
-                Venv(
-                    name="hook-flake8",
                     command="flake8 {cmdargs}",
                 ),
             ],
@@ -216,7 +216,7 @@ venv = Venv(
         ),
         Venv(
             name="falcon",
-            command="pytest {cmdargs} --ignore tests/contrib/falcon/test_autopatch.py tests/contrib/falcon",
+            command="pytest {cmdargs} tests/contrib/falcon",
             venvs=[
                 # Falcon 1.x
                 # Python 2.7+
@@ -229,17 +229,6 @@ venv = Venv(
                         ]
                     },
                 ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
-                    pys=select_pys(),
-                    pkgs={
-                        "falcon": [
-                            "~=1.4.1",
-                            "~=1.4",  # latest 1.x
-                        ]
-                    },
-                    env={"DD_SERVICE": "my-falcon"},
-                ),
                 # Falcon 2.x
                 # Python 3.5+
                 Venv(
@@ -250,17 +239,6 @@ venv = Venv(
                             "~=2.0",  # latest 2.x
                         ]
                     },
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={
-                        "falcon": [
-                            "~=2.0.0",
-                            "~=2.0",  # latest 2.x
-                        ]
-                    },
-                    env={"DD_SERVICE": "my-falcon"},
                 ),
                 # Falcon 3.x
                 # Python 3.5+
@@ -273,18 +251,6 @@ venv = Venv(
                             latest,
                         ]
                     },
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/falcon/test_autopatch.py",
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={
-                        "falcon": [
-                            "~=3.0.0",
-                            "~=3.0",  # latest 3.x
-                            latest,
-                        ]
-                    },
-                    env={"DD_SERVICE": "my-falcon"},
                 ),
             ],
         ),
@@ -414,6 +380,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -433,6 +400,7 @@ venv = Venv(
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
+                            ">=3.12,<3.13",
                             latest,
                         ],
                         "mongoengine": latest,
@@ -489,30 +457,6 @@ venv = Venv(
                         "python-memcached": latest,
                         "redis": ">=2.10,<2.11",
                         "psycopg2": ["~=2.8.0"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(max_version="3.6"),
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=1.8,<1.9", ">=1.11,<1.12"],
-                    },
-                ),
-                Venv(
-                    pys=["3.5"],
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6"),
-                    env={"TEST_DATADOG_DJANGO_MIGRATION": "1"},
-                    pkgs={
-                        "pytest-django": "==3.10.0",
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", latest],
                     },
                 ),
             ],
@@ -738,7 +682,7 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
                 ),
             ],
@@ -831,7 +775,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
@@ -882,10 +826,10 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]},
+            pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5")),
-                Venv(pys=["2.7"], pkgs={"rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": [">=1.0,<2.0"]}),
+                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
@@ -919,6 +863,22 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asgi",
         ),
         Venv(
+            name="mariadb",
+            command="pytest {cmdargs} tests/contrib/mariadb",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "mariadb": [
+                            "~=1.0.0",
+                            "~=1.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             venvs=[
@@ -941,7 +901,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6"},
+                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
@@ -953,6 +913,7 @@ venv = Venv(
                             ">=6.0,<7.0",
                             latest,
                         ],
+                        "msgpack": latest,
                     },
                 ),
             ],
@@ -1020,6 +981,41 @@ venv = Venv(
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/cassandra",
+        ),
+        Venv(
+            name="aiopg",
+            venvs=[
+                Venv(
+                    pys=["3.5", "3.6"],
+                    pkgs={
+                        "aiopg": ["~=0.12.0", "~=0.15.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
+                    },
+                ),
+            ],
+            pkgs={
+                "sqlalchemy": latest,
+            },
+            command="pytest {cmdargs} tests/contrib/aiopg",
+        ),
+        Venv(
+            name="jinja2",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                ),
+            ],
+            command="pytest {cmdargs} tests/contrib/jinja2",
         ),
     ],
 )
