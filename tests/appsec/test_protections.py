@@ -1,5 +1,6 @@
 from ddtrace import appsec
-from tests.utils import TracerTestCase, override_env
+from tests.utils import TracerTestCase
+from tests.utils import override_env
 
 
 class TestSqreenLibrary(TracerTestCase):
