@@ -145,22 +145,31 @@ class Tracer(object):
         self.writer = writer  # type: TraceWriter
 
         # TRACER_PARTIAL_FLUSH_ENABLED should be deprecated after version 1.0.0 is released
-        partial_flush_enabled_default = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        partial_flush_enabled_deprecated_config = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+        if partial_flush_enabled_deprecated_config:
+            log.warning(
+                """Please use DD_TRACE_PARTIAL_FLUSH_ENABLED to enable partial span flushing.
+                 DD_TRACER_PARTIAL_FLUSH_ENABLED config will be deprecated with version 1.0.0"""
+            )
         self._partial_flush_enabled = asbool(
             get_env(
                 "trace",
                 "partial_flush_enabled",
-                default=partial_flush_enabled_default,
+                default=partial_flush_enabled_deprecated_config,
             )
         )
 
-        # TRACER_PARTIAL_FLUSH_MIN_SPANS should be deprecated after version 1.0.0 is released
-        partial_flush_min_spans_default = int(
+        pflush_min_spans_deprecated_config = int(
             get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
         )
+        if pflush_min_spans_deprecated_config != 500:
+            log.warning(
+                """Please use DD_TRACE_PARTIAL_FLUSH_MIN_SPANS to configure partial span flushing.
+                 DD_TRACER_PARTIAL_FLUSH_MIN_SPANS config will be deprecated with version 1.0.0"""
+            )
         self._partial_flush_min_spans = int(
             get_env(
-                "trace", "partial_flush_min_spans", default=partial_flush_min_spans_default
+                "trace", "partial_flush_min_spans", default=pflush_min_spans_deprecated_config
             )  # type: ignore[arg-type]
         )
 
