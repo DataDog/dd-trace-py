@@ -2,6 +2,7 @@ import flask
 import werkzeug
 
 from ddtrace import Pin
+from ddtrace import appsec
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -328,13 +329,12 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             request_headers=request.headers,
         )
 
-        config.flask.emit_http_hook(
-            "request",
+        appsec.process_request(
             span,
             method=request.method,
-            url=request.base_url,
+            target=request.url,
+            headers=request.headers,
             query=request.query_string,
-            request_headers=request.headers,
         )
 
         return wrapped(environ, start_response)

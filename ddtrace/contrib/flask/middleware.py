@@ -3,6 +3,7 @@ from flask import request
 from flask import signals
 import flask.templating
 
+from ddtrace import appsec
 from ddtrace import config
 
 from .. import trace_utils
@@ -126,15 +127,12 @@ class TraceMiddleware(object):
                 span_type=SpanTypes.WEB,
             )
 
-            config.flask.emit_http_hook(
-                "request",
+            appsec.process_request(
                 span,
                 method=request.method,
-                url=compat.to_unicode(request.base_url or ""),
-                query=request.query_string.decode()
-                if hasattr(request.query_string, "decode")
-                else request.query_string,
-                request_headers=request.headers,
+                target=request.url,
+                headers=request.headers,
+                query=request.query_string,
             )
         except Exception:
             log.debug("flask: error tracing request", exc_info=True)

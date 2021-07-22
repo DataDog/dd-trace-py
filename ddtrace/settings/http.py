@@ -3,7 +3,6 @@ from typing import Optional
 from typing import Set
 from typing import Union
 
-from .._hooks import Hooks
 from ..internal.logger import get_logger
 from ..utils.cache import cachedmethod
 from ..utils.http import normalize_header_name
@@ -22,7 +21,6 @@ class HttpConfig(object):
         # type: () -> None
         self._whitelist_headers = set()  # type: Set[str]
         self.trace_query_string = None
-        self.hooks = Hooks()
 
     @property
     def is_header_tracing_configured(self):

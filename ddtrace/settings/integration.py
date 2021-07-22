@@ -125,11 +125,6 @@ class IntegrationConfig(AttrDict):
         #   `False` would mean `0` which is a different thing
         return None
 
-    def emit_http_hook(self, hook, *args, **kwargs):
-        # Chain integration-specific http hooks and global http hooks
-        self.http.hooks.emit(hook, *args, **kwargs)
-        self.global_config.http.hooks.emit(hook, *args, **kwargs)
-
     def __repr__(self):
         cls = self.__class__
         keys = ", ".join(self.keys())
