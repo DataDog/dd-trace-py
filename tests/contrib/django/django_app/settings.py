@@ -6,7 +6,6 @@ from ddtrace.filters import TraceFilter
 
 class PingFilter(TraceFilter):
     def process_trace(self, trace):
-        print(trace)
         return None if trace and trace[0].trace_id == 1 else trace
 
 
