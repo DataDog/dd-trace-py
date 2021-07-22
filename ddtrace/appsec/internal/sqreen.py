@@ -23,7 +23,7 @@ class SqreenLibrary(BaseProtection):
         # type: (str, Optional[float]) -> None
         if budget_ms is None:
             budget_ms = DEFAULT_SQREEN_BUDGET_MS
-        self._budget = budget_ms * 1000
+        self._budget = int(budget_ms * 1000)
         self._instance = waf.WAFEngine(rules)
         self.stats = Counter({"total": 0, "reported": 0})
 
