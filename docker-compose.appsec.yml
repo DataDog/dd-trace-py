@@ -19,3 +19,4 @@ services:
          - DD_AGENT_HOST=agent
          - DD_TRACE_HEALTH_METRICS_ENABLED=true
          - DD_TRACE_DEBUG
+         - DD_SERVICE
