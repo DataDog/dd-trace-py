@@ -861,6 +861,10 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
+            # Patch the tracer writer to include the test token header for all requests.
+            tracer.writer._headers["X-Datadog-Test-Token"] = token
+
+            # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
             existing_headers.update({"X-Datadog-Test-Token": token})
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
@@ -887,6 +891,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             # Force a flush so all traces are submitted.
             tracer.writer.flush_queue()
             if async_mode:
+                del tracer.writer._headers["X-Datadog-Test-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         # Query for the results of the test.
