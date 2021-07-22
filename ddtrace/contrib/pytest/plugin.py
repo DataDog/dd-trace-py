@@ -1,4 +1,5 @@
 import json
+from typing import Dict
 
 import pytest
 
@@ -8,11 +9,16 @@ from ...constants import SPAN_KIND
 from ...ext import SpanTypes
 from ...ext import ci
 from ...ext import test
+from ...internal.logger import get_logger
 from ...pin import Pin
 from ..trace_utils import int_service
 from .constants import FRAMEWORK
 from .constants import HELP_MSG
 from .constants import KIND
+
+
+PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+log = get_logger(__name__)
 
 
 def is_enabled(config):
@@ -28,9 +34,6 @@ def _extract_span(item):
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
     setattr(item, "_datadog_span", span)
-
-
-PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
 def pytest_addoption(parser):
@@ -107,8 +110,14 @@ def pytest_runtest_protocol(item, nextitem):
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
-            params = {"arguments": item.callspec.params, "metadata": {}}
-            span.set_tag(test.PARAMETERS, json.dumps(params, default=repr))
+            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+            for param_name, param_val in item.callspec.params.items():
+                try:
+                    parameters["arguments"][param_name] = repr(param_val)
+                except Exception:
+                    parameters["arguments"][param_name] = "Could not encode"
+                    log.warning("Failed to encode %r", param_name, exc_info=True)
+            span.set_tag(test.PARAMETERS, json.dumps(parameters))
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
