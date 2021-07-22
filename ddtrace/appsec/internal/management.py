@@ -37,13 +37,15 @@ class Management(object):
         default_rules = os.path.join(root_dir, "rules.json")
         path = get_env("appsec", "rules", default=default_rules)
 
+        sqreen_budget_ms = get_env("appsec", "sqreen", "budget_ms")
+
         try:
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
             with open(path, "r") as f:
                 rules = f.read()
 
-            self.protections = [SqreenLibrary(rules)]
+            self.protections = [SqreenLibrary(rules, float(sqreen_budget_ms) if sqreen_budget_ms is not None else None)]
         except Exception:
             log.warning(
                 "AppSec module failed to load. Your application is not protected. "
