@@ -226,5 +226,5 @@ def test_asgi_200(daphne_client):
     },
 )
 def test_asgi_500(daphne_client):
-    resp = daphne_client.get("/error-500")
+    resp = daphne_client.get("/error-500/")
     assert resp.status_code == 500
