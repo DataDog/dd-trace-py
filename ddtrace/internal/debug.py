@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import platform
+import re
 import sys
 from typing import Any
 from typing import Dict
@@ -139,7 +140,7 @@ def collect(tracer):
     )
 
 
-def pretty_collect(tracer):
+def pretty_collect(tracer, color=True):
     class bcolors:
         HEADER = "\033[95m"
         OKBLUE = "\033[94m"
@@ -215,4 +216,13 @@ def pretty_collect(tracer):
         )
 
     info_pretty += "\n\n" + summary
+
+    if color == False:
+        return escape_ansi(info_pretty)
+
     return info_pretty
+
+
+def escape_ansi(line):
+    ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]")
+    return ansi_escape.sub("", line)

@@ -56,9 +56,15 @@ def main():
     )
     parser.add_argument("command", nargs=argparse.REMAINDER, type=str, help="Command string to execute.")
     parser.add_argument("-d", "--debug", help="enable debug mode (disabled by default)", action="store_true")
-    parser.add_argument("-i", "--info", help="print library info useful for debugging. Does not reflect configuration changes made during runtime", action="store_true")
+    parser.add_argument(
+        "-i",
+        "--info",
+        help="print library info useful for debugging. Does not reflect configuration changes made during runtime",
+        action="store_true",
+    )
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
+    parser.add_argument("-nc", "--colorless", help="print output of command without color", action="store_true")
     args = parser.parse_args()
 
     if args.profiling:
@@ -72,11 +78,13 @@ def main():
 
     if args.info:
         # Inline imports for performance.
-        import pprint
-
         from ddtrace.internal.debug import pretty_collect
 
-        print(pretty_collect(ddtrace.tracer))
+        if args.colorless:
+            print(pretty_collect(ddtrace.tracer, color=False))
+
+        else:
+            print(pretty_collect(ddtrace.tracer))
         sys.exit(0)
 
     if not args.command:
