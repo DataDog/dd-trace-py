@@ -7,7 +7,7 @@ from ddtrace.span import Span
 
 Trace = List[Span]
 
-class StringTable(object):
+class ListStringTable(object):
     def index(self, string: str) -> int: ...
 
 class BufferFull(Exception):
@@ -31,10 +31,6 @@ class BufferedEncoder(object):
 
 class MsgpackEncoder(BufferedEncoder):
     def _decode(self, data: Union[str, bytes]) -> Any: ...
-
-class MsgpackEncoderV03(MsgpackEncoder):
-    def encode_trace(self, trace: List[Any]) -> bytes: ...
-    def join_encoded(self, objs: List[bytes]) -> bytes: ...
 
 class MsgpackEncoderV05(MsgpackEncoder):
     def encode_trace(self, trace: List[Any]) -> bytes: ...
