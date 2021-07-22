@@ -63,7 +63,5 @@ class Management(object):
     def process_request(self, span, **data):
         # type: (Span, Mapping[str, Any]) -> None
         """Process HTTP request data emitted by the integration hooks."""
-        context_id = span.trace_id
-        if context_id is not None:
-            for protection in self.protections:
-                protection.process(context_id, data)
+        for protection in self.protections:
+            protection.process(span, data)

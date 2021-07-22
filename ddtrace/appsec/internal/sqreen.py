@@ -1,12 +1,17 @@
-from collections import Counter
 import logging
 from typing import Any
 from typing import Mapping
 from typing import Optional
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
 
 from sq_native import waf
 
 from ddtrace.appsec.internal.protections import BaseProtection
+from ddtrace.utils.time import StopWatch
 
 
 log = logging.getLogger(__name__)
@@ -25,14 +30,16 @@ class SqreenLibrary(BaseProtection):
             budget_ms = DEFAULT_SQREEN_BUDGET_MS
         self._budget = int(budget_ms * 1000)
         self._instance = waf.WAFEngine(rules)
-        self.stats = Counter({"total": 0, "reported": 0})
 
-    def process(self, context_id, data):
-        # type: (int, Mapping[str, Any]) -> None
-        log.debug("Create a new Sqreen context for %r", context_id)
-        context = self._instance.create_context()
-        ret = context.run(data, self._budget)
-        log.debug("Sqreen context for %r returned: %r", context_id, ret)
+    def process(self, span, data):
+        # type: (Span, Mapping[str, Any]) -> None
+        with StopWatch() as timer:
+            context = self._instance.create_context()
+            ret = context.run(data, self._budget)
+        elapsed_ms = timer.elapsed() * 1000
+        log.debug("Sqreen context returned %r in %.5fms for %r", ret, elapsed_ms, span)
+        span.set_metric("sq.process_ms", elapsed_ms)
+        if elapsed_ms > self._budget:
+            span.set_metric("sq.overtime_ms", elapsed_ms - self._budget)
         if ret.report:
-            self.stats["reported"] += 1
-        self.stats["total"] += 1
+            span.set_metric("sq.reports", 1)

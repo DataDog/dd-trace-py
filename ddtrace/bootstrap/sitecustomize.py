@@ -85,8 +85,6 @@ try:
         # Keep the import local until the module is enabled by default
         import ddtrace.appsec
 
-        config.http.hooks.register("request", ddtrace.appsec.process_request)
-
         ddtrace.appsec.enable()
 
     if asbool(get_env("runtime_metrics", "enabled")):
