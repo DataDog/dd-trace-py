@@ -249,15 +249,15 @@ class Tracer(object):
         return None
 
     def get_log_correlation_context(self):
-        # type: () -> Optional[DDLogRecord]
+        # type: () -> DDLogRecord
         """Retrieves the Correlation Identifiers for the current active ``Trace``
         This helper method generates a DDLogRecord for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, an empty DDLogRecord will be returned.
         """
-        if not self.enabled:
-            return None
-        span = self.current_span()
+        span = None
+        if self.enabled:
+            span = self.current_span()
 
         return DDLogRecord(
             trace_id=str(span.trace_id) if span else RECORD_ATTR_VALUE_ZERO,  # type: ignore

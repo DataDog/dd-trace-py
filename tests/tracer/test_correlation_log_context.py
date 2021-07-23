@@ -22,11 +22,7 @@ def tracer_injection(logger, log_method, event_dict):
     correlation_log_context = tracer.get_log_correlation_context()
 
     # add ids and configs to structlog event dictionary
-    event_dict["dd.trace_id"] = correlation_log_context.trace_id
-    event_dict["dd.span_id"] = correlation_log_context.span_id
-    event_dict["dd.env"] = correlation_log_context.env
-    event_dict["dd.service"] = correlation_log_context.service
-    event_dict["dd.version"] = correlation_log_context.version
+    event_dict["dd_correlation_context"] = correlation_log_context
 
     return event_dict
 
@@ -78,7 +74,11 @@ class TestCorrelationLogsContext(object):
         tracer.enabled = False
         with tracer.trace("test-span"):
             dd_log_record = tracer.get_log_correlation_context()
-        assert dd_log_record is None
+        assert dd_log_record.span_id == "0"
+        assert dd_log_record.trace_id == "0"
+        assert dd_log_record.service == ""
+        assert dd_log_record.env == ""
+        assert dd_log_record.version == ""
 
     def test_custom_logging_injection(self):
         """Ensure custom log injection via get_correlation_log_record returns proper active span information."""
@@ -90,12 +90,13 @@ class TestCorrelationLogsContext(object):
             logger.msg("Hello!")
 
         assert len(capture_log.entries) == 1
+        dd_log_context = capture_log.entries[0]["dd_correlation_context"]
         assert capture_log.entries[0]["event"] == "Hello!"
-        assert capture_log.entries[0]["dd.trace_id"] == str(span.trace_id)
-        assert capture_log.entries[0]["dd.span_id"] == str(span.span_id)
-        assert capture_log.entries[0]["dd.version"] == ""
-        assert capture_log.entries[0]["dd.env"] == ""
-        assert capture_log.entries[0]["dd.service"] == ""
+        assert dd_log_context.trace_id == str(span.trace_id)
+        assert dd_log_context.span_id == str(span.span_id)
+        assert dd_log_context.version == ""
+        assert dd_log_context.env == ""
+        assert dd_log_context.service == ""
 
     def test_custom_logging_injection_global_config(self):
         """Ensure custom log injection via get_correlation_log_record returns proper tracer information."""
@@ -108,12 +109,13 @@ class TestCorrelationLogsContext(object):
                 logger.msg("Hello!")
 
         assert len(capture_log.entries) == 1
+        dd_log_context = capture_log.entries[0]["dd_correlation_context"]
         assert capture_log.entries[0]["event"] == "Hello!"
-        assert capture_log.entries[0]["dd.trace_id"] == str(span.trace_id)
-        assert capture_log.entries[0]["dd.span_id"] == str(span.span_id)
-        assert capture_log.entries[0]["dd.version"] == "global.version"
-        assert capture_log.entries[0]["dd.env"] == "global.env"
-        assert capture_log.entries[0]["dd.service"] == "global.service"
+        assert dd_log_context.trace_id == str(span.trace_id)
+        assert dd_log_context.span_id == str(span.span_id)
+        assert dd_log_context.version == "global.version"
+        assert dd_log_context.env == "global.env"
+        assert dd_log_context.service == "global.service"
 
     def test_custom_logging_injection_no_span(self):
         """Ensure custom log injection via get_correlation_log_record with no active span returns empty record."""
@@ -125,9 +127,10 @@ class TestCorrelationLogsContext(object):
             logger.msg("No Span!")
 
         assert len(capture_log.entries) == 1
+        dd_log_context = capture_log.entries[0]["dd_correlation_context"]
         assert capture_log.entries[0]["event"] == "No Span!"
-        assert capture_log.entries[0]["dd.trace_id"] == "0"
-        assert capture_log.entries[0]["dd.span_id"] == "0"
-        assert capture_log.entries[0]["dd.version"] == "global.version"
-        assert capture_log.entries[0]["dd.env"] == "global.env"
-        assert capture_log.entries[0]["dd.service"] == "global.service"
+        assert dd_log_context.trace_id == "0"
+        assert dd_log_context.span_id == "0"
+        assert dd_log_context.version == "global.version"
+        assert dd_log_context.env == "global.env"
+        assert dd_log_context.service == "global.service"

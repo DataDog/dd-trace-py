@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from typing import Tuple
 
 from ddtrace import Pin
-from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
@@ -27,6 +26,7 @@ from ddtrace.vendor import wrapt
 
 if TYPE_CHECKING:
     from ddtrace import Span
+    from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
 
 
