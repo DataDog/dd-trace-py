@@ -1,6 +1,7 @@
 import pyperf
 
 from ddtrace import tracer
+from ddtrace.filters import TraceFilter
 
 
 VARIANTS = [{}]
@@ -28,17 +29,15 @@ def time_trace(loops, variant):
     return dt
 
 
-# use the fake processor so that spans are not written
-class FakeTraceProcessor:
+# append a filter to drop traces so that no traces are encoded and sent to the agent
+class DropTraces(TraceFilter):
     def process_trace(self, trace):
         return
 
 
 if __name__ == "__main__":
     runner = pyperf.Runner()
-    fake_processor = FakeTraceProcessor()
-    # append fake processor to the end of processors so that all processors run before traces are tossed out
-    tracer._span_processors[0]._trace_processors.append(fake_processor)
+    tracer.configure(settings={"FILTERS": [DropTraces()]})
     for variant in VARIANTS:
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
         runner.bench_time_func("scenario:tracer|" + name, time_trace, variant)
