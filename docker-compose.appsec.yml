@@ -1,3 +1,26 @@
+# This AppSec sandbox runs a sample application protected
+# with default security event rules.
+#
+# 1. Get an API key on:
+#
+#    https://dd.datad0g.com/organization-settings/api-keys
+#
+# 2. Export it with:
+#
+#    export DD_API_KEY=*******************************
+#
+# 2. Get the docker-compose file:
+#
+#    curl -o docker-compose.yml https://raw.githubusercontent.com/nizox/dd-trace-py/appsec/docker-compose.appsec.yml
+#
+# 3. Run the sandbox (it takes a couple minutes the first time to build the application):
+#
+#    docker-compose up
+#
+# 4. Access the aplication from the browser:
+#
+#    http://localhost:8080/
+#
 version: "3.9"
 services:
     agent:
@@ -35,6 +58,8 @@ services:
            vegeta attack -rate 1/s -output /dev/null <<EOF
            GET http://app/
            GET http://app/favicon.ico
+           POST http://app/anything
+           GET http://app/status/500
            EOF
     attack-generator:
         depends_on:
@@ -45,5 +70,7 @@ services:
          - -c
          - |
            vegeta attack -rate 1/10s -output /dev/null <<EOF
-           GET http://app/?q=<script>
+           POST http://app/post?username=<script>
+           GET http://app/image/png
+           User-Agent: Arachni/v1
            EOF
