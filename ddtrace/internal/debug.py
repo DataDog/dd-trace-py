@@ -196,22 +196,22 @@ def pretty_collect(tracer, color=True):
     summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
 
     if info.get("agent_error"):
-        summary += "\n\n{0}ERROR: It looks like you have an agent error: '{1}'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://docs.datadoghq.com/tracing/setup_overview/setup/python/?tab=containers#configure-the-datadog-agent-for-apm\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/{2}".format(
+        summary += "\n\n{0}ERROR: It looks like you have an agent error: '{1}'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefusederror\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/{2}".format(
             bcolors.FAIL, info.get("agent_error"), bcolors.ENDC
         )
 
     if not info.get("service"):
-        summary += "\n\n{0}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications. For how to set a service tag please see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview{1}".format(
+        summary += "\n\n{0}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html".format(
             bcolors.WARNING, bcolors.ENDC
         )
 
     if not info.get("env"):
-        summary += "\n\n{0}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For how to set an env tag please see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview{1}".format(
+        summary += "\n\n{0}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{1}".format(
             bcolors.WARNING, bcolors.ENDC
         )
 
     if not info.get("dd_version"):
-        summary += "\n\n{0}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications. For how to set a version tag please see https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/?tab=kubernetes#overview{1}".format(
+        summary += "\n\n{0}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{1}".format(
             bcolors.WARNING, bcolors.ENDC
         )
 
