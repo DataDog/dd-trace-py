@@ -4,4 +4,4 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends git build-es
 RUN pip3 install setuptools cython
 RUN pip3 install git+https://github.com/nizox/dd-trace-py@appsec
 
-CMD ["ddtrace-run", "gunicorn", "-b", "0.0.0.0:80", "httpbin:app", "-k", "gthread"]
+CMD ["ddtrace-run", "gunicorn", "-b", "0.0.0.0:80", "-k", "gthread", "--access-logfile", "-", "httpbin:app"]

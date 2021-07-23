@@ -6,16 +6,44 @@ services:
          - DD_APPSEC_ENABLED=true
          - DD_APM_NON_LOCAL_TRAFFIC=true
          - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
-         - DD_SITE
+         - DD_SITE=datad0g.com
+         - DD_ENV=appsec-sandbox
          - DD_API_KEY
     app:
+        depends_on:
+         - agent
         build:
             context: https://github.com/nizox/dd-trace-py.git#appsec
             dockerfile: Dockerfile.appsec
         ports:
          - "8080:80"
         environment:
+         - DD_ENV=appsec-sandbox
          - DD_APPSEC_ENABLED=true
+         - DD_PROFILING_ENABLED=true
          - DD_AGENT_HOST=agent
          - DD_TRACE_HEALTH_METRICS_ENABLED=true
          - DD_TRACE_DEBUG
+    baseline-generator:
+        depends_on:
+         - app
+        image: peterevans/vegeta
+        command:
+         - sh
+         - -c
+         - |
+           vegeta attack -rate 1/s -output /dev/null <<EOF
+           GET http://app/
+           GET http://app/favicon.ico
+           EOF
+    attack-generator:
+        depends_on:
+         - app
+        image: peterevans/vegeta
+        command:
+         - sh
+         - -c
+         - |
+           vegeta attack -rate 1/10s -output /dev/null <<EOF
+           GET http://app/?q=<script>
+           EOF
