@@ -19,32 +19,6 @@ support micro releases to `VERSION`. Patches should be cherry-picking from the
 `master` branch where possible — or otherwise created from scratch.
 
 
-Pull Request Process
-====================
-
-In order to be merged, a pull request needs to meet the following
-conditions:
-
-1. The test suite must pass.
-2. One of the repository Members must approve the pull request.
-3. Proper unit and integration testing must be implemented.
-4. Proper documentation must be written.
-
-Splitting Pull Requests
-=======================
-
-If you discussed your feature within an issue (as advised), there's a great
-chance that the implementation appears doable in several steps. In order to
-expedite the review process, we strongly advise to split your feature
-implementation in small pull requests (if that is possible) so they contain a
-very small number of commits (a single commit per pull request being optimal).
-
-That ensures that:
-
-1. Each commit passes the test suite.
-2. The code reviewing process done by humans is easier as there is less code to
-   understand at a glance.
-
 Internal API
 ============
 
