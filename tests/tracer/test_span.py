@@ -19,6 +19,7 @@ from ddtrace.span import Span
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+from tests.utils import override_global_config
 
 
 class SpanTestCase(TracerTestCase):
@@ -513,12 +514,23 @@ def test_span_encoding_set_str_tag(span_log):
     assert span.meta["foo"] == u"/?foo=bar&baz=����ó��"
 
 
-@mock.patch("ddtrace.span.log")
-def test_span_nonstring_set_str_tag(span_log):
+def test_span_nonstring_set_str_tag_exc():
     span = Span(None, None)
     with pytest.raises(TypeError):
         span._set_str_tag("foo", dict(a=1))
     assert "foo" not in span.meta
+
+
+@mock.patch("ddtrace.span.log")
+def test_span_nonstring_set_str_tag_warning(span_log):
+    with override_global_config(dict(_raise=False)):
+        span = Span(None, None)
+        span._set_str_tag("foo", dict(a=1))
+        span_log.warning.assert_called_once_with(
+            "Failed to set text tag '%s'",
+            "foo",
+            exc_info=True,
+        )
 
 
 def test_span_ignored_exceptions():
@@ -650,3 +662,15 @@ def test_span_pprint():
     root = Span(None, "test.span", service=object())
     actual = root.pprint()
     assert "service=<object object at" in actual
+
+
+def test_manual_context_usage():
+    span1 = Span(None, "span1")
+    span2 = Span(None, "span2", context=span1.context)
+
+    span2.context.sampling_priority = 2
+    assert span1.context.sampling_priority == 2
+
+    span1.context.sampling_priority = 1
+    assert span2.context.sampling_priority == 1
+    assert span1.context.sampling_priority == 1

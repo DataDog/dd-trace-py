@@ -10,12 +10,12 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.vendor import wrapt
 
 from . import constants
+from . import utils
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
-from .utils import set_grpc_method_meta
 
 
 log = get_logger(__name__)
@@ -179,10 +179,8 @@ class _ClientInterceptor(
         )
         span.set_tag(SPAN_MEASURED_KEY)
 
-        set_grpc_method_meta(span, client_call_details.method, method_kind)
-        span._set_str_tag(constants.GRPC_HOST_KEY, self._host)
-        if self._port:
-            span._set_str_tag(constants.GRPC_PORT_KEY, str(self._port))
+        utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
+        utils.set_grpc_client_meta(span, self._host, self._port)
         span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         sample_rate = config.grpc.get_analytics_sample_rate()

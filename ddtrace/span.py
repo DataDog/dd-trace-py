@@ -13,6 +13,7 @@ from typing import Union
 
 import six
 
+from . import config
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
@@ -20,6 +21,7 @@ from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
 from .constants import VERSION_KEY
+from .context import Context
 from .ext import SpanTypes
 from .ext import errors
 from .ext import http
@@ -38,7 +40,6 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:
-    from .context import Context
     from .tracer import Tracer
 
 
@@ -70,6 +71,7 @@ class Span(object):
         "sampled",
         # Internal attributes
         "_context",
+        "_local_root",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -89,7 +91,6 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
-        _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
         """
@@ -136,18 +137,19 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
-        self.span_id = span_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
+        self.trace_id = trace_id or _rand.rand64bits()  # type: int
+        self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self.tracer = tracer
+        self.tracer = tracer  # type: Optional[Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context  # type: Optional[Context]
+        self._context = context._with_span(self) if context else None  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
+        self._local_root = None  # type: Optional[Span]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -208,23 +210,19 @@ class Span(object):
         self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time=None):
-        # type: (Optional[int]) -> None
+        # type: (Optional[float]) -> None
         """Mark the end time of the span and submit it to the tracer.
-        If the span has already been finished don't do anything
+        If the span has already been finished don't do anything.
 
-        :param int finish_time: The end time of the span in seconds.
-                                Defaults to now.
+        :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
-        if self.finished:
+        if self.duration_ns is not None:
             return
 
-        if self.duration_ns is None:
-            ft = time_ns() if finish_time is None else int(finish_time * 1e9)
-            # be defensive so we don't die if start isn't set
-            self.duration_ns = ft - (self.start_ns or ft)
+        ft = time_ns() if finish_time is None else int(finish_time * 1e9)
+        # be defensive so we don't die if start isn't set
+        self.duration_ns = ft - (self.start_ns or ft)
 
-        if self._context:
-            self._context._close_span(self)
         for cb in self._on_finish_callbacks:
             cb(self)
 
@@ -320,7 +318,12 @@ class Span(object):
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
         """
-        self.meta[key] = ensure_text(value, errors="replace")
+        try:
+            self.meta[key] = ensure_text(value, errors="replace")
+        except Exception as e:
+            if config._raise:
+                raise e
+            log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
     def _remove_tag(self, key):
         # type: (_TagNameType) -> None
@@ -498,11 +501,10 @@ class Span(object):
 
     @property
     def context(self):
-        """
-        Property that provides access to the ``Context`` associated with this ``Span``.
-        The ``Context`` contains state that propagates from span to span in a
-        larger trace.
-        """
+        # type: () -> Context
+        """Return the trace context for this span."""
+        if self._context is None:
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
         return self._context
 
     def __enter__(self):

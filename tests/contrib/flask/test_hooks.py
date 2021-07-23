@@ -14,7 +14,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
-        self.bp = Blueprint(__name__, "bp")
+        self.bp = Blueprint("bp", __name__)
 
         @self.bp.route("/bp")
         def bp():

@@ -1,11 +1,25 @@
 from django.utils.functional import SimpleLazyObject
-from six import ensure_text
+import six
 
+from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import func_name
+from ddtrace.ext import SpanTypes
+from ddtrace.propagation.utils import from_wsgi_header
+
+from .. import trace_utils
 from ...internal.logger import get_logger
 from .compat import get_resolver
+from .compat import user_is_authenticated
 
 
 log = get_logger(__name__)
+
+
+# Set on patch, when django is imported
+Resolver404 = None
+DJANGO22 = None
 
 
 def resource_from_cache_prefix(resource, cache):
@@ -119,6 +133,143 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = ensure_text(v)
+        urlparts[k] = six.ensure_text(v)
 
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
+
+
+def _before_request_tags(pin, span, request):
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    span.name = "django.request"
+    span.resource = request.method
+    span.service = trace_utils.int_service(pin, config.django)
+    span.span_type = SpanTypes.WEB
+    span.metrics[SPAN_MEASURED_KEY] = 1
+
+    analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
+    if analytics_sr is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
+
+    try:
+        # Get resolver match result and build resource name pieces
+        resolver_match = request.resolver_match
+        if not resolver_match:
+            # The request quite likely failed (e.g. 404) so we do the resolution anyway.
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            resolver_match = resolver.resolve(request.path_info)
+        handler = func_name(resolver_match[0])
+
+        if config.django.use_handler_resource_format:
+            span.resource = " ".join((span.resource, handler))
+        elif config.django.use_legacy_resource_format:
+            span.resource = handler
+        else:
+            # In Django >= 2.2.0 we can access the original route or regex pattern
+            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+            if DJANGO22:
+                # Determine the resolver and resource name for this request
+                route = get_django_2_route(request, resolver_match)
+                if route:
+                    span.resource = " ".join((request.method, route))
+                    span._set_str_tag("http.route", route)
+            else:
+                span.resource = " ".join((request.method, handler))
+
+        span._set_str_tag("django.view", resolver_match.view_name)
+        set_tag_array(span, "django.namespace", resolver_match.namespaces)
+
+        # Django >= 2.0.0
+        if hasattr(resolver_match, "app_names"):
+            set_tag_array(span, "django.app", resolver_match.app_names)
+
+    except Resolver404:
+        # Normalize all 404 requests into a single resource name
+        # DEV: This is for potential cardinality issues
+        span.resource = " ".join((request.method, "404"))
+    except Exception:
+        log.debug(
+            "Failed to resolve request path %r with path info %r",
+            request,
+            getattr(request, "path_info", "not-set"),
+            exc_info=True,
+        )
+    span._set_str_tag("django.request.class", func_name(request))
+
+
+def _after_request_tags(pin, span, request, response):
+    # Response can be None in the event that the request failed
+    # We still want to set additional request tags that are resolved
+    # during the request.
+
+    user = getattr(request, "user", None)
+    if user is not None:
+        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
+        # Django's get_user_model():
+        # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+        try:
+            if hasattr(user, "is_authenticated"):
+                span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
+
+            uid = getattr(user, "pk", None)
+            if uid:
+                span._set_str_tag("django.user.id", str(uid))
+
+            if config.django.include_user_name:
+                username = getattr(user, "username", None)
+                if username:
+                    span._set_str_tag("django.user.name", username)
+        except Exception:
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
+
+    if response:
+        status = response.status_code
+        span._set_str_tag("django.response.class", func_name(response))
+        if hasattr(response, "template_name"):
+            # template_name is a bit of a misnomer, as it could be any of:
+            # a list of strings, a tuple of strings, a single string, or an instance of Template
+            # for more detail, see:
+            # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+            template = response.template_name
+
+            if isinstance(template, six.string_types):
+                template_names = [template]
+            elif isinstance(
+                template,
+                (
+                    list,
+                    tuple,
+                ),
+            ):
+                template_names = template
+            elif hasattr(template, "template"):
+                # ^ checking by attribute here because
+                # django backend implementations don't have a common base
+                # `.template` is also the most consistent across django versions
+                template_names = [template.template.name]
+            else:
+                template_names = None
+
+            set_tag_array(span, "django.response.template", template_names)
+
+        url = get_request_uri(request)
+
+        if DJANGO22:
+            request_headers = request.headers
+        else:
+            request_headers = {}
+            for header, value in request.META.items():
+                name = from_wsgi_header(header)
+                if name:
+                    request_headers[name] = value
+
+        response_headers = dict(response.items())
+        trace_utils.set_http_meta(
+            span,
+            config.django,
+            method=request.method,
+            url=url,
+            status_code=status,
+            query=request.META.get("QUERY_STRING", None),
+            request_headers=request_headers,
+            response_headers=response_headers,
+        )

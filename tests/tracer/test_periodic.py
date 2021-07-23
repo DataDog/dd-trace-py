@@ -107,12 +107,14 @@ def test_gevent_class():
 def test_periodic_service_start_stop():
     t = periodic.PeriodicService(1)
     t.start()
-    with pytest.raises(service.ServiceAlreadyRunning):
+    with pytest.raises(service.ServiceStatusError):
         t.start()
     t.stop()
     t.join()
-    t.stop()
-    t.stop()
+    with pytest.raises(service.ServiceStatusError):
+        t.stop()
+    with pytest.raises(service.ServiceStatusError):
+        t.stop()
     t.join()
     t.join()
 
@@ -120,12 +122,15 @@ def test_periodic_service_start_stop():
 def test_periodic_join_stop_no_start():
     t = periodic.PeriodicService(1)
     t.join()
-    t.stop()
+    with pytest.raises(service.ServiceStatusError):
+        t.stop()
     t.join()
     t = periodic.PeriodicService(1)
-    t.stop()
+    with pytest.raises(service.ServiceStatusError):
+        t.stop()
     t.join()
-    t.stop()
+    with pytest.raises(service.ServiceStatusError):
+        t.stop()
 
 
 def test_is_alive_before_start():

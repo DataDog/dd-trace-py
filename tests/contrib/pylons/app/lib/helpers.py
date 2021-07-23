@@ -20,7 +20,7 @@ class AppGlobals(object):
 
 
 def get_render_fn():
-    """Re-import the function everytime so that double-patching
+    """Re-import the function every time so that double-patching
     is correctly tested.
     """
     try:

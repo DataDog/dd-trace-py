@@ -23,7 +23,7 @@ class TestStackContext(TornadoTestCase):
         with TracerStackContext():
             ctx = self.tracer.context_provider.active()
 
-        assert ctx is not None
+        assert ctx is None
 
     def test_propagation_with_new_context(self):
         # inside a TracerStackContext it should be possible to set
