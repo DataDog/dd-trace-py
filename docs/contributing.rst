@@ -45,7 +45,7 @@ a human. All code style enforcement must be automated to avoid bikeshedding
 and losing time.
 
 
-How-to: Write an Integration
+How To: Write an Integration
 ============================
 
 An integration should provide concise, insightful data about the library or
@@ -76,7 +76,7 @@ The development process looks like this:
   - Write the integration (see more on this below).
 
   - Open up a draft PR using the `integration checklist
-    <https://github.com/DataDog/dd-trace-py/.github/PULL_REQUEST_TEMPLATE/integration.md>`.
+    <https://github.com/DataDog/dd-trace-py/.github/PULL_REQUEST_TEMPLATE/integration.md>`_.
 
 
 Integration Fundamentals
@@ -198,7 +198,10 @@ that the integration:
     1) works: submits meaningful information to Datadog
 
     2) is invisible: does not impact the library or application by disturbing state,
-       performance or raising exceptions
+       performance or causing errors
+
+The best way to get started writing tests is to reference other integration test suites. There
+are a number of test utilities and fixtures which can be used to make testing less of a burden.
 
 
 Trace Examples
