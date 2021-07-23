@@ -102,7 +102,7 @@ The Pin API is used to configure the instrumentation at run-time. This includes
 enabling and disabling the instrumentation and overriding the service name.
 
 
-Library Support
+Library support
 ~~~~~~~~~~~~~~~
 
 ``ddtrace`` tries to support as many active versions of a library as possible.
@@ -141,15 +141,15 @@ dealing with exceptions in ``ddtrace``:
       instrumentation for an example.
 
 
-Distributed Tracing
-~~~~~~~~~~~~~~~~~~~
+Cross execution tracing
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Some integrations can propagate a trace across application boundaries to other
-applications where the trace is continued. Datadog and ``ddtrace`` provide
-support for continuing a trace in another application.
+Some integrations can propagate a trace across execution boundaries to other
+executions where the trace is continued (processes, threads, tasks, etc). Refer
+to the `Context`_ section of the documentation for more information.
 
-    - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/requests/connection.py#L85-L88>`_
-    - Receiving a propagated trace example: `Django <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/django/middleware.py#L116-L121>`_
+    - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/requests/connection.py#L95-L97`_
+    - Receiving and activating a propagated trace example: `Django <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/django/patch.py#L304`_
 
 
 Web frameworks
@@ -168,8 +168,8 @@ A web framework integration must do the following if possible:
     - Use the `SpanTypes.WEB` span type.
 
 Some example web framework integrations::
-    - `flask <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/flask>`_
-    - `django <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/django>`_
+    - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
+    - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`_
 
 
 Database libraries
@@ -177,13 +177,14 @@ Database libraries
 
 ``ddtrace`` already provides base instrumentation for the Python database API
 (PEP 249) which most database client libraries implement in the
-`ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/dbapi/__init__.py>`_
+`ddtrace.contrib.dbapi <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/dbapi/__init__.py>`_
 module.
 
 Check out some of our existing database integrations for how to use the `dbapi`:
 
-    - `psycopg <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/psycopg>`_
-    - `mysql <https://github.com/DataDog/dd-trace-py/tree/96dc6403e329da87fe40a1e912ce72f2b452d65c/ddtrace/contrib/mysql>`_
+    - `mariadb <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mariadb>`_
+    - `psycopg <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/psycopg>`_
+    - `mysql <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/mysql>`_
 
 
 Testing
