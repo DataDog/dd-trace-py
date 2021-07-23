@@ -9,15 +9,15 @@
 #
 #    export DD_API_KEY=*******************************
 #
-# 2. Get the docker-compose file:
+# 3. Get the docker-compose file:
 #
 #    curl -o docker-compose.yml https://raw.githubusercontent.com/nizox/dd-trace-py/appsec/docker-compose.appsec.yml
 #
-# 3. Run the sandbox (it takes a couple minutes the first time to build the application):
+# 4. Run the sandbox (it takes a couple of minutes to build the first time):
 #
 #    docker-compose up
 #
-# 4. Access the aplication from the browser:
+# 5. Access the application from the browser:
 #
 #    http://localhost:8080/
 #
