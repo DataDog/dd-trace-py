@@ -35,6 +35,7 @@ def authenticated_view(request):
 
 
 def shutdown(request):
+    # Endpoint used to flush traces to the agent when doing snapshots.
     tracer.shutdown()
     return HttpResponse(status=200)
 

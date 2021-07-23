@@ -22,7 +22,7 @@ class Client(object):
         # type: (str) -> None
         self._base_url = base_url
         self._session = requests.Session()
-        # Propagate traces with trace_id = 0 for the ping trace so we can filter them out.
+        # Propagate traces with trace_id = 1 for the ping trace so we can filter them out.
         c, d = Context(trace_id=1, span_id=1), {}
         HTTPPropagator.inject(c, d)
         self._ignore_headers = d
@@ -78,7 +78,6 @@ def daphne_client(snapshot):
     env.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
-            "DD_TRACE_WRITER_INTERVAL_SECONDS": "0.001",
         }
     )
 
@@ -100,9 +99,9 @@ def daphne_client(snapshot):
 
     try:
         yield client
+    finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
-    finally:
         proc.terminate()
 
 
