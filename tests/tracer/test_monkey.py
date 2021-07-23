@@ -38,7 +38,7 @@ class TestPatching(SubprocessTestCase):
             monkey.patch(module_dne=True)
 
         assert (
-            """integration module ddtrace.contrib.module_dne does not exist, module will not have tracing available"""
+            "integration module ddtrace.contrib.module_dne does not exist, module will not have tracing available"
             in str(me.exception)
         )
         assert "module_dne" not in monkey._PATCHED_MODULES
