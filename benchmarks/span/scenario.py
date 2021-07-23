@@ -6,7 +6,7 @@ from util import gen_tags
 from ddtrace import Span
 
 
-def time_start_span(loops):
+def time_start_span(loops, variant):
     range_it = range(loops)
     t0 = pyperf.perf_counter()
     for _ in range_it:
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     runner.metadata["scenario"] = "span"
     for variant in [dict(nspans=1000), dict(nspans=1000, trace_id=1)]:
         name = "|".join(f"{k}:{v}" for (k, v) in variant.items())
-        runner.bench_time_func("perf_group:span|perf_case:init_span|" + name, time_start_span)
+        runner.bench_time_func("perf_group:span|perf_case:init_span|" + name, time_start_span, variant)
 
     for variant in [dict(ntags=500, ltags=100), dict(ntags=1000, ltags=300)]:
         span = Span(None, "test.op", resource="resource", service="service", trace_id=1)
