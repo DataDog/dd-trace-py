@@ -11,7 +11,7 @@
 #
 # 3. Get the docker-compose file:
 #
-#    curl -o docker-compose.yml https://raw.githubusercontent.com/nizox/dd-trace-py/appsec/docker-compose.appsec.yml
+#    curl -o docker-compose.yml https://raw.githubusercontent.com/DataDog/dd-trace-py/nicolas.vivet/appsec-sandbox/docker-compose.appsec.yml
 #
 # 4. Run the sandbox (it takes a couple of minutes to build the first time):
 #
