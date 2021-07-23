@@ -40,6 +40,8 @@ services:
             dockerfile: Dockerfile.appsec
         ports:
          - "8080:80"
+        volumes:
+         - .:/sandbox
         environment:
          - DD_ENV=appsec-sandbox
          - DD_APPSEC_ENABLED=true
@@ -47,6 +49,7 @@ services:
          - DD_AGENT_HOST=agent
          - DD_TRACE_HEALTH_METRICS_ENABLED=true
          - DD_TRACE_DEBUG
+         - DD_APPSEC_RULES
     baseline-generator:
         depends_on:
          - app
