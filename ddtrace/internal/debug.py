@@ -188,7 +188,7 @@ def pretty_collect(tracer, color=True):
         blue=bcolors.OKBLUE,
         green=bcolors.OKGREEN,
         bold=bcolors.BOLD,
-        end=bcolors.ENDC
+        end=bcolors.ENDC,
     )
 
     summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
