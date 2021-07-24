@@ -153,66 +153,64 @@ def pretty_collect(tracer, color=True):
 
     info = collect(tracer)
 
-    info_pretty = """{0}{1}Tracer Configurations:{2}
-    Tracer enabled: {3}
-    Debug logging: {4}
-    Writing traces to: {5}
-    Agent error: {6}
-    App Analytics enabled(deprecated): {7}
-    Log injection enabled: {8}
-    Health metrics enabled: {9}
-    Priority sampling enabled: {10}
-    Partial flushing enabled: {11}
-    Partial flush minimum number of spans: {12}
-    {13}{14}Tagging:{15}
-    DD Service: {16}
-    DD Env: {17}
-    DD Version: {18}
-    Global Tags: {19}
-    Tracer Tags: {20}""".format(
-        bcolors.OKBLUE,
-        bcolors.BOLD,
-        bcolors.ENDC,
-        info.get("tracer_enabled"),
-        info.get("debug"),
-        info.get("agent_url") or "Not writing at the moment, is your tracer running?",
-        info.get("agent_error") or "None",
-        info.get("analytics_enabled"),
-        info.get("log_injection_enabled"),
-        info.get("health_metrics_enabled"),
-        info.get("priority_sampling_enabled"),
-        info.get("partial_flush_enabled"),
-        info.get("partial_flush_min_spans") or "Not set",
-        bcolors.OKGREEN,
-        bcolors.BOLD,
-        bcolors.ENDC,
-        info.get("service") or "None",
-        info.get("env") or "None",
-        info.get("dd_version") or "None",
-        info.get("global_tags") or "None",
-        info.get("tracer_tags") or "None",
+    info_pretty = """{blue}{bold}Tracer Configurations:{end}
+    Tracer enabled: {tracer_enabled}
+    Debug logging: {debug}
+    Writing traces to: {agent_url}
+    Agent error: {agent_error}
+    App Analytics enabled(deprecated): {analytics_enabled}
+    Log injection enabled: {log_injection_enabled}
+    Health metrics enabled: {health_metrics_enabled}
+    Priority sampling enabled: {priority_sampling_enabled}
+    Partial flushing enabled: {partial_flush_enabled}
+    Partial flush minimum number of spans: {partial_flush_min_spans}
+    {green}{bold}Tagging:{end}
+    DD Service: {service}
+    DD Env: {env}
+    DD Version: {dd_version}
+    Global Tags: {global_tags}
+    Tracer Tags: {tracer_tags}""".format(
+        tracer_enabled=info.get("tracer_enabled"),
+        debug=info.get("debug"),
+        agent_url=info.get("agent_url") or "Not writing at the moment, is your tracer running?",
+        agent_error=info.get("agent_error") or "None",
+        analytics_enabled=info.get("analytics_enabled"),
+        log_injection_enabled=info.get("log_injection_enabled"),
+        health_metrics_enabled=info.get("health_metrics_enabled"),
+        priority_sampling_enabled=info.get("priority_sampling_enabled"),
+        partial_flush_enabled=info.get("partial_flush_enabled"),
+        partial_flush_min_spans=info.get("partial_flush_min_spans") or "Not set",
+        service=info.get("service") or "None",
+        env=info.get("env") or "None",
+        dd_version=info.get("dd_version") or "None",
+        global_tags=info.get("global_tags") or "None",
+        tracer_tags=info.get("tracer_tags") or "None",
+        blue=bcolors.OKBLUE,
+        green=bcolors.OKGREEN,
+        bold=bcolors.BOLD,
+        end=bcolors.ENDC
     )
 
     summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
 
     if info.get("agent_error"):
-        summary += "\n\n{0}ERROR: It looks like you have an agent error: '{1}'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefusederror\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/{2}".format(
-            bcolors.FAIL, info.get("agent_error"), bcolors.ENDC
+        summary += "\n\n{fail}ERROR: It looks like you have an agent error: '{agent_error}'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefusederror\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/{end}".format(
+            fail=bcolors.FAIL, agent_error=info.get("agent_error"), end=bcolors.ENDC
         )
 
     if not info.get("service"):
-        summary += "\n\n{0}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html".format(
-            bcolors.WARNING, bcolors.ENDC
+        summary += "\n\n{warning}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}".format(
+            warning=bcolors.WARNING, end=bcolors.ENDC
         )
 
     if not info.get("env"):
-        summary += "\n\n{0}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{1}".format(
-            bcolors.WARNING, bcolors.ENDC
+        summary += "\n\n{warning}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}".format(
+            warning=bcolors.WARNING, end=bcolors.ENDC
         )
 
     if not info.get("dd_version"):
-        summary += "\n\n{0}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{1}".format(
-            bcolors.WARNING, bcolors.ENDC
+        summary += "\n\n{warning}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}".format(
+            warning=bcolors.WARNING, end=bcolors.ENDC
         )
 
     info_pretty += "\n\n" + summary

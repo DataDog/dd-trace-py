@@ -602,7 +602,8 @@ and database modules without the need for changing your code::
 
   Usage: ddtrace-run <my_program>
 
-`--status`: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made during runtime.
+`--info`: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made at the code level,
+only environment variable configurations.
 
 The environment variables for ``ddtrace-run`` used to configure the tracer are
 detailed in :ref:`Configuration`.
