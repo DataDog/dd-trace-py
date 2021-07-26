@@ -4,7 +4,6 @@ import os
 import re
 import shlex
 import subprocess
-import urllib.request
 
 import pyperf
 import requests
@@ -62,7 +61,7 @@ def time_sync_requests(loops, env):
 
 def time_concurrent_requests(loops, env, concurrency=100):
     # Use ab to time for number of loops with a given number of concurrent workers
-    pattern = re.compile("Time taken for tests:\s*(\d+\.\d+) seconds")
+    pattern = re.compile("Time taken for tests:\\s*(\\d+\\.\\d+) seconds")
     with server(env):
         cmd = "ab -n {} -c {} {}".format(loops * concurrency, concurrency, SERVER_URL)
         proc = subprocess.Popen(
