@@ -1,4 +1,5 @@
 stages:
+  - build
   - deploy
 
 variables:
@@ -11,6 +12,22 @@ variables:
     
 .common: &common
   tags: [ "runner:main", "size:large" ]
+
+
+build_perf_images:
+  stage: build
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
+  when: manual
+  script: |
+    set -eu
+    REGISTRY="registry.ddbuild.io"
+    cd benchmarks/
+    for SCENARIO in "encoder" "span" "tracer" "django_simple" ; do
+      REPOSITORY="apm-integrations-testing/dd-trace-py/${SCENARIO}"
+      IMAGE="${REGISTRY}/${REPOSITORY}"
+      docker build --tag "${IMAGE}"  --build-arg SCENARIO="${SCENARIO}" .
+    done
 
 deploy_to_reliability_env:
   stage: deploy
