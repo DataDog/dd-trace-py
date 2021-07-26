@@ -54,6 +54,7 @@ RUN \
   && echo "deb-src https://deb.nodesource.com/${NODE_VERSION} buster main" | tee -a /etc/apt/sources.list.d/nodesource.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends nodejs \
+  && apt-get install -y libmariadb3 \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
