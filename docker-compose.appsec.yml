@@ -21,6 +21,12 @@
 #
 #    http://localhost:8080/
 #
+# Change the default security event rules with:
+#
+#    curl -o rules.yaml https://raw.githubusercontent.com/DataDog/dd-trace-py/nicolas.vivet/appsec-sandbox/ddtrace/appsec/internal/rules.yaml
+#    export DD_APPSEC_RULES=/sandbox/rules.yaml
+#    docker-compose up
+#
 version: "3.9"
 services:
     agent:
@@ -36,7 +42,7 @@ services:
         depends_on:
          - agent
         build:
-            context: https://github.com/nizox/dd-trace-py.git#appsec
+            context: https://github.com/DataDog/dd-trace-py.git#nicolas.vivet/appsec-sandbox
             dockerfile: Dockerfile.appsec
         ports:
          - "8080:80"
