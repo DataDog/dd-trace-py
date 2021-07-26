@@ -257,6 +257,7 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
+            pkgs={"pytest": "~=3.10"},
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -278,7 +279,6 @@ venv = Venv(
                         ],
                         "redis": "~=2.10.6",
                         "kombu": "~=4.3.0",
-                        "pytest": "~=3.10",
                     },
                 ),
                 Venv(
@@ -419,44 +419,43 @@ venv = Venv(
         Venv(
             name="django",
             command="pytest {cmdargs} tests/contrib/django",
+            pkgs={
+                "django-redis": ">=4.5,<4.6",
+                "django-pylibmc": ">=0.6,<0.7",
+                "daphne": [latest],
+                "requests": [latest],
+                "redis": ">=2.10,<2.11",
+                "psycopg2": ["~=2.8.0"],
+                "pytest-django": "==3.10.0",
+                "pylibmc": latest,
+                "python-memcached": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
                         "django": [">=1.8,<1.9", ">=1.11,<1.12"],
-                        "django-pylibmc": ">=0.6,<0.7",
-                        "django-redis": ">=4.5,<4.6",
-                        "pylibmc": latest,
-                        "pytest-django": "==3.10.0",
-                        "python-memcached": latest,
-                        "redis": ">=2.10,<2.11",
-                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
                     pys=["3.5"],
                     pkgs={
                         "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3"],
-                        "django-pylibmc": ">=0.6,<0.7",
-                        "django-redis": ">=4.5,<4.6",
-                        "pylibmc": latest,
-                        "pytest-django": "==3.10.0",
-                        "python-memcached": latest,
-                        "redis": ">=2.10,<2.11",
-                        "psycopg2": ["~=2.8.0"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "django": [">=2.0,<2.1", ">=2.1,<2.2", ">=2.2,<2.3", ">=3.0,<3.1", latest],
-                        "django-pylibmc": ">=0.6,<0.7",
-                        "django-redis": ">=4.5,<4.6",
-                        "pylibmc": latest,
-                        "pytest-django": "==3.10.0",
-                        "python-memcached": latest,
-                        "redis": ">=2.10,<2.11",
-                        "psycopg2": ["~=2.8.0"],
+                        "django": [
+                            ">=2.0,<2.1",
+                            ">=2.1,<2.2",
+                            ">=2.2,<2.3",
+                            "~=3.0",
+                            "~=3.0.0",
+                            "~=3.1.0",
+                            "~=3.2.0",
+                            latest,
+                        ],
                     },
                 ),
             ],
@@ -648,7 +647,6 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
-                "werkzeug": "<1.0",
             },
             venvs=[
                 Venv(
@@ -656,6 +654,8 @@ venv = Venv(
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
                         "Flask-Cache": ["~=0.12.0"],
+                        "werkzeug": "<1.0",
+                        "pytest": "~=3.0",
                     },
                 ),
                 Venv(
@@ -663,6 +663,8 @@ venv = Venv(
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
                         "Flask-Cache": ["~=0.13.0", latest],
+                        "werkzeug": "<1.0",
+                        "pytest": "~=3.0",
                     },
                 ),
             ],
@@ -678,7 +680,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/mysql",
             venvs=[
                 Venv(
-                    pys="2.7",
+                    pys=select_pys(max_version="3.5"),
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
@@ -730,13 +732,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             pkgs={
                 "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-                "moto": ">=1.0,<2.0",
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5")),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
                 Venv(
                     pys=["2.7"],
                     pkgs={
+                        "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
                 ),
@@ -767,20 +769,20 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3"),
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
                         "mysql-connector-python": ["<8.0.24"],
                     },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6"),
-                    pkgs={
-                        "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                        "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": latest,
-                    },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(),
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.6"),
+                            pkgs={"mysql-connector-python": latest},
+                        ),
+                    ],
                 ),
             ],
         ),
