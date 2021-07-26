@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -ex
+
+if [[ -z "${RUN_ID}" ]]; then
+    export RUN_ID=$(uuidgen)
+fi
+
+ARTIFACTS=/artifacts/${RUN_ID}/${SCENARIO}
+mkdir -p ${ARTIFACTS}
+RESULTS_V1=${ARTIFACTS}/${DDTRACE_V1}.json
+RESULTS_V2=${ARTIFACTS}/${DDTRACE_V2}.json
+
+# append venvs with ddtrace to sys.path
+
+PYTHONPATH=${VENV_DDTRACE_V1}/lib/python3.9/site-packages \
+    python scenario.py \
+    --copy-env \
+    --fast \
+    -o ${RESULTS_V1}
+
+PYTHONPATH=${VENV_DDTRACE_V2}/lib/python3.9/site-packages \
+    python scenario.py \
+    --copy-env \
+    --fast \
+    -o ${RESULTS_V2}
+
+pyperf compare_to --table ${RESULTS_V2} ${RESULTS_V1}
