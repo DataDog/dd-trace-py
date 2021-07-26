@@ -50,6 +50,8 @@ elasticsearch7
 enqueue
 entrypoint
 entrypoints
+env
+Env
 fastapi
 gRPC
 gevent
