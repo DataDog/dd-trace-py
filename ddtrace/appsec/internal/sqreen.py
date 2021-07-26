@@ -17,9 +17,12 @@ from sq_native import waf
 from ddtrace.appsec.internal.events.attack import Attack_0_1_0
 from ddtrace.appsec.internal.events.attack import Rule
 from ddtrace.appsec.internal.events.attack import RuleMatch
+from ddtrace.appsec.internal.events.context import HttpRequest
+from ddtrace.appsec.internal.events.context import Http_0_1_0
 from ddtrace.appsec.internal.events.context import get_required_context
 from ddtrace.appsec.internal.protections import BaseProtection
 from ddtrace.internal.compat import utc
+from ddtrace.utils.http import strip_query_string
 from ddtrace.utils.time import StopWatch
 
 
@@ -52,11 +55,24 @@ class SqreenLibrary(BaseProtection):
             span.set_metric("_dd.sq.overtime_ms", elapsed_ms - self._budget)
         if ret.report:
             span.set_metric("_dd.sq.reports", 1)
-            return [self.sqreen_waf_to_attack(ret.data, blocked=ret.block)]
+            context = get_required_context(actor_ip=data.get("remote_ip"))
+            context.http = Http_0_1_0(
+                request=HttpRequest(
+                    scheme="http",
+                    method=data.get("method") or "",
+                    url=strip_query_string(data.get("target") or ""),
+                    host="",
+                    port=0,
+                    path="",
+                    remote_ip=data.get("remote_ip") or "",
+                    remote_port=0,
+                )
+            )
+            return [self.sqreen_waf_to_attack(ret.data, context=context, blocked=ret.block)]
         return []
 
     @staticmethod
-    def sqreen_waf_to_attack(data, blocked=False, at=None):
+    def sqreen_waf_to_attack(data, context=None, blocked=False, at=None):
         """Convert a Sqreen WAF result to an AppSec Attack event."""
         if at is None:
             at = datetime.now(utc)
@@ -75,5 +91,5 @@ class SqreenLibrary(BaseProtection):
                 highlight=[],  # DEV: do not report user data yet
                 has_server_side_match=False,
             ),
-            context=get_required_context(),
+            context=context or get_required_context(),
         )

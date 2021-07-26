@@ -133,6 +133,7 @@ class TraceMiddleware(object):
                 target=request.url,
                 headers=request.headers,
                 query=request.query_string,
+                remote_ip=request.remote_addr,
             )
         except Exception:
             log.debug("flask: error tracing request", exc_info=True)

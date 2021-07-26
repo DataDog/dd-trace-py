@@ -335,6 +335,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             target=request.url,
             headers=request.headers,
             query=request.query_string,
+            remote_ip=request.remote_addr,
         )
 
         return wrapped(environ, start_response)
