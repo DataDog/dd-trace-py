@@ -402,9 +402,8 @@ def test_info_no_configs():
     p.wait()
     stdout = p.stdout.read()
     print(stdout)
-    assert (
-        (stdout)
-        == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
+    assert (stdout) == (
+        b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Debug logging: False
     Writing traces to: http://localhost:8126
@@ -422,15 +421,23 @@ def test_info_no_configs():
     Global Tags: None
     Tracer Tags: None
 
-\x1b[96m\x1b[1mSummary\x1b[0m
-
-\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126. Exception raised: [Errno 111] Connection refused'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefusederror\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/\x1b[0m
-
-\x1b[93mWARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m
-
-\x1b[93mWARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m
-
-\x1b[93mWARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m\n"""
+\x1b[96m\x1b[1mSummary\x1b[0m"""
+        b"""\n\n\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126."""
+        b""" Exception raised: [Errno 111] Connection refused'\n If you're experiencing a connection error, please """
+        b"""make sure you've followed the setup for your particular environment so that the tracer and Datadog """
+        b"""agent are configured properly to connect, and that the Datadog agent is running:"""
+        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html"""
+        b"""#failed-to-send-traces-connectionrefusederror"""
+        b"""\nIf your issue is not a connection error then please reach out to support for further assistance:"""
+        b""" https://docs.datadoghq.com/help/\x1b[0m"""
+        b"""\n\n\x1b[93mWARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced """
+        b"""applications. For more information please see"""
+        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"""
+        b"""\n\n\x1b[93mWARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. """
+        b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"""
+        b"""\n\n\x1b[93mWARNING VERSION NOT SET: """
+        b"""It is recommended that a version tag be set for all traced applications. """
+        b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m\n"""
     )
     assert p.returncode == 0
 
@@ -477,9 +484,18 @@ def test_info_w_configs():
     Global Tags: None
     Tracer Tags: None
 
-\x1b[96m\x1b[1mSummary\x1b[0m
-
-\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefusederror\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/\x1b[0m\n"""
+\x1b[96m\x1b[1mSummary\x1b[0m"""
+        b"""\n\n\x1b[91mERROR: It looks like you have an agent error: """
+        b"""'Agent not reachable at http://168.212.226.204:8126. """
+        b"""Exception raised: timed out'\n If you're experiencing a connection error, """
+        b"""please make sure you've followed the """
+        b"""setup for your particular environment so that the tracer and """
+        b"""Datadog agent are configured properly to connect,"""
+        b""" and that the Datadog agent is running:"""
+        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-"""
+        b"""connectionrefusederror\n"""
+        b"""If your issue is not a connection error then please reach out to support for further assistance: """
+        b"""https://docs.datadoghq.com/help/\x1b[0m\n"""
     )
 
     assert p.returncode == 0

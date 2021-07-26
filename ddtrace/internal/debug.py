@@ -194,28 +194,40 @@ def pretty_collect(tracer, color=True):
     summary = "{0}{1}Summary{2}".format(bcolors.OKCYAN, bcolors.BOLD, bcolors.ENDC)
 
     if info.get("agent_error"):
-        summary += "\n\n{fail}ERROR: It looks like you have an agent error: '{agent_error}'\n If you're experiencing a connection error, please make sure you've followed the setup for your particular environment so that the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefusederror\nIf your issue is not a connection error then please reach out to support for further assistance: https://docs.datadoghq.com/help/{end}".format(
-            fail=bcolors.FAIL, agent_error=info.get("agent_error"), end=bcolors.ENDC
-        )
+        summary += (
+            "\n\n{fail}ERROR: It looks like you have an agent error: '{agent_error}'\n If you're experiencing"
+            " a connection error, please make sure you've followed the setup for your particular environment so that "
+            "the tracer and Datadog agent are configured properly to connect, and that the Datadog agent is running: "
+            "https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-connectionrefused"
+            "error"
+            "\nIf your issue is not a connection error then please reach out to support for further assistance:"
+            " https://docs.datadoghq.com/help/{end}"
+        ).format(fail=bcolors.FAIL, agent_error=info.get("agent_error"), end=bcolors.ENDC)
 
     if not info.get("service"):
-        summary += "\n\n{warning}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}".format(
-            warning=bcolors.WARNING, end=bcolors.ENDC
-        )
+        summary += (
+            "\n\n{warning}WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced"
+            " applications. For more information please see"
+            " https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
+        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
 
     if not info.get("env"):
-        summary += "\n\n{warning}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}".format(
-            warning=bcolors.WARNING, end=bcolors.ENDC
-        )
+        summary += (
+            "\n\n{warning}WARNING ENV NOT SET: It is recommended that an env tag be set for all traced"
+            " applications. For more information please see "
+            "https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
+        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
 
     if not info.get("dd_version"):
-        summary += "\n\n{warning}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications. For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}".format(
-            warning=bcolors.WARNING, end=bcolors.ENDC
-        )
+        summary += (
+            "\n\n{warning}WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced"
+            " applications. For more information please see"
+            " https://ddtrace.readthedocs.io/en/stable/troubleshooting.html{end}"
+        ).format(warning=bcolors.WARNING, end=bcolors.ENDC)
 
     info_pretty += "\n\n" + summary
 
-    if color == False:
+    if color is False:
         return escape_ansi(info_pretty)
 
     return info_pretty

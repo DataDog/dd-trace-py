@@ -59,7 +59,10 @@ def main():
     parser.add_argument(
         "-i",
         "--info",
-        help="print library info useful for debugging. Only reflects configurations made via environment variables, not those made in code.",
+        help=(
+            "print library info useful for debugging. Only reflects configurations made via environment "
+            "variables, not those made in code."
+        ),
         action="store_true",
     )
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
