@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict
 
 import opentracing
 from opentracing import Format
@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.contrib.logging.patch import DDLogRecord
 from ddtrace.settings import ConfigException
 from ddtrace.utils.config import get_application_name
 
@@ -342,10 +341,10 @@ class Tracer(opentracing.Tracer):
         return ot_span_ctx
 
     def get_log_correlation_context(self):
-        # type: () -> Optional[DDLogRecord]
-        """Retrieves the Correlation Identifiers for the current active ``Trace``
-        This helper method generates a DDLogRecord for custom logging instrumentation including the trace id and
+        # type: () -> Dict[str, str]
+        """Retrieves the Correlation Identifiers for the current active trace.
+        This helper method generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
-        If there is no active span, an empty DDLogRecord will be returned.
+        If there is no active span, a dictionary with empty values will be returned.
         """
         return self._dd_tracer.get_log_correlation_context()

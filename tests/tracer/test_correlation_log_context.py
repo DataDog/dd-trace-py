@@ -20,11 +20,18 @@ def global_config():
 def tracer_injection(logger, log_method, event_dict):
     """Inject tracer information into custom structlog log"""
     correlation_log_context = tracer.get_log_correlation_context()
-
     # add ids and configs to structlog event dictionary
-    event_dict["dd_correlation_context"] = correlation_log_context
-
+    event_dict["dd"] = correlation_log_context
     return event_dict
+
+
+def assert_dd_log_record_matches_context(dd_log_record, span, service, env, version):
+    """Assert generated log correlation dict matches the expected span/trace ID and service, env, and version names."""
+    assert dd_log_record["span_id"] == str(span.span_id) if span else "0"
+    assert dd_log_record["trace_id"] == str(span.trace_id) if span else "0"
+    assert dd_log_record["service"] == service
+    assert dd_log_record["env"] == env
+    assert dd_log_record["version"] == version
 
 
 class TestCorrelationLogsContext(object):
@@ -32,20 +39,11 @@ class TestCorrelationLogsContext(object):
         """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
         with tracer.trace("test-span-1") as span1:
             dd_log_record = tracer.get_log_correlation_context()
-        assert dd_log_record.span_id == str(span1.span_id)
-        assert dd_log_record.trace_id == str(span1.trace_id)
-        assert dd_log_record.service == "test-service"
-        assert dd_log_record.env == "test-env"
-        assert dd_log_record.version == "test-version"
-
+        assert_dd_log_record_matches_context(dd_log_record, span1, "test-service", "test-env", "test-version")
         test_tracer = Tracer()
         with test_tracer.trace("test-span-2") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
-        assert dd_log_record.span_id == str(span2.span_id)
-        assert dd_log_record.trace_id == str(span2.trace_id)
-        assert dd_log_record.service == "test-service"
-        assert dd_log_record.env == "test-env"
-        assert dd_log_record.version == "test-version"
+        assert_dd_log_record_matches_context(dd_log_record, span2, "test-service", "test-env", "test-version")
 
     def test_get_log_correlation_context_opentracer(self, global_config):
         """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
@@ -53,20 +51,12 @@ class TestCorrelationLogsContext(object):
         with ot_tracer.start_active_span("operation") as scope:
             dd_span = scope._span._dd_span
             dd_log_record = ot_tracer.get_log_correlation_context()
-        assert dd_log_record.span_id == str(dd_span.span_id)
-        assert dd_log_record.trace_id == str(dd_span.trace_id)
-        assert dd_log_record.service == "test-service"
-        assert dd_log_record.env == "test-env"
-        assert dd_log_record.version == "test-version"
+        assert_dd_log_record_matches_context(dd_log_record, dd_span, "test-service", "test-env", "test-version")
 
     def test_get_log_correlation_context_no_active_span(self):
         """Ensure empty DDLogRecord generated if no active span."""
         dd_log_record = tracer.get_log_correlation_context()
-        assert dd_log_record.span_id == "0"
-        assert dd_log_record.trace_id == "0"
-        assert dd_log_record.service == ""
-        assert dd_log_record.env == ""
-        assert dd_log_record.version == ""
+        assert_dd_log_record_matches_context(dd_log_record, None, "", "", "")
 
     def test_get_log_correlation_context_disabled_tracer(self):
         """Ensure get_correlation_log_record returns None if tracer is disabled."""
@@ -74,11 +64,7 @@ class TestCorrelationLogsContext(object):
         tracer.enabled = False
         with tracer.trace("test-span"):
             dd_log_record = tracer.get_log_correlation_context()
-        assert dd_log_record.span_id == "0"
-        assert dd_log_record.trace_id == "0"
-        assert dd_log_record.service == ""
-        assert dd_log_record.env == ""
-        assert dd_log_record.version == ""
+        assert_dd_log_record_matches_context(dd_log_record, None, "", "", "")
 
     def test_custom_logging_injection(self):
         """Ensure custom log injection via get_correlation_log_record returns proper active span information."""
@@ -90,13 +76,9 @@ class TestCorrelationLogsContext(object):
             logger.msg("Hello!")
 
         assert len(capture_log.entries) == 1
-        dd_log_context = capture_log.entries[0]["dd_correlation_context"]
         assert capture_log.entries[0]["event"] == "Hello!"
-        assert dd_log_context.trace_id == str(span.trace_id)
-        assert dd_log_context.span_id == str(span.span_id)
-        assert dd_log_context.version == ""
-        assert dd_log_context.env == ""
-        assert dd_log_context.service == ""
+        dd_log_record = capture_log.entries[0]["dd"]
+        assert_dd_log_record_matches_context(dd_log_record, span, "", "", "")
 
     def test_custom_logging_injection_global_config(self):
         """Ensure custom log injection via get_correlation_log_record returns proper tracer information."""
@@ -104,18 +86,14 @@ class TestCorrelationLogsContext(object):
         structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
         logger = structlog.get_logger()
 
-        with override_global_config(dict(version="global.version", env="global.env", service="global.service")):
+        with override_global_config(dict(version="global-version", env="global-env", service="global-service")):
             with tracer.trace("test span") as span:
                 logger.msg("Hello!")
 
         assert len(capture_log.entries) == 1
-        dd_log_context = capture_log.entries[0]["dd_correlation_context"]
         assert capture_log.entries[0]["event"] == "Hello!"
-        assert dd_log_context.trace_id == str(span.trace_id)
-        assert dd_log_context.span_id == str(span.span_id)
-        assert dd_log_context.version == "global.version"
-        assert dd_log_context.env == "global.env"
-        assert dd_log_context.service == "global.service"
+        dd_log_record = capture_log.entries[0]["dd"]
+        assert_dd_log_record_matches_context(dd_log_record, span, "global-service", "global-env", "global-version")
 
     def test_custom_logging_injection_no_span(self):
         """Ensure custom log injection via get_correlation_log_record with no active span returns empty record."""
@@ -123,14 +101,10 @@ class TestCorrelationLogsContext(object):
         structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
         logger = structlog.get_logger()
 
-        with override_global_config(dict(version="global.version", env="global.env", service="global.service")):
+        with override_global_config(dict(version="global-version", env="global-env", service="global-service")):
             logger.msg("No Span!")
 
         assert len(capture_log.entries) == 1
-        dd_log_context = capture_log.entries[0]["dd_correlation_context"]
         assert capture_log.entries[0]["event"] == "No Span!"
-        assert dd_log_context.trace_id == "0"
-        assert dd_log_context.span_id == "0"
-        assert dd_log_context.version == "global.version"
-        assert dd_log_context.env == "global.env"
-        assert dd_log_context.service == "global.service"
+        dd_log_record = capture_log.entries[0]["dd"]
+        assert_dd_log_record_matches_context(dd_log_record, None, "global-service", "global-env", "global-version")

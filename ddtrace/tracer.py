@@ -26,8 +26,6 @@ from .constants import HOSTNAME_KEY
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from .contrib.logging.patch import DDLogRecord
-from .contrib.logging.patch import RECORD_ATTR_VALUE_ZERO
 from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
@@ -249,23 +247,23 @@ class Tracer(object):
         return None
 
     def get_log_correlation_context(self):
-        # type: () -> DDLogRecord
-        """Retrieves the Correlation Identifiers for the current active ``Trace``
-        This helper method generates a DDLogRecord for custom logging instrumentation including the trace id and
+        # type: () -> Dict[str, str]
+        """Retrieves the Correlation Identifiers for the current active trace.
+        This helper method generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
-        If there is no active span, an empty DDLogRecord will be returned.
+        If there is no active span, a dictionary with empty values will be returned.
         """
         span = None
         if self.enabled:
             span = self.current_span()
 
-        return DDLogRecord(
-            trace_id=str(span.trace_id) if span else RECORD_ATTR_VALUE_ZERO,  # type: ignore
-            span_id=str(span.span_id) if span else RECORD_ATTR_VALUE_ZERO,  # type: ignore
-            service=config.service or "",
-            version=config.version or "",
-            env=config.env or "",
-        )
+        return {
+            "trace_id": str(span.trace_id) if span else "0",
+            "span_id": str(span.span_id) if span else "0",
+            "service": config.service or "",
+            "version": config.version or "",
+            "env": config.env or "",
+        }
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
