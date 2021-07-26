@@ -66,6 +66,7 @@ integration
 integrations
 JSON
 jinja
+js
 kombu
 kubernetes
 kwarg

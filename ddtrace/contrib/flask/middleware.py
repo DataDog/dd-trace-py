@@ -135,6 +135,7 @@ class TraceMiddleware(object):
                 query=request.args,
                 headers=werkzeug.datastructures.MultiDict(request.headers).to_dict(flat=False),
                 cookies=request.cookies,
+                remote_ip=request.remote_addr,
             )
         except Exception:
             log.debug("flask: error tracing request", exc_info=True)

@@ -337,6 +337,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             query=request.args,
             headers=werkzeug.datastructures.MultiDict(request.headers).to_dict(flat=False),
             cookies=request.cookies,
+            remote_ip=request.remote_addr,
         )
 
         return wrapped(environ, start_response)

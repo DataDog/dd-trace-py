@@ -3,7 +3,7 @@ from typing import Union
 
 import attr
 
-from ddtrace.appsec.internal.events.context import RequiredContext_0_1_0
+from ddtrace.appsec.internal.events.context import Context_0_1_0
 
 
 @attr.s(frozen=True)
@@ -44,6 +44,6 @@ class Attack_0_1_0(object):
     blocked = attr.ib(type=bool)
     rule = attr.ib(type=Rule)
     rule_match = attr.ib(type=RuleMatch)
-    context = attr.ib(type=Union[RequiredContext_0_1_0])
+    context = attr.ib(type=Union[Context_0_1_0])
     event_type = attr.ib(default="appsec.threat.attack")
     event_version = attr.ib(default="0.1.0")
