@@ -200,9 +200,30 @@ that the integration:
     2) is invisible: does not impact the library or application by disturbing state,
        performance or causing errors
 
-The best way to get started writing tests is to reference other integration test suites. There
-are a number of test utilities and fixtures which can be used to make testing less of a burden.
+The best way to get started writing tests is to reference other integration test suites. 
+We'd recommend ``tests/contrib/django`` and ``tests/contrib/mariadb``
+There are a number of test utilities and fixtures which can be used to make testing less of a burden.
 
+To run tests:
+~~~~~~~~~~~~~
+1) Spin up the testrunner container: `docker-compose run --rm testrunner`
+
+2) Install riot: ``pip install riot``
+
+3) Install whatever dependencies might be needed for you to run your tests(these will also need to be added to
+dd-trace-py/Dockerfile.buster in a separate PR so we can run the tests in CI once you're finished 
+writing the integration and tests). For example see: https://github.com/DataDog/dd-trace-py/pull/2584
+
+4) Spin up any other containers necesarry for running the tests. This container should be specified in
+dd-trace-py/docker-compose.yml
+e.g. to have database to hit for Mariadb: ``docker-compose up -d mariadb``
+
+5) Run your tests ``riot -v run <test_name>``
+Note: you can also add -p to specify a Python version and -s to skip building. This can speed up running the tests.
+For example if you wanted to test Mariadb:  ``riot -v run -s -p 3.8 mariadb``
+
+Snapshot Tests
+~~~~~~~~~~~~~~
 
 Trace Examples
 ++++++++++++++
