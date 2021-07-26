@@ -342,9 +342,9 @@ class Tracer(opentracing.Tracer):
 
     def get_log_correlation_context(self):
         # type: () -> Dict[str, str]
-        """Retrieves the Correlation Identifiers for the current active trace.
-        This helper method generates a dictionary for custom logging instrumentation including the trace id and
+        """Retrieves the data used to correlate a log with the current active trace.
+        Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
-        If there is no active span, a dictionary with empty values will be returned.
+        If there is no active span, a dictionary with an empty string for each value will be returned.
         """
         return self._dd_tracer.get_log_correlation_context()
