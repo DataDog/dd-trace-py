@@ -622,7 +622,7 @@ sure your application has a route to the tracing Agent. An easy way to test
 this is with a::
 
 $ pip install ipython
-$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
+$ DD_TRACE_DEBUG=true ddtrace-run ipython
 
 Because iPython uses SQLite, it will be automatically instrumented and your
 traces should be sent off. If an error occurs, a message will be displayed in
@@ -675,8 +675,8 @@ There are different options to make that happen:
 - Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
   as the first import of your application.
 
-- Use a `post_fork hook <https://docs.gunicorn.org/en/stable/settings.html#post-fork>`_
-  to import ``ddtrace.bootstrap.sitecustomize``.
+- Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
+  hook to import ``ddtrace.bootstrap.sitecustomize``.
 
 API
 ---

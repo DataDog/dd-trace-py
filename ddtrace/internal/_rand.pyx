@@ -57,6 +57,7 @@ import random
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 
+
 cdef extern from "_stdint.h" nogil:
     ctypedef unsigned long long uint64_t
 
