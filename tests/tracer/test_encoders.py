@@ -16,12 +16,13 @@ import pytest
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
+from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03 as MsgpackEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
@@ -357,6 +358,8 @@ def test_encoder_buffer_item_size_limit():
 
 def test_custom_msgpack_encode_v05():
     encoder = MsgpackEncoderV05(2 << 20, 2 << 20)
+    assert encoder.max_size == 2 << 20
+    assert encoder.max_item_size == 2 << 20
     trace = [
         Span(tracer=None, name="v05-test", service="foo", resource="GET"),
         Span(tracer=None, name="v05-test", service="foo", resource="POST"),
@@ -384,8 +387,7 @@ def test_custom_msgpack_encode_v05():
     ]
 
 
-def test_string_table():
-    t = MsgpackStringTable(1 << 10)
+def string_table_test(t):
     assert len(t) == 1
     id1 = t.index("foobar")
     assert len(t) == 2
@@ -397,6 +399,12 @@ def test_string_table():
     assert len(t) == 3
     assert id1 != id2
 
+
+def test_msgpack_string_table():
+    t = MsgpackStringTable(1 << 10)
+
+    string_table_test(t)
+
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
@@ -404,3 +412,11 @@ def test_string_table():
 
     assert len(t) == 1
     assert "foobar" not in t
+
+
+def test_list_string_table():
+    t = ListStringTable()
+
+    string_table_test(t)
+
+    assert list(t) == ["", "foobar", "foobaz"]

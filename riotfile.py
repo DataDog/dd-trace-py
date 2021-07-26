@@ -682,7 +682,7 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
                 ),
             ],
@@ -775,7 +775,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
@@ -826,10 +826,10 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pkgs={"botocore": latest, "moto": [">=1.0,<2.0"]},
+            pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5")),
-                Venv(pys=["2.7"], pkgs={"rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": [">=1.0,<2.0"]}),
+                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
@@ -861,6 +861,22 @@ venv = Venv(
             },
             pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/asgi",
+        ),
+        Venv(
+            name="mariadb",
+            command="pytest {cmdargs} tests/contrib/mariadb",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "mariadb": [
+                            "~=1.0.0",
+                            "~=1.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="fastapi",
@@ -949,6 +965,27 @@ venv = Venv(
             pys=select_pys(),
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
+        ),
+        Venv(
+            name="cassandra",
+            venvs=[
+                # Python 3.9 requires a more recent release.
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"cassandra-driver": latest},
+                ),
+                # releases 3.7 and 3.8 are broken on Python >= 3.7
+                # (see https://github.com/r4fek/django-cassandra-engine/issues/104)
+                Venv(
+                    pys=["3.7", "3.8"],
+                    pkgs={"cassandra-driver": ["~=3.6.0", "~=3.15.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={"cassandra-driver": [("~=3.%d.0" % m) for m in range(6, 9)] + ["~=3.15.0", latest]},
+                ),
+            ],
+            command="pytest {cmdargs} tests/contrib/cassandra",
         ),
         Venv(
             name="aiopg",

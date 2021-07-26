@@ -6,12 +6,12 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 from ._encoding import ListStringTable
-from ._encoding import MsgpackEncoderV03 as MsgpackEncoder
+from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
 from .logger import get_logger
 
 
-__all__ = ["MsgpackEncoder", "MsgpackEncoderV05", "ListStringTable"]
+__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable"]
 
 
 if TYPE_CHECKING:
@@ -93,5 +93,4 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-Encoder = MsgpackEncoder
-EncoderV05 = MsgpackEncoderV05
+Encoder = MsgpackEncoderV03

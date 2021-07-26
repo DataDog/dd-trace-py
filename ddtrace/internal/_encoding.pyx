@@ -161,9 +161,11 @@ cdef class StringTable(object):
 
 
 cdef class ListStringTable(StringTable):
+    cdef list _list
+
     def __init__(self):
-        super(StringTable, self).__init__()
         self._list = []
+        super(ListStringTable, self).__init__()
 
     cpdef insert(self, string):
         self._list.append(string)
@@ -245,21 +247,69 @@ cdef class MsgpackStringTable(StringTable):
 
 
 cdef class BufferedEncoder(object):
-    content_type: str = None
-    def __init__(self, max_size, max_item_size): ...
-    def __len__(self): ...
-    def put(self, trace): ...
+    cdef public int max_size
+    cdef public int max_item_size
+    cdef object _lock
+
+    def __cinit__(self, max_size, max_item_size):
+        self.max_size = max_size
+        self.max_item_size = max_item_size
+        self._lock = threading.Lock()
+
+    def put(self, item): ...
     def encode(self): ...
+
+
+cdef class ListBufferedEncoder(BufferedEncoder):
+    cdef list _buffer
+    cdef Py_ssize_t _size
+
+    def __cinit__(self, max_size, max_item_size):
+        self._buffer = []
+        self._size = 0
+
+    def __len__(self):
+        return len(self._buffer)
+
+    @property
+    def size(self):
+        with self._lock:
+            return self._size
+
+    cpdef put(self, item):
+        """Put an item to be serialized in the buffer."""
+        cdef int item_len
+
+        encoded_item = self.encode_item(item)
+        item_len = len(encoded_item)
+
+        if item_len > self.max_item_size or item_len > self.max_size:
+            raise BufferItemTooLarge(item_len)
+
+        with self._lock:
+            if self._size + item_len <= self.max_size:
+                self._buffer.append(encoded_item)
+                self._size += item_len
+            else:
+                raise BufferFull(item_len)
+
+    cpdef get(self):
+        """Get a copy of the buffer and clear it."""
+        with self._lock:
+            try:
+                return list(self._buffer)
+            finally:
+                self._buffer[:] = []
+                self._size = 0
+
+    def encode_item(self, item): ...
 
 
 cdef class MsgpackEncoder(BufferedEncoder):
     content_type = "application/msgpack"
 
-    cdef public int max_size
-    cdef public int max_item_size
     cdef msgpack_packer pk
-    cdef object _lock
-    cdef int _count
+    cdef stdint.uint32_t _count
 
     def __cinit__(self, max_size, max_item_size):
         self.pk.buf = <char*> PyMem_Malloc(max_size)
@@ -277,7 +327,7 @@ cdef class MsgpackEncoder(BufferedEncoder):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
 
-    def __len__(self):  # TODO: Do we need this?
+    def __len__(self):  # TODO: Use a better name?
         return self._count
 
     cpdef _decode(self, data):  # TODO: Make module util/class method?
@@ -308,7 +358,7 @@ cdef class MsgpackEncoder(BufferedEncoder):
         with self._lock:
             return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
 
-    cpdef char * get_buffer(self):  # TODO: Check if needed
+    cpdef char * get_buffer(self):
         """Return internal buffer."""
         return self.pk.buf + self._update_array_len()
 
@@ -350,7 +400,7 @@ cdef class MsgpackEncoder(BufferedEncoder):
             # we must check sizes manually.
             # TODO: We should probably ensure that the buffer size doesn't
             # grow arbitrarily because of the PyMem_Realloc and if it does then
-            # free and reallocate with the approriate size.
+            # free and reallocate with the appropriate size.
             if self.size - size_before > self.max_item_size:
                 raise BufferItemTooLarge(self.size - size_before)
 

@@ -337,6 +337,8 @@ TEST_EVENTS = {
                 ("foobar.py", 44, "func2"),
                 ("foobar.py", 19, "func5"),
             ],
+            task_id=123,
+            task_name="sometask",
             span_id=49343,
             wall_time_ns=1324,
             cpu_time_ns=1321,

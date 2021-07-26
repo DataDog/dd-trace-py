@@ -122,6 +122,8 @@ class _PprofConverter(object):
         thread_id,  # type: int
         thread_native_id,  # type: int
         thread_name,  # type: str
+        task_id,  # type: typing.Optional[int]
+        task_name,  # type: str
         trace_id,  # type: int
         span_id,  # type: int
         trace_resource,  # type: str
@@ -137,6 +139,8 @@ class _PprofConverter(object):
                 ("thread id", str(thread_id)),
                 ("thread native id", str(thread_native_id)),
                 ("thread name", thread_name),
+                ("task id", task_id),
+                ("task name", task_name),
                 ("trace id", trace_id),
                 ("span id", span_id),
                 ("trace endpoint", trace_resource),
@@ -309,6 +313,8 @@ _stack_event_group_key_T = typing.Tuple[
     int,
     str,
     typing.Optional[int],
+    str,
+    str,
     typing.Optional[int],
     typing.Tuple,
     int,
@@ -350,6 +356,8 @@ class PprofExporter(exporter.Exporter):
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
+            self._none_to_str(event.task_id),
+            self._none_to_str(event.task_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
             trace_resource,
@@ -473,13 +481,27 @@ class PprofExporter(exporter.Exporter):
             nb_event += 1
 
         for (
-            (thread_id, thread_native_id, thread_name, trace_id, span_id, trace_resource, trace_type, frames, nframes),
+            (
+                thread_id,
+                thread_native_id,
+                thread_name,
+                task_id,
+                task_name,
+                trace_id,
+                span_id,
+                trace_resource,
+                trace_type,
+                frames,
+                nframes,
+            ),
             stack_events,
         ) in self._group_stack_events(stack_events):
             converter.convert_stack_event(
                 thread_id,
                 thread_native_id,
                 thread_name,
+                task_id,
+                task_name,
                 trace_id,
                 span_id,
                 trace_resource,
@@ -547,6 +569,8 @@ class PprofExporter(exporter.Exporter):
                     thread_id,
                     thread_native_id,
                     thread_name,
+                    task_id,
+                    task_name,
                     trace_id,
                     span_id,
                     trace_resource,
