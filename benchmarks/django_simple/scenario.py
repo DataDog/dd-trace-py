@@ -1,7 +1,7 @@
-from itertools import product
 from contextlib import contextmanager
-import re
+from itertools import product
 import os
+import re
 import shlex
 import subprocess
 import urllib.request
@@ -12,13 +12,10 @@ import tenacity
 
 
 SERVER_URL = "http://0.0.0.0:8000/"
-from itertools import product 
 
 
 VARIABLES = ("PERF_ENABLE_TRACER", "PERF_ENABLE_PROFILER", "PERF_THREADS")
-VARIANTS = [
-    dict(zip(VARIABLES, _)) for _ in product(*[[0,1]] * len(VARIABLES))
-]
+VARIANTS = [dict(zip(VARIABLES, _)) for _ in product(*[["0", "1"]] * len(VARIABLES))]
 
 
 @tenacity.retry(
@@ -63,7 +60,7 @@ def time_sync_requests(loops, env):
         return dt
 
 
-def time_concurrent_requests(loops, env, concurrency=20):
+def time_concurrent_requests(loops, env, concurrency=100):
     # Use ab to time for number of loops with a given number of concurrent workers
     pattern = re.compile("Time taken for tests:\s*(\d+\.\d+) seconds")
     with server(env):
@@ -92,4 +89,6 @@ if __name__ == "__main__":
         if variant.get("PERF_THREADS") == "0":
             runner.bench_time_func("scenario:django_simple|case:sync_requests|" + name, time_sync_requests, variant)
         else:
-            runner.bench_time_func("scenario:django_simple|case:concurrent_requests|" + name, time_concurrent_requests, variant)
+            runner.bench_time_func(
+                "scenario:django_simple|case:concurrent_requests|" + name, time_concurrent_requests, variant
+            )

@@ -63,7 +63,8 @@ def index(request):
         select * from cnt"""
             )
             cursor.fetchall()
-    index = Template("""
+    index = Template(
+        """
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -73,8 +74,10 @@ def index(request):
     <p>Hello {{name|default:"friend"}}!</p>
   </body>
 </html>
-    """)
+    """
+    )
     return django.http.HttpResponse(index.render(Context({})))
+
 
 urlpatterns = [path("", index)]
 

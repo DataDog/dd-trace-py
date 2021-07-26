@@ -22,7 +22,7 @@ def post_worker_init(worker):
 bind = "0.0.0.0:8000"
 if os.environ.get("PERF_THREADS"):
     worker_class = "gthread"
-    threads = 10
+    threads = 100
     workers = 1
 else:
     worker_class = "sync"
