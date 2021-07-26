@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from json import loads
 import logging
+import os
 import sys
 from typing import List
 from typing import Optional
@@ -22,6 +23,7 @@ from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.formats import get_env
+from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
@@ -266,6 +268,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             max_item_size=self._max_payload_size,
         )
         self._headers.update({"Content-Type": self._encoder.content_type})
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()

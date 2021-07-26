@@ -13,6 +13,7 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal.compat import msgpack_type
@@ -24,6 +25,7 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
+from tests.utils import DummyTracer
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -169,6 +171,22 @@ class TestEncoders(TestCase):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
 
+    def test_list_buffered_encoder(self):
+        # test encoding for MsgPack format
+        encoder = MsgpackEncoder(2 << 10, 2 << 10)
+        encoder.put(
+            [
+                Span(name="client.testing", tracer=None),
+            ]
+        )
+
+        trace = encoder.get()
+        assert len(trace) == 1
+
+        assert isinstance(trace[0], msgpack_type)
+        items = encoder._decode(trace[0])
+        assert len(items) == 1
+
 
 def decode(obj):
     if msgpack.version[:2] < (0, 6):
@@ -270,6 +288,22 @@ def test_span_types(span, tags):
     trace = [span]
     encoder.put(trace)
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+
+
+def test_encoder_propagates_dd_origin():
+    tracer = DummyTracer()
+    encoder = MsgpackEncoder(1 << 20, 1 << 20)
+    with tracer.trace("Root") as root:
+        root.context.dd_origin = CI_APP_TEST_ORIGIN
+        for _ in range(999):
+            with tracer.trace("child"):
+                pass
+    # Ensure encoded trace contains dd_origin tag in all spans
+    trace = tracer.writer.pop()
+    encoder.put(trace)
+    decoded_trace = decode(encoder.encode())[0]
+    for span in decoded_trace:
+        assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 
 
 @given(

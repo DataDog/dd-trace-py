@@ -41,6 +41,12 @@ Quickstart
 Tracing
 ~~~~~~~
 
+.. important::
+
+    If ``gevent`` is used in the application then read the documentation
+    :ref:`here<gevent>`.
+
+
 Getting started for tracing is as easy as prefixing your python entry-point
 command with ``ddtrace-run``.
 
