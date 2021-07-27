@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
     defaults:
       run:
         working-directory: fastapi
