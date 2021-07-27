@@ -1,4 +1,5 @@
 import contextlib
+import os
 
 import httpx
 import pytest
@@ -171,3 +172,36 @@ async def test_distributed_tracing_disabled(request):
         async with httpx.AsyncClient() as client:
             resp = await client.get(url)
             assert_request_headers(resp)
+
+
+def test_distributed_tracing_disabled_env(run_python_code_in_subprocess):
+    code = """
+import asyncio
+
+import httpx
+
+from tests.contrib.httpx.test_httpx import get_url, override_config
+
+url = get_url("/headers")
+
+async def test():
+    def assert_request_headers(response):
+        data = response.json()
+        assert "X-Datadog-Trace-Id" not in data["headers"]
+        assert "X-Datadog-Parent-Id" not in data["headers"]
+        assert "X-Datadog-Sampling-Priority" not in data["headers"]
+
+    resp = httpx.get(url)
+    assert_request_headers(resp)
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url)
+        assert_request_headers(resp)
+
+asyncio.get_event_loop().run_until_complete(test())
+    """
+    env = os.environ.copy()
+    env["DD_HTTPX_DISTRIBUTED_TRACING"] = "false"
+    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert err == b""
