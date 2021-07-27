@@ -18,6 +18,7 @@ config._add(
     {
         "distributed_tracing": asbool(get_env("requests", "distributed_tracing", default=True)),
         "split_by_domain": asbool(get_env("requests", "split_by_domain", default=False)),
+        "_default_service": "requests",
     },
 )
 

@@ -1,5 +1,9 @@
 from copy import deepcopy
 import os
+from typing import List
+from typing import Tuple
+
+from ddtrace.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
 from ..pin import Pin
@@ -35,12 +39,69 @@ def _deepmerge(source, destination):
     return destination
 
 
+def get_error_ranges(error_range_str):
+    # type: (str) -> List[Tuple[int, int]]
+    error_ranges = []
+    error_range_str = error_range_str.strip()
+    error_ranges_str = error_range_str.split(",")
+    for error_range in error_ranges_str:
+        values = error_range.split("-")
+        try:
+            # Note: mypy does not like variable type changing
+            values = [int(v) for v in values]  # type: ignore[misc]
+        except ValueError:
+            log.exception("Error status codes was not a number %s", values)
+            continue
+        error_range = (min(values), max(values))  # type: ignore[assignment]
+        error_ranges.append(error_range)
+    return error_ranges  # type: ignore[return-value]
+
+
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+
+    class HTTPServerConfig(object):
+        _error_statuses = "500-599"  # type: str
+        _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
+
+        @property
+        def error_statuses(self):
+            # type: () -> str
+            return self._error_statuses
+
+        @error_statuses.setter
+        def error_statuses(self, value):
+            # type: (str) -> None
+            self._error_statuses = value
+            self._error_ranges = get_error_ranges(value)
+            # Mypy can't catch cached method's invalidate()
+            self.is_error_code.invalidate()  # type: ignore[attr-defined]
+
+        @property
+        def error_ranges(self):
+            # type: () -> List[Tuple[int, int]]
+            return self._error_ranges
+
+        @cachedmethod()
+        def is_error_code(self, status_code):
+            # type: (int) -> bool
+            """Returns a boolean representing whether or not a status code is an error code.
+            Error status codes by default are 500-599.
+            You may also enable custom error codes::
+
+                from ddtrace import config
+                config.http_server.error_statuses = '401-404,419'
+
+            Ranges and singular error codes are permitted and can be separated using commas.
+            """
+            for error_range in self.error_ranges:
+                if error_range[0] <= status_code <= error_range[1]:
+                    return True
+            return False
 
     def __init__(self):
         # use a dict as underlying storing mechanism
@@ -60,7 +121,7 @@ class Config(object):
         # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
-        self.http_server.error_statuses = "500-599"
+        self.http_server = self.HTTPServerConfig()
 
         self.service_mapping = parse_tags_str(get_env("service", "mapping", default=""))
 
@@ -78,6 +139,9 @@ class Config(object):
         self.report_hostname = asbool(get_env("trace", "report_hostname", default=False))
 
         self.health_metrics_enabled = asbool(get_env("trace", "health_metrics_enabled", default=False))
+
+        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
     def __getattr__(self, name):
         if name not in self._config:

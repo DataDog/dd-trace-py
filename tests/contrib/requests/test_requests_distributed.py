@@ -1,8 +1,8 @@
 from requests_mock import Adapter
 
 from ddtrace import config
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from .test_requests import BaseRequestTestCase
 
 
@@ -90,7 +90,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert 200 == resp.status_code
             assert "bar" == resp.text
 
-        spans = self.tracer.writer.spans
+        spans = self.pop_spans()
         root, req = spans
         assert "root" == root.name
         assert "requests.request" == req.name
@@ -130,7 +130,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert 200 == resp.status_code
             assert "bar" == resp.text
 
-        spans = self.tracer.writer.spans
+        spans = self.pop_spans()
         root, req = spans
         assert "root" == root.name
         assert "requests.request" == req.name
@@ -154,7 +154,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert 200 == resp.status_code
             assert "bar" == resp.text
 
-        spans = self.tracer.writer.spans
+        spans = self.pop_spans()
         root, req = spans
         assert "root" == root.name
         assert "requests.request" == req.name

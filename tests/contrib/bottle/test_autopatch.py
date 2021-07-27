@@ -1,26 +1,24 @@
-from unittest import TestCase
-
 import bottle
 import webtest
 
 import ddtrace
-from ddtrace import compat
-from tests.tracer.test_tracer import get_dummy_tracer
-
-from ... import assert_span_http_status_code
+from ddtrace.internal import compat
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
 
 
 SERVICE = "bottle-app"
 
 
-class TraceBottleTest(TestCase):
+class TraceBottleTest(TracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
 
     def setUp(self):
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
+        self.tracer = DummyTracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app
@@ -46,7 +44,7 @@ class TraceBottleTest(TestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -54,9 +52,6 @@ class TraceBottleTest(TestCase):
         assert s.resource == "GET /hi/<name>"
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
-
-        services = self.tracer.writer.pop_services()
-        assert services == {}
 
     def test_500(self):
         @self.app.route("/hi")
@@ -72,7 +67,7 @@ class TraceBottleTest(TestCase):
         except Exception:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -94,7 +89,7 @@ class TraceBottleTest(TestCase):
         resp = self.app.get("/home/")
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"

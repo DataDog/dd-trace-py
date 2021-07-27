@@ -1,0 +1,24 @@
+[[{"name" "mariadb.query"
+   "service" "mariadb"
+   "resource" "SELEC 1"
+   "type" "sql"
+   "error" 1
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1626718453234358000
+   "duration" 3750000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
+           "out.host" "127.0.0.1"
+           "db.user" "test"
+           "db.name" "test"
+           "error.msg" "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1"
+           "error.type" "mariadb.ProgrammingError"
+           "error.stack" "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 73, in _trace_method\n    return method(*args, **kwargs)\nmariadb.ProgrammingError: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1\n"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 1502
+              "out.port" 3306
+              "db.rowcount" -1
+              "_dd.tracer_kr" 1.0}}]]

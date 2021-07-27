@@ -1,5 +1,8 @@
 from __future__ import absolute_import
 
+from typing import Callable
+from typing import Optional
+
 
 class uWSGIConfigError(Exception):
     """uWSGI configuration error.
@@ -13,6 +16,7 @@ class uWSGIMasterProcess(Exception):
 
 
 def check_uwsgi(worker_callback=None, atexit=None):
+    # type: (Optional[Callable], Optional[Callable]) -> None
     """Check whetever uwsgi is running and what needs to be done.
 
     :param worker_callback: Callback function to call in uWSGI worker processes.

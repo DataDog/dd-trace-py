@@ -6,7 +6,6 @@ import unittest
 import mock
 import pytest
 
-from ddtrace.compat import iteritems
 from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
 from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
@@ -14,6 +13,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.ext.priority import AUTO_REJECT
+from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
@@ -22,13 +22,13 @@ from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
 from ddtrace.span import Span
 
-from .. import override_env
-from .test_tracer import get_dummy_tracer
+from ..utils import DummyTracer
+from ..utils import override_env
 
 
 @pytest.fixture
 def dummy_tracer():
-    return get_dummy_tracer()
+    return DummyTracer()
 
 
 def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
@@ -38,7 +38,7 @@ def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
 
 
 def create_span(tracer=None, name="test.span", service=""):
-    tracer = tracer or get_dummy_tracer()
+    tracer = tracer or DummyTracer()
     span = tracer.trace(name=name, service=service)
     span.finish()
     return span
@@ -63,18 +63,17 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
+            tracer = DummyTracer()
 
             tracer.sampler = RateSampler(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
-                span = tracer.trace(i)
+                span = tracer.trace(str(i))
                 span.finish()
 
-            samples = writer.pop()
+            samples = tracer.pop()
 
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
@@ -84,33 +83,32 @@ class RateSamplerTest(unittest.TestCase):
             assert deviation < 0.05, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
-        """ Test that for a given trace ID, the result is always the same """
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
+        """Test that for a given trace ID, the result is always the same"""
+        tracer = DummyTracer()
 
         tracer.sampler = RateSampler(0.5)
 
         for i in range(10):
-            span = tracer.trace(i)
+            span = tracer.trace(str(i))
             span.finish()
 
-            samples = writer.pop()
+            samples = tracer.pop()
             assert len(samples) <= 1, "there should be 0 or 1 spans"
             sampled = 1 == len(samples)
             for j in range(10):
-                other_span = Span(tracer, i, trace_id=span.trace_id)
+                other_span = Span(tracer, str(i), trace_id=span.trace_id)
                 assert sampled == tracer.sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
 
     def test_negative_sample_rate_raises_error(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
             tracer.sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):
         # Regression test for case where a sample rate of 0 caused the sample rate to be reset to 1
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         tracer.sampler = RateSampler(sample_rate=0)
         assert tracer.sampler.sample_rate == 0
 
@@ -130,24 +128,23 @@ class RateByServiceSamplerTest(unittest.TestCase):
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = get_dummy_tracer()
+            tracer = DummyTracer()
             writer = tracer.writer
             tracer.configure(sampler=AllSampler())
             # We need to set the writer because tracer.configure overrides it,
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer != tracer.writer, "writer should have been updated by configure"
-            tracer.writer = writer
+            assert writer is not tracer.writer, "writer should have been updated by configure"
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
-                span = tracer.trace(i)
+                span = tracer.trace(str(i))
                 span.finish()
 
-            samples = writer.pop()
+            samples = tracer.writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
@@ -183,7 +180,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             },
         ]
 
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         tracer.configure(sampler=AllSampler())
         priority_sampler = tracer.priority_sampler
         for case in cases:
@@ -406,11 +403,11 @@ def test_sampling_rule_matches_exception():
 
 @pytest.mark.parametrize("sample_rate", [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991])
 def test_sampling_rule_sample(sample_rate):
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=sample_rate)
 
     iterations = int(1e4 / sample_rate)
-    sampled = sum(rule.sample(Span(tracer=tracer, name=i)) for i in range(iterations))
+    sampled = sum(rule.sample(Span(tracer=tracer, name=str(i))) for i in range(iterations))
 
     # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
     deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
@@ -420,19 +417,19 @@ def test_sampling_rule_sample(sample_rate):
 
 
 def test_sampling_rule_sample_rate_1():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=1)
 
     iterations = int(1e4)
-    assert all(rule.sample(Span(tracer=tracer, name=i)) for i in range(iterations))
+    assert all(rule.sample(Span(tracer=tracer, name=str(i))) for i in range(iterations))
 
 
 def test_sampling_rule_sample_rate_0():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=0)
 
     iterations = int(1e4)
-    assert sum(rule.sample(Span(tracer=tracer, name=i)) for i in range(iterations)) == 0
+    assert sum(rule.sample(Span(tracer=tracer, name=str(i))) for i in range(iterations)) == 0
 
 
 def test_datadog_sampler_init():
@@ -468,6 +465,23 @@ def test_datadog_sampler_init():
         assert isinstance(sampler.default_sampler, SamplingRule)
         assert sampler.default_sampler.sample_rate == 0.5
 
+    # DD_TRACE_SAMPLE_RATE=0
+    with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
+        sampler = DatadogSampler()
+        assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+        assert isinstance(sampler.default_sampler, SamplingRule)
+        assert sampler.default_sampler.sample_rate == 0
+
+    # Invalid env vars
+    with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
+        with pytest.raises(ValueError):
+            DatadogSampler()
+
+    # Invalid env vars
+    with override_env(dict(DD_TRACE_RATE_LIMIT="asdf")):
+        with pytest.raises(ValueError):
+            DatadogSampler()
+
     # Invalid rules
     for val in (None, True, False, object(), 1, Exception()):
         with pytest.raises(TypeError):
@@ -494,7 +508,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     mock_sample.return_value = True
     with dummy_tracer.trace("test"):
         pass
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
 
@@ -506,7 +520,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     mock_sample.return_value = False
     with dummy_tracer.trace("test"):
         pass
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
 
@@ -603,13 +617,21 @@ class MatchNoSample(SamplingRule):
             0.5,
             None,
         ),
+        (
+            DatadogSampler(
+                default_sample_rate=0,
+            ),
+            AUTO_REJECT,
+            0,
+            None,
+        ),
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, dummy_tracer):
     dummy_tracer.configure(sampler=sampler)
     with dummy_tracer.trace("span"):
         pass
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
 
     # A span is always expected as DatadogSamplers are used.
     assert len(spans) > 0
@@ -643,7 +665,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
@@ -671,7 +693,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
     assert spans[0].get_metric(SAMPLING_LIMIT_DECISION) is None
@@ -699,7 +721,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_not_called()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 0
@@ -728,7 +750,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
             rule_spy.sample.assert_called_once_with(parent)
             limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
@@ -757,7 +779,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule_spy.sample.assert_called_once_with(span)
     limiter_spy.is_allowed.assert_called_once_with()
 
-    spans = dummy_tracer.writer.pop()
+    spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0

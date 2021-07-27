@@ -14,10 +14,7 @@ fi
 
 # Install required dependencies
 # DEV: `wheel` is needed to run `bdist_wheel`
-# DEV: `cryoptography==3.4` dropped support for Python 2.7 and now requires Rust to build from source
-#      This version constraint only applies to Alpine builds where wheels are not available
-#      https://cryptography.io/en/3.4/changelog.html#v3-4
-pip install twine readme_renderer[md] wheel cython "cryptography<3.4"
+pip install twine readme_renderer[md] wheel cython
 # Ensure we didn't cache from previous runs
 rm -rf build/ dist/
 # Manually build any extensions to ensure they succeed

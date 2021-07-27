@@ -7,10 +7,11 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
 from .utils import TornadoTestCase
+from .utils import TracerTestCase
 from .web.app import CustomDefaultHandler
 
 
@@ -28,7 +29,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/success/" + fqs)
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -59,7 +60,7 @@ class TestTornadoWeb(TornadoTestCase):
         # using the automatic Context retrieval
         response = self.fetch("/nested/")
         assert 200 == response.code
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # check request span
@@ -87,7 +88,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -109,7 +110,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/http_exception/")
         assert 501 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -131,7 +132,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/http_exception_500/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -153,7 +154,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/sync_success/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -173,7 +174,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/sync_exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -195,7 +196,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/does_not_exist/")
         assert 404 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -216,7 +217,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 200 == response.code
 
         # we trace two different calls: the RedirectHandler and the SuccessHandler
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 2 == len(traces)
         assert 1 == len(traces[0])
         assert 1 == len(traces[1])
@@ -248,7 +249,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 200 == response.code
         assert "Static file\n" == response.body.decode("utf-8")
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -269,7 +270,7 @@ class TestTornadoWeb(TornadoTestCase):
         response = self.fetch("/success/", headers=headers)
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -301,7 +302,7 @@ class TestTornadoWeb(TornadoTestCase):
             response = self.fetch("/success/")
             assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         # dd_span will start and stop before the ot_span finishes
@@ -434,7 +435,7 @@ class TestTornadoWebAnalyticsNoRate(TornadoTestCase):
             )
 
 
-class TestNoPropagationTornadoWeb(TornadoTestCase):
+class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced and are ignoring propagated HTTP headers when disabled.
     """
@@ -458,7 +459,73 @@ class TestNoPropagationTornadoWeb(TornadoTestCase):
         response = self.fetch("/success/", headers=headers)
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+
+        # simple sanity check on the span
+        assert "tornado.request" == request_span.name
+        assert_span_http_status_code(request_span, 200)
+        assert self.get_url("/success/") == request_span.get_tag(http.URL)
+        assert 0 == request_span.error
+
+        # check non-propagation
+        assert request_span.trace_id != 1234
+        assert request_span.parent_id != 4567
+        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+
+
+class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
+    """
+    Ensure that Tornado web handlers are properly traced and are ignoring propagated HTTP headers when disabled.
+    """
+
+    def test_no_propagation_via_int_config(self):
+        config.tornado.distributed_tracing = False
+        # it should not propagate the HTTP context
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "4567",
+            "x-datadog-sampling-priority": "2",
+            "x-datadog-origin": "synthetics",
+        }
+        response = self.fetch("/success/", headers=headers)
+        assert 200 == response.code
+
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+
+        request_span = traces[0][0]
+
+        # simple sanity check on the span
+        assert "tornado.request" == request_span.name
+        assert_span_http_status_code(request_span, 200)
+        assert self.get_url("/success/") == request_span.get_tag(http.URL)
+        assert 0 == request_span.error
+
+        # check non-propagation
+        assert request_span.trace_id != 1234
+        assert request_span.parent_id != 4567
+        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TORNADO_DISTRIBUTED_TRACING="False"))
+    def test_no_propagation_via_env_var(self):
+        # it should not propagate the HTTP context
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "4567",
+            "x-datadog-sampling-priority": "2",
+            "x-datadog-origin": "synthetics",
+        }
+        response = self.fetch("/success/", headers=headers)
+        assert 200 == response.code
+
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 
@@ -494,7 +561,7 @@ class TestCustomTornadoWeb(TornadoTestCase):
         response = self.fetch("/custom_handler/")
         assert 400 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 

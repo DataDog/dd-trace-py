@@ -1,4 +1,7 @@
+import contextlib
+import os
 import time
+import warnings
 
 import mock
 
@@ -9,9 +12,24 @@ from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
-from tests import BaseTestCase
-from tests import TracerTestCase
-from tests import override_env
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.internal.service import ServiceStatus
+from tests.utils import BaseTestCase
+from tests.utils import TracerTestCase
+from tests.utils import call_program
+
+
+@contextlib.contextmanager
+def runtime_metrics_service(tracer=None, flush_interval=None):
+    RuntimeWorker.enable(tracer=tracer, flush_interval=flush_interval)
+    assert RuntimeWorker._instance is not None
+    assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
+
+    yield RuntimeWorker._instance
+
+    RuntimeWorker._instance.stop()
+    assert RuntimeWorker._instance.status == ServiceStatus.STOPPED
+    RuntimeWorker._instance = None
 
 
 class TestRuntimeTags(TracerTestCase):
@@ -68,8 +86,7 @@ class TestRuntimeWorker(TracerTestCase):
         with mock.patch("socket.socket"):
             # configure tracer for runtime metrics
             interval = 1.0 / 4
-            with override_env(dict(DD_RUNTIME_METRICS_INTERVAL=str(interval))):
-                self.tracer.configure(collect_metrics=True)
+            with runtime_metrics_service(tracer=self.tracer, flush_interval=interval):
                 self.tracer.set_tags({"env": "tests.dog"})
 
                 with self.override_global_tracer(self.tracer):
@@ -81,9 +98,7 @@ class TestRuntimeWorker(TracerTestCase):
                     self.start_span("query", service="db", span_type=SpanTypes.SQL, child_of=child.context)
                     time.sleep(interval * 4)
                     # Get the mocked socket for inspection later
-                    statsd_socket = self.tracer._runtime_worker._dogstatsd_client.socket
-                    # now stop collection
-                    self.tracer.configure(collect_metrics=False)
+                    statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
 
                 received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
@@ -107,3 +122,65 @@ class TestRuntimeWorker(TracerTestCase):
             self.assertRegexpMatches(gauge, "lang_version:")
             self.assertRegexpMatches(gauge, "lang:python")
             self.assertRegexpMatches(gauge, "tracer_version:")
+
+    def test_only_root_span_runtime_internal_span_types(self):
+        with runtime_metrics_service(tracer=self.tracer):
+            for span_type in ("custom", "template", "web", "worker"):
+                with self.start_span("root", span_type=span_type) as root:
+                    with self.start_span("child", child_of=root) as child:
+                        pass
+                assert root.get_tag("language") == "python"
+                assert child.get_tag("language") is None
+
+    def test_only_root_span_runtime_internal_span_types_with_tracer_config(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.tracer.configure(collect_metrics=True)
+            for span_type in ("custom", "template", "web", "worker"):
+                with self.start_span("root", span_type=span_type) as root:
+                    with self.start_span("child", child_of=root) as child:
+                        pass
+                assert root.get_tag("language") == "python"
+                assert child.get_tag("language") is None
+            self.tracer.configure(collect_metrics=False)
+
+            self.assertEqual(len(w), 2)
+            self.assertTrue(all(issubclass(_.category, DeprecationWarning) for _ in w))
+
+    def test_span_no_runtime_tags(self):
+        with self.start_span("root") as root:
+            with self.start_span("child", child_of=root.context) as child:
+                pass
+
+        assert root.get_tag("language") is None
+        assert child.get_tag("language") is None
+
+    def test_only_root_span_runtime_external_span_types(self):
+        with runtime_metrics_service(tracer=self.tracer):
+            for span_type in (
+                "algoliasearch.search",
+                "boto",
+                "cache",
+                "cassandra",
+                "elasticsearch",
+                "grpc",
+                "kombu",
+                "http",
+                "memcached",
+                "redis",
+                "sql",
+                "vertica",
+            ):
+                with self.start_span("root", span_type=span_type) as root:
+                    with self.start_span("child", child_of=root) as child:
+                        pass
+                assert root.get_tag("language") is None
+                assert child.get_tag("language") is None
+
+
+def test_fork():
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
+    assert exitcode == 0
+
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_disable.py"))
+    assert exitcode == 0

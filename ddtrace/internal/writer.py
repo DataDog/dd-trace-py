@@ -1,33 +1,46 @@
+import abc
 from collections import defaultdict
 from json import loads
 import logging
+import os
 import sys
-import threading
+from typing import List
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import TextIO
+
+import six
+import tenacity
 
 import ddtrace
+from ddtrace.vendor.dogstatsd import DogStatsd
 
-from .. import _worker
-from .. import compat
-from ..compat import httplib
-from ..compat import reraise
+from . import agent
+from . import compat
+from . import periodic
+from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
-from ..encoding import Encoder
-from ..encoding import JSONEncoderV2
 from ..sampler import BasePrioritySampler
+from ..sampler import BaseSampler
+from ..utils.formats import get_env
+from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
+from ._encoding import BufferFull
+from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .agent import get_trace_url
-from .buffer import BufferFull
-from .buffer import BufferItemTooLarge
-from .buffer import TraceBuffer
+from .encoding import Encoder
+from .encoding import JSONEncoderV2
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
 
 
+if TYPE_CHECKING:
+    from ddtrace import Span
+
+
 log = get_logger(__name__)
 
-DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 # The window size should be chosen so that the look-back period is
@@ -35,6 +48,29 @@ LOG_ERR_INTERVAL = 60
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
+
+DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
+DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
+DEFAULT_PROCESSING_INTERVAL = 1.0
+
+
+def get_writer_buffer_size():
+    # type: () -> int
+    return int(get_env("trace", "writer_buffer_size_bytes", default=DEFAULT_BUFFER_SIZE))  # type: ignore[arg-type]
+
+
+def get_writer_max_payload_size():
+    # type: () -> int
+    return int(
+        get_env("trace", "writer_max_payload_size_bytes", default=DEFAULT_MAX_PAYLOAD_SIZE)  # type: ignore[arg-type]
+    )
+
+
+def get_writer_interval_seconds():
+    # type: () -> float
+    return float(
+        get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
+    )
 
 
 def _human_size(nbytes):
@@ -99,7 +135,10 @@ class Response(object):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug("Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date")
+                log.debug(
+                    "Cannot parse Datadog Agent response. "
+                    "This occurs because Datadog agent is out of date or DATADOG_PRIORITY_SAMPLING=false is set"
+                )
                 return
 
             return loads(body)
@@ -116,14 +155,38 @@ class Response(object):
         )
 
 
-class LogWriter:
-    def __init__(self, out=sys.stdout, sampler=None, priority_sampler=None):
+class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+    @abc.abstractmethod
+    def recreate(self):
+        # type: () -> TraceWriter
+        pass
+
+    @abc.abstractmethod
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        pass
+
+    @abc.abstractmethod
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
+        pass
+
+
+class LogWriter(TraceWriter):
+    def __init__(
+        self,
+        out=sys.stdout,  # type: TextIO
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+    ):
+        # type: (...) -> None
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self.encoder = JSONEncoderV2()
         self.out = out
 
     def recreate(self):
+        # type: () -> LogWriter
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -132,7 +195,12 @@ class LogWriter:
         writer = self.__class__(out=self.out, sampler=self._sampler, priority_sampler=self._priority_sampler)
         return writer
 
-    def write(self, spans=None, services=None):
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        return
+
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
         if not spans:
             return
 
@@ -141,7 +209,7 @@ class LogWriter:
         self.out.flush()
 
 
-class AgentWriter(_worker.PeriodicWorkerThread):
+class AgentWriter(periodic.PeriodicService, TraceWriter):
     """Writer to the Datadog Agent.
 
     The Datadog Agent supports (at the time of writing this) receiving trace
@@ -150,28 +218,28 @@ class AgentWriter(_worker.PeriodicWorkerThread):
     should be in the same trace.
     """
 
+    RETRY_ATTEMPTS = 3
+
     def __init__(
         self,
-        agent_url=None,
-        shutdown_timeout=DEFAULT_TIMEOUT,
-        sampler=None,
-        priority_sampler=None,
-        processing_interval=1,
+        agent_url,  # type: str
+        sampler=None,  # type: Optional[BaseSampler]
+        priority_sampler=None,  # type: Optional[BasePrioritySampler]
+        processing_interval=get_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=8 * 1000000,
-        max_payload_size=8 * 1000000,
-        timeout=2,
-        dogstatsd=None,
-        report_metrics=False,
+        buffer_size=get_writer_buffer_size(),  # type: int
+        max_payload_size=get_writer_max_payload_size(),  # type: int
+        timeout=agent.get_trace_agent_timeout(),  # type: float
+        dogstatsd=None,  # type: Optional[DogStatsd]
+        report_metrics=False,  # type: bool
+        sync_mode=False,  # type: bool
     ):
-        super(AgentWriter, self).__init__(
-            interval=processing_interval, exit_timeout=shutdown_timeout, name=self.__class__.__name__
-        )
-        self.agent_url = get_trace_url() if agent_url is None else agent_url
+        # type: (...) -> None
+        super(AgentWriter, self).__init__(interval=processing_interval)
+        self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -183,9 +251,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._timeout = timeout
 
         if priority_sampler is not None:
-            self._endpoint = "/v0.4/traces"
+            self._endpoint = "v0.4/traces"
         else:
-            self._endpoint = "/v0.3/traces"
+            self._endpoint = "v0.3/traces"
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -195,14 +263,28 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 }
             )
 
-        self._encoder = Encoder()
+        self._encoder = Encoder(
+            max_size=self._buffer_size,
+            max_item_size=self._max_payload_size,
+        )
         self._headers.update({"Content-Type": self._encoder.content_type})
-
-        self._started_lock = threading.Lock()
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._sync_mode = sync_mode
+        self._retry_upload = tenacity.Retrying(
+            # Retry RETRY_ATTEMPTS times within the first half of the processing
+            # interval, using a Fibonacci policy with jitter
+            wait=tenacity.wait_random_exponential(
+                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+            ),
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
+        )
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -232,12 +314,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def recreate(self):
+        # type: () -> AgentWriter
         writer = self.__class__(
             agent_url=self.agent_url,
-            shutdown_timeout=self.exit_timeout,
             priority_sampler=self._priority_sampler,
+            sync_mode=self._sync_mode,
         )
-        writer._encoder = self._encoder
         writer._headers = self._headers
         writer._endpoint = self._endpoint
         return writer
@@ -254,14 +336,14 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs", _human_size(len(data)), t)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self.agent_url)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
 
     def _downgrade(self, payload, response):
-        if self._endpoint == "/v0.4/traces":
-            self._endpoint = "/v0.3/traces"
+        if self._endpoint == "v0.4/traces":
+            self._endpoint = "v0.3/traces"
             return payload
         raise ValueError
 
@@ -284,9 +366,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 payload = self._downgrade(payload, response)
             except ValueError:
                 log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent",
+                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
                     self._endpoint,
                     response.status,
+                    self.agent_url,
                 )
             else:
                 return self._send_payload(payload, count)
@@ -314,81 +397,97 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
 
-    def write(self, spans):
-        # Start the AgentWriter on first write.
-        # Starting it earlier might be an issue with gevent, see:
-        # https://github.com/DataDog/dd-trace-py/issues/1192
-        if self.started is False:
-            with self._started_lock:
-                if self.started is False:
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
+        if spans is None:
+            return
+
+        if self._sync_mode is False:
+            # Start the AgentWriter on first write.
+            try:
+                if self.status != service.ServiceStatus.RUNNING:
                     self.start()
+            except service.ServiceStatusError:
+                pass
 
         self._metrics_dist("writer.accepted.traces")
         self._set_keep_rate(spans)
 
         try:
-            encoded = self._encoder.encode_trace(spans)
-        except Exception:
-            log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-            self._metrics_dist("encoder.dropped.traces", 1)
+            self._encoder.put(spans)
+        except BufferItemTooLarge as e:
+            payload_size = e.args[0]
+            log.warning(
+                "trace (%db) larger than payload buffer limit (%db), dropping",
+                payload_size,
+                self._buffer_size,
+            )
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+        except BufferFull as e:
+            payload_size = e.args[0]
+            log.warning(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                len(self._encoder),
+                self._encoder.size,
+                self._encoder.max_size,
+                payload_size,
+            )
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
         else:
-            try:
-                self._buffer.put(encoded)
-            except BufferItemTooLarge:
-                log.warning(
-                    "trace (%db) larger than payload limit (%db), dropping",
-                    len(encoded),
-                    self._max_payload_size,
-                )
-                self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-                self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:t_too_big"])
-            except BufferFull:
-                log.warning(
-                    "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
-                    len(self._buffer),
-                    self._buffer.size,
-                    self._buffer.max_size,
-                    len(encoded),
-                )
-                self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-                self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:full"])
-            else:
-                self._metrics_dist("buffer.accepted.traces", 1)
-                self._metrics_dist("buffer.accepted.spans", len(spans))
+            self._metrics_dist("buffer.accepted.traces", 1)
+            self._metrics_dist("buffer.accepted.spans", len(spans))
+            if self._sync_mode:
+                self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
-        enc_traces = self._buffer.get()
+        # type: (bool) -> None
         try:
-            if not enc_traces:
+            try:
+                n_traces = len(self._encoder)
+                encoded = self._encoder.encode()
+                if encoded is None:
+                    return
+            except Exception:
+                log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
+                self._metrics_dist("encoder.dropped.traces", n_traces)
                 return
 
-            encoded = self._encoder.join_encoded(enc_traces)
             try:
-                self._send_payload(encoded, len(enc_traces))
-            except (httplib.HTTPException, OSError, IOError):
+                self._retry_upload(self._send_payload, encoded, n_traces)
+            except tenacity.RetryError as e:
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
-                self._metrics_dist("http.dropped.traces", len(enc_traces))
+                self._metrics_dist("http.dropped.traces", n_traces)
                 if raise_exc:
-                    exc_type, exc_val, exc_tb = sys.exc_info()
-                    reraise(exc_type, exc_val, exc_tb)
+                    e.reraise()
                 else:
                     log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
             finally:
-                if self._report_metrics:
+                if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because
                     # it's not thread-safe.
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
                     self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
                     for name, metric in self._metrics.items():
                         self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
         finally:
             self._set_drop_rate()
             self._metrics_reset()
 
-    def run_periodic(self):
+    def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    on_shutdown = run_periodic
+    def _stop_service(  # type: ignore[override]
+        self,
+        timeout=None,  # type: Optional[float]
+    ):
+        # type: (...) -> None
+        # FIXME: don't join() on stop(), let the caller handle this
+        super(AgentWriter, self)._stop_service()
+        self.join(timeout=timeout)
+
+    on_shutdown = periodic

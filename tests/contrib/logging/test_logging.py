@@ -1,17 +1,18 @@
 import logging
 
+import pytest
+import six
+
 import ddtrace
-from ddtrace.compat import StringIO
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.logging import patch
 from ddtrace.contrib.logging import unpatch
 from ddtrace.contrib.logging.patch import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.logging.patch import RECORD_ATTR_TRACE_ID
-from ddtrace.vendor import six
+from ddtrace.internal.compat import StringIO
 from ddtrace.vendor import wrapt
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 logger = logging.getLogger()
@@ -40,7 +41,7 @@ class AssertFilter(logging.Filter):
         return True
 
 
-def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
+def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_style=None):
     if logger_override is not None:
         logger_to_capture = logger_override
     else:
@@ -51,7 +52,10 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
     sh = logging.StreamHandler(out)
 
     try:
-        formatter = logging.Formatter(fmt)
+        if fmt_style:
+            formatter = logging.Formatter(fmt, style=fmt_style)
+        else:
+            formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
         logger_to_capture.addHandler(sh)
         assert_filter = AssertFilter()
@@ -79,10 +83,22 @@ class LoggingTestCase(TracerTestCase):
         """
         log = logging.getLogger()
         self.assertTrue(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
+        # For Python 3
+        if hasattr(logging, "StrFormatStyle"):
+            if hasattr(logging.StrFormatStyle, "_format"):
+                assert isinstance(logging.StrFormatStyle._format, wrapt.BoundFunctionWrapper)
+            else:
+                assert isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
         unpatch()
         log = logging.getLogger()
         self.assertFalse(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
+        # For Python 3
+        if hasattr(logging, "StrFormatStyle"):
+            if hasattr(logging.StrFormatStyle, "_format"):
+                assert not isinstance(logging.StrFormatStyle._format, wrapt.BoundFunctionWrapper)
+            else:
+                assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
     def _test_logging(self, create_span, service="", version="", env=""):
         def func():
@@ -101,8 +117,10 @@ class LoggingTestCase(TracerTestCase):
                 trace_id = span.trace_id
                 span_id = span.span_id
 
-            assert output == "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
-                service, version, env, trace_id, span_id
+            assert output.startswith(
+                "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
+                    service, version, env, trace_id, span_id
+                )
             )
 
             # without format string
@@ -180,3 +198,58 @@ class LoggingTestCase(TracerTestCase):
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
+
+    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
+    def test_log_strformat_style(self):
+        def func():
+            with self.tracer.trace("test.logging") as span:
+                logger.info("Hello!")
+                return span
+
+        fmt = (
+            "{message} [dd.service={dd.service} dd.env={dd.env} "
+            "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
+        )
+
+        with self.override_config("logging", dict(tracer=self.tracer)):
+            output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
+
+            lines = output.splitlines()
+            assert (
+                "Hello! [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
+                    span.trace_id, span.span_id
+                )
+                == lines[0]
+            )
+
+            with self.override_global_config(dict(service="my.service", version="my.version", env="my.env")):
+                output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
+
+                lines = output.splitlines()
+                expected = (
+                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={} dd.span_id={}]"
+                ).format(span.trace_id, span.span_id)
+                assert expected == lines[0]
+
+    @pytest.mark.skipif(six.PY2, reason="logging.StrFormatStyle does not exist on Python 2.7")
+    def test_log_strformat_style_format(self):
+        # DEV: We have to use `{msg}` instead of `{message}` because we are manually creating
+        # records which does not properly configure `record.message` attribute
+        fmt = (
+            "{msg} [dd.service={dd.service} dd.env={dd.env} "
+            "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
+        )
+        formatter = logging.StrFormatStyle(fmt)
+
+        with self.override_config("logging", dict(tracer=self.tracer)):
+            with self.tracer.trace("test.logging") as span:
+                record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
+                log = formatter.format(record)
+                expected = "Manual log record [dd.service= dd.env= dd.version= dd.trace_id={} dd.span_id={}]".format(
+                    span.trace_id, span.span_id
+                )
+                assert log == expected
+
+                assert not hasattr(record, "dd")
+                assert getattr(record, RECORD_ATTR_TRACE_ID) == str(span.trace_id)
+                assert getattr(record, RECORD_ATTR_SPAN_ID) == str(span.span_id)

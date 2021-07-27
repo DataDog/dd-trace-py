@@ -4,8 +4,7 @@ import time
 from ddtrace.contrib.futures import patch
 from ddtrace.contrib.futures import unpatch
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class PropagationTestCase(TracerTestCase):
@@ -293,10 +292,6 @@ class PropagationTestCase(TracerTestCase):
                 executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
                 future = executor.submit(fn)
                 time.sleep(0.01)
-
-        # assert main thread span is finished first
-        self.assert_span_count(1)
-        self.assert_structure(dict(name="main.thread"))
 
         # then wait for the second thread and send the trace
         result = future.result()

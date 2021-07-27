@@ -4,8 +4,8 @@ from tornado import version_info
 
 from ddtrace.contrib.tornado.compat import futures_available
 from ddtrace.ext import http
+from tests.utils import assert_span_http_status_code
 
-from ... import assert_span_http_status_code
 from .utils import TornadoTestCase
 
 
@@ -20,13 +20,12 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_handler/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
-        assert 2 == len(traces)
-        assert 1 == len(traces[0])
-        assert 1 == len(traces[1])
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
 
         # this trace yields the execution of the thread
-        request_span = traces[1][0]
+        request_span = traces[0][0]
         assert "tornado-web" == request_span.service
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
@@ -38,7 +37,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert request_span.duration >= 0.05
 
         # this trace is executed in a different thread
-        executor_span = traces[0][0]
+        executor_span = traces[0][1]
         assert "tornado-web" == executor_span.service
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
@@ -51,13 +50,12 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_submit_handler/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
-        assert 2 == len(traces)
-        assert 1 == len(traces[0])
-        assert 1 == len(traces[1])
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
 
         # this trace yields the execution of the thread
-        request_span = traces[1][0]
+        request_span = traces[0][0]
         assert "tornado-web" == request_span.service
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
@@ -69,7 +67,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert request_span.duration >= 0.05
 
         # this trace is executed in a different thread
-        executor_span = traces[0][0]
+        executor_span = traces[0][1]
         assert "tornado-web" == executor_span.service
         assert "tornado.executor.query" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
@@ -81,13 +79,12 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_exception/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
-        assert 2 == len(traces)
-        assert 1 == len(traces[0])
-        assert 1 == len(traces[1])
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
 
         # this trace yields the execution of the thread
-        request_span = traces[1][0]
+        request_span = traces[0][0]
         assert "tornado-web" == request_span.service
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
@@ -100,7 +97,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
 
         # this trace is executed in a different thread
-        executor_span = traces[0][0]
+        executor_span = traces[0][1]
         assert "tornado-web" == executor_span.service
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
@@ -118,13 +115,12 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_custom_handler/")
         assert 200 == response.code
 
-        traces = self.tracer.writer.pop_traces()
-        assert 2 == len(traces)
-        assert 1 == len(traces[0])
-        assert 1 == len(traces[1])
+        traces = self.pop_traces()
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
 
         # this trace yields the execution of the thread
-        request_span = traces[1][0]
+        request_span = traces[0][0]
         assert "tornado-web" == request_span.service
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
@@ -136,7 +132,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert request_span.duration >= 0.05
 
         # this trace is executed in a different thread
-        executor_span = traces[0][0]
+        executor_span = traces[0][1]
         assert "tornado-web" == executor_span.service
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
@@ -152,7 +148,7 @@ class TestTornadoExecutor(TornadoTestCase):
         response = self.fetch("/executor_custom_args_handler/")
         assert 500 == response.code
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
 

@@ -26,6 +26,14 @@ Global Configuration
 
    Default: ``"mysql"``
 
+.. py:data:: ddtrace.config.pymysql["trace_fetch_methods"]
+
+   Whether or not to trace fetch methods.
+
+   Can also configured via the ``DD_PYMYSQL_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -42,6 +42,15 @@ def fn_middleware(get_response):
     return mw
 
 
+def empty_middleware(get_response):
+    """Empty function middleware for regression testing."""
+
+    def mw(request):
+        pass
+
+    pass
+
+
 class ClsMiddleware:
     """Class middleware."""
 
