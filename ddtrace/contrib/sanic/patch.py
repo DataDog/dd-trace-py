@@ -83,7 +83,7 @@ def _get_path(request):
         except Exception:
             # Best effort
             continue
-        path = path.replace(str(value), f"<{key}>")
+        path = path.replace(value, f"<{key}>")
     return path
 
 
