@@ -174,11 +174,12 @@ def pytest_runtest_makereport(item, call):
                 span.set_tag(test.XFAIL_REASON, result.wasxfail)
             else:
                 span.set_tag(test.RESULT, test.Status.XPASS.value)
-                # XPass (strict=False) are recorded passed by pytest
-                # results that are xfail(condition=False) will not have
-                # wasxfail attribute
-                if hasattr(result, "wasxfail"):
-                    span.set_tag(test.XFAIL_REASON, result.wasxfail)
+                if result.passed:
+                    # XPass (strict=False) are recorded passed by pytest
+                    # results that are xfail(condition=False) will not have
+                    # wasxfail attribute
+                    if hasattr(result, "wasxfail"):
+                        span.set_tag(test.XFAIL_REASON, result.wasxfail)
                 else:
                     # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
                     span.set_tag(test.XFAIL_REASON, result.longrepr)
