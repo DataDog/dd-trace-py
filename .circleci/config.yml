@@ -631,6 +631,7 @@ jobs:
       - run_test:
           pattern: 'httpx'
           snapshot: true
+          docker_services: 'httpbin_local'
 
   mariadb:
     <<: *machine_executor
