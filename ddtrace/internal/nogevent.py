@@ -10,7 +10,7 @@ from ddtrace.internal import forksafe
 
 
 try:
-    import gevent.monkey  # type: ignore[import]
+    import gevent.monkey
 except ImportError:
 
     def get_original(module, func):

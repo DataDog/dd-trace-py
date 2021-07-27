@@ -65,13 +65,16 @@ iPython
 initializer
 integration
 integrations
+JSON
 jinja
+js
 kombu
 kubernetes
 kwarg
 lifecycle
 lookups
 mako
+mariadb
 memcached
 metadata
 microservices
@@ -112,6 +115,7 @@ runnable
 runtime
 runtime-id
 sanic
+serializable
 sql
 sqlalchemy
 sqlite
