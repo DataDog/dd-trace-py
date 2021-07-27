@@ -294,6 +294,13 @@ def extract_github_actions(env):
 def extract_gitlab(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Gitlab environ."""
+    author = env.get("CI_COMMIT_AUTHOR")
+    author_name = None  # type: Optional[str]
+    author_email = None  # type: Optional[str]
+    if author:
+        # Extract name and email from `author` which is in the form "name <email>"
+        author_name, author_email = author.strip("> ").split(" <")
+    commit_timestamp = env.get("CI_COMMIT_TIMESTAMP")
     url = env.get("CI_PIPELINE_URL")
     if url:
         url = re.sub("/-/pipelines/", "/pipelines/", url)
@@ -312,6 +319,9 @@ def extract_gitlab(env):
         PROVIDER_NAME: "gitlab",
         WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
         git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
+        git.COMMIT_AUTHOR_NAME: author_name,
+        git.COMMIT_AUTHOR_EMAIL: author_email,
+        git.COMMIT_AUTHOR_DATE: commit_timestamp,
     }
 
 
