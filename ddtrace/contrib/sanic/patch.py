@@ -78,7 +78,12 @@ def _get_path(request):
     except sanic.exceptions.SanicException:
         return path
     for key, value in match_info.items():
-        path = path.replace(value, f"<{key}>")
+        try:
+            value = str(value)
+        except Exception:
+            # Best effort
+            continue
+        path = path.replace(str(value), f"<{key}>")
     return path
 
 
