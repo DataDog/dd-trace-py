@@ -163,7 +163,11 @@ def pytest_runtest_makereport(item, call):
     try:
         result = outcome.get_result()
 
-        if (hasattr(result, "wasxfail") or "xfail" in result.keywords) and not "skip" in result.keywords:
+        if (
+            (hasattr(result, "wasxfail") or "xfail" in result.keywords)
+            and not "skip" in result.keywords
+            and not "skipif" in result.keywords
+        ):
             if result.skipped:
                 # XFail tests that fail are recorded skipped by pytest
                 span.set_tag(test.RESULT, test.Status.XFAIL.value)
