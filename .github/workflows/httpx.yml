@@ -31,4 +31,4 @@ jobs:
         env:
           DD_HTTPX_DISTRIBUTED_TRACING: false
       - name: Run tests
-        run: pytest
+        run: pytest -k "not test_asgi_headers and not test_raw_client_header and not test_client_header and not test_header_merge and not test_header_update and not test_remove_default_header"
