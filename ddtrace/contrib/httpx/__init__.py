@@ -8,7 +8,7 @@ Enabling
 The ``httpx`` integration is enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Alternatively, use :ref:`patch()<patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(httpx=True)
@@ -21,7 +21,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.httpx['service']
 
-   The service name reported by default for ``httpx`` requests. This value will
+   The default service name for ``httpx`` requests. This value will
    be overridden by an instance override or if the ``split_by_domain`` setting is
    enabled.
 
