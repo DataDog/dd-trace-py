@@ -337,7 +337,7 @@ venv = Venv(
         ),
         Venv(
             name="cherrypy",
-            command="pytest {cmdargs} tests/contrib/cherrypy",
+            command="python -m pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -922,7 +922,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
             },
