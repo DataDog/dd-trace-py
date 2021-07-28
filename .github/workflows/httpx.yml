@@ -33,4 +33,3 @@ jobs:
           # Disabled distributed tracing since there are a lot of tests that assert on headers
           DD_HTTPX_DISTRIBUTED_TRACING: "false"
         run: pytest
-        # run: pytest -k "not test_asgi_headers and not test_raw_client_header and not test_client_header and not test_header_merge and not test_header_update and not test_remove_default_header and not test_event_hooks and not test_async_event_hooks and not test_event_hooks_with_redirect and not test_async_event_hooks_with_redirect and not test_host_with_auth_and_port_in_url and not test_host_with_non_default_port_in_url"
