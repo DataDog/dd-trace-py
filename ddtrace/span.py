@@ -13,6 +13,7 @@ from typing import Union
 
 import six
 
+from . import config
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
@@ -90,7 +91,6 @@ class Span(object):
         start=None,  # type: Optional[int]
         context=None,  # type: Optional[Context]
         on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
-        _check_pid=True,  # type: bool
     ):
         # type: (...) -> None
         """
@@ -137,8 +137,8 @@ class Span(object):
         self.duration_ns = None  # type: Optional[int]
 
         # tracing
-        self.trace_id = trace_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
-        self.span_id = span_id or _rand.rand64bits(check_pid=_check_pid)  # type: int
+        self.trace_id = trace_id or _rand.rand64bits()  # type: int
+        self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
         self.tracer = tracer  # type: Optional[Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -146,7 +146,7 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context  # type: Optional[Context]
+        self._context = context._with_span(self) if context else None  # type: Optional[Context]
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -210,20 +210,18 @@ class Span(object):
         self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time=None):
-        # type: (Optional[int]) -> None
+        # type: (Optional[float]) -> None
         """Mark the end time of the span and submit it to the tracer.
-        If the span has already been finished don't do anything
+        If the span has already been finished don't do anything.
 
-        :param int finish_time: The end time of the span in seconds.
-                                Defaults to now.
+        :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
-        if self.finished:
+        if self.duration_ns is not None:
             return
 
-        if self.duration_ns is None:
-            ft = time_ns() if finish_time is None else int(finish_time * 1e9)
-            # be defensive so we don't die if start isn't set
-            self.duration_ns = ft - (self.start_ns or ft)
+        ft = time_ns() if finish_time is None else int(finish_time * 1e9)
+        # be defensive so we don't die if start isn't set
+        self.duration_ns = ft - (self.start_ns or ft)
 
         for cb in self._on_finish_callbacks:
             cb(self)
@@ -320,7 +318,12 @@ class Span(object):
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
         """
-        self.meta[key] = ensure_text(value, errors="replace")
+        try:
+            self.meta[key] = ensure_text(value, errors="replace")
+        except Exception as e:
+            if config._raise:
+                raise e
+            log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
     def _remove_tag(self, key):
         # type: (_TagNameType) -> None
@@ -501,11 +504,8 @@ class Span(object):
         # type: () -> Context
         """Return the trace context for this span."""
         if self._context is None:
-            ctx = Context(trace_id=self.trace_id, span_id=self.span_id)
-            self._context = ctx
-        else:
-            ctx = self._context._with_span(self)
-        return ctx
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
+        return self._context
 
     def __enter__(self):
         return self

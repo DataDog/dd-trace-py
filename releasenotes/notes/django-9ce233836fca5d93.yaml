@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The legacy Django configuration method (deprecated in 0.34) has
+    been removed.

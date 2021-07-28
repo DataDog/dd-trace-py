@@ -1,5 +1,5 @@
 from .compat import asyncio_current_task
-from .provider import CONTEXT_ATTR
+from .provider import AsyncioContextProvider
 
 
 def wrapped_create_task(wrapped, instance, args, kwargs):
@@ -18,8 +18,8 @@ def wrapped_create_task(wrapped, instance, args, kwargs):
     new_task = wrapped(*args, **kwargs)
     current_task = asyncio_current_task()
 
-    ctx = getattr(current_task, CONTEXT_ATTR, None)
+    ctx = getattr(current_task, AsyncioContextProvider._CONTEXT_ATTR, None)
     if ctx:
-        setattr(new_task, CONTEXT_ATTR, ctx)
+        setattr(new_task, AsyncioContextProvider._CONTEXT_ATTR, ctx)
 
     return new_task

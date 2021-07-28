@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from json import loads
 import logging
+import os
 import sys
 from typing import List
 from typing import Optional
@@ -21,11 +22,12 @@ from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
+from ..utils.formats import get_env
+from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
+from ._encoding import BufferFull
+from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .buffer import BufferFull
-from .buffer import BufferItemTooLarge
-from .buffer import TraceBuffer
 from .encoding import Encoder
 from .encoding import JSONEncoderV2
 from .logger import get_logger
@@ -46,6 +48,29 @@ LOG_ERR_INTERVAL = 60
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
+
+DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
+DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
+DEFAULT_PROCESSING_INTERVAL = 1.0
+
+
+def get_writer_buffer_size():
+    # type: () -> int
+    return int(get_env("trace", "writer_buffer_size_bytes", default=DEFAULT_BUFFER_SIZE))  # type: ignore[arg-type]
+
+
+def get_writer_max_payload_size():
+    # type: () -> int
+    return int(
+        get_env("trace", "writer_max_payload_size_bytes", default=DEFAULT_MAX_PAYLOAD_SIZE)  # type: ignore[arg-type]
+    )
+
+
+def get_writer_interval_seconds():
+    # type: () -> float
+    return float(
+        get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
+    )
 
 
 def _human_size(nbytes):
@@ -200,12 +225,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=1.0,  # type: float
+        processing_interval=get_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=8 * 1000000,  # type: int
-        max_payload_size=8 * 1000000,  # type: int
-        timeout=agent.DEFAULT_TIMEOUT,  # type: float
+        buffer_size=get_writer_buffer_size(),  # type: int
+        max_payload_size=get_writer_max_payload_size(),  # type: int
+        timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -215,7 +240,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._buffer = TraceBuffer(max_size=self._buffer_size, max_item_size=self._max_payload_size)
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -239,9 +263,14 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 }
             )
 
-        self._encoder = Encoder()
+        self._encoder = Encoder(
+            max_size=self._buffer_size,
+            max_item_size=self._max_payload_size,
+        )
         self._headers.update({"Content-Type": self._encoder.content_type})
-
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()
@@ -291,7 +320,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             priority_sampler=self._priority_sampler,
             sync_mode=self._sync_mode,
         )
-        writer._encoder = self._encoder
         writer._headers = self._headers
         writer._endpoint = self._endpoint
         return writer
@@ -377,7 +405,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode is False:
             # Start the AgentWriter on first write.
             try:
-                self.start()
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
             except service.ServiceStatusError:
                 pass
 
@@ -385,51 +414,52 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._set_keep_rate(spans)
 
         try:
-            encoded = self._encoder.encode_trace(spans)
-        except Exception:
-            log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-            self._metrics_dist("encoder.dropped.traces", 1)
+            self._encoder.put(spans)
+        except BufferItemTooLarge as e:
+            payload_size = e.args[0]
+            log.warning(
+                "trace (%db) larger than payload buffer limit (%db), dropping",
+                payload_size,
+                self._buffer_size,
+            )
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+        except BufferFull as e:
+            payload_size = e.args[0]
+            log.warning(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                len(self._encoder),
+                self._encoder.size,
+                self._encoder.max_size,
+                payload_size,
+            )
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
         else:
-            try:
-                self._buffer.put(encoded)
-            except BufferItemTooLarge:
-                log.warning(
-                    "trace (%db) larger than payload limit (%db), dropping",
-                    len(encoded),
-                    self._max_payload_size,
-                )
-                self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-                self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:t_too_big"])
-            except BufferFull:
-                log.warning(
-                    "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
-                    len(self._buffer),
-                    self._buffer.size,
-                    self._buffer.max_size,
-                    len(encoded),
-                )
-                self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-                self._metrics_dist("buffer.dropped.bytes", len(encoded), tags=["reason:full"])
-            else:
-                self._metrics_dist("buffer.accepted.traces", 1)
-                self._metrics_dist("buffer.accepted.spans", len(spans))
-                if self._sync_mode:
-                    self.flush_queue()
+            self._metrics_dist("buffer.accepted.traces", 1)
+            self._metrics_dist("buffer.accepted.spans", len(spans))
+            if self._sync_mode:
+                self.flush_queue()
 
     def flush_queue(self, raise_exc=False):
         # type: (bool) -> None
-        enc_traces = self._buffer.get()
         try:
-            if not enc_traces:
+            try:
+                n_traces = len(self._encoder)
+                encoded = self._encoder.encode()
+                if encoded is None:
+                    return
+            except Exception:
+                log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
+                self._metrics_dist("encoder.dropped.traces", n_traces)
                 return
 
-            encoded = self._encoder.join_encoded(enc_traces)
             try:
-                self._retry_upload(self._send_payload, encoded, len(enc_traces))
+                self._retry_upload(self._send_payload, encoded, n_traces)
             except tenacity.RetryError as e:
                 self._metrics_dist("http.errors", tags=["type:err"])
                 self._metrics_dist("http.dropped.bytes", len(encoded))
-                self._metrics_dist("http.dropped.traces", len(enc_traces))
+                self._metrics_dist("http.dropped.traces", n_traces)
                 if raise_exc:
                     e.reraise()
                 else:
@@ -441,7 +471,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     # https://github.com/DataDog/datadogpy/issues/439
                     # This really isn't ideal as now we're going to do a ton of socket calls.
                     self.dogstatsd.distribution("datadog.tracer.http.sent.bytes", len(encoded))
-                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", len(enc_traces))
+                    self.dogstatsd.distribution("datadog.tracer.http.sent.traces", n_traces)
                     for name, metric in self._metrics.items():
                         self.dogstatsd.distribution("datadog.tracer.%s" % name, metric["count"], tags=metric["tags"])
         finally:

@@ -79,6 +79,22 @@ below:
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.
+   * - ``DD_TRACE_AGENT_TIMEOUT_SECONDS``
+     - Float
+     - 2.0
+     - The timeout in float to use to connect to the Datadog agent.
+   * - ``DD_TRACE_WRITER_BUFFER_SIZE_BYTES``
+     - Int
+     - 8000000
+     - The max size in bytes of traces to buffer between flushes to the agent.
+   * - ``DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES``
+     - Int
+     - 8000000
+     - The max size in bytes of each payload sent to the trace agent. If max payload size is less than buffer size, multiple payloads will be sent to the trace agent.
+   * - ``DD_TRACE_WRITER_INTERVAL_SECONDS``
+     - Float
+     - 1.0
+     - The time between each flush of traces to the trace agent.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
      - False
@@ -105,6 +121,10 @@ below:
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
+   * - ``DD_PROFILING_HEAP_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable the heap memory profiler.
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
      - 2
@@ -117,8 +137,8 @@ below:
      - The interval in seconds to wait before flushing out recorded events.
    * - ``DD_PROFILING_IGNORE_PROFILER``
      - Boolean
-     - True
-     - Whether to ignore the profiler in the generated data.
+     - False
+     - **Deprecated**: whether to ignore the profiler in the generated data.
    * - ``DD_PROFILING_TAGS``
      - String
      -

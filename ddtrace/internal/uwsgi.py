@@ -22,7 +22,7 @@ def check_uwsgi(worker_callback=None, atexit=None):
     :param worker_callback: Callback function to call in uWSGI worker processes.
     """
     try:
-        import uwsgi  # type: ignore[import]
+        import uwsgi
     except ImportError:
         return
 
@@ -47,7 +47,7 @@ def check_uwsgi(worker_callback=None, atexit=None):
         # Register the function to be called in child process at startup
         if worker_callback is not None:
             try:
-                import uwsgidecorators  # type: ignore[import]
+                import uwsgidecorators
             except ImportError:
                 raise uWSGIConfigError("Running under uwsgi but uwsgidecorators cannot be imported")
             uwsgidecorators.postfork(worker_callback)

@@ -48,9 +48,6 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
     """The sampling size."""
 
 
-_ENABLED = False
-
-
 def _get_default_heap_sample_size(
     default_heap_sample_size=512 * 1024,  # type: int
 ):
@@ -59,7 +56,7 @@ def _get_default_heap_sample_size(
     if heap_sample_size is not None:
         return int(heap_sample_size)
 
-    if not _ENABLED:
+    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "0")):
         return 0
 
     try:
@@ -94,7 +91,7 @@ class MemoryCollector(collector.PeriodicCollector):
     _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
     max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
-    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
+    ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
 
     def _start_service(self):  # type: ignore[override]
         # type: (...) -> None

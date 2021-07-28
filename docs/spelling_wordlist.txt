@@ -64,13 +64,16 @@ iPython
 initializer
 integration
 integrations
+JSON
 jinja
+js
 kombu
 kubernetes
 kwarg
 lifecycle
 lookups
 mako
+mariadb
 memcached
 metadata
 microservices
@@ -85,6 +88,8 @@ mysqldb
 namespace
 opentracer
 opentracing
+parameterized
+pid
 plugin
 posix
 postgres
@@ -107,7 +112,9 @@ repo
 respawn
 runnable
 runtime
+runtime-id
 sanic
+serializable
 sql
 sqlalchemy
 sqlite
