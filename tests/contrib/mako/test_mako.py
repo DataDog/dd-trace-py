@@ -5,14 +5,13 @@ from mako.runtime import Context
 from mako.template import Template
 
 from ddtrace import Pin
-from ddtrace.compat import StringIO
-from ddtrace.compat import to_unicode
 from ddtrace.contrib.mako import patch
 from ddtrace.contrib.mako import unpatch
 from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
-
-from ... import TracerTestCase
-from ... import assert_is_measured
+from ddtrace.internal.compat import StringIO
+from ddtrace.internal.compat import to_unicode
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -102,3 +101,18 @@ class MakoTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
 
         assert spans[0].service == "mysvc"
+
+    def test_deftemplate(self):
+        tmpl_lookup = TemplateLookup(directories=[TMPL_DIR])
+        t = tmpl_lookup.get_template("template.html")
+
+        # Get a DefTemplate from `t.render_body()`
+        dt = t.get_def("body")
+
+        assert dt.render(name="DefTemplate") == "Hello DefTemplate!\n"
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
+        assert spans[0].resource == "template_html.render_body"
+        assert spans[0].get_tag("mako.template_name") == "template_html.render_body"

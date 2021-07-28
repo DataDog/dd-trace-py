@@ -4,11 +4,11 @@ import celery
 import pytest
 
 from ddtrace import Pin
-from ddtrace.compat import PY2
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
+from ddtrace.internal.compat import PY2
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
 from ..config import REDIS_CONFIG
 
 

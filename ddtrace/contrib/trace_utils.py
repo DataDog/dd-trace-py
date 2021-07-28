@@ -1,15 +1,33 @@
 """
 This module contains utility functions for writing ddtrace integrations.
 """
+from collections import deque
+import re
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Generator
+from typing import Iterator
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Tuple
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
-import ddtrace.http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.cache import cached
+from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
+
+
+if TYPE_CHECKING:
+    from ddtrace import Span
+    from ddtrace import Tracer
+    from ddtrace.settings import IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -18,8 +36,99 @@ wrap = wrapt.wrap_function_wrapper
 unwrap = ddtrace.utils.wrappers.unwrap
 iswrapped = ddtrace.utils.wrappers.iswrapped
 
-store_request_headers = ddtrace.http.store_request_headers
-store_response_headers = ddtrace.http.store_response_headers
+REQUEST = "request"
+RESPONSE = "response"
+
+# Tag normalization based on: https://docs.datadoghq.com/tagging/#defining-tags
+# With the exception of '.' in header names which are replaced with '_' to avoid
+# starting a "new object" on the UI.
+NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
+
+
+@cached()
+def _normalized_header_name(header_name):
+    # type: (str) -> str
+    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
+def _normalize_tag_name(request_or_response, header_name):
+    # type: (str, str) -> str
+    """
+    Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
+    'http.request.headers.content_type'. Rules applied actual header name are:
+    - any letter is converted to lowercase
+    - any digit is left unchanged
+    - any block of any length of different ASCII chars is converted to a single underscore '_'
+    :param request_or_response: The context of the headers: request|response
+    :param header_name: The header's name
+    :type header_name: str
+    :rtype: str
+    """
+    # Looking at:
+    #   - http://www.iana.org/assignments/message-headers/message-headers.xhtml
+    #   - https://tools.ietf.org/html/rfc6648
+    # and for consistency with other language integrations seems safe to assume the following algorithm for header
+    # names normalization:
+    #   - any letter is converted to lowercase
+    #   - any digit is left unchanged
+    #   - any block of any length of different ASCII chars is converted to a single underscore '_'
+    normalized_name = _normalized_header_name(header_name)
+    return "http.{}.headers.{}".format(request_or_response, normalized_name)
+
+
+def _store_headers(headers, span, integration_config, request_or_response):
+    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+    """
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    :param span: The Span instance where tags will be stored
+    :type span: ddtrace.span.Span
+    :param integration_config: An integration specific config object.
+    :type integration_config: ddtrace.settings.IntegrationConfig
+    """
+    if not isinstance(headers, dict):
+        try:
+            headers = dict(headers)
+        except Exception:
+            return
+
+    if integration_config is None:
+        log.debug("Skipping headers tracing as no integration config was provided")
+        return
+
+    for header_name, header_value in headers.items():
+        if not integration_config.header_is_traced(header_name):
+            continue
+        tag_name = _normalize_tag_name(request_or_response, header_name)
+        span.set_tag(tag_name, header_value)
+
+
+def _store_request_headers(headers, span, integration_config):
+    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    """
+    Store request headers as a span's tags
+    :param headers: All the request's http headers, will be filtered through the whitelist
+    :type headers: dict or list
+    :param span: The Span instance where tags will be stored
+    :type span: ddtrace.Span
+    :param integration_config: An integration specific config object.
+    :type integration_config: ddtrace.settings.IntegrationConfig
+    """
+    _store_headers(headers, span, integration_config, REQUEST)
+
+
+def _store_response_headers(headers, span, integration_config):
+    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    """
+    Store response headers as a span's tags
+    :param headers: All the response's http headers, will be filtered through the whitelist
+    :type headers: dict or list
+    :param span: The Span instance where tags will be stored
+    :type span: ddtrace.Span
+    :param integration_config: An integration specific config object.
+    :type integration_config: ddtrace.settings.IntegrationConfig
+    """
+    _store_headers(headers, span, integration_config, RESPONSE)
 
 
 def with_traced_module(func):
@@ -110,40 +219,6 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
-def get_error_ranges(error_range_str):
-    error_ranges = []
-    error_range_str = error_range_str.strip()
-    error_ranges_str = error_range_str.split(",")
-    for error_range in error_ranges_str:
-        values = error_range.split("-")
-        try:
-            values = [int(v) for v in values]
-        except ValueError:
-            log.exception("Error status codes was not a number %s", values)
-            continue
-        error_range = [min(values), max(values)]
-        error_ranges.append(error_range)
-    return error_ranges
-
-
-def is_error_code(status_code):
-    # type: (int) -> bool
-    """Returns a boolean representing whether or not a status code is an error code.
-    Error status codes by default are 500-599.
-    You may also enable custom error codes::
-
-        from ddtrace import config
-        config.http_server.error_statuses = '401-404,419'
-
-    Ranges and singular error codes are permitted and can be separated using commas.
-    """
-    error_ranges = get_error_ranges(config.http_server.error_statuses)
-    for error_range in error_ranges:
-        if error_range[0] <= status_code <= error_range[1]:
-            return True
-    return False
-
-
 def set_http_meta(
     span,
     integration_config,
@@ -154,6 +229,7 @@ def set_http_meta(
     query=None,
     request_headers=None,
     response_headers=None,
+    retries_remain=None,
 ):
     if method is not None:
         span._set_str_tag(http.METHOD, method)
@@ -167,8 +243,8 @@ def set_http_meta(
         except (TypeError, ValueError):
             log.debug("failed to convert http status code %r to int", status_code)
         else:
-            span._set_str_tag(http.STATUS_CODE, status_code)
-            if is_error_code(int_status_code):
+            span._set_str_tag(http.STATUS_CODE, str(status_code))
+            if config.http_server.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
@@ -177,21 +253,62 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
 
-    if request_headers is not None:
-        store_request_headers(dict(request_headers), span, integration_config)
+    if request_headers is not None and integration_config.is_header_tracing_configured:
+        _store_request_headers(dict(request_headers), span, integration_config)
 
-    if response_headers is not None:
-        store_response_headers(dict(response_headers), span, integration_config)
+    if response_headers is not None and integration_config.is_header_tracing_configured:
+        _store_response_headers(dict(response_headers), span, integration_config)
+
+    if retries_remain is not None:
+        span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
 
-def activate_distributed_headers(tracer, int_config, request_headers=None):
+def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
+    # type: (Tracer, Optional[Dict[str, Any]], Optional[Dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
+    int_config will be used to check if distributed trace headers context will be activated, but
+    override will override whatever value is set in int_config if passed any value other than None.
     """
     int_config = int_config or {}
 
-    if int_config.get("distributed_tracing_enabled", False):
+    if override is False:
+        return None
+
+    if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
         context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
             tracer.context_provider.activate(context)
+
+
+def _flatten(
+    obj,  # type: Any
+    sep=".",  # type: str
+    prefix="",  # type: str
+    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
+):
+    # type: (...) -> Generator[Tuple[str, Any], None, None]
+    s = deque()  # type: ignore
+    s.append((prefix, obj))
+    while s:
+        p, v = s.pop()
+        if exclude_policy is not None and exclude_policy(p):
+            continue
+        if isinstance(v, dict):
+            s.extend((sep.join((p, k)) if p else k, v) for k, v in v.items())
+        else:
+            yield p, v
+
+
+def set_flattened_tags(
+    span,  # type: Span
+    items,  # type: Iterator[Tuple[str, Any]]
+    sep=".",  # type: str
+    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
+    processor=None,  # type Optional[Callable[[Any], Any]]
+):
+    # type: (...) -> None
+    for prefix, value in items:
+        for tag, v in _flatten(value, sep, prefix, exclude_policy):
+            span.set_tag(tag, processor(v) if processor is not None else v)

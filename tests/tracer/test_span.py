@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+import re
+import sys
 import time
 from unittest.case import SkipTest
 
 import mock
 import pytest
+import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -13,9 +16,10 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import errors
 from ddtrace.span import Span
-from tests import TracerTestCase
-from tests import assert_is_measured
-from tests import assert_is_not_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_is_not_measured
+from tests.utils import override_global_config
 
 
 class SpanTestCase(TracerTestCase):
@@ -170,6 +174,10 @@ class SpanTestCase(TracerTestCase):
         assert s.duration == 3.2
         assert s.duration_ns == 3200000000
         assert isinstance(s.duration_ns, int)
+
+    def test_get_span_returns_none_by_default(self):
+        s = Span(tracer=None, name="test.span")
+        assert s.duration is None
 
     def test_traceback_with_error(self):
         s = Span(None, "test.span")
@@ -475,6 +483,56 @@ def test_span_unicode_set_tag():
     span._set_str_tag(u"😐", u"😌")
 
 
+@pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
+@mock.patch("ddtrace.span.log")
+def test_span_binary_unicode_set_tag(span_log):
+    span = Span(None, None)
+    span.set_tag("key", "🤔")
+    span._set_str_tag("key_str", "🤔")
+    # only span.set_tag() will fail
+    span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
+    assert "key" not in span.meta
+    assert span.meta["key_str"] == u"🤔"
+
+
+@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
+@mock.patch("ddtrace.span.log")
+def test_span_bytes_string_set_tag(span_log):
+    span = Span(None, None)
+    span.set_tag("key", b"\xf0\x9f\xa4\x94")
+    span._set_str_tag("key_str", b"\xf0\x9f\xa4\x94")
+    assert span.meta["key"] == "b'\\xf0\\x9f\\xa4\\x94'"
+    assert span.meta["key_str"] == "🤔"
+    span_log.warning.assert_not_called()
+
+
+@mock.patch("ddtrace.span.log")
+def test_span_encoding_set_str_tag(span_log):
+    span = Span(None, None)
+    span._set_str_tag("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span_log.warning.assert_not_called()
+    assert span.meta["foo"] == u"/?foo=bar&baz=����ó��"
+
+
+def test_span_nonstring_set_str_tag_exc():
+    span = Span(None, None)
+    with pytest.raises(TypeError):
+        span._set_str_tag("foo", dict(a=1))
+    assert "foo" not in span.meta
+
+
+@mock.patch("ddtrace.span.log")
+def test_span_nonstring_set_str_tag_warning(span_log):
+    with override_global_config(dict(_raise=False)):
+        span = Span(None, None)
+        span._set_str_tag("foo", dict(a=1))
+        span_log.warning.assert_called_once_with(
+            "Failed to set text tag '%s'",
+            "foo",
+            exc_info=True,
+        )
+
+
 def test_span_ignored_exceptions():
     s = Span(None, None)
     s._ignore_exception(ValueError)
@@ -540,3 +598,79 @@ def test_span_ignored_exception_subclass():
     assert s.get_tag(errors.ERROR_MSG) is None
     assert s.get_tag(errors.ERROR_TYPE) is None
     assert s.get_tag(errors.ERROR_STACK) is None
+
+
+def test_on_finish_single_callback():
+    m = mock.Mock()
+    s = Span(None, "test", on_finish=[m])
+    m.assert_not_called()
+    s.finish()
+    m.assert_called_once_with(s)
+
+
+def test_on_finish_multi_callback():
+    m1 = mock.Mock()
+    m2 = mock.Mock()
+    s = Span(None, "test", on_finish=[m1, m2])
+    s.finish()
+    m1.assert_called_once_with(s)
+    m2.assert_called_once_with(s)
+
+
+@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
+def test_span_preconditions(arg):
+    Span(None, "test", **{arg: None})
+    with pytest.raises(TypeError):
+        Span(None, "test", **{arg: "foo"})
+
+
+def test_span_pprint():
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.set_tag("t", "v")
+    root.set_metric("m", 1.0)
+    root.finish()
+    actual = root.pprint()
+    assert "name='test.span'" in actual
+    assert "service='s'" in actual
+    assert "resource='r'" in actual
+    assert "type='web'" in actual
+    assert "error=0" in actual
+    assert ("tags={'t': 'v'}" if six.PY3 else "tags={'t': u'v'}") in actual
+    assert "metrics={'m': 1.0}" in actual
+    assert re.search("id=[0-9]+", actual) is not None
+    assert re.search("trace_id=[0-9]+", actual) is not None
+    assert "parent_id=None" in actual
+    assert re.search("duration=[0-9.]+", actual) is not None
+    assert re.search("start=[0-9.]+", actual) is not None
+    assert re.search("end=[0-9.]+", actual) is not None
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    actual = root.pprint()
+    assert "duration=None" in actual
+    assert "end=None" in actual
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.error = 1
+    actual = root.pprint()
+    assert "error=1" in actual
+
+    root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root.set_tag(u"😌", u"😌")
+    actual = root.pprint()
+    assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
+
+    root = Span(None, "test.span", service=object())
+    actual = root.pprint()
+    assert "service=<object object at" in actual
+
+
+def test_manual_context_usage():
+    span1 = Span(None, "span1")
+    span2 = Span(None, "span2", context=span1.context)
+
+    span2.context.sampling_priority = 2
+    assert span1.context.sampling_priority == 2
+
+    span1.context.sampling_priority = 1
+    assert span2.context.sampling_priority == 1
+    assert span1.context.sampling_priority == 1

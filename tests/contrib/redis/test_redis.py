@@ -3,15 +3,15 @@ import redis
 
 import ddtrace
 from ddtrace import Pin
-from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
-from tests import DummyTracer
-from tests import TracerTestCase
-from tests import snapshot
+from ddtrace.internal import compat
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
 
@@ -373,7 +373,11 @@ class TestRedisPatchSnapshot(TracerTestCase):
     @snapshot()
     def test_opentracing(self):
         """Ensure OpenTracing works with redis."""
+        writer = ddtrace.tracer.writer
         ot_tracer = init_tracer("redis_svc", ddtrace.tracer)
+        # FIXME: OpenTracing always overrides the hostname/port and creates a new
+        #        writer so we have to reconfigure with the previous one
+        ddtrace.tracer.configure(writer=writer)
 
         with ot_tracer.start_active_span("redis_get"):
             us = self.r.get("cheese")

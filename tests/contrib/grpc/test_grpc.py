@@ -1,8 +1,11 @@
+import threading
 import time
 
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
+import pytest
+import six
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -11,8 +14,9 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
+from tests.utils import TracerTestCase
+from tests.utils import snapshot
 
-from ... import TracerTestCase
 from .hello_pb2 import HelloReply
 from .hello_pb2 import HelloRequest
 from .hello_pb2_grpc import HelloServicer
@@ -71,7 +75,7 @@ class GrpcTestCase(TracerTestCase):
         self._server_pool.shutdown(wait=True)
 
     def _check_client_span(self, span, service, method_name, method_kind):
-        self.assert_is_not_measured(span)
+        self.assert_is_measured(span)
         assert span.name == "grpc"
         assert span.resource == "/helloworld.Hello/{}".format(method_name)
         assert span.service == service
@@ -118,7 +122,7 @@ class GrpcTestCase(TracerTestCase):
             stub.SayHello(HelloRequest(name="test"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         self._check_client_span(client_span, "grpc-client", "SayHello", "unary")
         self._check_server_span(server_span, "grpc-server", "SayHello", "unary")
@@ -142,7 +146,7 @@ class GrpcTestCase(TracerTestCase):
             stub.SayHello(HelloRequest(name="test"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         self._check_client_span(client_span, "grpc-client", "SayHello", "unary")
         self._check_server_span(server_span, "grpc-server", "SayHello", "unary")
@@ -168,9 +172,9 @@ class GrpcTestCase(TracerTestCase):
             stub.SayHello(HelloRequest(name="test"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        assert spans[0].service == "server1"
-        assert spans[0].get_tag("tag1") == "server"
-        assert spans[1].get_tag("tag2") == "client"
+        assert spans[1].service == "server1"
+        assert spans[1].get_tag("tag1") == "server"
+        assert spans[0].get_tag("tag2") == "client"
 
     def test_pin_can_be_defined_per_channel(self):
         Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
@@ -193,10 +197,10 @@ class GrpcTestCase(TracerTestCase):
         spans = self.get_spans_with_sync_and_assert(size=4)
 
         # DEV: Server service default, client services override
-        self._check_server_span(spans[0], "grpc-server", "SayHello", "unary")
-        self._check_client_span(spans[1], "grpc1", "SayHello", "unary")
-        self._check_server_span(spans[2], "grpc-server", "SayHello", "unary")
-        self._check_client_span(spans[3], "grpc2", "SayHello", "unary")
+        self._check_server_span(spans[1], "grpc-server", "SayHello", "unary")
+        self._check_client_span(spans[0], "grpc1", "SayHello", "unary")
+        self._check_server_span(spans[3], "grpc-server", "SayHello", "unary")
+        self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
 
     def test_analytics_default(self):
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -217,8 +221,8 @@ class GrpcTestCase(TracerTestCase):
                     stub.SayHello(HelloRequest(name="test"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
-        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
+        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
+        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_analytics_without_rate(self):
         with self.override_config("grpc_server", dict(analytics_enabled=True)):
@@ -234,13 +238,41 @@ class GrpcTestCase(TracerTestCase):
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_server_stream(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="test"))
+            responses_iterator.add_done_callback(callback)
             assert len(list(responses_iterator)) == 2
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
+        self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
+        self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
+
+    def test_server_stream_once(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
+            responses_iterator.add_done_callback(callback)
+            response = six.next(responses_iterator)
+            callback_called.wait(timeout=1)
+            assert response.message == "first response"
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
         self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
 
@@ -253,21 +285,29 @@ class GrpcTestCase(TracerTestCase):
             assert response.message == "first;second"
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
         self._check_client_span(client_span, "grpc-client", "SayHelloLast", "client_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloLast", "client_streaming")
 
     def test_bidi_stream(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"])
 
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            responses = stub.SayHelloRepeatedly(requests_iterator)
-            messages = [r.message for r in responses]
+            responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
+            responses_iterator.add_done_callback(callback)
+            messages = [r.message for r in responses_iterator]
+            callback_called.wait(timeout=1)
             assert list(messages) == ["first;second", "third;fourth", "fifth"]
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
         self._check_client_span(client_span, "grpc-client", "SayHelloRepeatedly", "bidi_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloRepeatedly", "bidi_streaming")
 
@@ -280,7 +320,7 @@ class GrpcTestCase(TracerTestCase):
             response = stub.SayHello(HelloRequest(name="propogator"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         assert "x-datadog-trace-id={}".format(client_span.trace_id) in response.message
         assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
@@ -293,7 +333,7 @@ class GrpcTestCase(TracerTestCase):
                 stub.SayHello(HelloRequest(name="abort"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
@@ -312,7 +352,7 @@ class GrpcTestCase(TracerTestCase):
                 stub.SayHello(HelloRequest(name="custom-exception"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
@@ -329,6 +369,12 @@ class GrpcTestCase(TracerTestCase):
         assert server_span.get_tag(errors.ERROR_STACK) is None
 
     def test_client_cancellation(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         # unpatch and restart server since we are only testing here caller cancellation
         self._stop_server()
         _unpatch_server()
@@ -341,9 +387,11 @@ class GrpcTestCase(TracerTestCase):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             with self.assertRaises(grpc.RpcError):
                 stub = HelloStub(channel)
-                responses = stub.SayHelloRepeatedly(requests_iterator)
-                responses.cancel()
-                next(responses)
+                responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
+                responses_iterator.add_done_callback(callback)
+                responses_iterator.cancel()
+                next(responses_iterator)
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=1)
         client_span = spans[0]
@@ -362,7 +410,7 @@ class GrpcTestCase(TracerTestCase):
                 stub.SayHello(HelloRequest(name="exception"))
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
@@ -386,7 +434,7 @@ class GrpcTestCase(TracerTestCase):
                 stub.SayHelloLast(requests_iterator)
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         assert client_span.resource == "/helloworld.Hello/SayHelloLast"
         assert client_span.error == 1
@@ -402,13 +450,22 @@ class GrpcTestCase(TracerTestCase):
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(errors.ERROR_STACK)
 
     def test_server_stream_exception(self):
+        # use an event to signal when the callbacks have been called from the response
+        callback_called = threading.Event()
+
+        def callback(response):
+            callback_called.set()
+
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
-                list(stub.SayHelloTwice(HelloRequest(name="exception")))
+                responses_iterator = stub.SayHelloTwice(HelloRequest(name="exception"))
+                responses_iterator.add_done_callback(callback)
+                list(responses_iterator)
+            callback_called.wait(timeout=1)
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        server_span, client_span = spans
+        client_span, server_span = spans
 
         assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
         assert client_span.error == 1
@@ -451,8 +508,8 @@ class GrpcTestCase(TracerTestCase):
         # DEV: make sure we have two spans before proceeding
         spans = self.get_spans_with_sync_and_assert(size=2)
 
-        self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
-        self._check_client_span(spans[1], "grpc-client", "SayHello", "unary")
+        self._check_server_span(spans[1], "mysvc", "SayHello", "unary")
+        self._check_client_span(spans[0], "grpc-client", "SayHello", "unary")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):
@@ -470,8 +527,8 @@ class GrpcTestCase(TracerTestCase):
 
         spans = self.get_spans_with_sync_and_assert(size=2)
 
-        self._check_server_span(spans[0], "myserversvc", "SayHello", "unary")
-        self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
+        self._check_server_span(spans[1], "myserversvc", "SayHello", "unary")
+        self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
     def test_client_service_name_config_env_override(self):
@@ -485,7 +542,7 @@ class GrpcTestCase(TracerTestCase):
         channel1.close()
 
         spans = self.get_spans_with_sync_and_assert(size=2)
-        self._check_client_span(spans[1], "myclientsvc", "SayHello", "unary")
+        self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
 
 class _HelloServicer(HelloServicer):
@@ -509,6 +566,17 @@ class _HelloServicer(HelloServicer):
 
         if request.name == "exception":
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "exception")
+
+        if request.name == "once":
+            # Mimic behavior of scenario where only one result is expected from
+            # streaming response and the RPC is successfully terminated, as is
+            # the case with grpc_helpers._StreamingResponseIterator in the
+            # Google API Library wraps a _MultiThreadedRendezvous future. An
+            # example of this iterator only called once is in the Google Cloud
+            # Firestore library.
+            # https://github.com/googleapis/python-api-core/blob/f87bccbfda11d2c2d1a2ddb6611c1209e29289d9/google/api_core/grpc_helpers.py#L80-L116
+            # https://github.com/googleapis/python-firestore/blob/e57258c51e4b4aa664cc927454056412756fc7ac/google/cloud/firestore_v1/document.py#L400-L404
+            return
 
         yield HelloReply(message="secondresponse")
 
@@ -550,3 +618,62 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
+
+
+def test_handle_response_future_like():
+    from ddtrace.contrib.grpc.client_interceptor import _handle_response
+    from ddtrace.span import Span
+
+    span = Span(None, None)
+
+    def finish_span():
+        span.finish()
+
+    class FutureLike(object):
+        def add_done_callback(self, fn):
+            finish_span()
+
+    class NotFutureLike(object):
+        pass
+
+    _handle_response(span, NotFutureLike())
+    assert span.duration is None
+    _handle_response(span, FutureLike())
+    assert span.duration is not None
+
+
+@pytest.fixture()
+def patch_grpc():
+    patch()
+    try:
+        yield
+    finally:
+        unpatch()
+
+
+class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
+    def __init__(self, handler):
+        self._handler = handler
+
+    def service(self, handler_call_details):
+        return grpc.unary_unary_rpc_method_handler(self._handler)
+
+
+@snapshot(ignores=["meta.grpc.port"])
+def test_method_service(patch_grpc):
+    def handler(request, context):
+        return b""
+
+    server = grpc.server(
+        logging_pool.pool(1),
+        options=(("grpc.so_reuseport", 0),),
+    )
+    port = server.add_insecure_port("[::]:0")
+    channel = grpc.insecure_channel("[::]:{}".format(port))
+    server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
+    try:
+        server.start()
+        channel.unary_unary("/Servicer/Handler")(b"request")
+        channel.unary_unary("/pkg.Servicer/Handler")(b"request")
+    finally:
+        server.stop(None)

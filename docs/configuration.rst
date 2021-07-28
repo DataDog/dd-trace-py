@@ -33,7 +33,7 @@ below:
    * - ``DD_TAGS``
      - String
      -
-     - Set global tags to be attached to every span. e.g. ``key1:value1,key2,value2``. Added in ``v0.38.0``.
+     - Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2,value2`` or ``key1:value key2:value2``. Comma separated support added in ``v0.38.0`` and space separated support added in ``v0.48.0``.
    * - ``DD_VERSION``
      - String
      -
@@ -69,12 +69,32 @@ below:
      - Boolean
      - True
      - Enables :ref:`Logs Injection`.
+   * - ``DD_CALL_BASIC_CONFIG``
+     - Boolean
+     - True
+     - Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
    * - ``DD_TRACE_AGENT_URL``
      - URL
      - ``http://localhost:8126``
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.
+   * - ``DD_TRACE_AGENT_TIMEOUT_SECONDS``
+     - Float
+     - 2.0
+     - The timeout in float to use to connect to the Datadog agent.
+   * - ``DD_TRACE_WRITER_BUFFER_SIZE_BYTES``
+     - Int
+     - 8000000
+     - The max size in bytes of traces to buffer between flushes to the agent.
+   * - ``DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES``
+     - Int
+     - 8000000
+     - The max size in bytes of each payload sent to the trace agent. If max payload size is less than buffer size, multiple payloads will be sent to the trace agent.
+   * - ``DD_TRACE_WRITER_INTERVAL_SECONDS``
+     - Float
+     - 1.0
+     - The time between each flush of traces to the trace agent.
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
      - False
@@ -101,6 +121,10 @@ below:
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
+   * - ``DD_PROFILING_HEAP_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable the heap memory profiler.
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
      - 2
@@ -113,8 +137,8 @@ below:
      - The interval in seconds to wait before flushing out recorded events.
    * - ``DD_PROFILING_IGNORE_PROFILER``
      - Boolean
-     - True
-     - Whether to ignore the profiler in the generated data.
+     - False
+     - **Deprecated**: whether to ignore the profiler in the generated data.
    * - ``DD_PROFILING_TAGS``
      - String
      -

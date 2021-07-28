@@ -120,7 +120,8 @@ class TestTracer(object):
         root.close()
 
         spans = test_spans.pop()
-        assert spans[2].parent_id is spans[0].span_id
+        assert spans[1].parent_id == spans[0].span_id
+        assert spans[2].parent_id == spans[0].span_id
 
     def test_start_span_custom_start_time(self, ot_tracer):
         """Start a span with a custom start time."""
@@ -385,6 +386,7 @@ class TestTracer(object):
         assert not scope.span.finished
         spans = test_spans.pop()
         assert not spans
+        scope.span.finish()
 
     def test_start_active_span_nested(self, ot_tracer):
         """Test the active span of multiple nested calls of start_active_span."""
@@ -417,12 +419,11 @@ class TestTracer(object):
         assert spans[2].parent_id is spans[0].span_id
         assert spans[3].parent_id is spans[2].span_id
 
-    def test_interleave(self, ot_tracer, test_spans):
+    def test_interleave(self, dd_tracer, ot_tracer, test_spans):
         with ot_tracer.start_active_span("ot_root_1", ignore_active_span=True):
-            with ddtrace.tracer.trace("dd_child"):
+            with dd_tracer.trace("dd_child"):
                 with ot_tracer.start_active_span("ot_child_1"):
                     pass
-
             with ot_tracer.start_active_span("ot_child_2"):
                 pass
 
@@ -446,7 +447,7 @@ def nop_span_ctx():
 
 
 class TestTracerSpanContextPropagation(object):
-    """Test the injection and extration of a span context from a tracer."""
+    """Test the injection and extraction of a span context from a tracer."""
 
     def test_invalid_format(self, ot_tracer, nop_span_ctx):
         """An invalid format should raise an UnsupportedFormatException."""

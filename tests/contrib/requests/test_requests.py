@@ -4,22 +4,24 @@ import sys
 import pytest
 import requests
 from requests import Session
+from requests.exceptions import InvalidURL
 from requests.exceptions import MissingSchema
+import six
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
+from ddtrace.contrib.requests.connection import _extract_hostname
+from ddtrace.contrib.requests.connection import _extract_query_string
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from ddtrace.vendor import six
 from tests.opentracer.utils import init_tracer
-
-from ... import TracerTestCase
-from ... import assert_is_measured
-from ... import assert_span_http_status_code
-from ... import override_global_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_tracer
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
@@ -238,16 +240,25 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         cfg["service_name"] = "clients"
         out = self.session.get(URL_200)
         assert out.status_code == 200
-
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
+        assert s.service == "clients"
 
+    def test_user_set_service(self):
+        # ensure a service name set by the user has precedence
+        cfg = config.get_from(self.session)
+        cfg["service"] = "clients"
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
         assert s.service == "clients"
 
     def test_parent_service_name_precedence(self):
-        # ensure the parent service name has precedence if the value
-        # is not set by the user
+        # span should not inherit the parent's service name
+        # as all outbound requests should go to a difference service
         with self.tracer.trace("parent.span", service="web"):
             out = self.session.get(URL_200)
             assert out.status_code == 200
@@ -257,7 +268,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[1]
 
         assert s.name == "requests.request"
-        assert s.service == "web"
+        assert s.service == "requests"
 
     def test_parent_without_service_name(self):
         # ensure the default value is used if the parent
@@ -322,7 +333,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # in that case, no spans are created
         cfg = config.get_from(self.session)
         cfg["split_by_domain"] = True
-        with pytest.raises(MissingSchema):
+        with pytest.raises((MissingSchema, InvalidURL)):
             self.session.get("http:/some>thing")
 
         # We are wrapping `requests.Session.send` and this error gets thrown before that function
@@ -367,6 +378,34 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert s.service == "httpbin.org:80"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
+    def test_global_config_service_env_precedence(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override"
+
+        cfg = config.get_from(self.session)
+        cfg["service"] = "override2"
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override2"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
+    def test_global_config_service_env(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override"
+
+    def test_global_config_service(self):
+        with self.override_config("requests", dict(service="override")):
+            out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override"
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
@@ -531,3 +570,43 @@ session.get("http://httpbin.org/status/200")
     assert p.stderr.read() == six.b("")
     assert p.stdout.read() == six.b("")
     assert p.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "uri,hostname",
+    [
+        ("http://localhost:8080", "localhost:8080"),
+        ("http://localhost:8080/", "localhost:8080"),
+        ("http://localhost", "localhost"),
+        ("http://localhost/", "localhost"),
+        ("http://asd:wwefwf@localhost:8080", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path?query", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", "localhost:8080"),
+        ("http://localhost:8080/path#frag?ment", "localhost:8080"),
+        ("http://localhost/path#frag?ment", "localhost"),
+    ],
+)
+def test_extract_hostname(uri, hostname):
+    assert _extract_hostname(uri) == hostname
+
+
+@pytest.mark.parametrize(
+    "uri,qs",
+    [
+        ("http://localhost:8080", None),
+        ("http://localhost", None),
+        ("http://asd:wwefwf@localhost:8080", None),
+        ("http://asd:wwefwf@localhost:8080/path", None),
+        ("http://asd:wwefwf@localhost:8080/path?query", "query"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "query"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", None),
+        ("http://localhost:8080/path#frag?ment", None),
+        ("http://localhost/path#frag?ment", None),
+        ("http://localhost?query", "query"),
+    ],
+)
+def test_extract_query_string(uri, qs):
+    assert _extract_query_string(uri) == qs

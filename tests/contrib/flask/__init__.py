@@ -4,8 +4,7 @@ from ddtrace import Pin
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
 from ddtrace.vendor import wrapt
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class BaseFlaskTestCase(TracerTestCase):
@@ -19,9 +18,7 @@ class BaseFlaskTestCase(TracerTestCase):
         Pin.override(self.app, tracer=self.tracer)
 
     def tearDown(self):
-        # Remove any remaining spans
-        self.tracer.pop()
-
+        super(BaseFlaskTestCase, self).tearDown()
         # Unpatch Flask
         unpatch()
 

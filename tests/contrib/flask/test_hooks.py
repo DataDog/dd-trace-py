@@ -1,9 +1,9 @@
 from flask import Blueprint
 
 from ddtrace.ext import http
+from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
-from ... import assert_span_http_status_code
 
 
 class FlaskHookTestCase(BaseFlaskTestCase):
@@ -14,7 +14,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
-        self.bp = Blueprint(__name__, "bp")
+        self.bp = Blueprint("bp", __name__)
 
         @self.bp.route("/bp")
         def bp():

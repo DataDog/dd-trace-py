@@ -1,8 +1,11 @@
 import os
+from typing import Union
 
-from ddtrace import compat
+from ddtrace.internal.compat import parse
 from ddtrace.utils.formats import get_env
 
+from .http import HTTPConnection
+from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
 
 
@@ -10,7 +13,9 @@ DEFAULT_HOSTNAME = "localhost"
 DEFAULT_TRACE_PORT = 8126
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
-DEFAULT_TIMEOUT = 2
+DEFAULT_TIMEOUT = 2.0
+
+ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 def get_hostname():
@@ -25,7 +30,12 @@ def get_trace_port():
 
 def get_stats_port():
     # type: () -> int
-    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))
+    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))  # type: ignore[arg-type]
+
+
+def get_trace_agent_timeout():
+    # type: () -> float
+    return float(get_env("trace", "agent", "timeout", "seconds", default=DEFAULT_TIMEOUT))  # type: ignore[arg-type]
 
 
 def get_trace_url():
@@ -40,17 +50,18 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    return get_env("dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port()))
+    return get_env(
+        "dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port())
+    )  # type: ignore[return-value]
 
 
 def verify_url(url):
-    # type: (str) -> compat.parse.ParseResult
+    # type: (str) -> parse.ParseResult
     """Verify that a URL can be used to communicate with the Datadog Agent.
-
+    Returns a parse.ParseResult.
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    parsed = compat.parse.urlparse(url)
-
+    parsed = parse.urlparse(url)
     schemes = ("http", "https", "unix")
     if parsed.scheme not in schemes:
         raise ValueError(
@@ -65,18 +76,17 @@ def verify_url(url):
 
 
 def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> compat.httplib.HTTPConnection
+    # type: (str, float) -> ConnectionType
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
+    path = parsed.path or "/"
 
     if parsed.scheme == "https":
-        conn = compat.httplib.HTTPSConnection(hostname, parsed.port, timeout=timeout)
+        return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
     elif parsed.scheme == "http":
-        conn = compat.httplib.HTTPConnection(hostname, parsed.port, timeout=timeout)
+        return HTTPConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
     elif parsed.scheme == "unix":
-        conn = UDSHTTPConnection(parsed.path, parsed.scheme == "https", hostname, parsed.port, timeout=timeout)
-    else:
-        raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+        return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
 
-    return conn
+    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)

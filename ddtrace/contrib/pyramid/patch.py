@@ -16,6 +16,13 @@ from .trace import DD_TWEEN_NAME
 from .trace import trace_pyramid
 
 
+config._add(
+    "pyramid",
+    dict(
+        distributed_tracing=asbool(get_env("pyramid", "distributed_tracing", default=True)),
+    ),
+)
+
 DD_PATCH = "_datadog_patch"
 
 
@@ -34,7 +41,6 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop("settings", {})
     service = config._get_service(default="pyramid")
-    distributed_tracing = asbool(get_env("pyramid", "distributed_tracing", default=True))
     # DEV: integration-specific analytics flag can be not set but still enabled
     # globally for web frameworks
     old_analytics_enabled = get_env("pyramid", "analytics_enabled")
@@ -46,7 +52,7 @@ def traced_init(wrapped, instance, args, kwargs):
     analytics_sample_rate = os.environ.get("DD_TRACE_PYRAMID_ANALYTICS_SAMPLE_RATE", old_analytics_sample_rate)
     trace_settings = {
         SETTINGS_SERVICE: service,
-        SETTINGS_DISTRIBUTED_TRACING: distributed_tracing,
+        SETTINGS_DISTRIBUTED_TRACING: config.pyramid.distributed_tracing,
         SETTINGS_ANALYTICS_ENABLED: analytics_enabled,
         SETTINGS_ANALYTICS_SAMPLE_RATE: analytics_sample_rate,
     }
@@ -63,7 +69,7 @@ def traced_init(wrapped, instance, args, kwargs):
     # to find the calling package. So if we let the original `__init__`
     # function call it, our wrapper will mess things up.
     if not kwargs.get("package", None):
-        # Get the packge for the third frame up from this one.
+        # Get the package for the third frame up from this one.
         #   - ddtrace.contrib.pyramid.path
         #   - ddtrace.vendor.wrapt
         #   - (this is the frame we want)

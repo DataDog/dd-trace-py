@@ -6,19 +6,19 @@ import itertools
 import os
 import platform
 
+import attr
+import six
+from six.moves import http_client
 import tenacity
 
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.runtime import container
-from ddtrace.profiling import _attr
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import pprof
+from ddtrace.utils import attr as attr_utils
 from ddtrace.utils.formats import parse_tags_str
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client  # type: ignore[import]
 
 
 HOSTNAME = platform.node()
@@ -39,7 +39,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     endpoint = attr.ib()
     api_key = attr.ib(default=None)
-    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", agent.DEFAULT_TIMEOUT, float), type=float)
+    # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
+    # backend is not as fast as the tracer one.
+    timeout = attr.ib(factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float), type=float)
     service = attr.ib(default=None)
     env = attr.ib(default=None)
     version = attr.ib(default=None)

@@ -5,10 +5,9 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace.propagation.http import HTTPPropagator
 
 from .. import trace_utils
-from ...compat import reraise
+from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
 
@@ -88,10 +87,9 @@ class TraceMiddleware:
 
         headers = _extract_headers(scope)
 
-        if self.integration_config.distributed_tracing:
-            context = HTTPPropagator.extract(headers)
-            if context.trace_id:
-                self.tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self.tracer, int_config=self.integration_config, request_headers=headers
+        )
 
         resource = "{} {}".format(scope["method"], scope["path"])
 

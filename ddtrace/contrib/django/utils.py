@@ -1,13 +1,25 @@
 from django.utils.functional import SimpleLazyObject
+import six
 
-from ...compat import PY3
-from ...compat import binary_type
-from ...compat import parse
-from ...compat import to_unicode
+from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import func_name
+from ddtrace.ext import SpanTypes
+from ddtrace.propagation.utils import from_wsgi_header
+
+from .. import trace_utils
 from ...internal.logger import get_logger
+from .compat import get_resolver
+from .compat import user_is_authenticated
 
 
 log = get_logger(__name__)
+
+
+# Set on patch, when django is imported
+Resolver404 = None
+DJANGO22 = None
 
 
 def resource_from_cache_prefix(resource, cache):
@@ -15,7 +27,7 @@ def resource_from_cache_prefix(resource, cache):
     Combine the resource name with the cache prefix (if any)
     """
     if getattr(cache, "key_prefix", None):
-        name = "{} {}".format(resource, cache.key_prefix)
+        name = " ".join((resource, cache.key_prefix))
     else:
         name = resource
 
@@ -38,19 +50,21 @@ def quantize_key_values(key):
     return key
 
 
-def get_django_2_route(resolver, resolver_match):
+def get_django_2_route(request, resolver_match):
     # Try to use `resolver_match.route` if available
     # Otherwise, look for `resolver.pattern.regex.pattern`
     route = resolver_match.route
-    if not route:
-        # DEV: Use all these `getattr`s to protect against changes between versions
-        pattern = getattr(resolver, "pattern", None)
-        if pattern:
-            regex = getattr(pattern, "regex", None)
-            if regex:
-                route = getattr(regex, "pattern", "")
+    if route:
+        return route
 
-    return route
+    resolver = get_resolver(getattr(request, "urlconf", None))
+    if resolver:
+        try:
+            return resolver.pattern.regex.pattern
+        except AttributeError:
+            pass
+
+    return None
 
 
 def set_tag_array(span, prefix, value):
@@ -59,10 +73,12 @@ def set_tag_array(span, prefix, value):
         return
 
     if len(value) == 1:
-        span._set_str_tag(prefix, value[0])
+        if value[0]:
+            span._set_str_tag(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
-            span._set_str_tag("{0}.{1}".format(prefix, i), v)
+            if v:
+                span._set_str_tag("".join((prefix, ".", str(i))), v)
 
 
 def get_request_uri(request):
@@ -85,7 +101,7 @@ def get_request_uri(request):
                 host = request.META["SERVER_NAME"]
                 port = str(request.META["SERVER_PORT"])
                 if port != ("443" if request.is_secure() else "80"):
-                    host = "{0}:{1}".format(host, port)
+                    host = "".join((host, ":", port))
         except Exception:
             # This really shouldn't ever happen, but lets guard here just in case
             log.debug("Failed to build Django request host", exc_info=True)
@@ -98,7 +114,7 @@ def get_request_uri(request):
 
     # Build request url from the information available
     # DEV: We are explicitly omitting query strings since they may contain sensitive information
-    urlparts = dict(scheme=request.scheme, netloc=host, path=request.path, params=None, query=None, fragment=None)
+    urlparts = {"scheme": request.scheme, "netloc": host, "path": request.path}
 
     # If any url part is a SimpleLazyObject, use its __class__ property to cast
     # str/bytes and allow for _setup() to execute
@@ -117,18 +133,143 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = v
+        urlparts[k] = six.ensure_text(v)
 
-    # DEV: With PY3 urlunparse calls urllib.parse._coerce_args which uses the
-    # type of the scheme to check the type to expect from all url parts, raising
-    # a TypeError otherwise. If the scheme is not a str, the function returns
-    # the url parts bytes decoded along with a function to encode the result of
-    # combining the url parts. We returns a byte string when all url parts are
-    # byte strings.
-    # https://github.com/python/cpython/blob/02d126aa09d96d03dcf9c5b51c858ce5ef386601/Lib/urllib/parse.py#L111-L125
-    if PY3 and not all(isinstance(value, binary_type) or value is None for value in urlparts.values()):
-        for (key, value) in urlparts.items():
-            if value is not None and isinstance(value, binary_type):
-                urlparts[key] = to_unicode(value)
+    return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
-    return parse.urlunparse(parse.ParseResult(**urlparts))
+
+def _before_request_tags(pin, span, request):
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    span.name = "django.request"
+    span.resource = request.method
+    span.service = trace_utils.int_service(pin, config.django)
+    span.span_type = SpanTypes.WEB
+    span.metrics[SPAN_MEASURED_KEY] = 1
+
+    analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
+    if analytics_sr is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
+
+    try:
+        # Get resolver match result and build resource name pieces
+        resolver_match = request.resolver_match
+        if not resolver_match:
+            # The request quite likely failed (e.g. 404) so we do the resolution anyway.
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            resolver_match = resolver.resolve(request.path_info)
+        handler = func_name(resolver_match[0])
+
+        if config.django.use_handler_resource_format:
+            span.resource = " ".join((span.resource, handler))
+        elif config.django.use_legacy_resource_format:
+            span.resource = handler
+        else:
+            # In Django >= 2.2.0 we can access the original route or regex pattern
+            # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
+            if DJANGO22:
+                # Determine the resolver and resource name for this request
+                route = get_django_2_route(request, resolver_match)
+                if route:
+                    span.resource = " ".join((request.method, route))
+                    span._set_str_tag("http.route", route)
+            else:
+                span.resource = " ".join((request.method, handler))
+
+        span._set_str_tag("django.view", resolver_match.view_name)
+        set_tag_array(span, "django.namespace", resolver_match.namespaces)
+
+        # Django >= 2.0.0
+        if hasattr(resolver_match, "app_names"):
+            set_tag_array(span, "django.app", resolver_match.app_names)
+
+    except Resolver404:
+        # Normalize all 404 requests into a single resource name
+        # DEV: This is for potential cardinality issues
+        span.resource = " ".join((request.method, "404"))
+    except Exception:
+        log.debug(
+            "Failed to resolve request path %r with path info %r",
+            request,
+            getattr(request, "path_info", "not-set"),
+            exc_info=True,
+        )
+    span._set_str_tag("django.request.class", func_name(request))
+
+
+def _after_request_tags(pin, span, request, response):
+    # Response can be None in the event that the request failed
+    # We still want to set additional request tags that are resolved
+    # during the request.
+
+    user = getattr(request, "user", None)
+    if user is not None:
+        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
+        # Django's get_user_model():
+        # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+        try:
+            if hasattr(user, "is_authenticated"):
+                span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
+
+            uid = getattr(user, "pk", None)
+            if uid:
+                span._set_str_tag("django.user.id", str(uid))
+
+            if config.django.include_user_name:
+                username = getattr(user, "username", None)
+                if username:
+                    span._set_str_tag("django.user.name", username)
+        except Exception:
+            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
+
+    if response:
+        status = response.status_code
+        span._set_str_tag("django.response.class", func_name(response))
+        if hasattr(response, "template_name"):
+            # template_name is a bit of a misnomer, as it could be any of:
+            # a list of strings, a tuple of strings, a single string, or an instance of Template
+            # for more detail, see:
+            # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+            template = response.template_name
+
+            if isinstance(template, six.string_types):
+                template_names = [template]
+            elif isinstance(
+                template,
+                (
+                    list,
+                    tuple,
+                ),
+            ):
+                template_names = template
+            elif hasattr(template, "template"):
+                # ^ checking by attribute here because
+                # django backend implementations don't have a common base
+                # `.template` is also the most consistent across django versions
+                template_names = [template.template.name]
+            else:
+                template_names = None
+
+            set_tag_array(span, "django.response.template", template_names)
+
+        url = get_request_uri(request)
+
+        if DJANGO22:
+            request_headers = request.headers
+        else:
+            request_headers = {}
+            for header, value in request.META.items():
+                name = from_wsgi_header(header)
+                if name:
+                    request_headers[name] = value
+
+        response_headers = dict(response.items())
+        trace_utils.set_http_meta(
+            span,
+            config.django,
+            method=request.method,
+            url=url,
+            status_code=status,
+            query=request.META.get("QUERY_STRING", None),
+            request_headers=request_headers,
+            response_headers=response_headers,
+        )

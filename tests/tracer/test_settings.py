@@ -1,9 +1,9 @@
-from copy import deepcopy
+import pytest
 
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
-from tests import BaseTestCase
+from tests.utils import BaseTestCase
 
 
 class TestConfig(BaseTestCase):
@@ -220,7 +220,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
     def test_analytics_enabled_attribute(self):
-        """" Confirm environment variable and kwargs are handled properly """
+        """Confirm environment variable and kwargs are handled properly"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True)
         self.assertTrue(ic.analytics_enabled)
 
@@ -236,7 +236,7 @@ class TestIntegrationConfig(BaseTestCase):
             self.assertFalse(ic.analytics_enabled)
 
     def test_get_analytics_sample_rate(self):
-        """" Check method for accessing sample rate based on configuration """
+        """Check method for accessing sample rate based on configuration"""
         ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
         self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
 
@@ -266,30 +266,6 @@ class TestIntegrationConfig(BaseTestCase):
             ic = IntegrationConfig(config, "foo")
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
 
-    def test_deepcopy(self):
-        ic = IntegrationConfig(
-            self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5, deep={"field": "sodeep"}
-        )
-        cpy = deepcopy(ic)
-        assert isinstance(cpy, IntegrationConfig)
-        assert cpy == ic
-        assert cpy.deep["field"] == ic.deep["field"]
-        ic.deep["field"] = ""
-        assert cpy.deep["field"] != ic.deep["field"]
-
-    def test_copy(self):
-        ic = IntegrationConfig(self.config, "foo", analytics_enabled=True, analytics_sample_rate=0.5)
-        copy = ic.copy()
-        assert isinstance(copy, IntegrationConfig)
-
-        for key in ic:
-            assert key in copy
-
-        for key in copy:
-            assert key in ic
-
-        assert ic == copy
-
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service is None
@@ -313,3 +289,31 @@ class TestIntegrationConfig(BaseTestCase):
     def test_service_name_env_var_legacy(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
+
+
+@pytest.mark.parametrize(
+    "global_headers,int_headers,expected",
+    (
+        (None, None, (False, False, False)),
+        ([], None, (False, False, False)),
+        (["Header"], None, (True, False, True)),
+        (None, ["Header"], (False, True, True)),
+        (None, [], (False, False, False)),
+        (["Header"], ["Header"], (True, True, True)),
+        ([], [], (False, False, False)),
+    ),
+)
+def test_config_is_header_tracing_configured(global_headers, int_headers, expected):
+    config = Config()
+    integration_config = config.myint
+
+    if global_headers is not None:
+        config.trace_headers(global_headers)
+    if int_headers is not None:
+        integration_config.http.trace_headers(int_headers)
+
+    assert (
+        config.http.is_header_tracing_configured,
+        integration_config.http.is_header_tracing_configured,
+        integration_config.is_header_tracing_configured,
+    ) == expected

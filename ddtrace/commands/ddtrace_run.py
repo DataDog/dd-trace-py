@@ -6,7 +6,7 @@ import os
 import sys
 
 import ddtrace
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 
@@ -29,7 +29,6 @@ and profiles.
 
 Examples
 ddtrace-run python app.py
-ddtrace-run uwsgi app.py
 ddtrace-run gunicorn myproject.wsgi
 """
 
@@ -102,6 +101,17 @@ def main():
         sys.exit(1)
 
     log.debug("program executable: %s", executable)
+
+    if os.path.basename(executable) == "uwsgi":
+        print(
+            (
+                "ddtrace-run has known compatibility issues with uWSGI where the "
+                "tracer is not started properly in uWSGI workers which can cause "
+                "broken behavior. It is recommended you remove ddtrace-run and "
+                "update your uWSGI configuration following "
+                "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
+            )
+        )
 
     try:
         os.execl(executable, executable, *args.command[1:])

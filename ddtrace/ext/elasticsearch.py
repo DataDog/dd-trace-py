@@ -1,8 +1,3 @@
-from . import SpanTypes
-
-
-# [TODO] Deprecated, remove when we remove AppTypes
-TYPE = SpanTypes.ELASTICSEARCH
 SERVICE = "elasticsearch"
 APP = "elasticsearch"
 

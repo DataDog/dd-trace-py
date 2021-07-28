@@ -8,8 +8,8 @@ import pytest
 
 from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
-from tests import DummyTracer
-from tests import TracerSpanContainer
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 
 @pytest.fixture()

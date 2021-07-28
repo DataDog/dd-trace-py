@@ -1,0 +1,54 @@
+[[{"name" "operation1"
+   "service" "my-svc"
+   "resource" "operation1"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1616457150152653000
+   "duration" 54000
+   "meta" {"runtime-id" "ddf562510b004d60bdfaa21911ab1e60"
+           "k" "v"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 39631
+              "int_metric" 4321
+              "_dd.tracer_kr" 1.0
+              "float_metric" 12.34
+              "num" 1234}}
+      {"name" "child"
+       "service" "my-svc"
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1616457150152696000
+       "duration" 7000}]
+ [{"name" "operation2"
+   "service" "my-svc"
+   "resource" "operation2"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1616457150152832000
+   "duration" 46000
+   "meta" {"runtime-id" "ddf562510b004d60bdfaa21911ab1e60"
+           "k" "v"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 39631
+              "int_metric" 4321
+              "_dd.tracer_kr" 1.0
+              "float_metric" 12.34
+              "num" 1234}}
+      {"name" "child"
+       "service" "my-svc"
+       "resource" "child"
+       "error" 0
+       "span_id" 1
+       "trace_id" 1
+       "parent_id" 0
+       "start" 1616457150152868000
+       "duration" 6000}]]

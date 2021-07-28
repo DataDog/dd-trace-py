@@ -4,6 +4,7 @@ from ddtrace import Pin
 from ddtrace import config
 
 from . import constants as c
+from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -13,7 +14,7 @@ from .utils import attach_span
 from .utils import detach_span
 from .utils import retrieve_span
 from .utils import retrieve_task_id
-from .utils import tags_from_context
+from .utils import set_tags_from_context
 
 
 log = get_logger(__name__)
@@ -36,10 +37,8 @@ def trace_prerun(*args, **kwargs):
         log.debug("no pin found on task or task.app task_id=%s", task_id)
         return
 
-    if config.celery["distributed_tracing"]:
-        context = propagator.extract(task.request.get("headers", {}))
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+    request_headers = task.request.get("headers", {})
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.celery, request_headers=request_headers)
 
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
@@ -71,8 +70,8 @@ def trace_postrun(*args, **kwargs):
     else:
         # request context tags
         span.set_tag(c.TASK_TAG_KEY, c.TASK_RUN)
-        span.set_tags(tags_from_context(kwargs))
-        span.set_tags(tags_from_context(task.request))
+        set_tags_from_context(span, kwargs)
+        set_tags_from_context(span, task.request.__dict__)
         span.finish()
         detach_span(task, task_id)
 
@@ -108,7 +107,7 @@ def trace_before_publish(*args, **kwargs):
     span.set_tag(SPAN_MEASURED_KEY)
     span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag("celery.id", task_id)
-    span.set_tags(tags_from_context(kwargs))
+    set_tags_from_context(span, kwargs)
 
     # Note: adding tags from `traceback` or `state` calls will make an
     # API call to the backend for the properties so we should rely

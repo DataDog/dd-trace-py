@@ -1,13 +1,25 @@
 import logging
 import os
+import re
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import TypeVar
+from typing import Union
 
 from .deprecation import deprecation
 
+
+T = TypeVar("T")
+
+# Tags `key:value` must be separated by either comma or space
+_TAGS_NOT_SEPARATED = re.compile(r":[^,\s]+:")
 
 log = logging.getLogger(__name__)
 
 
 def get_env(*parts, **kwargs):
+    # type: (str, T) -> Union[str, T, None]
     """Retrieves environment variables value for the given integration. It must be used
     for consistency between integrations. The implementation is backward compatible
     with legacy nomenclature:
@@ -18,7 +30,7 @@ def get_env(*parts, **kwargs):
       arguments
     * return `default` otherwise
 
-    :param parts: evironment variable parts that will be joined with ``_`` to generate the name
+    :param parts: environment variable parts that will be joined with ``_`` to generate the name
     :type parts: :obj:`str`
     :param kwargs: ``default`` is the only supported keyword argument which sets the default value
         if no environment variable is found
@@ -47,6 +59,7 @@ def get_env(*parts, **kwargs):
 
 
 def deep_getattr(obj, attr_string, default=None):
+    # type: (Any, str, Optional[Any]) -> Optional[Any]
     """
     Returns the attribute of `obj` at the dotted path given by `attr_string`
     If no such attribute is reachable, returns `default`
@@ -71,6 +84,7 @@ def deep_getattr(obj, attr_string, default=None):
 
 
 def asbool(value):
+    # type: (Union[str, bool, None]) -> bool
     """Convert the given String to a boolean object.
 
     Accepted values are `True` and `1`.
@@ -85,19 +99,43 @@ def asbool(value):
 
 
 def parse_tags_str(tags_str):
+    # type: (str) -> Dict[str, str]
     """Parse a string of tags typically provided via environment variables.
 
     The expected string is of the form::
         "key1:value1,key2:value2"
+        "key1:value1 key2:value2"
 
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    parsed_tags = {}
+    parsed_tags = {}  # type: Dict[str, str]
     if not tags_str:
         return parsed_tags
 
-    for tag in tags_str.split(","):
+    if _TAGS_NOT_SEPARATED.search(tags_str):
+        log.error("Malformed tag string with tags not separated by comma or space '%s'.", tags_str)
+        return parsed_tags
+
+    # Identify separator based on which successfully identifies the correct
+    # number of valid tags
+    numtagseps = tags_str.count(":")
+    for sep in [",", " "]:
+        if sum(":" in _ for _ in tags_str.split(sep)) == numtagseps:
+            break
+    else:
+        log.error(
+            (
+                "Failed to find separator for tag string: '%s'.\n"
+                "Tag strings must be comma or space separated:\n"
+                "  key1:value1,key2:value2\n"
+                "  key1:value1 key2:value2"
+            ),
+            tags_str,
+        )
+        return parsed_tags
+
+    for tag in tags_str.split(sep):
         try:
             key, value = tag.split(":", 1)
 

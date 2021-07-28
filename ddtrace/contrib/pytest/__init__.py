@@ -23,10 +23,10 @@ Global Configuration
 
    The service name reported by default for pytest traces.
 
-   This option can also be set with the ``DD_PYTEST_SERVICE`` environment
-   variable.
+   This option can also be set with the integration specific ``DD_PYTEST_SERVICE`` environment
+   variable, or more generally with the `DD_SERVICE` environment variable.
 
-   Default: ``"pytest"``
+   Default: Name of the repository being tested, otherwise ``"pytest"`` if the repository name cannot be found.
 
 
 .. py:data:: ddtrace.config.pytest["operation_name"]

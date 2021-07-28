@@ -4,10 +4,9 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.dogpile_cache.patch import patch
 from ddtrace.contrib.dogpile_cache.patch import unpatch
-
-from ... import DummyTracer
-from ... import TracerSpanContainer
-from ... import assert_is_measured
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
+from tests.utils import assert_is_measured
 
 
 @pytest.fixture
@@ -179,7 +178,7 @@ class TestInnerFunctionCalls(object):
         return [i * 2 for i in x]
 
     def test_calls_inner_functions_correctly(self, region, mocker):
-        """ This ensures the get_or_create behavior of dogpile is not altered. """
+        """This ensures the get_or_create behavior of dogpile is not altered."""
         spy_single_cache = mocker.spy(self, "single_cache")
         spy_multi_cache = mocker.spy(self, "multi_cache")
 

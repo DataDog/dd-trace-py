@@ -1,8 +1,13 @@
 # -*- encoding: utf-8 -*-
+import typing
+
+import attr
+
+from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
-from ddtrace.vendor import attr
+from ddtrace.utils import attr as attr_utils
+
+from .. import event
 
 
 class CollectorError(Exception):
@@ -28,19 +33,20 @@ class Collector(service.Service):
 
 
 @attr.s(slots=True)
-class PeriodicCollector(Collector, _periodic.PeriodicService):
+class PeriodicCollector(Collector, periodic.PeriodicService):
     """A collector that needs to run periodically."""
 
     def periodic(self):
+        # type: (...) -> None
         """Collect events and push them into the recorder."""
         for events in self.collect():
             self.recorder.push_events(events)
 
-    @staticmethod
-    def collect():
+    def collect(self):
+        # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
         """Collect the actual data.
 
-        :return: A list of sample list to push in the recorder.
+        :return: A list of event list to push in the recorder.
         """
         raise NotImplementedError
 
@@ -52,7 +58,7 @@ class CaptureSampler(object):
     capture_pct = attr.ib(default=100)
     _counter = attr.ib(default=0, init=False)
 
-    @capture_pct.validator  # type: ignore
+    @capture_pct.validator
     def capture_pct_validator(self, attribute, value):
         if value < 0 or value > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")
@@ -71,5 +77,5 @@ def _create_capture_sampler(collector):
 
 @attr.s
 class CaptureSamplerCollector(Collector):
-    capture_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_CAPTURE_PCT", 2, float))
+    capture_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_CAPTURE_PCT", 2.0, float))
     _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)

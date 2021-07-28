@@ -6,7 +6,7 @@ from redis.exceptions import ConnectionError
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 from ddtrace.ext import net
-from tests import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class FlaskCacheWrapperTest(TracerTestCase):

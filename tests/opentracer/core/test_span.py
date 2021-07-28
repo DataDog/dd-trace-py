@@ -1,7 +1,7 @@
 import pytest
 
 from ddtrace.opentracer.span import Span
-from tests import DummyTracer
+from tests.utils import DummyTracer
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ class TestSpan(object):
         nop_span.log_kv({"myval": 2})
 
     def test_log_dd_kv(self, nop_span):
-        """Ensure keys that can be handled by our impl. are indeed handled. """
+        """Ensure keys that can be handled by our impl. are indeed handled."""
         import traceback
 
         from ddtrace.ext import errors
@@ -156,4 +156,4 @@ class TestSpanCompatibility(object):
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag("sampling.priority", "2")
-        assert nop_span._dd_span.context._sampling_priority == "2"
+        assert nop_span._dd_span.context.sampling_priority == "2"

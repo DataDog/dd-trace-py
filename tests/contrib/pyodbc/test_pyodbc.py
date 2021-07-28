@@ -1,15 +1,11 @@
-# 3p
 import pyodbc
 
-# project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyodbc.patch import patch
 from ddtrace.contrib.pyodbc.patch import unpatch
-
-# testing
-from ... import TracerTestCase
-from ... import assert_is_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
 PYODBC_CONNECT_DSN = "driver=SQLite3;database=:memory:;"
@@ -54,7 +50,7 @@ class PyODBCTest(object):
         assert span.error == 0
 
     def test_simple_query_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer()
 
             cursor = conn.cursor()
@@ -86,7 +82,7 @@ class PyODBCTest(object):
         self.assertEqual(spans[0].name, "pyodbc.query")
 
     def test_query_with_several_rows_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer()
 
             cursor = conn.cursor()
@@ -133,7 +129,7 @@ class PyODBCTest(object):
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
             # tests that the executemany method is correctly wrapped.
             conn, tracer = self._get_conn_tracer()
 
@@ -201,7 +197,7 @@ class PyODBCTest(object):
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with self.override_config("pyodbc", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             conn, tracer = self._get_conn_tracer()
 
             cursor = conn.cursor()
@@ -215,7 +211,7 @@ class PyODBCTest(object):
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True)):
+        with self.override_config("pyodbc", dict(analytics_enabled=True)):
             conn, tracer = self._get_conn_tracer()
 
             cursor = conn.cursor()

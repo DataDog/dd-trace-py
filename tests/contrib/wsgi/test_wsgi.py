@@ -1,11 +1,11 @@
 import pytest
+import six
 from webtest import TestApp
 
 from ddtrace import config
-from ddtrace.compat import PY2
-from ddtrace.compat import PY3
 from ddtrace.contrib.wsgi import wsgi
-from ddtrace.vendor import six
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
 
 
 if PY2:
@@ -17,9 +17,9 @@ else:
 
     generatorExit = builtins.GeneratorExit
 
-from tests import override_config
-from tests import override_http_config
-from tests import snapshot
+from tests.utils import override_config
+from tests.utils import override_http_config
+from tests.utils import snapshot
 
 
 def chunked_response(start_response):

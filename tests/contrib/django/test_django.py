@@ -1,5 +1,4 @@
 import itertools
-import os
 import subprocess
 
 import django
@@ -13,10 +12,9 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
+from six import ensure_text
 
 from ddtrace import config
-from ddtrace.compat import binary_type
-from ddtrace.compat import string_type
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.patch import instrument_view
@@ -24,20 +22,20 @@ from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
 from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import binary_type
+from ddtrace.internal.compat import string_type
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.vendor import wrapt
-from tests import assert_dict_issuperset
-from tests import override_config
-from tests import override_env
-from tests import override_global_config
-from tests import override_http_config
 from tests.opentracer.utils import init_tracer
-
-
-pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
+from tests.utils import assert_dict_issuperset
+from tests.utils import override_config
+from tests.utils import override_env
+from tests.utils import override_global_config
+from tests.utils import override_http_config
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -1303,6 +1301,26 @@ def test_template(test_spans):
     assert span.get_tag("django.template.name") == "my-template"
 
 
+@pytest.mark.skipif(PY2, reason="pathlib is not part of the Python 2 stdlib")
+def test_template_name(test_spans):
+    from pathlib import PosixPath
+
+    # prepare a base template using the default engine
+    template = django.template.Template("Hello {{name}}!")
+
+    # DEV: template.name can be an instance of PosixPath (see
+    # https://github.com/DataDog/dd-trace-py/issues/2418)
+    template.name = PosixPath("/my-template")
+    template.render(django.template.Context({"name": "Django"}))
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    (span,) = spans
+    assert span.get_tag("django.template.name") == "/my-template"
+    assert span.resource == "/my-template"
+
+
 """
 OpenTracing tests
 """
@@ -1342,7 +1360,7 @@ def test_collecting_requests_handles_improperly_configured_error(client, test_sp
     """
     # patch django._patch - django.__init__.py imports patch.py module as _patch
     with mock.patch(
-        "ddtrace.contrib.django._patch.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+        "ddtrace.contrib.django.utils.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
     ):
         # If ImproperlyConfigured error bubbles up, should automatically fail the test.
         resp = client.get("/")
@@ -1577,6 +1595,9 @@ class _HttpRequest(django.http.HttpRequest):
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
+    def eval_lazy(lo):
+        return str(lo) if issubclass(lo.__class__, str) else bytes(lo)
+
     request = request_cls()
     request.path = request_path
     request.META = {"HTTP_HOST": http_host}
@@ -1592,6 +1613,9 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
             and isinstance(http_host, binary_type)
             and isinstance(request_uri, binary_type)
         ) or isinstance(request_uri, string_type)
+
+        host = ensure_text(eval_lazy(http_host)) if isinstance(http_host, SimpleLazyObject) else http_host
+        assert request_uri == "".join(map(ensure_text, (request.scheme, "://", host, request_path)))
 
 
 @pytest.fixture()
@@ -1687,8 +1711,11 @@ class TestWSGI:
 
 @pytest.mark.django_db
 def test_connections_patched():
+    from django.db import connection
     from django.db import connections
 
     assert len(connections.all())
     for conn in connections.all():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
+
+    assert isinstance(connection.cursor, wrapt.ObjectProxy)

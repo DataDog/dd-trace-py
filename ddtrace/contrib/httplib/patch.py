@@ -1,15 +1,16 @@
 import sys
 
+import six
+
 from ddtrace import config
-from ddtrace.vendor import six
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...compat import PY2
-from ...compat import httplib
-from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
+from ...internal.compat import PY2
+from ...internal.compat import httplib
+from ...internal.compat import parse
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
@@ -171,7 +172,7 @@ def should_skip_request(pin, request):
 
 
 def patch():
-    """ patch the built-in urllib/httplib/httplib.client methods for tracing"""
+    """patch the built-in urllib/httplib/httplib.client methods for tracing"""
     if getattr(httplib, "__datadog_patch", False):
         return
     setattr(httplib, "__datadog_patch", True)
@@ -193,7 +194,7 @@ def patch():
 
 
 def unpatch():
-    """ unpatch any previously patched modules """
+    """unpatch any previously patched modules"""
     if not getattr(httplib, "__datadog_patch", False):
         return
     setattr(httplib, "__datadog_patch", False)

@@ -10,7 +10,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
-from tests import DummyTracer
+from tests.utils import DummyTracer
 
 
 NOT_SET = object()
@@ -82,7 +82,8 @@ class TestHttpPropagation(TestCase):
         # Trace id
         ["one", None, "123.4", "", NOT_SET],
         # Parent id
-        ["one", None, "123.4", "", NOT_SET],
+        # DEV: 10 is valid for parent id but is ignored if trace id is ever invalid
+        ["one", None, "123.4", "", NOT_SET, "10"],
         # Sampling priority
         ["one", None, "123.4", "", NOT_SET],
         # Origin

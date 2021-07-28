@@ -2,13 +2,12 @@ from tornado.web import HTTPError
 
 from ddtrace import config
 
+from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
-from ...propagation.http import HTTPPropagator
 from .constants import CONFIG_KEY
-from .constants import REQUEST_CONTEXT_KEY
 from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 
@@ -26,14 +25,9 @@ def execute(func, handler, args, kwargs):
     distributed_tracing = settings["distributed_tracing"]
 
     with TracerStackContext():
-        # attach the context to the request
-        setattr(handler.request, REQUEST_CONTEXT_KEY, tracer.get_call_context())
-
-        # Read and use propagated context from HTTP headers
-        if distributed_tracing:
-            context = HTTPPropagator.extract(handler.request.headers)
-            if context.trace_id:
-                tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            tracer, int_config=config.tornado, request_headers=handler.request.headers, override=distributed_tracing
+        )
 
         # store the request span in the request so that it can be used later
         request_span = tracer.trace(

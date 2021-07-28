@@ -3,8 +3,8 @@ ensure old interfaces exist and won't break things.
 """
 import mongoengine
 
-from tests import DummyTracer
 from tests.contrib import config
+from tests.utils import DummyTracer
 
 
 class Singer(mongoengine.Document):

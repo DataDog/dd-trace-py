@@ -1,6 +1,6 @@
 import pytest
 
-from tests import DummyTracer
+from tests.utils import DummyTracer
 
 
 @pytest.fixture
