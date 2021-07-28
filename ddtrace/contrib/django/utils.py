@@ -139,8 +139,6 @@ def get_request_uri(request):
 
 
 def _before_request_tags(pin, span, request):
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
-    span.name = "django.request"
     span.resource = request.method
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
