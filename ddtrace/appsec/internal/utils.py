@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from collections import defaultdict
+from itertools import chain
 import json
 
 import yaml
@@ -103,6 +104,12 @@ def update_manifest(event_id, manifest, sqreen_filter):
     return manifest
 
 
+def get_ruleset_id(event):
+    action = event.get("action", "report")
+    typ = event.get("tags", {}).get("type", "global")
+    return "-".join((typ, action))
+
+
 def event_rules_to_sqreen(event_rules):
     """Convert event rules to Sqreen rules."""
 
@@ -112,7 +119,7 @@ def event_rules_to_sqreen(event_rules):
         raise NotImplementedError("Unsupported event rules version {!r}".format(version))
 
     manifest = OrderedDict(_EVENT_RULES_MANIFEST_0_1)
-    rules = defaultdict(list)
+    ruleset = defaultdict(list)
 
     for event in doc.get("events", []):
         event_id = str(event["id"])
@@ -131,7 +138,7 @@ def event_rules_to_sqreen(event_rules):
         if not filters:
             raise ValueError("event rule {!r} has no condition".format(event_id))
 
-        rules[event.get("action", "log")].append(
+        ruleset[get_ruleset_id(event)].append(
             OrderedDict(
                 rule_id=event_id,
                 filters=filters,
@@ -140,12 +147,13 @@ def event_rules_to_sqreen(event_rules):
 
     sqreen_rules = OrderedDict(
         manifest=manifest,
-        rules=rules["log"],
+        rules=list(chain.from_iterable(ruleset.values())),
         flows=[
             OrderedDict(
-                name="log",
-                steps=[OrderedDict(id="start", rule_ids=[r["rule_id"] for r in rules["log"]], on_match="exit_monitor")],
+                name=name,
+                steps=[OrderedDict(id="start", rule_ids=[r["rule_id"] for r in rules], on_match="exit_monitor")],
             )
+            for name, rules in ruleset.items()
         ],
     )
     return json.dumps(sqreen_rules)
