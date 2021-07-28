@@ -13,7 +13,8 @@ from typing import Tuple
 
 from austin.stats import Frame  # type: ignore[import]
 from austin.stats import InvalidSample
-from austin.stats import Metrics
+from austin.stats import Metric
+from austin.stats import MetricType
 from austin.stats import Sample
 from rich.console import Console  # type: ignore[import]
 from rich.progress import track  # type: ignore[import]
@@ -22,6 +23,7 @@ from rich.progress import track  # type: ignore[import]
 FoldedStack = List[Frame]
 
 CONSOLE = Console(file=sys.stderr)
+CWD = os.getcwd()
 
 
 if os.environ.get("DD_TRACE_DEBUG_ENABLE", False):
@@ -46,14 +48,14 @@ def _normalized_stack(stack: FoldedStack) -> FoldedStack:
 
 
 def score_stacks(
-    x: List[Tuple[FoldedStack, Metrics]], y: List[Tuple[FoldedStack, Metrics]]
+    x: List[Tuple[FoldedStack, Metric]], y: List[Tuple[FoldedStack, Metric]]
 ) -> List[Tuple[Tuple[int, int], float]]:
     """O(n * log(n)), n = len(x) * len(y)."""
 
-    def score_stack(a: Tuple[FoldedStack, Metrics], b: Tuple[FoldedStack, Metrics]) -> float:
+    def score_stack(a: Tuple[FoldedStack, Metric], b: Tuple[FoldedStack, Metric]) -> float:
         """Score two folded stacks (modulo frames contributed by ddtrace).
 
-        For multiple matches, prioritise those with similar metrics.
+        For multiple matches, prioritise those with similar Metric.
         """
         fa, ma = a
         fb, mb = b
@@ -66,7 +68,7 @@ def score_stacks(
                 bonus = na[-1] == fa[-1] and nb[-1] == fb[-1]
             except IndexError:
                 bonus = 0
-            return 0.5 - abs(ma.time - mb.time) / (ma.time + mb.time) + 0.5 * bonus
+            return 0.5 - abs(ma - mb) / (ma + mb) + 0.5 * bonus
         return 0
 
     return sorted(
@@ -86,8 +88,8 @@ def score_stacks(
 
 
 def match_folded_stacks(
-    x: List[Tuple[FoldedStack, Metrics]],
-    y: List[Tuple[FoldedStack, Metrics]],
+    x: List[Tuple[FoldedStack, Metric]],
+    y: List[Tuple[FoldedStack, Metric]],
     scale: float,
     threshold: float = DEFAULT_THRESHOLD,
 ) -> List[Tuple[int, int]]:
@@ -103,7 +105,7 @@ def match_folded_stacks(
 
         if LOGGER:
             stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(x[i][0])])
-            LOGGER.debug("Match: %f (%r | %r)  %s", s, x[i][1].time, y[j][1].time, stack)
+            LOGGER.debug("Match: %f (%r | %r)  %s", s, x[i][1], y[j][1], stack)
             LOGGER.debug("")
 
         matches.append((i, j))
@@ -119,7 +121,7 @@ def match_folded_stacks(
     for i, j in matches:
         matched_x.add(i)
         matched_y.add(j)
-        delta = (x[i][1].time - y[j][1].time) / scale
+        delta = (x[i][1] - y[j][1]) / scale
         if abs(delta) < threshold:
             continue
 
@@ -133,13 +135,13 @@ def match_folded_stacks(
         if i in matched_x:
             continue
         f, m = x[i]
-        delta = m.time / scale
+        delta = m / scale
         if delta < threshold:
             continue
 
         if LOGGER:
             stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
-            LOGGER.debug("NO Match (%r)  %s", m.time, stack)
+            LOGGER.debug("NO Match (%r)  %s", m, stack)
             LOGGER.debug("")
 
         new_stacks.append((f, delta))
@@ -149,13 +151,13 @@ def match_folded_stacks(
         if j in matched_y:
             continue
         f, m = y[j]
-        delta = m.time / scale
+        delta = m / scale
         if delta < threshold:
             continue
 
         if LOGGER:
             stack = ":".join([_.function + ":" + str(_.line) for _ in _normalized_stack(f)])
-            LOGGER.debug("NO Match (%r)  %s", m.time, stack)
+            LOGGER.debug("NO Match (%r)  %s", m, stack)
             LOGGER.debug("")
 
         old_stacks.append((f, delta))
@@ -176,15 +178,19 @@ def compressed(source: TextIO) -> Tuple[str, int]:
         if line.startswith("# "):
             continue
         stack, _, metric = line.rpartition(" ")
-        v = int(metric)
+        stack = stack.replace(CWD, ".")
+        try:
+            v = int(metric)
+        except ValueError:
+            continue
         stats[stack] = stats.setdefault(stack, 0) + v
         total_time += v
 
     return "\n".join([stack + " " + str(t) for stack, t in stats.items()]), total_time
 
 
-def get_folded_stacks(text: str, threshold: float = DEFAULT_THRESHOLD) -> List[Tuple[FoldedStack, Metrics]]:
-    """Get the folded stacks and metrics from a string of samples."""
+def get_folded_stacks(text: str, threshold: float = DEFAULT_THRESHOLD) -> List[Tuple[FoldedStack, Metric]]:
+    """Get the folded stacks and Metric from a string of samples."""
     x = []
     max_time = 1
     for _ in track(
@@ -194,13 +200,13 @@ def get_folded_stacks(text: str, threshold: float = DEFAULT_THRESHOLD) -> List[T
         transient=True,
     ):
         try:
-            sample = Sample.parse(_)
-            if sample.metrics.time > max_time:
-                max_time = sample.metrics.time
-            x.append((sample.frames, sample.metrics))
+            (sample,) = Sample.parse(_, MetricType.TIME)
+            if sample.metric.value > max_time:
+                max_time = sample.metric.value
+            x.append((sample.frames, sample.metric.value))
         except InvalidSample:
             continue
-    return [_ for _ in x if _[1].time / max_time > threshold]
+    return [_ for _ in x if _[1] / max_time > threshold]
 
 
 def top(stacks):
@@ -286,9 +292,9 @@ def diff(a: str, b: str, output_prefix: str, threshold: float = 1e-3) -> None:
     than those in a are not reported), plus any new stacks that are not in
     b.
     """
-    with open(a) as ain, open(b) as bin:
-        ca, ta = compressed(ain)
-        cb, tb = compressed(bin)
+    with open(a) as a_in, open(b) as b_in:
+        ca, ta = compressed(a_in)
+        cb, tb = compressed(b_in)
 
     with open(a, "w") as aout, open(b, "w") as bout:
         # overwrite files with compressed result

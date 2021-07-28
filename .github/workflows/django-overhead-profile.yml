@@ -15,6 +15,9 @@ jobs:
       DATABASE_URL: sqlite:///django.db
       DJANGO_SETTINGS_MODULE: config.settings.production
       USE_DOCKER: false
+      AUSTIN_VERSION: 3.0.0
+      AUSTIN_INTERVAL: 200  # usec
+      AUSTIN_EXPOSURE: 10  # sec
     steps:
       - uses: actions/checkout@v2
         with:
@@ -38,23 +41,15 @@ jobs:
       - name: Install ddtrace
         run: pip install -e $GITHUB_WORKSPACE/ddtrace
 
-      - name: Checkout Austin development branch
-        uses: actions/checkout@v2
-        with:
-          repository: P403n1x87/austin
-          ref: b029cb7728783cc1035a032c9689f272e6ca2de6
-          path: austin
-
-      - name: Compile Austin on Linux
+      - name: Install Austin ${AUSTIN_VERSION}
         run: |
-          cd $GITHUB_WORKSPACE/austin
-          gcc -Wall -O3 -Os -s -pthread src/*.c -o src/austin
-          cd -
+          curl https://github.com/p403n1x87/austin/releases/download/v${AUSTIN_VERSION}/austin-${AUSTIN_VERSION}-linux-amd64.tar.xz -L | tar xJv
+          mv ./austin $GITHUB_WORKSPACE
 
       - name: Install diff tool dependencies
         run: |
           pip install rich
-          pip install git+git://github.com/p403n1x87/austin-python.git@acf3f3d3263a583c30f5c95e4b3ad337a6793aa3
+          pip install austin-python==1.0.0b1
 
       - name: Install k6
         run: |
@@ -70,7 +65,7 @@ jobs:
           sleep 1
           $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/baseline-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -C -i 200 -o ${{ github.workspace }}/artifacts/baseline.austin -sp $(cat gunicorn.pid) -x 10
+          sudo $GITHUB_WORKSPACE/austin -sCi ${AUSTIN_INTERVAL} -o ${{ github.workspace }}/artifacts/baseline.austin -p $(cat gunicorn.pid) -x ${AUSTIN_EXPOSURE}
           pkill k6
           kill $(cat gunicorn.pid)
 
@@ -78,7 +73,7 @@ jobs:
           sleep 1
           $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/head-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
           sleep 1
-          sudo $GITHUB_WORKSPACE/austin/src/austin -C -i 200 -o ${{ github.workspace }}/artifacts/head.austin -sp $(cat gunicorn.pid) -x 10
+          sudo $GITHUB_WORKSPACE/austin -sCi ${AUSTIN_INTERVAL} -o ${{ github.workspace }}/artifacts/head.austin -p $(cat gunicorn.pid) -x ${AUSTIN_EXPOSURE}
           pkill k6
           kill $(cat gunicorn.pid)
 
@@ -88,8 +83,6 @@ jobs:
           sudo chown `whoami`:`whoami` ${{ github.workspace }}/artifacts/*
           python scripts/diff.py ${{ github.workspace }}/artifacts/head.austin ${{ github.workspace }}/artifacts/baseline.austin ${{ github.workspace }}/artifacts/baseline_head.diff
           head -n 25 ${{ github.workspace }}/artifacts/baseline_head.diff.top
-          austin2pprof ${{ github.workspace }}/artifacts/baseline_head.diff.austin ${{ github.workspace }}/artifacts/baseline_head.diff.pprof
-          ls -alh
           cd -
 
       - uses: actions/upload-artifact@v2
