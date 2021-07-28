@@ -42,7 +42,6 @@ class PeriodicThread(threading.Thread):
         self._on_shutdown = on_shutdown
         self.interval = interval
         self.quit = forksafe.Event()
-        self.daemon = True
 
     def stop(self):
         """Stop the thread."""
