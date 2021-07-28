@@ -408,7 +408,7 @@ def extract_bitrise(env):
     return {
         PROVIDER_NAME: "bitrise",
         PIPELINE_ID: env.get("BITRISE_BUILD_SLUG"),
-        PIPELINE_NAME: env.get("BITRISE_APP_TITLE"),
+        PIPELINE_NAME: env.get("BITRISE_TRIGGERED_WORKFLOW_ID"),
         PIPELINE_NUMBER: env.get("BITRISE_BUILD_NUMBER"),
         PIPELINE_URL: env.get("BITRISE_BUILD_URL"),
         WORKSPACE_PATH: env.get("BITRISE_SOURCE_DIR"),
