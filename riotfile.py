@@ -1024,5 +1024,49 @@ venv = Venv(
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
         ),
+        Venv(
+            name="profile",
+            command="python -m tests.profiling.run pytest --capture=no --verbose --benchmark-disable {cmdargs} "
+            "tests/profiling",
+            pkgs={"pytest-benchmark": latest, "uwsgi": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                ),
+                Venv(
+                    env={"DD_PROFILE_TEST_GEVENT": "1"},
+                    venvs=[
+                        # gevent
+                        Venv(
+                            pys=select_pys(),
+                            pkgs={"gevent": latest},
+                        ),
+                        # gevent-minreqs
+                        Venv(
+                            pkgs={"protobuf": "==3.0.0", "tenacity": "==5.0.1"},
+                            venvs=[
+                                Venv(
+                                    pys="2.7",
+                                    pkgs={"gevent": "==1.1.0"},
+                                ),
+                                Venv(
+                                    pys=select_pys(min_version="3.5", max_version="3.8"),
+                                    pkgs={"gevent": "==1.4.0"},
+                                ),
+                                Venv(
+                                    pys=select_pys(min_version="3.5", max_version="3.8"),
+                                    pkgs={"gevent": "==20.6.0", "greenlet": "==0.4.16"},
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                # minreqs
+                Venv(
+                    pkgs={"protobuf": "==3.0.0", "tenacity": "==5.0.1"},
+                    pys=select_pys(),
+                ),
+            ],
+        ),
     ],
 )

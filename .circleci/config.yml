@@ -393,8 +393,8 @@ jobs:
     <<: *contrib_job
     parallelism: 6
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-profile'
+      - run_test:
+          pattern: 'profile'
 
   integration_agent5:
     <<: *machine_executor
