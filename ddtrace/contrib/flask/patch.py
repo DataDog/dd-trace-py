@@ -463,29 +463,36 @@ def request_tracer(name):
 
         This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
         """
-        span = pin.tracer.current_span()
-        if not pin.enabled or not span:
+        current_span = pin.tracer.current_span()
+        if not pin.enabled or not current_span:
             return wrapped(*args, **kwargs)
 
         try:
             request = flask._request_ctx_stack.top.request
 
             # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-            if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-                span.resource = u" ".join((request.method, request.endpoint))
-                span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
+            if not current_span.get_tag(FLASK_ENDPOINT) and request.endpoint:
+                current_span.resource = u" ".join((request.method, request.endpoint))
+                current_span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
 
-            if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-                span.resource = u" ".join((request.method, request.url_rule.rule))
-                span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
+            if not current_span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
+                current_span.resource = u" ".join((request.method, request.url_rule.rule))
+                current_span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
 
-            if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
+            if (
+                not current_span.get_tag(FLASK_VIEW_ARGS)
+                and request.view_args
+                and config.flask.get("collect_view_args")
+            ):
                 for k, v in request.view_args.items():
-                    span._set_str_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+                    current_span._set_str_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
         except Exception:
             log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
-        with pin.tracer.trace(".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)):
+        with pin.tracer.trace(
+            ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
+        ) as span:
+            span._ignore_exception(werkzeug.exceptions.NotFound)
             return wrapped(*args, **kwargs)
 
     return _traced_request
