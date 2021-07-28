@@ -3,6 +3,7 @@ import os
 import mock
 import six
 
+from ddtrace import ext
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
@@ -329,11 +330,15 @@ TEST_EVENTS = {
             thread_native_id=123987,
             thread_name="MainThread",
             trace_id=1322219321,
+            trace_resource="myresource",
+            trace_type=ext.SpanTypes.WEB.value,
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
                 ("foobar.py", 19, "func5"),
             ],
+            task_id=123,
+            task_name="sometask",
             span_id=49343,
             wall_time_ns=1324,
             cpu_time_ns=1321,
@@ -346,6 +351,8 @@ TEST_EVENTS = {
             thread_native_id=123987,
             thread_name="MainThread",
             trace_id=1322219321,
+            trace_resource="notme",
+            trace_type="sql",
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -450,6 +457,8 @@ TEST_EVENTS = {
             ],
             trace_id=23435,
             span_id=345432,
+            trace_resource="myresource",
+            trace_type=ext.SpanTypes.WEB.value,
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
@@ -459,6 +468,8 @@ TEST_EVENTS = {
             timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
+            trace_resource="notme",
+            trace_type="sql",
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),

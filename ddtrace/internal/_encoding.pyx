@@ -1,8 +1,9 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 import struct
+import threading
 
-from ..span import Span
+from ..constants import ORIGIN_KEY
 
 
 cdef extern from "Python.h":
@@ -33,6 +34,14 @@ cdef extern from "buff_converter.h":
 cdef long long ITEM_LIMIT = (2**32)-1
 
 
+class BufferFull(Exception):
+    pass
+
+
+class BufferItemTooLarge(Exception):
+    pass
+
+
 cdef inline int PyBytesLike_Check(object o):
     return PyBytes_Check(o) or PyByteArray_Check(o)
 
@@ -53,8 +62,8 @@ cdef class Packer(object):
     usage::
 
         packer = Packer()
-        astream.write(packer.pack(a))
-        astream.write(packer.pack(b))
+        astream.write(packer.pack_trace(trace))
+        astream.write(packer.pack_traces(traces))
 
     Packer's constructor has some keyword arguments:
 
@@ -64,7 +73,6 @@ cdef class Packer(object):
     """
     cdef msgpack_packer pk
     cdef object _default
-    cdef object _berrors
     cdef const char *encoding
     cdef const char *unicode_errors
 
@@ -91,10 +99,15 @@ cdef class Packer(object):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
 
+    cdef inline object _flush_buffer(self):
+        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
+        # Reset the buffer.
+        self.pk.length = 0
+        return buf
+
     cdef inline int _pack_number(self, object n):
         if n is None:
             return msgpack_pack_nil(&self.pk)
-
         if PyLong_Check(n):
             # PyInt_Check(long) is True for Python 3.
             # So we should test long before int.
@@ -148,7 +161,7 @@ cdef class Packer(object):
 
         raise TypeError("Unhandled text type: %r" % type(text))
 
-    cdef inline int _pack_meta(self, object meta):
+    cdef inline int _pack_meta(self, object meta, object dd_origin):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -156,6 +169,8 @@ cdef class Packer(object):
         if PyDict_CheckExact(meta):
             d = <dict> meta
             L = len(d)
+            if dd_origin is not None:
+                L += 1
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
 
@@ -166,6 +181,10 @@ cdef class Packer(object):
                     if ret != 0: break
                     ret = self._pack_text(v)
                     if ret != 0: break
+                if dd_origin is not None:
+                    ret = self._pack_text(ORIGIN_KEY)
+                    if ret == 0:
+                        ret = self._pack_text(dd_origin)
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -192,7 +211,7 @@ cdef class Packer(object):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef inline int _pack_span(self, object span):
+    cdef inline int _pack_span(self, object span, object dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -200,7 +219,7 @@ cdef class Packer(object):
         cdef int has_metrics
 
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span.meta) > 0)
+        has_meta = <bint> (len(span.meta) > 0 or dd_origin is not None)
         has_metrics = <bint> (len(span.metrics) > 0)
 
         L = 9 + has_span_type + has_meta + has_metrics
@@ -262,7 +281,7 @@ cdef class Packer(object):
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0: return ret
-                ret = self._pack_meta(span.meta)
+                ret = self._pack_meta(span.meta, dd_origin)
                 if ret != 0: return ret
 
             if has_metrics:
@@ -273,47 +292,62 @@ cdef class Packer(object):
 
         return ret
 
-    cdef int _pack(self, object o) except -1:
+    cdef inline int _pack_trace(self, list trace):
         cdef int ret
         cdef Py_ssize_t L
 
-        if o is None:
-            ret = msgpack_pack_nil(&self.pk)
+        L = len(trace)
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
 
-        elif PyList_CheckExact(o):
-            # Expect a list of traces or a list of spans
-            L = len(o)
-            if L > ITEM_LIMIT:
-                raise ValueError("list is too large")
+        ret = msgpack_pack_array(&self.pk, L)
+        if ret != 0: raise RuntimeError("Couldn't pack trace")
 
-            ret = msgpack_pack_array(&self.pk, L)
-            if ret != 0: return ret
-
-            for e in o:
-                ret = self._pack(e)
-                if ret != 0: break
-
-        elif isinstance(o, Span):
-            ret = self._pack_span(o)
+        if L > 0 and trace[0].context is not None:
+            dd_origin = trace[0].context.dd_origin
         else:
-            PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+            dd_origin = None
+
+        for span in trace:
+            ret = self._pack_span(span, dd_origin)
+            if ret != 0: raise RuntimeError("Couldn't pack span")
         return ret
 
-    cpdef pack(self, object obj):
+    cpdef pack_trace(self, list trace):
         cdef int ret
 
         try:
-            ret = self._pack(obj)
+            ret = self._pack_trace(trace)
         except:
             self.pk.length = 0
             raise
         if ret:  # should not happen.
             raise RuntimeError("internal error")
 
-        # Reset the buffer.
-        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
-        self.pk.length = 0
-        return buf
+        return self._flush_buffer()
+
+    cpdef pack_traces(self, list traces):
+        cdef int ret
+        cdef Py_ssize_t L
+
+        L = len(traces)
+        if L > ITEM_LIMIT:
+            raise ValueError("list is too large")
+
+        try:
+            ret = msgpack_pack_array(&self.pk, L)
+            if ret != 0: raise RuntimeError("Couldn't pack traces")
+
+            for trace in traces:
+                ret = self._pack_trace(trace)
+                if ret != 0: raise RuntimeError("Couldn't pack trace")
+        except:
+            self.pk.length = 0
+            raise
+        if ret:  # should not happen.
+            raise RuntimeError("internal error")
+
+        return self._flush_buffer()
 
     def bytes(self):
         """Return internal buffer contents as bytes object"""
@@ -324,7 +358,73 @@ cdef class Packer(object):
         return buff_to_buff(self.pk.buf, self.pk.length)
 
 
-cdef class MsgpackEncoder(object):
+cdef class BufferedEncoder(object):
+    content_type: str = None
+
+    def put(self, item): ...
+    def encode(self): ...
+
+
+cdef class ListBufferedEncoder(BufferedEncoder):
+    cdef int _max_size
+    cdef int _max_item_size
+    cdef int _size
+    cdef object _lock
+    cdef list _buffer
+
+    def __cinit__(self, max_size, max_item_size):
+        self._max_size = max_size
+        self._max_item_size = max_item_size
+        self._size = 0
+        self._lock = threading.Lock()
+        self._buffer = []
+
+    def __len__(self):
+        return len(self._buffer)
+
+    @property
+    def max_size(self):
+        return self._max_size
+
+    @property
+    def max_item_size(self):
+        return self._max_item_size
+
+    @property
+    def size(self):
+        with self._lock:
+            return self._size
+
+    cpdef put(self, item):
+        """Put an item to be serialized in the buffer."""
+        cdef int item_len
+
+        encoded_item = self.encode_item(item)
+        item_len = len(encoded_item)
+
+        if item_len > self.max_item_size or item_len > self.max_size:
+            raise BufferItemTooLarge(item_len)
+
+        with self._lock:
+            if self._size + item_len <= self.max_size:
+                self._buffer.append(encoded_item)
+                self._size += item_len
+            else:
+                raise BufferFull(item_len)
+
+    cpdef get(self):
+        """Get a copy of the buffer and clear it."""
+        with self._lock:
+            try:
+                return list(self._buffer)
+            finally:
+                self._buffer[:] = []
+                self._size = 0
+
+    def encode_item(self, item): ...
+
+
+cdef class MsgpackEncoder(ListBufferedEncoder):
     content_type = "application/msgpack"
 
     cpdef _decode(self, data):
@@ -334,17 +434,30 @@ cdef class MsgpackEncoder(object):
         return msgpack.unpackb(data, raw=True)
 
     cpdef encode_trace(self, list trace):
-        return Packer().pack(trace)
+        return Packer().pack_trace(trace)
 
-    cpdef encode_traces(self, traces):
-        return Packer().pack(traces)
+    cpdef encode_traces(self, list traces):
+        return Packer().pack_traces(traces)
 
-    cpdef join_encoded(self, objs):
+    cpdef encode_item(self, item):
+        return self.encode_trace(item)
+
+    cpdef encode(self):
         """Join a list of encoded objects together as a msgpack array"""
         cdef Py_ssize_t count
-        buf = b''.join(objs)
+        cdef bytes buf
 
-        count = len(objs)
+        with self._lock:
+            try:
+                if not self._buffer:
+                    return None
+
+                count = len(self._buffer)
+                buf = b''.join(self._buffer)
+            finally:
+                self._buffer[:] = []
+                self._size = 0
+
         if count <= 0xf:
             return struct.pack("B", 0x90 + count) + buf
         elif count <= 0xffff:
