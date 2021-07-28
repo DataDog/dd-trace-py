@@ -13,6 +13,7 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils import get_argument_value
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap as _u
@@ -84,7 +85,7 @@ async def _wrapped_async_send(
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
 ):
     # type: (...) -> typing.Coroutine[None, None, httpx.Response]
-    req = kwargs.get("request") or args[0]
+    req = get_argument_value(args, kwargs, 0, "request")
 
     with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
