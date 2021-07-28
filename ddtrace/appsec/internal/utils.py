@@ -105,7 +105,7 @@ def update_manifest(event_id, manifest, sqreen_filter):
 
 
 def get_ruleset_id(event):
-    action = event.get("action", "report")
+    action = event.get("action", "record")
     typ = event.get("tags", {}).get("type", "global")
     return "-".join((typ, action))
 
