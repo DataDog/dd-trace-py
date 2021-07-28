@@ -1,20 +1,24 @@
 import json
-from typing import Any
 from typing import Dict
 
 import pytest
 
 import ddtrace
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.pytest.constants import FRAMEWORK
+from ddtrace.contrib.pytest.constants import HELP_MSG
+from ddtrace.contrib.pytest.constants import KIND
+from ddtrace.contrib.trace_utils import int_service
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import ci
+from ddtrace.ext import test
+from ddtrace.internal import compat
+from ddtrace.internal.logger import get_logger
+from ddtrace.pin import Pin
 
-from ...constants import SPAN_KIND
-from ...ext import SpanTypes
-from ...ext import ci
-from ...ext import test
-from ...pin import Pin
-from ..trace_utils import int_service
-from .constants import FRAMEWORK
-from .constants import HELP_MSG
-from .constants import KIND
+
+PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+log = get_logger(__name__)
 
 
 def is_enabled(config):
@@ -32,21 +36,15 @@ def _store_span(item, span):
     setattr(item, "_datadog_span", span)
 
 
-def _json_encode(params):
-    # type: (Dict[str, Any]) -> str
-    """JSON encode parameters. If complex object show inner values, otherwise default to string representation."""
-
-    def inner_encode(obj):
-        try:
-            obj_dict = getattr(obj, "__dict__", None)
-            return obj_dict if obj_dict else repr(obj)
-        except Exception as e:
-            return repr(e)
-
-    return json.dumps(params, default=inner_encode)
-
-
-PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+def _extract_repository_name(repository_url):
+    # type: (str) -> str
+    """Extract repository name from repository url."""
+    try:
+        return compat.parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
+    except ValueError:
+        # In case of parsing error, default to repository url
+        log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
+        return repository_url
 
 
 def pytest_addoption(parser):
@@ -75,9 +73,12 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
-
     if is_enabled(config):
-        Pin(tags=ci.tags(), _config=ddtrace.config.pytest).onto(config)
+        ci_tags = ci.tags()
+        if ci_tags.get(ci.git.REPOSITORY_URL, None) and int_service(None, ddtrace.config.pytest) == "pytest":
+            repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
+            ddtrace.config.pytest["service"] = repository_name
+        Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -106,13 +107,13 @@ def pytest_runtest_protocol(item, nextitem):
     if pin is None:
         yield
         return
-
     with pin.tracer.trace(
         ddtrace.config.pytest.operation_name,
         service=int_service(pin, ddtrace.config.pytest),
         resource=item.nodeid,
         span_type=SpanTypes.TEST.value,
     ) as span:
+        span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
@@ -123,8 +124,14 @@ def pytest_runtest_protocol(item, nextitem):
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
-            params = {"arguments": item.callspec.params, "metadata": {}}
-            span.set_tag(test.PARAMETERS, _json_encode(params))
+            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+            for param_name, param_val in item.callspec.params.items():
+                try:
+                    parameters["arguments"][param_name] = repr(param_val)
+                except Exception:
+                    parameters["arguments"][param_name] = "Could not encode"
+                    log.warning("Failed to encode %r", param_name, exc_info=True)
+            span.set_tag(test.PARAMETERS, json.dumps(parameters))
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:

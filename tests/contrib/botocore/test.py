@@ -171,6 +171,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "ListQueues")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -189,6 +190,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -219,6 +221,7 @@ class BotocoreTest(TracerTestCase):
             self.assertEqual(len(spans), 1)
             self.assertEqual(span.get_tag("aws.region"), "us-east-1")
             self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+            self.assertIsNone(span.get_tag("params.MessageBody"))
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
             self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -254,6 +257,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -294,6 +298,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -324,6 +329,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -366,6 +372,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -409,6 +416,7 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag("aws.region"), "us-east-1")
         self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, "test-botocore-tracing.sqs")
@@ -518,10 +526,54 @@ class BotocoreTest(TracerTestCase):
         context_json = base64.b64decode(context_b64.encode()).decode()
         context_obj = json.loads(context_json)
 
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         lamb.delete_function(FunctionName="ironmaiden")
+
+    @mock_lambda
+    def test_lambda_invoke_with_old_style_trace_propagation(self):
+        with self.override_config("botocore", dict(invoke_with_legacy_context=True)):
+            lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
+            lamb.create_function(
+                FunctionName="ironmaiden",
+                Runtime="python3.7",
+                Role="test-iam-role",
+                Handler="lambda_function.lambda_handler",
+                Code={
+                    "ZipFile": get_zip_lambda(),
+                },
+                Publish=True,
+                Timeout=30,
+                MemorySize=128,
+            )
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
+
+            lamb.invoke(
+                FunctionName="ironmaiden",
+                Payload=json.dumps({}),
+            )
+
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(span.get_tag("aws.region"), "us-west-2")
+            self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            self.assertEqual(span.service, "test-botocore-tracing.lambda")
+            self.assertEqual(span.resource, "lambda.invoke")
+            context_b64 = span.get_tag("params.ClientContext")
+            context_json = base64.b64decode(context_b64.encode()).decode()
+            context_obj = json.loads(context_json)
+
+            self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+            lamb.delete_function(FunctionName="ironmaiden")
 
     @mock_lambda
     def test_lambda_invoke_distributed_tracing_off(self):
@@ -602,8 +654,8 @@ class BotocoreTest(TracerTestCase):
         context_obj = json.loads(context_json)
 
         self.assertEqual(context_obj["custom"]["foo"], "bar")
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(context_obj["custom"][HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         lamb.delete_function(FunctionName="megadeth")
 
