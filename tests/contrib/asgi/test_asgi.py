@@ -336,3 +336,20 @@ async def test_multiple_requests(tracer, test_spans):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+
+
+@pytest.mark.asyncio
+async def test_bad_headers(tracer, test_spans):
+    class BadMiddleware(object):
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            scope["headers"] += [(bytes.fromhex("c0"), "test")]
+            return await self.app(scope, receive, send)
+
+    app = BadMiddleware(TraceMiddleware(basic_app, tracer=tracer))
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/")
+
+    assert response.status_code == 200
