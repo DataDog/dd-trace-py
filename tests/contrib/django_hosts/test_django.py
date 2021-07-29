@@ -1,7 +1,7 @@
-from tests.utils import snapshot
+import pytest
 
 
-@snapshot()
+@pytest.mark.snapshot()
 def test_django_hosts_request(client):
     """
     When using django_hosts
