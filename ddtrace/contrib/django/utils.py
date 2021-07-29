@@ -267,7 +267,7 @@ def _after_request_tags(pin, span, request, response):
         #      urlconf changes at any point during the request
         _set_resolver_tags(pin, span, request)
 
-        response_headers = dict(response.items())
+        response_headers = dict(response.items()) if response else {}
         trace_utils.set_http_meta(
             span,
             config.django,
