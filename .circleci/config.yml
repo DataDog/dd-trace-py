@@ -580,15 +580,10 @@ jobs:
           docker_services: "memcached redis postgres"
 
   django_hosts:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
-      - *datadog_agent
+    <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^django_hosts_contrib'
+      - run_test:
+          pattern: 'django_hosts$'
 
   djangorestframework:
     <<: *machine_executor
