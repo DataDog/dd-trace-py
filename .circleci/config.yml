@@ -580,10 +580,11 @@ jobs:
           docker_services: "memcached redis postgres"
 
   django_hosts:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'django_hosts$'
+          snapshot: true
 
   djangorestframework:
     <<: *machine_executor
