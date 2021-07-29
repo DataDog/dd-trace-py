@@ -49,7 +49,7 @@ jobs:
       - name: Install diff tool dependencies
         run: |
           pip install rich
-          pip install austin-python==1.0.0b1
+          pip install austin-python~=1.0
 
       - name: Install k6
         run: |

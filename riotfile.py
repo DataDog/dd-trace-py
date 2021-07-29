@@ -177,6 +177,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="profile-diff",
+            command="python scripts/diff.py {cmdargs}",
+            pys="3",
+            pkgs={
+                "austin-python": "~=1.0",
+                "rich": latest,
+            },
+        ),
+        Venv(
             name="tracer",
             command="pytest {cmdargs} tests/tracer/",
             venvs=[
