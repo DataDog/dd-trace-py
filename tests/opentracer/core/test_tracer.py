@@ -76,7 +76,7 @@ class TestTracerConfig(object):
         """Ensure datadog configuration is used by default."""
         monkeypatch.setenv("DD_TRACE_ENABLED", "false")
         tracer = Tracer(dd_tracer=DDTracer())
-        assert tracer._dd_tracer.enabled == False
+        assert tracer._dd_tracer.enabled is False
 
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""
