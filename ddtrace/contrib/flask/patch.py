@@ -485,7 +485,10 @@ def request_tracer(name):
         except Exception:
             log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
-        with pin.tracer.trace(".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)):
+        with pin.tracer.trace(
+            ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
+        ) as request_span:
+            request_span._ignore_exception(werkzeug.exceptions.NotFound)
             return wrapped(*args, **kwargs)
 
     return _traced_request
