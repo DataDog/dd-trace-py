@@ -9,7 +9,6 @@ from ddtrace.contrib.httpx.patch import unpatch
 from ddtrace.settings.http import HttpConfig
 from tests.utils import override_config
 from tests.utils import override_http_config
-from tests.utils import snapshot_context
 
 
 # host:port of httpbin_local container
