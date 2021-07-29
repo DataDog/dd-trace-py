@@ -1,4 +1,3 @@
-import contextlib
 import os
 
 import httpx
@@ -32,91 +31,171 @@ def patch_httpx():
         unpatch()
 
 
-@contextlib.contextmanager
-def _snapshot_context(request):
-    token = ".".join(
-        [
-            request.node.module.__name__,
-            request.node.name,
-        ]
-    )
-    with snapshot_context(token=token):
-        yield
-
-
 @pytest.mark.asyncio
-async def test_get_200(request):
+async def test_get_200(snapshot_context):
     url = get_url("/status/200")
-    with _snapshot_context(request):
+    with snapshot_context():
         resp = httpx.get(url)
         assert resp.status_code == 200
 
-    with _snapshot_context(request):
+    with snapshot_context():
         async with httpx.AsyncClient() as client:
             resp = await client.get(url)
             assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_configure_service_name(request):
+async def test_configure_service_name(snapshot_context):
+    """
+    When setting ddtrace.config.httpx.service_name directly
+        We use the value from ddtrace.config.httpx.service_name
+    """
     url = get_url("/status/200")
 
     with override_config("httpx", {"service_name": "test-httpx-service-name"}):
-        with _snapshot_context(request):
+        with snapshot_context():
             resp = httpx.get(url)
             assert resp.status_code == 200
 
-        with _snapshot_context(request):
+        with snapshot_context():
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url)
                 assert resp.status_code == 200
 
 
+def test_configure_service_name_env(run_python_code_in_subprocess):
+    """
+    When setting DD_HTTPX_SERVICE_NAME env variable
+        When DD_SERVICE is also set
+            We use the value from DD_HTTPX_SERVICE_NAME
+    """
+    code = """
+import asyncio
+
+import httpx
+
+from ddtrace.contrib.httpx import patch
+from tests.contrib.httpx.test_httpx import get_url
+from tests.utils import snapshot_context
+
+patch()
+url = get_url("/status/200")
+
+async def test():
+    token = "tests.contrib.httpx.test_httpx.test_configure_service_name_env"
+    with snapshot_context(token=token):
+        httpx.get(url)
+
+    with snapshot_context(token=token):
+        async with httpx.AsyncClient() as client:
+            await client.get(url)
+
+asyncio.get_event_loop().run_until_complete(test())
+    """
+    env = os.environ.copy()
+    env["DD_HTTPX_SERVICE_NAME"] = "env-overridden-service-name"
+    env["DD_SERVICE"] = "global-service-name"
+    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert err == b""
+
+
+def test_configure_global_service_name_env(run_python_code_in_subprocess):
+    """
+    When only setting DD_SERVICE
+        We use the value from DD_SERVICE for the service name
+    """
+    code = """
+import asyncio
+
+import httpx
+
+from ddtrace.contrib.httpx import patch
+from tests.contrib.httpx.test_httpx import get_url
+from tests.utils import snapshot_context
+
+patch()
+url = get_url("/status/200")
+
+async def test():
+    token = "tests.contrib.httpx.test_httpx.test_configure_global_service_name_env"
+    with snapshot_context(token=token):
+        httpx.get(url)
+
+    with snapshot_context(token=token):
+        async with httpx.AsyncClient() as client:
+            await client.get(url)
+
+asyncio.get_event_loop().run_until_complete(test())
+    """
+    env = os.environ.copy()
+    env["DD_SERVICE"] = "global-service-name"
+    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert err == b""
+
+
 @pytest.mark.asyncio
-async def test_get_500(request):
+async def test_get_500(snapshot_context):
+    """
+    When the status code is 500
+        We mark the span as an error
+    """
     url = get_url("/status/500")
-    with _snapshot_context(request):
+    with snapshot_context():
         resp = httpx.get(url)
         assert resp.status_code == 500
 
-    with _snapshot_context(request):
+    with snapshot_context():
         async with httpx.AsyncClient() as client:
             resp = await client.get(url)
             assert resp.status_code == 500
 
 
 @pytest.mark.asyncio
-async def test_split_by_domain(request):
+async def test_split_by_domain(snapshot_context):
+    """
+    When split_by_domain is configure
+        We set the service name to the <host>:<port>
+    """
     url = get_url("/status/200")
 
     with override_config("httpx", {"split_by_domain": True}):
-        with _snapshot_context(request):
+        with snapshot_context():
             resp = httpx.get(url)
             assert resp.status_code == 200
 
-        with _snapshot_context(request):
+        with snapshot_context():
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url)
                 assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_trace_query_string(request):
+async def test_trace_query_string(snapshot_context):
+    """
+    When trace_query_string is enabled
+        We include the query string as a tag on the span
+    """
     url = get_url("/status/200?some=query&string=args")
 
     with override_http_config("httpx", {"trace_query_string": True}):
-        with _snapshot_context(request):
+        with snapshot_context():
             resp = httpx.get(url)
             assert resp.status_code == 200
 
-        with _snapshot_context(request):
+        with snapshot_context():
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url)
                 assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_request_headers(request):
+async def test_request_headers(snapshot_context):
+    """
+    When request headers are configured for this integration
+        We add the request headers as tags on the span
+    """
     url = get_url("/response-headers?Some-Response-Header=Response-Value")
 
     headers = {
@@ -125,11 +204,11 @@ async def test_request_headers(request):
 
     try:
         config.httpx.http.trace_headers(["Some-Request-Header", "Some-Response-Header"])
-        with _snapshot_context(request):
+        with snapshot_context():
             resp = httpx.get(url, headers=headers)
             assert resp.status_code == 200
 
-        with _snapshot_context(request):
+        with snapshot_context():
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=headers)
                 assert resp.status_code == 200
@@ -138,7 +217,11 @@ async def test_request_headers(request):
 
 
 @pytest.mark.asyncio
-async def test_distributed_tracing_headers(request):
+async def test_distributed_tracing_headers():
+    """
+    By default
+        Distributed tracing headers are added to outbound requests
+    """
     url = get_url("/headers")
 
     def assert_request_headers(response):
@@ -156,7 +239,11 @@ async def test_distributed_tracing_headers(request):
 
 
 @pytest.mark.asyncio
-async def test_distributed_tracing_disabled(request):
+async def test_distributed_tracing_disabled():
+    """
+    When distributed_tracing is disabled
+        We do not add distributed tracing headers to outbound requests
+    """
     url = get_url("/headers")
 
     def assert_request_headers(response):
@@ -175,13 +262,19 @@ async def test_distributed_tracing_disabled(request):
 
 
 def test_distributed_tracing_disabled_env(run_python_code_in_subprocess):
+    """
+    When disabling distributed tracing via env variable
+        We do not add distributed tracing headers to outbound requests
+    """
     code = """
 import asyncio
 
 import httpx
 
+from ddtrace.contrib.httpx import patch
 from tests.contrib.httpx.test_httpx import get_url, override_config
 
+patch()
 url = get_url("/headers")
 
 async def test():

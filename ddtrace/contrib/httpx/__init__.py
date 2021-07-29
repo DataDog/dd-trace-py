@@ -1,5 +1,5 @@
 """
-The ``httpx`` integration traces all HTTP requests made with the ``httpx``
+The httpx__ integration traces all HTTP requests made with the ``httpx``
 library.
 
 Enabling
@@ -50,6 +50,9 @@ Global Configuration
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 
 :ref:`HTTP Tagging <http-tagging>` is supported for this integration.
+
+
+.. __: https://www.python-httpx.org/
 """
 from ...utils.importlib import require_modules
 

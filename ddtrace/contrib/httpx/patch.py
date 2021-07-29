@@ -35,6 +35,9 @@ config._add(
 
 def _url_to_str(url):
     # type: (httpx.URL) -> str
+    """
+    Helper to convert the httpx.URL parts from bytes to a str
+    """
     scheme, host, port, raw_path = url.raw
     url = scheme + b"://" + host
     if port is not None:
@@ -108,7 +111,6 @@ def _wrapped_sync_send(
 
     with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
-
         resp = None
         try:
             resp = wrapped(*args, **kwargs)
