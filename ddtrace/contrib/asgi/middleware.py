@@ -88,7 +88,7 @@ class TraceMiddleware:
         try:
             headers = _extract_headers(scope)
         except Exception:
-            log.warning("failed to decode headers", exc_info=True)
+            log.warning("failed to decode headers for distributed tracing", exc_info=True)
             headers = {}
         else:
             trace_utils.activate_distributed_headers(
