@@ -130,51 +130,51 @@ below:
      - 1.0
      - The time between each flush of traces to the trace agent.
 
-       .. _dd_trace_startup_logs:
+       .. _dd-trace-startup-logs:
    * - ``DD_TRACE_STARTUP_LOGS``
      - Boolean
      - False
      - Enable or disable start up diagnostic logging.
 
-       .. _dd_trace_sample_rate:
+       .. _dd-trace-sample-rate:
    * - ``DD_TRACE_SAMPLE_RATE``
      - Float
      - 1.0
      - A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
 
-       .. _dd_profiling_enabled:
+       .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean
      - False
      - Enable Datadog profiling when using ``ddtrace-run``.
 
-       .. _dd_profiling_api_timeout:
+       .. _dd-profiling-api-timeout:
    * - ``DD_PROFILING_API_TIMEOUT``
      - Float
      - 10
      - The timeout in seconds before dropping events if the HTTP API does not
        reply.
 
-       .. _dd_profiling_max_time_usage_pct:
+       .. _dd-profiling-max-time-usage-pct:
    * - ``DD_PROFILING_MAX_TIME_USAGE_PCT``
      - Float
      - 1
      - The percentage of maximum time the stack profiler can use when computing
        statistics. Must be greater than 0 and lesser or equal to 100.
 
-       .. _dd_profiling_max_frames:
+       .. _dd-profiling-max-frames:
    * - ``DD_PROFILING_MAX_FRAMES``
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
 
-       .. _dd_profiling_heap_enabled:
+       .. _dd-profiling-heap-enabled:
    * - ``DD_PROFILING_HEAP_ENABLED``
      - Boolean
      - False
      - Whether to enable the heap memory profiler.
 
-       .. _dd_profiling_capture_pct:
+       .. _dd-profiling-capture-pct:
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
      - 2
@@ -182,19 +182,19 @@ below:
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
 
-       .. _dd_profiling_upload_interval:
+       .. _dd-profiling-upload-interval:
    * - ``DD_PROFILING_UPLOAD_INTERVAL``
      - Float
      - 60
      - The interval in seconds to wait before flushing out recorded events.
 
-       .. _dd_profiling_ignore_profiler:
+       .. _dd-profiling-ignore-profiler:
    * - ``DD_PROFILING_IGNORE_PROFILER``
      - Boolean
      - False
      - **Deprecated**: whether to ignore the profiler in the generated data.
 
-       .. _dd_profiling_tags:
+       .. _dd-profiling-tags:
    * - ``DD_PROFILING_TAGS``
      - String
      -
