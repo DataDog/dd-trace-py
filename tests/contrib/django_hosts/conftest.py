@@ -2,9 +2,7 @@ import os
 
 import django
 from django.conf import settings
-import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.django import patch
 
 
