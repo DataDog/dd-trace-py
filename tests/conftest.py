@@ -1,7 +1,6 @@
 import contextlib
 import sys
 
-import attr
 import pytest
 
 from tests.utils import DummyTracer
