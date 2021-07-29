@@ -339,17 +339,26 @@ async def test_multiple_requests(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_bad_headers(tracer, test_spans):
-    class BadMiddleware(object):
-        def __init__(self, app):
-            self.app = app
+async def test_bad_headers(scope, tracer, test_spans):
+    """
+    When headers can't be decoded
+        The middleware should not raise
+    """
 
-        async def __call__(self, scope, receive, send):
-            scope["headers"] += [(bytes.fromhex("c0"), "test")]
-            return await self.app(scope, receive, send)
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    headers = [(bytes.fromhex("c0"), "test")]
+    scope["headers"] = headers
 
-    app = BadMiddleware(TraceMiddleware(basic_app, tracer=tracer))
-    async with httpx.AsyncClient(app=app) as client:
-        response = await client.get("http://testserver/")
-
-    assert response.status_code == 200
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({"type": "http.request", "body": b""})
+    response_start = await instance.receive_output(1)
+    assert response_start == {
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }
+    response_body = await instance.receive_output(1)
+    assert response_body == {
+        "type": "http.response.body",
+        "body": b"*",
+    }
