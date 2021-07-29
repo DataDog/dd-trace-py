@@ -104,7 +104,7 @@ def _wrapped_sync_send(
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
 ):
     # type: (...) -> httpx.Response
-    req = kwargs.get("request") or args[0]
+    req = get_argument_value(args, kwargs, 0, "request")
 
     with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
@@ -124,8 +124,6 @@ def patch():
 
     setattr(httpx, "_datadog_patch", True)
 
-    # TODO: Is this the right method to patch for async?
-    #   Do we want to track the
     _w(httpx.AsyncClient, "send", _wrapped_async_send)
     _w(httpx.Client, "send", _wrapped_sync_send)
 
