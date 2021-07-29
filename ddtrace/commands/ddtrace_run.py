@@ -10,9 +10,10 @@ from ddtrace.internal.compat import PY2
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 
+
 if PY2:
     # Python 2 does not have PermissionError but Python 3 does.
-    PermissionError = None
+    PermissionError = None  # noqa: A001
 
 
 # Do not use `ddtrace.internal.logger.get_logger` here
