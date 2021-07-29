@@ -26,7 +26,7 @@ class TestTracerConfig(object):
         tracer = Tracer(service_name="myservice", config=config)
 
         assert tracer._service_name == "myservice"
-        assert tracer._enabled is True
+        assert tracer._dd_tracer.enabled is True
 
     def test_no_service_name(self):
         """A service_name should be generated if one is not provided."""
@@ -45,10 +45,7 @@ class TestTracerConfig(object):
 
         # Ensure tracer1's config was not mutated
         assert tracer1._service_name == "serv1"
-        assert tracer1._enabled is True
-
         assert tracer2._service_name == "serv2"
-        assert tracer2._enabled is False
 
     def test_invalid_config_key(self):
         """A config with an invalid key should raise a ConfigException."""
