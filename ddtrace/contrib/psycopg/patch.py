@@ -1,5 +1,6 @@
 # 3p
 import psycopg2
+from psycopg2.sql import Composable
 
 from ddtrace import Pin
 from ddtrace import config
@@ -7,7 +8,6 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
-from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...utils.formats import asbool
@@ -20,7 +20,6 @@ config._add(
     dict(
         _default_service="postgres",
         trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
-        _deprecated_name="dbapi2",
     ),
 )
 
@@ -28,9 +27,6 @@ config._add(
 _connect = psycopg2.connect
 
 PSYCOPG2_VERSION = parse_version(psycopg2.__version__)
-
-if PSYCOPG2_VERSION >= (2, 7):
-    from psycopg2.sql import Composable
 
 
 def patch():
@@ -49,6 +45,7 @@ def unpatch():
     if getattr(psycopg2, "_datadog_patch", False):
         setattr(psycopg2, "_datadog_patch", False)
         psycopg2.connect = _connect
+        _unpatch_extensions(_psycopg2_extensions)
 
 
 class Psycopg2TracedCursor(dbapi.TracedCursor):
@@ -56,7 +53,7 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         # treat psycopg2.sql.Composable resource objects as strings
-        if PSYCOPG2_VERSION >= (2, 7) and isinstance(resource, Composable):
+        if isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
 
         return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
@@ -72,15 +69,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
     def __init__(self, conn, pin=None, cursor_cls=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
-            cursor_cls = Psycopg2TracedCursor
-            if config.psycopg.trace_fetch_methods or config.dbapi2.trace_fetch_methods:
-                if config.dbapi2.trace_fetch_methods:
-                    debtcollector.deprecate(
-                        "ddtrace.config.dbapi2.trace_fetch_methods is now deprecated as the default integration config "
-                        "for TracedConnection. Use integration config specific to dbapi-compliant library.",
-                        removal_version="0.50.0",
-                    )
-                cursor_cls = Psycopg2FetchTracedCursor
+            cursor_cls = Psycopg2FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg2TracedCursor
 
         super(Psycopg2TracedConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
 

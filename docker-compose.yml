@@ -25,6 +25,15 @@ services:
             - POSTGRES_DB=postgres
         ports:
             - "127.0.0.1:5432:5432"
+    mariadb:
+        image: mariadb
+        environment:
+            - MYSQL_ROOT_PASSWORD=example
+            - MYSQL_DATABASE=test
+            - MYSQL_USER=test
+            - MYSQL_PASSWORD=test
+        ports:
+            - "127.0.0.1:3306:3306"
     mysql:
         image: mysql:5.7
         environment:
@@ -109,7 +118,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: datadog/dd-trace-py:latest
+        image: datadog/dd-trace-py:buster
         command: bash
         environment:
             - TOX_SKIP_DIST=True

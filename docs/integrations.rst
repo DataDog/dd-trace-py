@@ -1,3 +1,5 @@
+.. _integrations:
+
 Integrations
 ------------
 
@@ -191,6 +193,13 @@ Mako
 .. automodule:: ddtrace.contrib.mako
 
 
+.. _mariadb:
+
+MariaDB
+^^^^^^^
+.. automodule:: ddtrace.contrib.mariadb
+
+
 .. _molten:
 
 Molten
@@ -213,11 +222,10 @@ mysql-connector
 
 
 .. _mysqlclient:
-.. _MySQL-python:
 .. _mysqldb:
 
-mysqlclient/MySQL-python
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+mysqlclient
+^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.mysqldb
 
 

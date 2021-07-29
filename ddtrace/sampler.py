@@ -124,7 +124,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
     def sample(self, span):
         # type: (Span) -> bool
-        tags = span.tracer.tags  # type: ignore[union-attr]
+        tags = span.tracer.tags if span.tracer else {}
         env = tags[ENV_KEY] if ENV_KEY in tags else None
         key = self._key(span.service, env)
 
@@ -207,8 +207,7 @@ class DatadogSampler(BasePrioritySampler):
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
-        if span._context:
-            span._context.sampling_priority = priority
+        span.context.sampling_priority = priority
         span.sampled = priority is AUTO_KEEP
 
     def sample(self, span):

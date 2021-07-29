@@ -34,28 +34,12 @@ class _EncoderBase(object):
         normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
         return self.encode(normalized_traces)
 
-    def encode_trace(self, trace):
-        # type: (List[Span]) -> str
-        """
-        Encodes a trace, expecting a list of spans. Before dump the string in a
-        serialized format all traces are normalized, calling the ``to_dict()`` method.
-        The traces nesting is not changed.
-
-        :param trace: A list of traces that should be serialized
-        """
-        return self.encode([span.to_dict() for span in trace])
-
     @staticmethod
     def encode(obj):
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal functions.
         """
-        raise NotImplementedError
-
-    @staticmethod
-    def join_encoded(objs):
-        """Helper used to join a list of encoded objects into an encoded list of objects"""
         raise NotImplementedError
 
 
@@ -66,12 +50,6 @@ class JSONEncoder(_EncoderBase):
     def encode(obj):
         # type: (Any) -> str
         return json.dumps(obj)
-
-    @staticmethod
-    def join_encoded(objs):
-        # type: (List[str]) -> str
-        """Join a list of encoded objects together as a json array"""
-        return "[" + ",".join(objs) + "]"
 
 
 class JSONEncoderV2(JSONEncoder):
@@ -85,16 +63,6 @@ class JSONEncoderV2(JSONEncoder):
         # type: (List[List[Span]]) -> str
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})
-
-    def encode_trace(self, trace):
-        # type: (List[Span]) -> str
-        return self.encode([JSONEncoderV2._convert_span(span) for span in trace])
-
-    @staticmethod
-    def join_encoded(objs):
-        # type: (List[str]) -> str
-        """Join a list of encoded objects together as a json array"""
-        return '{"traces":[' + ",".join(objs) + "]}"
 
     @staticmethod
     def _convert_span(span):

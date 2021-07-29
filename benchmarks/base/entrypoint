@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -ex
+
+python3 -m venv ${VENV_DDTRACE_V1}
+source ${VENV_DDTRACE_V1}/bin/activate
+pip install ${DDTRACE_INSTALL_V1}
+export DDTRACE_V1=$(python -c "import ddtrace; print(ddtrace.__version__)")
+deactivate
+
+python3 -m venv ${VENV_DDTRACE_V2}
+source ${VENV_DDTRACE_V2}/bin/activate
+pip install ${DDTRACE_INSTALL_V2}
+export DDTRACE_V2=$(python -c "import ddtrace; print(ddtrace.__version__)")
+deactivate
+
+exec "$@"

@@ -52,14 +52,16 @@ test_rand64bits_pid_check     121.8156 (2.03)     168.9837 (1.71)     130.3854 (
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 """
 import os
+import random
 
 from ddtrace.internal import compat
+from ddtrace.internal import forksafe
+
 
 cdef extern from "_stdint.h" nogil:
     ctypedef unsigned long long uint64_t
 
 cdef uint64_t state
-cdef object pid = None
 
 
 cpdef _getstate():
@@ -68,29 +70,21 @@ cpdef _getstate():
 
 cpdef seed():
     global state
+    random.seed()
     state = <uint64_t>compat.getrandbits(64) ^ <uint64_t>4101842887655102017
 
 
-cpdef rand64bits(check_pid=True):
-    if check_pid:
-        global pid
-        current_pid = os.getpid()
+# We have to reseed the RNG or we will get collisions between the processes as
+# they will share the seed and generate the same random numbers.
+forksafe.register(seed)
 
-        if current_pid != pid:
-            seed()
 
-        pid = current_pid
-
+cpdef rand64bits():
     global state
     state ^= state >> 21
     state ^= state << 35
     state ^= state >> 4
     return <uint64_t>(state * <uint64_t>2685821657736338717)
-
-
-# Should be available in Python 3.7+
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=seed)
 
 
 seed()
