@@ -168,11 +168,7 @@ def with_traced_module(func):
 def distributed_tracing_enabled(int_config, default=False):
     # type: (IntegrationConfig, bool) -> bool
     """Returns whether distributed tracing is enabled for this integration config"""
-    if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
-        return int_config.distributed_tracing_enabled
-    elif "distributed_tracing" in int_config and int_config.distributed_tracing is not None:
-        return int_config.distributed_tracing
-    return default
+    return int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", default))
 
 
 def int_service(pin, int_config, default=None):
