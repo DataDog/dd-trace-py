@@ -158,10 +158,12 @@ setup(
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
     package_data={
+        "ddtrace": ["py.typed"],
         "ddtrace.appsec.internal": ["rules.json"],
     },
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
+    zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     install_requires=[

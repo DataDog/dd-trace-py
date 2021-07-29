@@ -16,7 +16,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # ddtrace includes c extensions
   build-essential \ 
   # uuid is used to generate identifier for run if one is not provided
-  uuid-runtime \ 
+  uuid-runtime \
+  # provides ab for testing
+  apache2-utils \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
