@@ -50,7 +50,7 @@ class SqreenLibrary(BaseProtection):
             context = self._instance.create_context()
             ret = context.run(data, self._budget)
         elapsed_ms = timer.elapsed() * 1000
-        log.debug("Sqreen context returned %r in %.5fms for %r", ret, elapsed_ms, span)
+        log.debug("Sqreen context returned %r in %.5fms for %r", ret.data, elapsed_ms, span)
         span.set_metric("_dd.sq.process_ms", elapsed_ms)
         if elapsed_ms > self._budget:
             span.set_metric("_dd.sq.overtime_ms", elapsed_ms - self._budget)
@@ -88,7 +88,7 @@ class SqreenLibrary(BaseProtection):
                     rule=Rule(id=data["rule"], name=data["flow"], set="waf"),
                     rule_match=RuleMatch(
                         operator=filter_data["operator"],
-                        operator_value=filter_data["operator_value"],
+                        operator_value=filter_data.get("operator_value", filter_data.get("match_status", "")),
                         parameters=[],  # DEV: do not report user data yet
                         highlight=[],  # DEV: do not report user data yet
                         has_server_side_match=False,
