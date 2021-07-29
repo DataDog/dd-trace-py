@@ -35,18 +35,18 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
             When a ``Pin`` is manually added to the ``Blueprint``
                 We do not use the ``flask.Flask`` app ``Pin``
         """
-        bp = flask.Blueprint('pinned', __name__)
-        Pin(service='flask-bp', tracer=self.tracer).onto(bp)
+        bp = flask.Blueprint("pinned", __name__)
+        Pin(service="flask-bp", tracer=self.tracer).onto(bp)
 
         # DEV: This is more common than calling ``flask.Blueprint.register`` directly
         self.app.register_blueprint(bp)
         pin = Pin.get_from(bp)
-        self.assertEqual(pin.service, 'flask-bp')
+        self.assertEqual(pin.service, "flask-bp")
 
-        bp = flask.Blueprint('not-pinned', __name__)
+        bp = flask.Blueprint("not-pinned", __name__)
         self.app.register_blueprint(bp)
         pin = Pin.get_from(bp)
-        self.assertEqual(pin.service, 'flask')
+        self.assertNotEqual(pin.service, "flask-bp")
 
     def test_blueprint_add_url_rule(self):
         """
@@ -57,22 +57,22 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
                 We do not attach a ``Pin`` to the func
         """
         # When the Blueprint has a Pin attached
-        bp = flask.Blueprint('pinned', __name__)
-        Pin(service='flask-bp', tracer=self.tracer).onto(bp)
+        bp = flask.Blueprint("pinned", __name__)
+        Pin(service="flask-bp", tracer=self.tracer).onto(bp)
 
-        @bp.route('/')
+        @bp.route("/")
         def test_view():
             pass
 
         # Assert the view func has a `Pin` attached with the Blueprint's service name
         pin = Pin.get_from(test_view)
         self.assertIsNotNone(pin)
-        self.assertEqual(pin.service, 'flask-bp')
+        self.assertEqual(pin.service, "flask-bp")
 
         # When the Blueprint does not have a Pin attached
-        bp = flask.Blueprint('not-pinned', __name__)
+        bp = flask.Blueprint("not-pinned", __name__)
 
-        @bp.route('/')
+        @bp.route("/")
         def test_view():
             pass
 
@@ -85,24 +85,24 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         When making a request to a Blueprint's endpoint
             We create the expected spans
         """
-        bp = flask.Blueprint('bp', __name__)
+        bp = flask.Blueprint("bp", __name__)
 
-        @bp.route('/')
+        @bp.route("/")
         def test():
-            return 'test'
+            return "test"
 
         self.app.register_blueprint(bp)
 
         # Request the endpoint
-        self.client.get('/')
+        self.client.get("/")
 
         # Only extract the span we care about
         # DEV: Making a request creates a bunch of lifecycle spans,
         #   ignore them, we test them elsewhere
-        span = self.find_span_by_name(self.get_spans(), 'bp.test')
-        self.assertEqual(span.service, 'flask')
-        self.assertEqual(span.name, 'bp.test')
-        self.assertEqual(span.resource, '/')
+        span = self.find_span_by_name(self.get_spans(), "bp.test")
+        self.assertEqual(span.service, "flask")
+        self.assertEqual(span.name, "bp.test")
+        self.assertEqual(span.resource, "/")
         self.assertEqual(span.meta, dict())
 
     def test_blueprint_request_pin_override(self):
@@ -111,25 +111,25 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
             When we attach a ``Pin`` to the Blueprint
                 We create the expected spans
         """
-        bp = flask.Blueprint('bp', __name__)
-        Pin.override(bp, service='flask-bp', tracer=self.tracer)
+        bp = flask.Blueprint("bp", __name__)
+        Pin.override(bp, service="flask-bp", tracer=self.tracer)
 
-        @bp.route('/')
+        @bp.route("/")
         def test():
-            return 'test'
+            return "test"
 
         self.app.register_blueprint(bp)
 
         # Request the endpoint
-        self.client.get('/')
+        self.client.get("/")
 
         # Only extract the span we care about
         # DEV: Making a request creates a bunch of lifecycle spans,
         #   ignore them, we test them elsewhere
-        span = self.find_span_by_name(self.get_spans(), 'bp.test')
-        self.assertEqual(span.service, 'flask-bp')
-        self.assertEqual(span.name, 'bp.test')
-        self.assertEqual(span.resource, '/')
+        span = self.find_span_by_name(self.get_spans(), "bp.test")
+        self.assertEqual(span.service, "flask-bp")
+        self.assertEqual(span.name, "bp.test")
+        self.assertEqual(span.resource, "/")
         self.assertEqual(span.meta, dict())
 
     def test_blueprint_request_pin_disabled(self):
@@ -141,15 +141,15 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         pin = Pin.get_from(self.app)
         pin.tracer.enabled = False
 
-        bp = flask.Blueprint('bp', __name__)
+        bp = flask.Blueprint("bp", __name__)
 
-        @bp.route('/')
+        @bp.route("/")
         def test():
-            return 'test'
+            return "test"
 
         self.app.register_blueprint(bp)
 
         # Request the endpoint
-        self.client.get('/')
+        self.client.get("/")
 
         self.assertEqual(len(self.get_spans()), 0)

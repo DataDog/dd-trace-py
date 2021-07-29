@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed JSON encoding errors in the pytest plugin for parameterized tests with dictionary parameters with tuple keys.
+    The pytest plugin now always JSON encodes the string representations of test parameters.

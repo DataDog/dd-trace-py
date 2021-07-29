@@ -1,7 +1,8 @@
 import os
+import platform
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 
 # ORDER MATTERS
@@ -70,7 +71,7 @@ long_description = """
 
 `ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
 as they flow across web servers, databases and microservices so that developers
-have great visiblity into bottlenecks and troublesome requests.
+have great visibility into bottlenecks and troublesome requests.
 
 ## Getting Started
 
@@ -78,13 +79,13 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
@@ -100,77 +101,156 @@ def get_exts_for(name):
         return []
 
 
-_profiling_deps = ["protobuf>=3", "intervaltree", "tenacity>=5"]
+if sys.byteorder == "big":
+    encoding_macros = [("__BIG_ENDIAN__", "1")]
+else:
+    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-# Base `setup()` kwargs without any C-extension registering
-setup(
-    **dict(
-        name="ddtrace",
-        description="Datadog tracing code",
-        url="https://github.com/DataDog/dd-trace-py",
-        author="Datadog, Inc.",
-        author_email="dev@datadoghq.com",
-        long_description=long_description,
-        long_description_content_type="text/markdown",
-        license="BSD",
-        packages=find_packages(exclude=["tests*"]),
-        python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
-        # enum34 is an enum backport for earlier versions of python
-        # funcsigs backport required for vendored debtcollector
-        # encoding using msgpack
-        install_requires=["enum34; python_version<'3.4'", "funcsigs>=1.0.0; python_version=='2.7'", "msgpack>=0.5.0"],
-        extras_require={
-            # users can include opentracing by having:
-            # install_requires=['ddtrace[opentracing]', ...]
-            "opentracing": ["opentracing>=2.0.0"],
-            # TODO: remove me when everything is updated to `profiling`
-            "profile": _profiling_deps,
-            "profiling": _profiling_deps,
-        },
-        # plugin tox
-        tests_require=["tox", "flake8"],
-        cmdclass={"test": Tox, "build_ext": Cython.Distutils.build_ext},
-        entry_points={
-            "console_scripts": [
-                "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-                "pyddprofile = ddtrace.profiling.__main__:main",
+if platform.system() == "Windows":
+    encoding_libraries = ["ws2_32"]
+    extra_compile_args = []
+    debug_compile_args = []
+else:
+    encoding_libraries = []
+    extra_compile_args = ["-DPy_BUILD_CORE"]
+    if "DD_COMPILE_DEBUG" in os.environ:
+        if platform.system() == "Linux":
+            debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
+        else:
+            debug_compile_args = [
+                "-g",
+                "-O0",
+                "-Werror",
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                # Cython is not deprecation-proof
+                "-Wno-deprecated-declarations",
             ]
-        },
-        classifiers=[
-            "Programming Language :: Python",
-            "Programming Language :: Python :: 2.7",
-            "Programming Language :: Python :: 3.5",
-            "Programming Language :: Python :: 3.6",
-            "Programming Language :: Python :: 3.7",
-            "Programming Language :: Python :: 3.8",
-        ],
-        use_scm_version=True,
-        setup_requires=["setuptools_scm", "cython"],
-        ext_modules=cythonize(
-            [
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector.stack",
-                    sources=["ddtrace/profiling/collector/stack.pyx"],
-                    language="c",
-                    extra_compile_args=["-DPy_BUILD_CORE"],
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._traceback",
-                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
-                ),
+    else:
+        debug_compile_args = []
+
+
+if sys.version_info[:2] >= (3, 4):
+    ext_modules = [
+        Extension(
+            "ddtrace.profiling.collector._memalloc",
+            sources=[
+                "ddtrace/profiling/collector/_memalloc.c",
+                "ddtrace/profiling/collector/_memalloc_tb.c",
+                "ddtrace/profiling/collector/_memalloc_heap.c",
             ],
-            compile_time_env={
-                "PY_MAJOR_VERSION": sys.version_info.major,
-                "PY_MINOR_VERSION": sys.version_info.minor,
-                "PY_MICRO_VERSION": sys.version_info.micro,
-            },
-        )
-        + get_exts_for("wrapt")
-        + get_exts_for("psutil"),
+            extra_compile_args=debug_compile_args,
+        ),
+    ]
+else:
+    ext_modules = []
+
+setup(
+    name="ddtrace",
+    description="Datadog tracing code",
+    url="https://github.com/DataDog/dd-trace-py",
+    author="Datadog, Inc.",
+    author_email="dev@datadoghq.com",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    license="BSD",
+    packages=find_packages(exclude=["tests*"]),
+    package_data={"ddtrace": ["py.typed"]},
+    py_modules=["ddtrace_gevent_check"],
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
+    zip_safe=False,
+    # enum34 is an enum backport for earlier versions of python
+    # funcsigs backport required for vendored debtcollector
+    install_requires=[
+        "enum34; python_version<'3.4'",
+        "funcsigs>=1.0.0; python_version=='2.7'",
+        "typing; python_version<'3.5'",
+        "packaging>=17.1",
+        "protobuf>=3",
+        "tenacity>=5",
+        "attrs>=19.2.0",
+        "six>=1.12.0",
+        "pep562; python_version<'3.7'",
+    ],
+    extras_require={
+        # users can include opentracing by having:
+        # install_requires=['ddtrace[opentracing]', ...]
+        "opentracing": ["opentracing>=2.0.0"],
+    },
+    # plugin tox
+    tests_require=["tox", "flake8"],
+    cmdclass={"test": Tox},
+    entry_points={
+        "console_scripts": [
+            "ddtrace-run = ddtrace.commands.ddtrace_run:main",
+        ],
+        "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
+        "gevent.plugins.monkey.did_patch_all": [
+            "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
+        ],
+    },
+    classifiers=[
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+    ],
+    use_scm_version=True,
+    setup_requires=["setuptools_scm[toml]>=4", "cython"],
+    ext_modules=ext_modules
+    + cythonize(
+        [
+            Cython.Distutils.Extension(
+                "ddtrace.internal._rand",
+                sources=["ddtrace/internal/_rand.pyx"],
+                language="c",
+            ),
+            Extension(
+                "ddtrace.internal._encoding",
+                ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=encoding_macros,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                extra_compile_args=extra_compile_args,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._threading",
+                sources=["ddtrace/profiling/collector/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.exporter.pprof",
+                sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._build",
+                sources=["ddtrace/profiling/_build.pyx"],
+                language="c",
+            ),
+        ],
+        compile_time_env={
+            "PY_MAJOR_VERSION": sys.version_info.major,
+            "PY_MINOR_VERSION": sys.version_info.minor,
+            "PY_MICRO_VERSION": sys.version_info.micro,
+        },
+        force=True,
     )
+    + get_exts_for("wrapt")
+    + get_exts_for("psutil"),
 )

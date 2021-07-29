@@ -1,0 +1,23 @@
+[[{"name" "postgres.query"
+   "service" "postgres"
+   "resource" "select 'one' as x union all select 'two' as x"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1612813068952260000
+   "duration" 3130000
+   "meta" {"runtime-id" "f7eaee6b71934508a410c8f679b82cce"
+           "out.host" "127.0.0.1"
+           "db.name" "postgres"
+           "db.user" "postgres"
+           "db.application" "None"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_dd.tracer_kr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 10003
+              "out.port" 5432
+              "db.rowcount" 2
+              "sql.rows" 2}}]]

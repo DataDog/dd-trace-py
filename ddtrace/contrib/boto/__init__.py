@@ -16,9 +16,11 @@ This integration is automatically patched when using ``patch_all()``::
 
 from ...utils.importlib import require_modules
 
-required_modules = ['boto.connection']
+
+required_modules = ["boto.connection"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
-        __all__ = ['patch']
+
+        __all__ = ["patch"]

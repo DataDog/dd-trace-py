@@ -1,30 +1,29 @@
 from celery import signals
 
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.pin import _DD_PIN_NAME
 
 from .constants import APP
-from .signals import (
-    trace_prerun,
-    trace_postrun,
-    trace_before_publish,
-    trace_after_publish,
-    trace_failure,
-    trace_retry,
-)
+from .signals import trace_after_publish
+from .signals import trace_before_publish
+from .signals import trace_failure
+from .signals import trace_postrun
+from .signals import trace_prerun
+from .signals import trace_retry
 
 
 def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
     our handlers to Celery signals.
     """
-    if getattr(app, '__datadog_patch', False):
+    if getattr(app, "__datadog_patch", False):
         return
-    setattr(app, '__datadog_patch', True)
+    setattr(app, "__datadog_patch", True)
 
     # attach the PIN object
     pin = pin or Pin(
-        service=config.celery['worker_service_name'],
+        service=config.celery["worker_service_name"],
         app=APP,
         _config=config.celery,
     )
@@ -44,9 +43,9 @@ def unpatch_app(app):
     """Remove the Pin instance from the application and disconnect
     our handlers from Celery signal framework.
     """
-    if not getattr(app, '__datadog_patch', False):
+    if not getattr(app, "__datadog_patch", False):
         return
-    setattr(app, '__datadog_patch', False)
+    setattr(app, "__datadog_patch", False)
 
     pin = Pin.get_from(app)
     if pin is not None:

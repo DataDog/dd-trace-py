@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dbapi: add support for connection context manager usage

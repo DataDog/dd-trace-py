@@ -1,21 +1,20 @@
-# 3p
 import aiopg
 
 # project
-from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
-
-# testing
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = str(POSTGRES_CONFIG["port"])
 
 
 class AiopgTestCase(AsyncioTestCase):
     # default service
-    TEST_SERVICE = 'postgres'
+    TEST_SERVICE = "postgres"
 
     def setUp(self):
         super().setUp()
@@ -39,14 +38,14 @@ class AiopgTestCase(AsyncioTestCase):
     async def test_async_generator(self):
         conn, tracer = await self._get_conn_and_tracer()
         cursor = await conn.cursor()
-        q = 'select \'foobarblah\''
+        q = "select 'foobarblah'"
         await cursor.execute(q)
         rows = []
         async for row in cursor:
             rows.append(row)
 
-        assert rows == [('foobarblah',)]
-        spans = tracer.writer.pop()
+        assert rows == [("foobarblah",)]
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == 'postgres.query'
+        assert span.name == "postgres.query"

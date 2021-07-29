@@ -1,18 +1,19 @@
 import pytest
-
 from sqlalchemy.exc import OperationalError
 
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+
 from .mixins import SQLAlchemyTestMixin
-from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
 
 
-class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
+class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
     """TestCase for the SQLite engine"""
-    VENDOR = 'sqlite'
-    SQL_DB = ':memory:'
-    SERVICE = 'sqlite'
-    ENGINE_ARGS = {'url': 'sqlite:///:memory:'}
+
+    VENDOR = "sqlite"
+    SQL_DB = ":memory:"
+    SERVICE = "sqlite"
+    ENGINE_ARGS = {"url": "sqlite:///:memory:"}
 
     def setUp(self):
         super(SQLiteTestCase, self).setUp()
@@ -24,24 +25,24 @@ class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
         # ensures that SQL errors are reported
         with pytest.raises(OperationalError):
             with self.connection() as conn:
-                conn.execute('SELECT * FROM a_wrong_table').fetchall()
+                conn.execute("SELECT * FROM a_wrong_table").fetchall()
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.pop_traces()
         # trace composition
         self.assertEqual(len(traces), 1)
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
         assert_is_measured(span)
-        self.assertEqual(span.name, '{}.query'.format(self.VENDOR))
+        self.assertEqual(span.name, "{}.query".format(self.VENDOR))
         self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, 'SELECT * FROM a_wrong_table')
-        self.assertEqual(span.get_tag('sql.db'), self.SQL_DB)
-        self.assertIsNone(span.get_tag('sql.rows') or span.get_metric('sql.rows'))
-        self.assertEqual(span.span_type, 'sql')
+        self.assertEqual(span.resource, "SELECT * FROM a_wrong_table")
+        self.assertEqual(span.get_tag("sql.db"), self.SQL_DB)
+        self.assertIsNone(span.get_tag("sql.rows") or span.get_metric("sql.rows"))
+        self.assertEqual(span.span_type, "sql")
         self.assertTrue(span.duration > 0)
         # check the error
         self.assertEqual(span.error, 1)
-        self.assertEqual(span.get_tag('error.msg'), 'no such table: a_wrong_table')
-        self.assertTrue('OperationalError' in span.get_tag('error.type'))
-        self.assertTrue('OperationalError: no such table: a_wrong_table' in span.get_tag('error.stack'))
+        self.assertEqual(span.get_tag("error.msg"), "no such table: a_wrong_table")
+        self.assertTrue("OperationalError" in span.get_tag("error.type"))
+        self.assertTrue("OperationalError: no such table: a_wrong_table" in span.get_tag("error.stack"))

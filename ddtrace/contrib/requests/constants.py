@@ -1,1 +1,1 @@
-DEFAULT_SERVICE = 'requests'
+DEFAULT_SERVICE = "requests"

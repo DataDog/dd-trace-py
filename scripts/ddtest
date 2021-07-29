@@ -2,4 +2,12 @@
 
 set -e
 
-docker-compose run --rm testrunner $*
+CMD=$*
+
+if [ -z "$CMD" ]
+then
+    CMD=bash
+fi
+
+# install and upgrade tox and riot in case testrunner image has not been updated
+docker-compose run -e CIRCLE_NODE_TOTAL -e CIRCLE_NODE_INDEX -e DD_TRACE_AGENT_URL --rm testrunner bash -c "pip install -q --disable-pip-version-check riot tox && $CMD"

@@ -4,20 +4,20 @@ from pyramid.httpexceptions import HTTPException
 import pytest
 import webtest
 
-from ddtrace import compat
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 from ddtrace.ext import http
-
-from .app import create_app
+from ddtrace.internal import compat
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 from ...opentracer.utils import init_tracer
-from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from .app import create_app
 
 
-class PyramidBase(BaseTracerTestCase):
+class PyramidBase(TracerTestCase):
     """Base Pyramid test application"""
 
     def setUp(self):
@@ -59,8 +59,7 @@ class PyramidTestCase(PyramidBase):
         res = self.app.get("/" + fqs, status=200)
         assert b"idx" in res.body
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -76,11 +75,6 @@ class PyramidTestCase(PyramidBase):
         else:
             assert http.QUERY_STRING not in s.meta
         assert s.meta.get("pyramid.route.name") == "index"
-
-        # ensure services are set correctly
-        services = writer.pop_services()
-        expected = {}
-        assert services == expected
 
     def test_200_query_string(self):
         return self.test_200("foo=bar")
@@ -99,7 +93,9 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-            self.assert_structure(dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),)
+            self.assert_structure(
+                dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
+            )
 
     def test_analytics_global_on_integration_on(self):
         """
@@ -112,7 +108,9 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-            self.assert_structure(dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),)
+            self.assert_structure(
+                dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
 
     def test_analytics_global_off_integration_default(self):
         """
@@ -138,13 +136,14 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-            self.assert_structure(dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),)
+            self.assert_structure(
+                dict(name="pyramid.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
 
     def test_404(self):
         self.app.get("/404", status=404)
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -159,8 +158,7 @@ class PyramidTestCase(PyramidBase):
     def test_302(self):
         self.app.get("/redirect", status=302)
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -175,8 +173,7 @@ class PyramidTestCase(PyramidBase):
     def test_204(self):
         self.app.get("/nocontent", status=204)
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -194,8 +191,7 @@ class PyramidTestCase(PyramidBase):
         except ZeroDivisionError:
             pass
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -211,8 +207,7 @@ class PyramidTestCase(PyramidBase):
     def test_500(self):
         self.app.get("/error", status=500)
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -231,8 +226,7 @@ class PyramidTestCase(PyramidBase):
         parsed = json.loads(compat.to_unicode(res.body))
         assert parsed == {"a": 1}
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         spans_by_name = {s.name: s for s in spans}
         s = spans_by_name["pyramid.request"]
@@ -256,8 +250,7 @@ class PyramidTestCase(PyramidBase):
         assert self.renderer._received["request"] is not None
 
         self.renderer.assert_(foo="bar")
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         spans_by_name = {s.name: s for s in spans}
         s = spans_by_name["pyramid.request"]
@@ -280,8 +273,7 @@ class PyramidTestCase(PyramidBase):
         with pytest.raises(HTTPException):
             self.app.get("/404/raise_exception", status=404)
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert_is_measured(s)
@@ -332,7 +324,7 @@ class PyramidTestCase(PyramidBase):
         # test that includes do not create conflicts
         self.override_settings({"pyramid.includes": "tests.contrib.pyramid.test_pyramid"})
         self.app.get("/404", status=404)
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     def test_200_ot(self):
@@ -343,8 +335,7 @@ class PyramidTestCase(PyramidBase):
             res = self.app.get("/", status=200)
             assert b"idx" in res.body
 
-        writer = self.tracer.writer
-        spans = writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         ot_span, dd_span = spans

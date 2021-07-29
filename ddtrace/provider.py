@@ -1,7 +1,24 @@
 import abc
-from ddtrace.vendor import six
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Union
 
-from .internal.context_manager import DefaultContextManager
+import six
+
+from . import _hooks
+from .context import Context
+from .internal.compat import contextvars
+from .internal.logger import get_logger
+from .span import Span
+
+
+log = get_logger(__name__)
+
+
+_DD_CONTEXTVAR = contextvars.ContextVar(
+    "datadog_contextvar", default=None
+)  # type: contextvars.ContextVar[Optional[Union[Context, Span]]]
 
 
 class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
@@ -13,17 +30,48 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     * the ``active`` method, that returns the current active ``Context``
     * the ``activate`` method, that sets the current active ``Context``
     """
+
+    def __init__(self):
+        # type: (...) -> None
+        self._hooks = _hooks.Hooks()
+
     @abc.abstractmethod
     def _has_active_context(self):
         pass
 
     @abc.abstractmethod
-    def activate(self, context):
-        pass
+    def activate(self, ctx):
+        # type: (Optional[Union[Context, Span]]) -> None
+        self._hooks.emit(self.activate, ctx)
 
     @abc.abstractmethod
     def active(self):
+        # type: () -> Optional[Union[Context, Span]]
         pass
+
+    def _on_activate(self, func):
+        # type: (Callable[[Optional[Union[Span, Context]]], Any]) -> Callable[[Optional[Union[Span, Context]]], Any]
+        """Register a function to execute when a span is activated.
+
+        Can be used as a decorator.
+
+        :param func: The function to call when a span is activated.
+                     The activated span will be passed as argument.
+        """
+        self._hooks.register(self.activate, func)
+        return func
+
+    def _deregister_on_activate(self, func):
+        # type: (Callable[[Optional[Union[Span, Context]]], Any]) -> Callable[[Optional[Union[Span, Context]]], Any]
+        """Unregister a function registered to execute when a span is activated.
+
+        Can be used as a decorator.
+
+        :param func: The function to stop calling when a span is activated.
+        """
+
+        self._hooks.deregister(self.activate, func)
+        return func
 
     def __call__(self, *args, **kwargs):
         """Method available for backward-compatibility. It proxies the call to
@@ -32,33 +80,59 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
         return self.active()
 
 
-class DefaultContextProvider(BaseContextProvider):
+class DatadogContextMixin(object):
+    """Mixin that provides active span updating suitable for synchronous
+    and asynchronous executions.
     """
-    Default context provider that retrieves all contexts from the current
-    thread-local storage. It is suitable for synchronous programming and
-    Python WSGI frameworks.
+
+    def activate(self, ctx):
+        # type: (Optional[Union[Context, Span]]) -> None
+        raise NotImplementedError
+
+    def _update_active(self, span):
+        # type: (Span) -> Optional[Span]
+        """Updates the active span in an executor.
+
+        The active span is updated to be the span's parent if the span has
+        finished until an unfinished span is found.
+        """
+        if span.finished:
+            new_active = span  # type: Optional[Span]
+            while new_active and new_active.finished:
+                new_active = new_active._parent
+            self.activate(new_active)
+            return new_active
+        return span
+
+
+class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
+    """Context provider that retrieves contexts from a context variable.
+
+    It is suitable for synchronous programming and for asynchronous executors
+    that support contextvars.
     """
-    def __init__(self, reset_context_manager=True):
-        self._local = DefaultContextManager(reset=reset_context_manager)
+
+    def __init__(self):
+        # type: () -> None
+        super(DefaultContextProvider, self).__init__()
+        _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
-        """
-        Check whether we have a currently active context.
+        # type: () -> bool
+        """Returns whether there is an active context in the current execution."""
+        ctx = _DD_CONTEXTVAR.get()
+        return ctx is not None
 
-        :returns: Whether we have an active context
-        :rtype: bool
-        """
-        return self._local._has_active_context()
-
-    def activate(self, context):
-        """Makes the given ``context`` active, so that the provider calls
-        the thread-local storage implementation.
-        """
-        return self._local.set(context)
+    def activate(self, ctx):
+        # type: (Optional[Union[Span, Context]]) -> None
+        """Makes the given context active in the current execution."""
+        _DD_CONTEXTVAR.set(ctx)
+        super(DefaultContextProvider, self).activate(ctx)
 
     def active(self):
-        """Returns the current active ``Context`` for this tracer. Returned
-        ``Context`` must be thread-safe or thread-local for this specific
-        implementation.
-        """
-        return self._local.get()
+        # type: () -> Optional[Union[Context, Span]]
+        """Returns the active span or context for the current execution."""
+        item = _DD_CONTEXTVAR.get()
+        if isinstance(item, Span):
+            return self._update_active(item)
+        return item

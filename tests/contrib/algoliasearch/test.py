@@ -1,11 +1,14 @@
-from ddtrace import config, patch_all
-from ddtrace.contrib.algoliasearch.patch import patch, unpatch, algoliasearch_version
+from ddtrace import config
+from ddtrace import patch_all
+from ddtrace.contrib.algoliasearch.patch import algoliasearch_version
+from ddtrace.contrib.algoliasearch.patch import patch
+from ddtrace.contrib.algoliasearch.patch import unpatch
 from ddtrace.pin import Pin
-from tests.base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 
-class AlgoliasearchTest(BaseTracerTestCase):
+class AlgoliasearchTest(TracerTestCase):
     def setUp(self):
         super(AlgoliasearchTest, self).setUp()
 
@@ -33,8 +36,8 @@ class AlgoliasearchTest(BaseTracerTestCase):
             index_module.Index.search = search
             client = algoliasearch.algoliasearch.Client("X", "X")
         else:
-            import algoliasearch.search_index as index_module
             from algoliasearch.search_client import SearchClient
+            import algoliasearch.search_index as index_module
 
             index_module.SearchIndex.search = search
             client = SearchClient.create("X", "X")
@@ -72,7 +75,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         assert_is_measured(span)
         assert span.service == "algoliasearch"
         assert span.name == "algoliasearch.search"
-        assert span.span_type is None
+        assert span.span_type == "http"
         assert span.error == 0
         assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
         # Verify that adding new arguments to the search API will simply be ignored and not cause
@@ -145,11 +148,11 @@ class AlgoliasearchTest(BaseTracerTestCase):
         spans = self.get_spans()
         assert not spans, spans
 
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user
-            The algoliasearch integration should use it as the service name
+            The algoliasearch integration shouldn't use it as the service name
         """
         patch_all()
         Pin.override(self.index, tracer=self.tracer)
@@ -158,5 +161,5 @@ class AlgoliasearchTest(BaseTracerTestCase):
         self.reset()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service == "mysvc"
+        assert spans[0].service == "algoliasearch"
         unpatch()

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    pylons: now supports all the standard http tagging including query string,
+    custom error codes, and request/response headers.

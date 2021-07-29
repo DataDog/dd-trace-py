@@ -3,7 +3,7 @@
 [![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/master.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/master)
 [![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
 [![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
-[![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://pypi.datadoghq.com/trace/docs/installation_quickstart.html#opentracing)
+[![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html#opentracing)
 
 `ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
 as they flow across web servers, databases and microservices so that developers
@@ -15,13 +15,13 @@ For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
 For more advanced usage and configuration, check out our [API
-documentation][pypi docs].
+documentation][api docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 
 
@@ -30,6 +30,17 @@ documentation][visualization docs].
 ### Contributing
 
 See [docs/contributing.rst](docs/contributing.rst).
+
+
+### Pre-commit Hooks
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are automated to run
+when you call `git commit` as pre-commit hooks to catch any formatting errors before 
+you commit. To initialize the pre-commit hook script to run in your development 
+branch, run the following command:
+
+    $ hooks/autohook.sh install
 
 ### Testing
 
@@ -51,24 +62,26 @@ launch them through:
 
 #### Running Tests in docker
 
-Once your docker-compose environment is running, you can run the test runner image:
+Once your docker-compose environment is running, you can use the shell script to
+execute tests within a Docker image. You can start the container with a bash shell: 
 
-    $ docker-compose run --rm testrunner
+    $ scripts/ddtest
 
-Now you are in a bash shell. You can now run tests as you would do in your local environment:
+You can now run tests as you would do in your local environment. We use
+[tox][tox] as well as [riot][riot], a new tool that we developed for addressing
+our specific needs with an ever growing matrix of tests. You can list the tests
+managed by each:
 
-    $ tox -e '{py35,py36}-redis{210}'
+    $ tox -l
+    $ riot list
+    
+You can run multiple tests by using regular expressions:
 
-We also provide a shell script to execute commands in the provided container.
-
-For example to run the tests for `redis-py` 2.10 on Python 3.5 and 3.6:
-
-    $ ./scripts/ddtest tox -e '{py35,py36}-redis{210}'
-
-If you want to run a list of tox environment (as CircleCI does) based on a
-pattern, you can use the following command:
-
-    $ scripts/ddtest scripts/run-tox-scenario '^futures_contrib-'
+    $ scripts/run-tox-scenario '^futures_contrib-'
+    $ riot run psycopg
+    
+[tox]: https://github.com/tox-dev/tox/
+[riot]: https://github.com/DataDog/riot/
 
 ### Continuous Integration
 

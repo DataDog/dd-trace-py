@@ -1,6 +1,5 @@
-from .app import patch_app
-
 from ...utils.deprecation import deprecation
+from .app import patch_app
 
 
 def patch_task(task, pin=None):
@@ -9,9 +8,9 @@ def patch_task(task, pin=None):
     enables instrumentation on all tasks.
     """
     deprecation(
-        name='ddtrace.contrib.celery.patch_task',
-        message='Use `patch(celery=True)` or `ddtrace-run` script instead',
-        version='1.0.0',
+        name="ddtrace.contrib.celery.patch_task",
+        message="Use `patch(celery=True)` or `ddtrace-run` script instead",
+        version="1.0.0",
     )
 
     # Enable instrumentation everywhere
@@ -25,8 +24,8 @@ def unpatch_task(task):
     affect instrumented tasks.
     """
     deprecation(
-        name='ddtrace.contrib.celery.patch_task',
-        message='Use `unpatch()` instead',
-        version='1.0.0',
+        name="ddtrace.contrib.celery.patch_task",
+        message="Use `unpatch()` instead",
+        version="1.0.0",
     )
     return task

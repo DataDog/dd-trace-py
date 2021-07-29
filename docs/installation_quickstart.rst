@@ -15,13 +15,25 @@ Installation
 
 Install with :code:`pip`::
 
-$ pip install ddtrace
+    pip install ddtrace
 
-We strongly suggest pinning the version of the library you deploy.
+.. important::
 
-If you want to use the profiler, you'll need to specify the ``profiling`` flavor::
+    pip version 18 and above is required to install the library.
 
-  $ pip install ddtrace[profiling]
+    It is strongly suggested to pin the version of the library you deploy.
+
+
+Installation on Alpine
+~~~~~~~~~~~~~~~~~~~~~~
+
+Binary distributions are not available for Alpine so build dependencies must be installed first.
+
+.. code-block:: bash
+
+    apk add gcc musl-dev linux-headers
+    pip install ddtrace
+
 
 Quickstart
 ----------
@@ -29,35 +41,66 @@ Quickstart
 Tracing
 ~~~~~~~
 
+.. important::
+
+    If ``gevent`` is used in the application then read the documentation
+    :ref:`here<gevent>`.
+
+
 Getting started for tracing is as easy as prefixing your python entry-point
 command with ``ddtrace-run``.
 
-For example if you start your application with ``python app.py`` then run::
+For example if you start your application with ``python app.py`` then run (with
+your desired settings in place of the example environment variables)::
 
-  $ ddtrace-run python app.py
+    DD_SERVICE=app DD_ENV=dev DD_VERSION=0.1 ddtrace-run python app.py
 
-For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here<ddtracerun>`.
+For more advanced usage of ``ddtrace-run`` refer to the documentation
+:ref:`here<ddtracerun>`.
 
-To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
+
+If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all`
+can be used::
+
+    from ddtrace import config, patch_all
+
+    config.env = "dev"      # the environment the application is in
+    config.service = "app"  # name of your application
+    config.version = "0.1"  # version of your application
+    patch_all()
+
+
+Service names also need to be configured for libraries that query other
+services (``requests``, ``grpc``, database libraries, etc).  Check out the
+:ref:`integration documentation<integrations>` for each to set them up.
+
+
+For additional configuration see the :ref:`configuration <Configuration>`
+documentation.
+
+To learn how to manually instrument check out the :ref:`basic usage <basic
+usage>` documentation.
+
 
 Profiling
 ~~~~~~~~~
 
-Getting started for profiling is as easy as prefixing your python entry-point
-command with ``pyddprofile``.
+Profiling can also be auto enabled with :ref:`ddtracerun` by providing the
+``DD_PROFILING_ENABLED`` environment variable::
 
-For example if you start your application with ``python app.py`` then run::
+    DD_PROFILING_ENABLED=true ddtrace-run python app.py
 
-  $ pyddprofile python app.py
+If ``ddtrace-run`` isn't suitable for your application then
+``ddtrace.profiling.auto`` can be used::
 
-To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
+    import ddtrace.profiling.auto
+
 
 Configuration
 ~~~~~~~~~~~~~
 
-You can configure some parameters of the library by setting environment
-variables before starting your application and importing the library. See the
-full list in :ref:`Configuration`.
+Almost all configuration of ``ddtrace`` can be done via environment
+variable. See the full list in :ref:`Configuration`.
 
 OpenTracing
 -----------

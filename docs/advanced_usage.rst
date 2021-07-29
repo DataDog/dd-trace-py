@@ -1,6 +1,8 @@
 Advanced Usage
 ==============
 
+.. _agentconfiguration:
+
 Agent Configuration
 -------------------
 
@@ -21,10 +23,178 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+Context
+-------
+
+The :class:`ddtrace.context.Context` object is used to represent the state of
+a trace at a point in time. This state includes the trace id, active span id,
+distributed sampling decision and more. It is used to propagate the trace
+across execution boundaries like processes
+(:ref:`Distributed Tracing <disttracing>`), threads and tasks.
+
+To retrieve the context of the currently active trace use::
+
+        context = tracer.current_trace_context()
+
+Note that if there is no active trace then ``None`` will be returned.
+
+
+Tracing Context Management
+--------------------------
+
+In ``ddtrace`` "context management" is the management of which
+:class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
+execution (thread, task, etc). There can only be one active span or context
+per execution at a time.
+
+Context management enables parenting to be done implicitly when creating new
+spans by using the active span as the parent of a new span. When an active span
+finishes its parent becomes the new active span.
+
+``tracer.trace()`` automatically creates new spans as the child of the active
+context::
+
+    # Here no span is active
+    assert tracer.current_span() is None
+
+    with tracer.trace("parent") as parent:
+        # Here `parent` is active
+        assert tracer.current_span() is parent
+
+        with tracer.trace("child") as child:
+            # Here `child` is active.
+            # `child` automatically inherits from `parent`
+            assert tracer.current_span() is child
+
+        # `parent` is active again
+        assert tracer.current_span() is parent
+
+    # Here no span is active again
+    assert tracer.current_span() is None
+
+
+.. important::
+
+    Span objects are owned by the execution in which they are created and must
+    be finished in the same execution. To continue a trace in a different
+    execution then the ``span.context`` can be passed between executions and
+    activated. See the sections below for how to propagate spans and traces
+    across task, thread or process boundaries.
+
+
+Tracing Across Threads
+^^^^^^^^^^^^^^^^^^^^^^
+
+To continue a trace across threads the context needs to be passed between
+threads::
+
+    import threading, time
+    from ddtrace import tracer
+
+    def _target(trace_ctx):
+        tracer.context_provider.activate(trace_ctx)
+        with tracer.trace("second_thread") as span2:
+            # span2's parent will be the main_thread span
+            time.sleep(1)
+
+    with tracer.trace("main_thread") as span:
+        thread = threading.Thread(target=_target, args=(span.context,))
+        thread.start()
+        thread.join()
+
+
+Tracing Across Processes
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Just like the threading case, if tracing across processes is desired then the
+span has to be propagated as a context::
+
+    from multiprocessing import Process
+    import time
+    from ddtrace import tracer
+
+    def _target(ctx):
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("proc"):
+            time.sleep(1)
+        tracer.shutdown()
+
+    with tracer.trace("work") as span:
+        proc = Process(target=_target, args=(span.context,))
+        proc.start()
+        time.sleep(1)
+        proc.join()
+
+fork
+****
+If using `fork()`, any open spans from the parent process must be finished by
+the parent process. Any active spans from the original process will be converted
+to contexts to avoid memory leaks.
+
+Here's an example of tracing some work done in a child process::
+
+    import os, sys, time
+    from ddtrace import tracer
+
+    span = tracer.trace("work")
+
+    pid = os.fork()
+
+    if pid == 0:
+        with tracer.trace("child_work"):
+            time.sleep(1)
+        sys.exit(0)
+
+    # Do some other work in the parent
+    time.sleep(1)
+    span.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 0
+
+
+Tracing Across Asyncio Tasks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default the active context will by propagated across tasks on creation as
+the `contextvars`_ context is copied between tasks. If this is not desirable
+then ``None`` can be activated in the new task::
+
+    tracer.context_provider.activate(None)
+
+
+Manual Management
+^^^^^^^^^^^^^^^^^
+
+Parenting can be managed manually by using ``tracer.start_span()`` which by
+default does not activate spans when they are created. See the documentation
+for :meth:`ddtrace.Tracer.start_span`.
+
+
+Context Providers
+^^^^^^^^^^^^^^^^^
+
+The default context provider used in the tracer uses contextvars_ to store
+the active context per execution. This means that any asynchronous library
+that uses `contextvars`_ will have support for automatic context management.
+
+If there is a case where the default is insufficient then a custom context
+provider can be used. It must implement the
+:class:`ddtrace.provider.BaseContextProvider` interface and can be configured
+with::
+
+    tracer.configure(context_provider=MyContextProvider)
+
+
+.. _contextvars: https://docs.python.org/3/library/contextvars.html
+
+
+.. _disttracing:
+
 Distributed Tracing
 -------------------
 
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
+To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`.
 
 - On the server side, it means to read propagated attributes and set them to the active tracing context.
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
@@ -89,14 +259,12 @@ propagate a `rpc_metadata` dictionary over the wire::
             rpc_metadata.update({
                 'trace_id': span_context.trace_id,
                 'span_id': span_context.span_id,
-                'sampling_priority': span_context.sampling_priority,
             })
 
         def extract(self, rpc_metadata):
             return Context(
                 trace_id=rpc_metadata['trace_id'],
                 span_id=rpc_metadata['span_id'],
-                sampling_priority=rpc_metadata['sampling_priority'],
             )
 
     # On the parent side
@@ -117,169 +285,6 @@ propagate a `rpc_metadata` dictionary over the wire::
         with tracer.trace("child_span") as span:
             span.set_meta('my_rpc_method', method)
 
-
-Sampling
---------
-
-.. _`Priority Sampling`:
-
-Priority Sampling
-^^^^^^^^^^^^^^^^^
-
-To learn about what sampling is check out our documentation `here
-<https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing>`_.
-
-By default priorities are set on a trace by a sampler. The sampler can set the
-priority to the following values:
-
-- ``AUTO_REJECT``: the sampler automatically rejects the trace
-- ``AUTO_KEEP``: the sampler automatically keeps the trace
-
-Priority sampling is enabled by default.
-When enabled, the sampler will automatically assign a priority to your traces,
-depending on their service and volume.
-This ensures that your sampled distributed traces will be complete.
-
-You can also set this priority manually to either drop an uninteresting trace or
-to keep an important one.
-To do this, set the ``context.sampling_priority`` to one of the following:
-
-- ``USER_REJECT``: the user asked to reject the trace
-- ``USER_KEEP``: the user asked to keep the trace
-
-When not using distributed tracing, you may change the priority at any time, as
-long as the trace is not finished yet.
-But it has to be done before any context propagation (fork, RPC calls) to be
-effective in a distributed context.
-Changing the priority after context has been propagated causes different parts
-of a distributed trace to use different priorities. Some parts might be kept,
-some parts might be rejected, and this can cause the trace to be partially
-stored and remain incomplete.
-
-If you change the priority, we recommend you do it as soon as possible, when the
-root span has just been created::
-
-    from ddtrace.ext.priority import USER_REJECT, USER_KEEP
-
-    context = tracer.context_provider.active()
-
-    # indicate to not keep the trace
-    context.sampling_priority = USER_REJECT
-
-
-Client Sampling
-^^^^^^^^^^^^^^^
-
-Client sampling enables the sampling of traces before they are sent to the
-Agent. This can provide some performance benefit as the traces will be
-dropped in the client.
-
-The ``RateSampler`` randomly samples a percentage of traces::
-
-    from ddtrace.sampler import RateSampler
-
-    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
-    # Keep 20% of the traces.
-    sample_rate = 0.2
-    tracer.sampler = RateSampler(sample_rate)
-
-
-Trace Search & Analytics
-------------------------
-
-Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
-
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
-
-* :ref:`aiohttp`
-* :ref:`bottle`
-* :ref:`django`
-* :ref:`falcon`
-* :ref:`flask`
-* :ref:`molten`
-* :ref:`pylons`
-* :ref:`pyramid`
-* :ref:`requests`
-* :ref:`tornado`
-
-
-For most libraries, APM events can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
-
-+----------------------+----------------------------------------+
-|       Library        |          Environment Variable          |
-+======================+========================================+
-| :ref:`aiobotocore`   | ``DD_AIOBOTOCORE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |
-+----------------------+----------------------------------------+
-| :ref:`bottle`        | ``DD_BOTTLE_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
-+----------------------+----------------------------------------+
-| :ref:`celery`        | ``DD_CELERY_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
-+----------------------+----------------------------------------+
-| :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`flask`         | ``DD_FLASK_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`flask_cache`   | ``DD_FLASK_CACHE_ANALYTICS_ENABLED``   |
-+----------------------+----------------------------------------+
-| :ref:`grpc`          | ``DD_GRPC_ANALYTICS_ENABLED``          |
-+----------------------+----------------------------------------+
-| :ref:`httplib`       | ``DD_HTTPLIB_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`kombu`         | ``DD_KOMBU_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`molten`        | ``DD_MOLTEN_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pylibmc`       | ``DD_PYLIBMC_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`pylons`        | ``DD_PYLONS_ANALYTICS_ENABLED``        |
-+----------------------+----------------------------------------+
-| :ref:`pymemcache`    | ``DD_PYMEMCACHE_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`pymongo`       | ``DD_PYMONGO_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-| :ref:`redis`         | ``DD_REDIS_ANALYTICS_ENABLED``         |
-+----------------------+----------------------------------------+
-| :ref:`rediscluster`  | ``DD_REDISCLUSTER_ANALYTICS_ENABLED``  |
-+----------------------+----------------------------------------+
-| :ref:`sqlalchemy`    | ``DD_SQLALCHEMY_ANALYTICS_ENABLED``    |
-+----------------------+----------------------------------------+
-| :ref:`vertica`       | ``DD_VERTICA_ANALYTICS_ENABLED``       |
-+----------------------+----------------------------------------+
-
-For datastore libraries that extend another, use the setting for the underlying library:
-
-+------------------------+----------------------------------+
-|        Library         |       Environment Variable       |
-+========================+==================================+
-| :ref:`mongoengine`     | ``DD_PYMONGO_ANALYTICS_ENABLED`` |
-+------------------------+----------------------------------+
-| :ref:`mysql-connector` | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`mysqldb`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`psycopg2`        | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`pymysql`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-| :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
-+------------------------+----------------------------------+
-
-Where environment variables are not used for configuring the tracer, the instructions for configuring trace analytics is provided in the library documentation:
-
-* :ref:`aiohttp`
-* :ref:`django`
-* :ref:`pyramid`
-* :ref:`requests`
-* :ref:`tornado`
 
 Resolving deprecation warnings
 ------------------------------
@@ -305,17 +310,18 @@ It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
-    Tracer.configure(settings={
+    from ddtrace import tracer
+
+    tracer.configure(settings={
         'FILTERS': [
             FilterRequestsOnUrl(r'http://test\.example\.com'),
         ],
     })
 
-All the filters in the filters list will be evaluated sequentially
-for each trace and the resulting trace will either be sent to the Agent or
-discarded depending on the output.
+The filters in the filters list will be applied sequentially to each trace
+and the resulting trace will either be sent to the Agent or discarded.
 
-**Use the standard filters**
+**Built-in filters**
 
 The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
 filter out incoming requests to specific urls:
@@ -323,22 +329,23 @@ filter out incoming requests to specific urls:
 .. autoclass:: ddtrace.filters.FilterRequestsOnUrl
     :members:
 
-**Write a custom filter**
+**Writing a custom filter**
 
-Creating your own filters is as simple as implementing a class with a
-``process_trace`` method and adding it to the filters parameter of
-Tracer.configure. process_trace should either return a trace to be fed to the
-next step of the pipeline or ``None`` if the trace should be discarded::
+Create a filter by implementing a class with a ``process_trace`` method and
+providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+``process_trace`` should either return a trace to be fed to the next step of
+the pipeline or ``None`` if the trace should be discarded::
 
-    class FilterExample(object):
+    from ddtrace import Span, tracer
+    from ddtrace.filters import TraceFilter
+
+    class FilterExample(TraceFilter):
         def process_trace(self, trace):
-            # write here your logic to return the `trace` or None;
-            # `trace` instance is owned by the thread and you can alter
-            # each single span or the whole trace if needed
+            # type: (List[Span]) -> Optional[List[Span]]
+            ...
 
-    # And then instantiate it with
-    filters = [FilterExample()]
-    Tracer.configure(settings={'FILTERS': filters})
+    # And then configure it with
+    tracer.configure(settings={'FILTERS': [FilterExample()]})
 
 (see filters.py for other example implementations)
 
@@ -349,8 +356,10 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-HTTP layer
-----------
+..  _http-tagging:
+
+HTTP tagging
+------------
 
 Query String Tracing
 ^^^^^^^^^^^^^^^^^^^^
@@ -423,6 +432,24 @@ structure like in the following example::
       url  https://api.github.com/events
     }
 
+..  _http-custom-error:
+
+Custom Error Codes
+^^^^^^^^^^^^^^^^^^
+It is possible to have a custom mapping of which HTTP status codes are considered errors.
+By default, 500-599 status codes are considered errors.
+Configuration is provided both at the global level.
+
+Examples::
+
+    from ddtrace import config
+
+    config.http_server.error_statuses = '500-599'
+
+Certain status codes can be excluded by providing a list of ranges. Valid options:
+    - ``400-400``
+    - ``400-403,405-499``
+    - ``400,401,403``
 
 .. _adv_opentracing:
 
@@ -448,10 +475,6 @@ for usage.
 | `agent_port`        | port the Datadog agent is listening on | `8126`        |
 +---------------------+----------------------------------------+---------------+
 | `global_tags`       | tags that will be applied to each span | `{}`          |
-+---------------------+----------------------------------------+---------------+
-| `sampler`           | see `Sampling`_                        | `AllSampler`  |
-+---------------------+----------------------------------------+---------------+
-| `priority_sampling` | see `Priority Sampling`_               | `True`        |
 +---------------------+----------------------------------------+---------------+
 | `uds_path`          | unix socket of agent to connect to     | `None`        |
 +---------------------+----------------------------------------+---------------+
@@ -539,11 +562,11 @@ Examples
 
 Distributed Tracing across celery tasks with OpenTracing.
 
-1. Install Celery OpenTracing:
+1. Install Celery OpenTracing::
 
     pip install Celery-OpenTracing
 
-2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+2. Replace your Celery app with the version that comes with Celery-OpenTracing::
 
     from celery_opentracing import CeleryTracing
     from ddtrace.opentracer import set_global_tracer, Tracer
@@ -588,7 +611,6 @@ detailed in :ref:`Configuration`.
 - ``ddtrace-run python my_app.py``
 - ``ddtrace-run python manage.py runserver``
 - ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
 
 
 Pass along command-line arguments as your program would normally expect them::
@@ -600,26 +622,61 @@ sure your application has a route to the tracing Agent. An easy way to test
 this is with a::
 
 $ pip install ipython
-$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
+$ DD_TRACE_DEBUG=true ddtrace-run ipython
 
 Because iPython uses SQLite, it will be automatically instrumented and your
 traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
 
+.. _uwsgi:
+
 uWSGI
 -----
 
-The default configuration of uWSGI applications does not include the
-``--enable-threads`` setting which must be set to ``true`` for the
-tracing library to run.  This is noted in their best practices doc_.
+The tracer and profiler support uWSGI when configured with the following:
 
-  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+- Threads must be enabled with `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`_ or with `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`_ if running uWSGI in multithreaded mode.
+- If manual instrumentation and configuration is used, `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`_ must be used.
 
-Example run command:
+To enable tracing with automatic instrumentation and configuration with environment variables, use `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`_ option with the setting ``ddtrace.bootstrap.customize``. For example, add the following to the uWSGI configuration file::
 
-``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+  import=ddtrace.bootstrap.sitecustomize
 
+**Note:** Automatic instrumentation and configuration using ``ddtrace-run`` is not supported with uWSGI.
+
+To enable tracing with manual instrumentation and configuration, configure uWSGI with the ``lazy-apps`` option and use :ref:`patch_all()<patch_all>` and :ref:`agent configuration<agentconfiguration>` to a WSGI app::
+
+  from ddtrace import patch_all
+  from ddtrace import tracer
+
+
+  patch_all()
+  tracer.configure()
+
+  def application(env, start_response):
+      with tracer.trace("uwsgi-app"):
+          start_response('200 OK', [('Content-Type','text/html')])
+          return [b"Hello World"]
+
+Gunicorn
+--------
+
+``ddtrace`` supports `Gunicorn <https://gunicorn.org>`_.
+
+However, if you are using the ``gevent`` worker class, you have to make sure
+``gevent`` monkey patching is done before loading the ``ddtrace`` library.
+
+There are different options to make that happen:
+
+- If you rely on ``ddtrace-run``, you must set ``DD_GEVENT_PATCH_ALL=1`` in
+  your environment to have gevent patched first-thing.
+
+- Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
+  as the first import of your application.
+
+- Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
+  hook to import ``ddtrace.bootstrap.sitecustomize``.
 
 API
 ---
@@ -637,8 +694,18 @@ API
     :members:
     :special-members: __init__
 
+
+``Context``
+^^^^^^^^^^^
+.. autoclass:: ddtrace.context.Context
+    :members:
+    :special-members: __init__
+
 ``Pin``
 ^^^^^^^
+
+.. _Pin:
+
 .. autoclass:: ddtrace.Pin
     :members:
     :special-members: __init__
@@ -649,6 +716,8 @@ API
 ^^^^^^^^^^^^^
 
 .. autofunction:: ddtrace.monkey.patch_all
+
+.. _patch:
 
 ``patch``
 ^^^^^^^^^

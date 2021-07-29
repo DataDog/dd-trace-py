@@ -1,0 +1,107 @@
+name: Build
+
+on:
+  pull_request:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      expectedVersion:
+        description: 'Expected version string'
+        required: true
+  schedule:
+    # Nightly builds after weekdays
+    - cron:  0 2 * * 2-6
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v2
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.8'
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v1
+        with:
+          platforms: all
+
+      - name: Build wheels
+        uses: joerick/cibuildwheel@v1.12.0
+        env:
+          # configure cibuildwheel to build native archs ('auto'), and some
+          # emulated ones
+          CIBW_ARCHS_LINUX: auto aarch64
+          CIBW_ARCHS_MACOS: x86_64 universal2
+          # PyPY is not supported
+          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
+          CIBW_SKIP: pp* cp27-win*
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: '3.7'
+
+      - name: Build sdist
+        run: |
+          pip install cython
+          python setup.py sdist
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
+
+  upload_pypi:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event.action == 'workflow_dispatch')
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - uses: actions/checkout@v2
+        if: github.event.action == 'workflow_dispatch'
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+      - name: Validate deploy version
+        if: github.event.action == 'workflow_dispatch'
+        run: |
+          ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
+
+      - uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
+          # To test: repository_url: https://test.pypi.org/legacy/
+          # Setting skip_existing will prevent the deploy from erring out early
+          # due to a duplicate wheel being present which will ensure that the rest
+          # of the wheels will be uploaded if some are uploaded manually.
+          skip_existing: true
