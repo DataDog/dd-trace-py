@@ -10,6 +10,7 @@ from opentracing import child_of
 import pytest
 
 import ddtrace
+from ddtrace import Tracer as DDTracer
 from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
@@ -70,6 +71,12 @@ class TestTracerConfig(object):
             tracer = Tracer(service_name="mysvc", config=config)
             assert ["enabeld", "setttings"] in str(ce_info)
             assert tracer is not None
+
+    def test_ddtrace_fallback_config(self, monkeypatch):
+        """Ensure datadog configuration is used by default."""
+        monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+        tracer = Tracer(dd_tracer=DDTracer())
+        assert tracer._dd_tracer.enabled == False
 
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""
