@@ -432,7 +432,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     def django_asgi_modifier(span, scope):
         span.name = "django.request"
 
-    return TraceMiddleware(func(*args, **kwargs), span_modifier=django_asgi_modifier)
+    return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 
 
 def _patch(django):

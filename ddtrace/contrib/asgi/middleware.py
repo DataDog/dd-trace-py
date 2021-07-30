@@ -14,6 +14,8 @@ from .utils import guarantee_single_callable
 
 
 if TYPE_CHECKING:
+    from typing import Any
+    from typing import Mapping
     from typing import Optional
 
     from ddtrace import Span
@@ -66,6 +68,11 @@ def _default_handle_exception_span(exc, span):
     span.set_tag(http.STATUS_CODE, 500)
 
 
+def span_from_scope(scope):
+    # type: (Mapping[str, Any]) -> Optional[Span]
+    return scope.get("_dd_span")
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -89,15 +96,6 @@ class TraceMiddleware:
         self.handle_exception_span = handle_exception_span
         self.span_modifier = span_modifier
 
-    @staticmethod
-    def _get_asgi_span(tracer):
-        # type: (Tracer) -> Optional[Span]
-        """Return the ASGI span of the current trace (if available)."""
-        current_span = tracer.current_span()
-        while current_span and ASGI_VERSION not in current_span.meta:
-            current_span = current_span._parent
-        return current_span
-
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
@@ -116,6 +114,8 @@ class TraceMiddleware:
             resource=resource,
             span_type=SpanTypes.WEB,
         )
+
+        scope["_dd_span"] = span
 
         if self.span_modifier:
             self.span_modifier(span, scope)

@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.asgi import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
@@ -342,7 +343,7 @@ async def test_get_asgi_span(tracer, test_spans):
     async def test_app(scope, receive, send):
         message = await receive()
         if message.get("type") == "http.request":
-            asgi_span = TraceMiddleware._get_asgi_span(tracer)
+            asgi_span = span_from_scope(scope)
             assert asgi_span is not None
             assert asgi_span.name == "asgi.request"
             await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
@@ -364,7 +365,7 @@ async def test_get_asgi_span(tracer, test_spans):
         if message.get("type") == "http.request":
             root = tracer.current_root_span()
             assert root.name == "root"
-            asgi_span = TraceMiddleware._get_asgi_span(tracer)
+            asgi_span = span_from_scope(scope)
             assert asgi_span is not None
             assert asgi_span.name == "asgi.request"
             await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
