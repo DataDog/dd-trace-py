@@ -5,7 +5,6 @@ from six import ensure_binary
 from six import ensure_text
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import distributed_tracing_enabled
