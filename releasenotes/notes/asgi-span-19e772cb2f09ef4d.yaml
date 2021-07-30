@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    ASGI: store the ASGI span in the scope. The span is stored under the
+      ``"datadog_span"`` key and can be retrieved using the
+      ``ddtrace.contrib.asgi.span_from_scope`` function.

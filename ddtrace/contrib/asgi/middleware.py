@@ -69,7 +69,8 @@ def _default_handle_exception_span(exc, span):
 
 def span_from_scope(scope):
     # type: (Mapping[str, Any]) -> Optional[Span]
-    return scope.get("_dd_span")
+    """Retrieve the top-level ASGI span from the scope."""
+    return scope.get("datadog_span")
 
 
 class TraceMiddleware:
@@ -118,7 +119,8 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-        scope["_dd_span"] = span
+
+        scope["datadog_span"] = span
 
         if self.span_modifier:
             self.span_modifier(span, scope)
