@@ -1,4 +1,3 @@
-import logging
 from typing import Any
 from typing import Mapping
 from typing import Optional
@@ -11,12 +10,13 @@ if TYPE_CHECKING:
 from sq_native import waf
 
 from ddtrace.appsec.internal.protections import BaseProtection
+from ddtrace.internal import logger
 from ddtrace.utils.time import StopWatch
 
 
-log = logging.getLogger(__name__)
+log = logger.get_logger(__name__)
 
-DEFAULT_SQREEN_BUDGET_MS = 5.0
+DEFAULT_BUDGET_MS = 5.0
 
 
 class SqreenLibrary(BaseProtection):
@@ -27,7 +27,7 @@ class SqreenLibrary(BaseProtection):
     def __init__(self, rules, budget_ms=None):
         # type: (str, Optional[float]) -> None
         if budget_ms is None:
-            budget_ms = DEFAULT_SQREEN_BUDGET_MS
+            budget_ms = DEFAULT_BUDGET_MS
         self._budget = int(budget_ms * 1000)
         self._instance = waf.WAFEngine(rules)
 
@@ -37,7 +37,7 @@ class SqreenLibrary(BaseProtection):
             context = self._instance.create_context()
             ret = context.run(data, self._budget)
         elapsed_ms = timer.elapsed() * 1000
-        log.debug("Sqreen context returned %r in %.5fms for %r", ret, elapsed_ms, span)
+        log.debug("context returned %r in %.5fms for %r", ret, elapsed_ms, span)
         span.set_metric("_dd.sq.process_ms", elapsed_ms)
         if elapsed_ms > self._budget:
             span.set_metric("_dd.sq.overtime_ms", elapsed_ms - self._budget)
