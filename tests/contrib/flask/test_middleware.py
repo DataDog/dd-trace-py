@@ -434,6 +434,7 @@ class TestFlask(TracerTestCase):
                 headers={
                     "my-header": "my_value",
                 },
+                environ_base={"REMOTE_ADDR": "127.0.0.1"},
             )
 
             fake.process.assert_called_with(
