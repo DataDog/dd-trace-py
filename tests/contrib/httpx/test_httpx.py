@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.contrib.httpx.patch import patch
 from ddtrace.contrib.httpx.patch import unpatch
 from ddtrace.settings.http import HttpConfig
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -28,6 +29,21 @@ def patch_httpx():
         yield
     finally:
         unpatch()
+
+
+def test_patching():
+    """
+    When patching httpx library
+        We wrap the correct methods
+    When unpatching httpx library
+        We unwrap the correct methods
+    """
+    assert isinstance(httpx.Client.send, ObjectProxy)
+    assert isinstance(httpx.AsyncClient.send, ObjectProxy)
+
+    unpatch()
+    assert not isinstance(httpx.Client.send, ObjectProxy)
+    assert not isinstance(httpx.AsyncClient.send, ObjectProxy)
 
 
 @pytest.mark.asyncio
