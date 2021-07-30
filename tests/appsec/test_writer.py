@@ -10,8 +10,8 @@ import attr
 import mock
 import six
 
-from ddtrace.internal import compat
 from ddtrace.appsec.internal.writer import HTTPEventWriter
+from ddtrace.internal import compat
 
 
 if sys.version_info[0] >= 3:
