@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -147,9 +148,11 @@ class Tracer(object):
         # TRACER_PARTIAL_FLUSH_ENABLED should be deprecated after version 1.0.0 is released
         partial_flush_enabled_deprecated_config = asbool(get_env("tracer", "partial_flush_enabled", default=False))
         if partial_flush_enabled_deprecated_config:
-            log.warning(
-                """Please use DD_TRACE_PARTIAL_FLUSH_ENABLED to enable partial span flushing.
-                 DD_TRACER_PARTIAL_FLUSH_ENABLED config will be deprecated with version 1.0.0"""
+            deprecation(
+                name="DD_TRACE_PARTIAL_FLUSH_ENABLED config",
+                message="""Please use DD_TRACE_PARTIAL_FLUSH_ENABLED to enable partial span flushing.
+                 DD_TRACER_PARTIAL_FLUSH_ENABLED config will be deprecated with version 1.0.0""",
+                version="1.0.0",
             )
         self._partial_flush_enabled = asbool(
             get_env(
@@ -163,9 +166,11 @@ class Tracer(object):
             get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
         )
         if pflush_min_spans_deprecated_config != 500:
-            log.warning(
-                """Please use DD_TRACE_PARTIAL_FLUSH_MIN_SPANS to configure partial span flushing.
-                 DD_TRACER_PARTIAL_FLUSH_MIN_SPANS config will be deprecated with version 1.0.0"""
+            deprecation(
+                name="DD_TRACER_PARTIAL_FLUSH_MIN_SPANS config",
+                message="""Please use DD_TRACE_PARTIAL_FLUSH_MIN_SPANS to configure partial span flushing.
+                 DD_TRACER_PARTIAL_FLUSH_MIN_SPANS config will be deprecated with version 1.0.0""",
+                version="1.0.0",
             )
         self._partial_flush_min_spans = int(
             get_env(
