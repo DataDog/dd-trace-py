@@ -336,3 +336,29 @@ async def test_multiple_requests(tracer, test_spans):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+
+
+@pytest.mark.asyncio
+async def test_bad_headers(scope, tracer, test_spans):
+    """
+    When headers can't be decoded
+        The middleware should not raise
+    """
+
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    headers = [(bytes.fromhex("c0"), "test")]
+    scope["headers"] = headers
+
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({"type": "http.request", "body": b""})
+    response_start = await instance.receive_output(1)
+    assert response_start == {
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }
+    response_body = await instance.receive_output(1)
+    assert response_body == {
+        "type": "http.response.body",
+        "body": b"*",
+    }

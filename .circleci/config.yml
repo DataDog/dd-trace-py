@@ -579,6 +579,13 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
+  django_hosts:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'django_hosts$'
+          snapshot: true
+
   djangorestframework:
     <<: *machine_executor
     parallelism: 6
@@ -938,6 +945,7 @@ requires_tests: &requires_tests
     - ddtracerun
     - dogpile_cache
     - django
+    - django_hosts
     - djangorestframework
     - elasticsearch
     - falcon
@@ -1019,6 +1027,7 @@ workflows:
       - dbapi: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
+      - django_hosts: *requires_base_venvs
       - djangorestframework: *requires_base_venvs
       - dogpile_cache: *requires_base_venvs
       - elasticsearch: *requires_base_venvs
