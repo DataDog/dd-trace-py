@@ -76,8 +76,8 @@ venv = Venv(
     pkgs={
         "mock": latest,
         "pytest": latest,
-        # "coverage": latest,
-        # "pytest-cov": latest,
+        "coverage": latest,
+        "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": latest,
     },
@@ -168,11 +168,11 @@ venv = Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest --benchmark-warmup=on {cmdargs} tests/benchmarks",
+            command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
             venvs=[
                 Venv(
                     name="benchmarks-nogc",
-                    command="pytest --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
+                    command="pytest --no-cov --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
                 ),
             ],
         ),
@@ -206,7 +206,7 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            command="pytest {cmdargs} tests/commands/test_runner.py",
+            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
                 "redis": latest,
@@ -463,6 +463,34 @@ venv = Venv(
                             "~=3.0.0",
                             "~=3.1.0",
                             "~=3.2.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="django_hosts",
+            command="pytest {cmdargs} tests/contrib/django_hosts",
+            pkgs={
+                "django_hosts": ["~=4.0", latest],
+                "pytest-django": [
+                    "==3.10.0",
+                ],
+            },
+            venvs=[
+                Venv(
+                    pys=["3.5"],
+                    pkgs={
+                        "django": ["~=2.2"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
+                            "~=2.2",
+                            "~=3.2",
                             latest,
                         ],
                     },
