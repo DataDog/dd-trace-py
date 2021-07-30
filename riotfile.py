@@ -461,6 +461,34 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="django_hosts",
+            command="pytest {cmdargs} tests/contrib/django_hosts",
+            pkgs={
+                "django_hosts": ["~=4.0", latest],
+                "pytest-django": [
+                    "==3.10.0",
+                ],
+            },
+            venvs=[
+                Venv(
+                    pys=["3.5"],
+                    pkgs={
+                        "django": ["~=2.2"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
+                            "~=2.2",
+                            "~=3.2",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             venvs=[
