@@ -10,6 +10,7 @@ import attr
 import mock
 import six
 
+from ddtrace.internal import compat
 from ddtrace.appsec.internal.writer import HTTPEventWriter
 
 
@@ -252,7 +253,7 @@ class HTTPEventWriterTestCase(unittest.TestCase):
         self.assert_no_exceptions()
         self.assertEqual(self.fake_server.num_requests, 1)
         self.assertEqual(len(self.fake_server.payloads), 1)
-        data = json.loads(self.fake_server.payloads[0])
+        data = json.loads(compat.to_unicode(self.fake_server.payloads[0]))
         self.assertEqual(
             data,
             {
