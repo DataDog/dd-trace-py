@@ -6,87 +6,30 @@ on:
 jobs:
   django-overhead-profile:
     runs-on: ubuntu-latest
+    env:
+      PREFIX: ${{ github.workspace }}/prefix
     defaults:
       run:
-        working-directory: trace-examples/python/django/django-simple
-    env:
-      DJANGO_ALLOWED_HOSTS: 127.0.0.1
-      DJANGO_SECRET_KEY: vNIF0IeM1IN9YAOOB8yEmNddSvnnXxx7E7D3TwWsdno
-      DATABASE_URL: sqlite:///django.db
-      DJANGO_SETTINGS_MODULE: config.settings.production
-      USE_DOCKER: false
-      AUSTIN_VERSION: 3.0.0
-      AUSTIN_INTERVAL: 200  # usec
-      AUSTIN_EXPOSURE: 10  # sec
+        working-directory: ddtrace
     steps:
       - uses: actions/checkout@v2
         with:
           path: ddtrace
 
-      - uses: actions/checkout@v2
-        with:
-          repository: DataDog/trace-examples
-          ref: 760deae1fd2f2371cf813d3ff3ca9f0e040e8c60
-          path: trace-examples
-
       - uses: actions/setup-python@v2
         with:
           python-version: "3.8"
 
-      - name: Prepare Django app
+      - name: Setup
         run: |
-          pip install -r requirements/production.txt
-          python manage.py migrate
+          bash scripts/profiles/django-simple/setup.sh ${PREFIX}
 
-      - name: Install ddtrace
-        run: pip install -e $GITHUB_WORKSPACE/ddtrace
-
-      - name: Install Austin ${AUSTIN_VERSION}
+      - name: Run
         run: |
-          curl https://github.com/p403n1x87/austin/releases/download/v${AUSTIN_VERSION}/austin-${AUSTIN_VERSION}-linux-amd64.tar.xz -L | tar xJv
-          mv ./austin $GITHUB_WORKSPACE
-
-      - name: Install diff tool dependencies
-        run: |
-          pip install rich
-          pip install austin-python~=1.0
-
-      - name: Install k6
-        run: |
-          mkdir $GITHUB_WORKSPACE/k6
-          cd $GITHUB_WORKSPACE/k6
-          curl https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-linux64.tar.gz -L | tar xvz --strip-components 1
-
-      - name: Collect profiles
-        run: |
-          mkdir ${{ github.workspace }}/artifacts
-
-          gunicorn config.wsgi --pid gunicorn.pid &
-          sleep 1
-          $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/baseline-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
-          sleep 1
-          sudo $GITHUB_WORKSPACE/austin -sCi ${AUSTIN_INTERVAL} -o ${{ github.workspace }}/artifacts/baseline.austin -p $(cat gunicorn.pid) -x ${AUSTIN_EXPOSURE}
-          pkill k6
-          kill $(cat gunicorn.pid)
-
-          ddtrace-run gunicorn config.wsgi --pid gunicorn.pid &
-          sleep 1
-          $GITHUB_WORKSPACE/k6/k6 run --quiet --summary-export $GITHUB_WORKSPACE/artifacts/head-load.json $GITHUB_WORKSPACE/ddtrace/scripts/django-overhead-profile-load.js &
-          sleep 1
-          sudo $GITHUB_WORKSPACE/austin -sCi ${AUSTIN_INTERVAL} -o ${{ github.workspace }}/artifacts/head.austin -p $(cat gunicorn.pid) -x ${AUSTIN_EXPOSURE}
-          pkill k6
-          kill $(cat gunicorn.pid)
-
-      - name: Compute diff
-        run: |
-          cd ${{ github.workspace }}/ddtrace
-          sudo chown `whoami`:`whoami` ${{ github.workspace }}/artifacts/*
-          python scripts/diff.py ${{ github.workspace }}/artifacts/head.austin ${{ github.workspace }}/artifacts/baseline.austin ${{ github.workspace }}/artifacts/baseline_head.diff
-          head -n 25 ${{ github.workspace }}/artifacts/baseline_head.diff.top
-          cd -
+          bash scripts/profiles/django-simple/run.sh ${PREFIX}
 
       - uses: actions/upload-artifact@v2
         with:
           name: django-overhead-profile
-          path: ${{ github.workspace }}/artifacts
+          path: ${{ github.workspace }}/prefix/artifacts
 
