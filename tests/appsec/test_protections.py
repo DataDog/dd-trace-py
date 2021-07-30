@@ -31,7 +31,7 @@ class TestSqreenLibrary(TracerTestCase):
         assert "_dd.sq.reports" in span.metrics
 
     def test_overtime(self):
-        with override_env({"DD_APPSEC_SQREEN_BUDGET_MS": "0"}):
+        with override_env({"DD_APPSEC_BUDGET_MS": "0"}):
             appsec.enable()
 
             with self.trace("test") as span:

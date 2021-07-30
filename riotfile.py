@@ -193,7 +193,7 @@ venv = Venv(
         Venv(
             name="appsec",
             command="pytest {cmdargs} tests/appsec/",
-            venvs=[Venv(pys=select_pys())],
+            pys=select_pys(),
         ),
         Venv(
             name="runtime",

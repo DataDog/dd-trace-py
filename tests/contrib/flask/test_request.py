@@ -883,3 +883,14 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             assert fake.process.call_args_list[0][0][1]["headers"]["my-header"] == "my_value"
         finally:
             appsec.disable()
+
+    def test_http_integration_appsec_failure(self):
+        fake = mock.Mock()
+        fake.process.side_effect = ValueError
+        appsec._mgmt.protections.append(fake)
+        try:
+            self.client.get("/")
+            fake.process.assert_called_once()
+            # Exception should not be propagated
+        finally:
+            appsec.disable()

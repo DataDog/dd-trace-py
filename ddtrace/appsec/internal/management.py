@@ -6,7 +6,6 @@ Test it with::
     DD_APPSEC_ENABLED=true FLASK_APP=hello.py ddtrace-run flask run
 
 """
-import logging
 import os.path
 from typing import Any
 from typing import List
@@ -22,11 +21,12 @@ from ddtrace.appsec.internal.writer import BaseEventWriter
 from ddtrace.appsec.internal.writer import HTTPEventWriter
 from ddtrace.appsec.internal.writer import NullEventWriter
 from ddtrace.internal import agent
+from ddtrace.internal import logger
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.utils.formats import get_env
 
 
-log = logging.getLogger(__name__)
+log = logger.get_logger(__name__)
 
 
 @attr.s(eq=False)
@@ -39,6 +39,7 @@ class Management(object):
     writer = attr.ib(type=BaseEventWriter, init=False, default=NullEventWriter())
 
     def enable(self):
+        # type: () -> None
         """Enable the AppSec module and load static protections."""
 
         if config.health_metrics_enabled:
@@ -50,27 +51,28 @@ class Management(object):
         default_rules = os.path.join(root_dir, "rules.json")
         path = get_env("appsec", "rules", default=default_rules)
 
-        sqreen_budget_ms = get_env("appsec", "sqreen", "budget_ms")
+        budget_ms = get_env("appsec", "budget_ms")
 
         try:
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
-            with open(path, "r") as f:
+            with open(str(path), "r") as f:
                 rules = f.read()
 
-            self.protections = [SqreenLibrary(rules, float(sqreen_budget_ms) if sqreen_budget_ms is not None else None)]
+            self.protections = [SqreenLibrary(rules, float(budget_ms) if budget_ms is not None else None)]
             self.writer.flush(timeout=0)
             self.writer = HTTPEventWriter(api_key=get_env("api_key"), dogstatsd=dogstatsd)
         except Exception:
             log.warning(
                 "AppSec module failed to load. Your application is not protected. "
-                "Please report this issue on https://github.com/DataDog/dd-trace-py/issues",
+                "Please report this issue to support@datadoghq.com",
                 exc_info=True,
             )
         else:
             log.info("AppSec module is enabled. Your application is protected.")
 
     def disable(self):
+        # type: () -> None
         """Disable the AppSec module and unload protections."""
         self.protections = []
         self.writer.flush(timeout=0)

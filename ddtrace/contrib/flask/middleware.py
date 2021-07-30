@@ -3,7 +3,6 @@ from flask import request
 from flask import signals
 import flask.templating
 
-from ddtrace import appsec
 from ddtrace import config
 
 from .. import trace_utils
@@ -121,19 +120,10 @@ class TraceMiddleware(object):
         )
 
         try:
-            g.flask_datadog_span = span = self.app._tracer.trace(
+            g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,
                 service=self.app._service,
                 span_type=SpanTypes.WEB,
-            )
-
-            appsec.process_request(
-                span,
-                method=request.method,
-                target=request.url,
-                headers=request.headers,
-                query=request.query_string,
-                remote_ip=request.remote_addr,
             )
         except Exception:
             log.debug("flask: error tracing request", exc_info=True)
