@@ -89,7 +89,7 @@ else:
         def dst(self, dt):
             return _ZERO
 
-    utc = _UTC()
+    utc = _UTC()  # type: ignore
 
 
 def is_integer(obj):
