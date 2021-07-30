@@ -365,6 +365,7 @@ async def test_bad_headers(scope, tracer, test_spans):
     }
 
 
+@pytest.mark.asyncio
 async def test_get_asgi_span(tracer, test_spans):
     async def test_app(scope, receive, send):
         message = await receive()
