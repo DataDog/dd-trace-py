@@ -9,9 +9,17 @@ fi
 REPOSITORY="$1"
 shift
 
-for SCENARIO in "encoder" "span" "tracer" "django_simple";
-do
+IMAGES=()
+
+for SCENARIO in "encoder" "span" "tracer" "django_simple"; do
     TAG="${REPOSITORY}/perf-${SCENARIO}"
     docker build -q -t "${TAG}" --build-arg SCENARIO="${SCENARIO}" -f benchmarks/base/Dockerfile benchmarks/
-    docker push -q "${TAG}:latest"
+    IMAGE="${TAG}:latest"
+    docker push -q "${IMAGE}"
+    IMAGES+=("${IMAGE}")
+done
+
+# Print out repository digests
+for IMAGE in "${IMAGES[@]}"; do
+    docker inspect --format='{{.RepoDigests}}' "${IMAGE}"
 done
