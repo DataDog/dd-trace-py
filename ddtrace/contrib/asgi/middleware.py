@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from typing import Optional
 
     from ddtrace import Span
-    from ddtrace import Tracer
 
 
 log = get_logger(__name__)
@@ -100,11 +99,15 @@ class TraceMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
-        headers = _extract_headers(scope)
-
-        trace_utils.activate_distributed_headers(
-            self.tracer, int_config=self.integration_config, request_headers=headers
-        )
+        try:
+            headers = _extract_headers(scope)
+        except Exception:
+            log.warning("failed to decode headers for distributed tracing", exc_info=True)
+            headers = {}
+        else:
+            trace_utils.activate_distributed_headers(
+                self.tracer, int_config=self.integration_config, request_headers=headers
+            )
 
         resource = "{} {}".format(scope["method"], scope["path"])
 

@@ -76,8 +76,8 @@ venv = Venv(
     pkgs={
         "mock": latest,
         "pytest": latest,
-        # "coverage": latest,
-        # "pytest-cov": latest,
+        "coverage": latest,
+        "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": latest,
     },
@@ -168,11 +168,11 @@ venv = Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest --benchmark-warmup=on {cmdargs} tests/benchmarks",
+            command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
             venvs=[
                 Venv(
                     name="benchmarks-nogc",
-                    command="pytest --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
+                    command="pytest --no-cov --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
                 ),
             ],
         ),
@@ -197,7 +197,7 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            command="pytest {cmdargs} tests/commands/test_runner.py",
+            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
                 "redis": latest,
@@ -257,6 +257,7 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
+            pkgs={"pytest": "~=3.10"},
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -278,7 +279,6 @@ venv = Venv(
                         ],
                         "redis": "~=2.10.6",
                         "kombu": "~=4.3.0",
-                        "pytest": "~=3.10",
                     },
                 ),
                 Venv(
@@ -337,7 +337,7 @@ venv = Venv(
         ),
         Venv(
             name="cherrypy",
-            command="pytest {cmdargs} tests/contrib/cherrypy",
+            command="python -m pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -647,7 +647,6 @@ venv = Venv(
                 "python-memcached": latest,
                 "redis": "~=2.0",
                 "blinker": latest,
-                "werkzeug": "<1.0",
             },
             venvs=[
                 Venv(
@@ -655,6 +654,8 @@ venv = Venv(
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
                         "Flask-Cache": ["~=0.12.0"],
+                        "werkzeug": "<1.0",
+                        "pytest": "~=3.0",
                     },
                 ),
                 Venv(
@@ -662,6 +663,8 @@ venv = Venv(
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
                         "Flask-Cache": ["~=0.13.0", latest],
+                        "werkzeug": "<1.0",
+                        "pytest": "~=3.0",
                     },
                 ),
             ],
@@ -677,7 +680,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/mysql",
             venvs=[
                 Venv(
-                    pys="2.7",
+                    pys=select_pys(max_version="3.5"),
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
@@ -729,13 +732,13 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             pkgs={
                 "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-                "moto": ">=1.0,<2.0",
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5")),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
                 Venv(
                     pys=["2.7"],
                     pkgs={
+                        "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
                 ),
@@ -766,20 +769,20 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3"),
                     pkgs={
                         "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
                         "psycopg2": ["~=2.8.0"],
                         "mysql-connector-python": ["<8.0.24"],
                     },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6"),
-                    pkgs={
-                        "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                        "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": latest,
-                    },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(),
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.6"),
+                            pkgs={"mysql-connector-python": latest},
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -919,7 +922,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
             },
