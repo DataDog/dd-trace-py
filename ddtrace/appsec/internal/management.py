@@ -31,6 +31,7 @@ class Management(object):
     protections = attr.ib(type=List[BaseProtection], default=[])
 
     def enable(self):
+        # type: () -> None
         """Enable the AppSec module and load static protections."""
 
         root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,13 +50,14 @@ class Management(object):
         except Exception:
             log.warning(
                 "AppSec module failed to load. Your application is not protected. "
-                "Please report this issue on https://github.com/DataDog/dd-trace-py/issues",
+                "Please report this issue to support@datadoghq.com",
                 exc_info=True,
             )
         else:
             log.info("AppSec module is enabled. Your application is protected.")
 
     def disable(self):
+        # type: () -> None
         """Disable the AppSec module and unload protections."""
         self.protections = []
         log.warning("AppSec module is disabled. Your application is not protected anymore.")
