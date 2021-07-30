@@ -3,6 +3,7 @@ import flask
 from flask import abort
 from flask import make_response
 import mock
+import werkzeug
 
 from ddtrace import appsec
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -867,7 +868,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 headers={
                     "my-header": "my_value",
                 },
-                environ_base={"REMOTE_ADDR": "127.0.0.1"},
             )
 
             fake.process.assert_called_with(
@@ -877,7 +877,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                     target="http://localhost/?foo=bar",
                     query=b"foo=bar",
                     headers=mock.ANY,
-                    remote_ip="127.0.0.1",
+                    remote_ip="127.0.0.1"
+                    if not (flask.__version__.startswith("1.0") and werkzeug.__version__.startswith("2.0"))
+                    else None,
+                    # probable upstream bug: REMOTE_ADDR is lost between flask.testing.FlaskClient & werkzeug.test.Client
                 ),
             )
             assert fake.process.call_args_list[0][0][1]["headers"]["my-header"] == "my_value"
