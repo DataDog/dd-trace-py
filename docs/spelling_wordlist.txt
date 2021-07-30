@@ -127,6 +127,7 @@ submodules
 timestamp
 tweens
 uWSGI
+uninstrumented
 unix
 unpatch
 unregister
