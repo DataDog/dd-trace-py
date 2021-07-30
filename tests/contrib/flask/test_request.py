@@ -866,7 +866,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 headers={
                     "my-header": "my_value",
                 },
-                environ_base={"REMOTE_ADDR": "127.0.0.1"},
             )
             fake.process.assert_called_with(
                 mock.ANY,
@@ -875,7 +874,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                     target="http://localhost/?foo=bar",
                     query=b"foo=bar",
                     headers=mock.ANY,
-                    remote_ip="127.0.0.1",
                 ),
             )
             assert fake.process.call_args_list[0][0][1]["headers"]["my-header"] == "my_value"
