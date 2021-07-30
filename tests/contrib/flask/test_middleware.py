@@ -3,9 +3,7 @@ import re
 import time
 
 from flask import make_response
-import mock
 
-from ddtrace import appsec
 from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
@@ -422,25 +420,3 @@ class TestFlask(TracerTestCase):
         span = traces[0][0]
 
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
-
-    def test_http_integration_appsec(self):
-        fake = mock.Mock()
-        appsec._mgmt.protections.append(fake)
-
-        self.client.get(
-            "/?foo=bar",
-            headers={
-                "my-header": "my_value",
-            },
-        )
-
-        fake.process.assert_called_with(
-            mock.ANY,
-            dict(
-                method="GET",
-                target="http://localhost/?foo=bar",
-                query=b"foo=bar",
-                headers=mock.ANY,
-            ),
-        )
-        assert fake.process.call_args_list[0][0][1]["headers"]["my-header"] == "my_value"

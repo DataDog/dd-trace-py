@@ -329,13 +329,21 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             request_headers=request.headers,
         )
 
-        appsec.process_request(
-            span,
-            method=request.method,
-            target=request.url,
-            headers=request.headers,
-            query=request.query_string,
-        )
+        try:
+            appsec.process_request(
+                span,
+                method=request.method,
+                target=request.url,
+                headers=request.headers,
+                query=request.query_string,
+                remote_ip=request.remote_addr,
+            )
+        except Exception:
+            log.warning(
+                "AppSec module failed to process your request. Your application is not protected. "
+                "Please report this issue to support@datadoghq.com",
+                exc_info=True,
+            )
 
         return wrapped(environ, start_response)
 
