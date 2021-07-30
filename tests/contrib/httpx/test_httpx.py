@@ -6,6 +6,7 @@ import pytest
 from ddtrace import config
 from ddtrace.contrib.httpx.patch import patch
 from ddtrace.contrib.httpx.patch import unpatch
+from ddtrace.pin import Pin
 from ddtrace.settings.http import HttpConfig
 from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
@@ -76,6 +77,46 @@ async def test_configure_service_name(snapshot_context):
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url)
                 assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_configure_service_name_pin(tracer, test_spans):
+    """
+    When setting service name via a Pin
+        We use the value from the Pin
+    """
+    url = get_url("/status/200")
+
+    def assert_spans(test_spans, service):
+        test_spans.assert_trace_count(1)
+        test_spans.assert_span_count(1)
+        assert test_spans.spans[0].service == service
+        test_spans.reset()
+
+    # override the tracer on the default sync client
+    # DEV: `httpx.get` will call `with Client() as client: client.get()`
+    Pin.override(httpx.Client, tracer=tracer)
+
+    # sync client
+    client = httpx.Client()
+    Pin.override(client, service="sync-client", tracer=tracer)
+
+    # async client
+    async_client = httpx.AsyncClient()
+    Pin.override(async_client, service="async-client", tracer=tracer)
+
+    resp = httpx.get(url)
+    assert resp.status_code == 200
+    assert_spans(test_spans, service=None)
+
+    resp = client.get(url)
+    assert resp.status_code == 200
+    assert_spans(test_spans, service="sync-client")
+
+    async with httpx.AsyncClient() as client:
+        resp = await async_client.get(url)
+        assert resp.status_code == 200
+    assert_spans(test_spans, service="async-client")
 
 
 def test_configure_service_name_env(run_python_code_in_subprocess):

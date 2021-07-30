@@ -12,6 +12,7 @@ from ddtrace.contrib.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils import get_argument_value
 from ddtrace.utils.formats import asbool
@@ -90,7 +91,11 @@ async def _wrapped_async_send(
     # type: (...) -> typing.Coroutine[None, None, httpx.Response]
     req = get_argument_value(args, kwargs, 0, "request")
 
-    with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await wrapped(*args, **kwargs)
+
+    with pin.tracer.trace("http.request", service=ext_service(pin, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
         resp = None
         try:
@@ -107,9 +112,13 @@ def _wrapped_sync_send(
     kwargs,  # type: typing.Dict[typing.Str, typing.Any]
 ):
     # type: (...) -> httpx.Response
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
     req = get_argument_value(args, kwargs, 0, "request")
 
-    with tracer.trace("http.request", service=ext_service(None, config.httpx), span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace("http.request", service=ext_service(pin, config.httpx), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
         resp = None
         try:
@@ -128,6 +137,10 @@ def patch():
 
     _w(httpx.AsyncClient, "send", _wrapped_async_send)
     _w(httpx.Client, "send", _wrapped_sync_send)
+
+    pin = Pin(app="httpx")
+    pin.onto(httpx.AsyncClient)
+    pin.onto(httpx.Client)
 
 
 def unpatch():

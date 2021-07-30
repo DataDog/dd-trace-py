@@ -21,14 +21,19 @@ Global Configuration
 
 .. py:data:: ddtrace.config.httpx['service']
 
-   The default service name for ``httpx`` requests. This value will
-   be overridden by an instance override or if the ``split_by_domain`` setting is
-   enabled.
+   The default service name for ``httpx`` requests.
+   By default the ``httpx`` integration will not define a service name and inherit
+   its service name from its parent span.
+
+   If you are making calls to uninstrumented third party applications you can
+   set this setting, use the ``ddtrace.config.httpx['split_by_domain']`` setting,
+   or use a ``Pin`` to override an individual connection's settings (see example
+   below for ``Pin`` usage).
 
    This option can also be set with the ``DD_HTTPX_SERVICE`` environment
    variable.
 
-   Default: ``None`` (inherit from ``DD_SERVICE``)
+   Default: ``None``
 
 
 .. py:data:: ddtrace.config.httpx['distributed_tracing']
@@ -44,13 +49,31 @@ Global Configuration
    setting can be overridden with session overrides (described in the Instance
    Configuration section).
 
+   This setting takes precedence over ``ddtrace.config.httpx['service']``
+
    Default: ``False``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+To configure particular ``httpx`` client instances use the :ref:`Pin<Pin>` API::
+
+    import httpx
+    from ddtrace import Pin
+
+    client = httpx.Client()
+    # Override service name for this instance
+    Pin.override(client, service="custom-http-service")
+
+    async_client = httpx.AsyncClient(
+    # Override service name for this instance
+    Pin.override(async_client, service="custom-async-http-service")
 
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 
 :ref:`HTTP Tagging <http-tagging>` is supported for this integration.
-
 
 .. __: https://www.python-httpx.org/
 """
