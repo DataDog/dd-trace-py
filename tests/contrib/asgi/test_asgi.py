@@ -402,3 +402,15 @@ async def test_get_asgi_span(tracer, test_spans):
         with tracer.trace("root"):
             response = await client.get("http://testserver/")
             assert response.status_code == 200
+
+    async def test_app_no_middleware(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            asgi_span = span_from_scope(scope)
+            assert asgi_span is None
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    async with httpx.AsyncClient(app=test_app_no_middleware) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
