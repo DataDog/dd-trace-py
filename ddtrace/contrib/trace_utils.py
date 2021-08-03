@@ -165,6 +165,16 @@ def with_traced_module(func):
     return with_mod
 
 
+def distributed_tracing_enabled(int_config, default=False):
+    # type: (IntegrationConfig, bool) -> bool
+    """Returns whether distributed tracing is enabled for this integration config"""
+    if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
+        return int_config.distributed_tracing_enabled
+    elif "distributed_tracing" in int_config and int_config.distributed_tracing is not None:
+        return int_config.distributed_tracing
+    return default
+
+
 def int_service(pin, int_config, default=None):
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
@@ -264,18 +274,16 @@ def set_http_meta(
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[Dict[str, Any]], Optional[Dict[str, str]], Optional[bool]) -> None
+    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
     override will override whatever value is set in int_config if passed any value other than None.
     """
-    int_config = int_config or {}
-
     if override is False:
         return None
 
-    if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
+    if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:

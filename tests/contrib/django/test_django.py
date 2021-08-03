@@ -1167,6 +1167,9 @@ def test_django_request_distributed(client, test_spans):
         },
     )
 
+    first_child_span = test_spans.find_span(parent_id=root.span_id)
+    assert first_child_span
+
 
 def test_django_request_distributed_disabled(client, test_spans):
     """

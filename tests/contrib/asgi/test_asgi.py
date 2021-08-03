@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.asgi import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
@@ -336,3 +337,81 @@ async def test_multiple_requests(tracer, test_spans):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+
+
+@pytest.mark.asyncio
+async def test_bad_headers(scope, tracer, test_spans):
+    """
+    When headers can't be decoded
+        The middleware should not raise
+    """
+
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    headers = [(bytes.fromhex("c0"), "test")]
+    scope["headers"] = headers
+
+    instance = ApplicationCommunicator(app, scope)
+    await instance.send_input({"type": "http.request", "body": b""})
+    response_start = await instance.receive_output(1)
+    assert response_start == {
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [[b"Content-Type", b"text/plain"]],
+    }
+    response_body = await instance.receive_output(1)
+    assert response_body == {
+        "type": "http.response.body",
+        "body": b"*",
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_asgi_span(tracer, test_spans):
+    async def test_app(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            asgi_span = span_from_scope(scope)
+            assert asgi_span is not None
+            assert asgi_span.name == "asgi.request"
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    app = TraceMiddleware(test_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
+
+    with override_http_config("asgi", dict(trace_query_string=True)):
+        app = TraceMiddleware(test_app, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+    async def test_app(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            root = tracer.current_root_span()
+            assert root.name == "root"
+            asgi_span = span_from_scope(scope)
+            assert asgi_span is not None
+            assert asgi_span.name == "asgi.request"
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    app = TraceMiddleware(test_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        with tracer.trace("root"):
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+    async def test_app_no_middleware(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            asgi_span = span_from_scope(scope)
+            assert asgi_span is None
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    async with httpx.AsyncClient(app=test_app_no_middleware) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
