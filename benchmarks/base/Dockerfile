@@ -10,8 +10,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && rm -rf /var/lib/apt/lists/*
 ENV PYENV_ROOT "/pyenv"
+WORKDIR "$PYENV_ROOT"
 ENV PATH "$PYENV_ROOT/bin:$PATH"
-RUN git clone https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+RUN git clone -n https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
+RUN git checkout cef86ce462674c726cb60ddd0e19da0bf39a27c9 # v2.0.4
 RUN pyenv install "$PYTHON_VERSION"
 
 FROM debian:buster-slim
