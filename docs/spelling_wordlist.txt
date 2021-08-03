@@ -60,6 +60,7 @@ hostname
 http
 httplib
 https
+httpx
 iPython
 initializer
 integration
@@ -126,6 +127,7 @@ submodules
 timestamp
 tweens
 uWSGI
+uninstrumented
 unix
 unpatch
 unregister
