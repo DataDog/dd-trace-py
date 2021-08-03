@@ -30,6 +30,18 @@ The middleware also supports using a custom function for handling exceptions for
     app = TraceMiddleware(app, handle_exception_span=custom_handle_exception_span)
 
 
+To retrieve the request span from the scope of an ASGI request use the ``span_from_scope``
+function::
+
+    from ddtrace.contrib.asgi import span_from_scope
+
+    def handle_request(scope, send):
+        span = span_from_scope(scope)
+        if span:
+            span.set_tag(...)
+        ...
+
+
 Configuration
 ~~~~~~~~~~~~~
 

@@ -58,6 +58,15 @@ def _default_handle_exception_span(exc, span):
     span.set_tag(http.STATUS_CODE, 500)
 
 
+<<<<<<< HEAD
+=======
+def span_from_scope(scope):
+    # type: (Mapping[str, Any]) -> Optional[Span]
+    """Retrieve the top-level ASGI span from the scope."""
+    return scope.get("datadog", {}).get("request_span")
+
+
+>>>>>>> 41ae8b4b (Use dictionary for ASGI scope storage (#2726))
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -100,6 +109,11 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
+<<<<<<< HEAD
+=======
+        scope["datadog"] = {"request_span": span}
+
+>>>>>>> 41ae8b4b (Use dictionary for ASGI scope storage (#2726))
         if self.span_modifier:
             self.span_modifier(span, scope)
 
@@ -156,4 +170,8 @@ class TraceMiddleware:
             self.handle_exception_span(exc, span)
             reraise(exc_type, exc_val, exc_tb)
         finally:
+            try:
+                del scope["datadog"]["request_span"]
+            except KeyError:
+                pass
             span.finish()
