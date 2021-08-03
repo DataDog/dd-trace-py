@@ -151,7 +151,6 @@ class SpanAggregator(SpanProcessor):
                     del self._traces[span.trace_id]
 
                 spans = finished  # type: Optional[List[Span]]
-
                 for tp in self._trace_processors:
                     try:
                         if spans is None:
