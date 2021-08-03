@@ -243,6 +243,31 @@ setup(
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.context",
+                sources=["ddtrace/context.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.span",
+                sources=["ddtrace/span.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.tracer",
+                sources=["ddtrace/tracer.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal.writer",
+                sources=["ddtrace/internal/writer.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal.processor.trace",
+                sources=["ddtrace/internal/processor/trace.pyx"],
+                language="c",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
