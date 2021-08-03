@@ -1,0 +1,21 @@
+[[{"name" "http.request"
+   "service" nil
+   "resource" "http.request"
+   "type" "http"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1620689782941177000
+   "duration" 8040000
+   "meta" {"runtime-id" "0975fd0faf2a4855b8e668f3a21af4d4"
+           "http.method" "GET"
+           "http.url" "http://localhost:8001/response-headers"
+           "http.status_code" "200"
+           "http.request.headers.some-request-header" "Request-Value"
+           "http.response.headers.some-response-header" "Response-Value"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 4674
+              "_dd.tracer_kr" 1.0}}]]

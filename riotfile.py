@@ -991,6 +991,23 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="httpx",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/httpx",
+            pkgs={
+                "pytest-asyncio": latest,
+                "httpx": [
+                    "~=0.14.0",
+                    "~=0.15.0",
+                    "~=0.16.0",
+                    "~=0.17.0",
+                    "~=0.18.0",
+                    "<1.0.0",
+                    latest,
+                ],
+            },
+        ),
+        Venv(
             name="urllib3",
             pys=select_pys(),
             pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
