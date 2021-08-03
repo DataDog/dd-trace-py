@@ -6,7 +6,7 @@ import os
 import sys
 
 import ddtrace
-from ddtrace.compat import PY2
+from ddtrace.internal.compat import PY2
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
 
@@ -107,11 +107,13 @@ def main():
     if os.path.basename(executable) == "uwsgi":
         print(
             (
-                "ddtrace-run is not supported with uwsgi. "
-                "See https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi for details."
+                "ddtrace-run has known compatibility issues with uWSGI where the "
+                "tracer is not started properly in uWSGI workers which can cause "
+                "broken behavior. It is recommended you remove ddtrace-run and "
+                "update your uWSGI configuration following "
+                "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
             )
         )
-        sys.exit(1)
 
     try:
         # Raises OSError for permissions errors in Python 2

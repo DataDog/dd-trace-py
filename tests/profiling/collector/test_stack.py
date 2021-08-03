@@ -3,17 +3,19 @@ import os
 import threading
 import time
 import timeit
+import typing
+import uuid
 
 import pytest
+import six
 
 from ddtrace.internal import nogevent
-from ddtrace.internal import service
 from ddtrace.profiling import collector
+from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import stack
-from ddtrace.vendor import six
 
 from . import test_collector
 
@@ -137,7 +139,9 @@ def test_max_time_usage_over():
 
 
 def test_ignore_profiler_single():
-    r, c, thread_id = test_collector._test_collector_collect(stack.StackCollector, stack.StackSampleEvent)
+    r, c, thread_id = test_collector._test_collector_collect(
+        stack.StackCollector, stack.StackSampleEvent, ignore_profiler=True
+    )
     events = r.events[stack.StackSampleEvent]
     assert thread_id not in {e.thread_id for e in events}
 
@@ -152,34 +156,16 @@ def test_no_ignore_profiler_single():
 
 class CollectorTest(collector.PeriodicCollector):
     def collect(self):
-        _fib(20)
+        # type: (...) -> typing.Iterable[typing.Iterable[event_mod.Event]]
+        _fib(22)
         return []
 
 
-def test_ignore_profiler_gevent_task(profiler):
-    # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
-    # sure to catch it with the StackProfiler and that it's ignored.
-    c = CollectorTest(profiler._profiler._recorder, interval=0.00001)
-    c.start()
-    collector_thread_ids = {
-        col._worker.ident
-        for col in profiler._profiler._collectors
-        if (isinstance(col, collector.PeriodicCollector) and col.status == service.ServiceStatus.RUNNING)
-    }
-    collector_thread_ids.add(c._worker.ident)
-    while True:
-        events = profiler._profiler._recorder.reset()
-        if collector_thread_ids.isdisjoint({e.task_id for e in events[stack.StackSampleEvent]}):
-            break
-        # Give some time for gevent to switch greenlets
-        time.sleep(0.1)
-    c.stop()
-
-
 @pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
-def test_not_ignore_profiler_gevent_task(monkeypatch):
+@pytest.mark.parametrize("ignore", (True, False))
+def test_ignore_profiler_gevent_task(monkeypatch, ignore):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
-    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", str(ignore))
     p = profiler.Profiler()
     p.start()
     # This test is particularly useful with gevent enabled: create a test collector that run often and for long so we're
@@ -189,7 +175,8 @@ def test_not_ignore_profiler_gevent_task(monkeypatch):
     # Wait forever and stop when we finally find an event with our collector task id
     while True:
         events = p._profiler._recorder.reset()
-        if c._worker.ident in {e.task_id for e in events[stack.StackSampleEvent]}:
+        ids = {e.task_id for e in events[stack.StackSampleEvent]}
+        if (c._worker.ident in ids) != ignore:
             break
         # Give some time for gevent to switch greenlets
         time.sleep(0.1)
@@ -210,7 +197,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=True, tracer=None)",
+        "nframes=64, ignore_profiler=False, tracer=None)",
     )
 
 
@@ -340,9 +327,34 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 334, "test_exception_collection")]
+    assert e.frames == [(__file__, 321, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
+
+
+@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
+def test_exception_collection_trace(tracer):
+    r = recorder.Recorder()
+    c = stack.StackCollector(r, tracer=tracer)
+    with c:
+        with tracer.trace("test123") as span:
+            try:
+                raise ValueError("hello")
+            except Exception:
+                nogevent.sleep(1)
+
+    exception_events = r.events[stack.StackExceptionSampleEvent]
+    assert len(exception_events) >= 1
+    e = exception_events[0]
+    assert e.timestamp > 0
+    assert e.sampling_period > 0
+    assert e.thread_id == nogevent.thread_get_ident()
+    assert e.thread_name == "MainThread"
+    assert e.frames == [(__file__, 344, "test_exception_collection_trace")]
+    assert e.nframes == 1
+    assert e.exc_type == ValueError
+    assert e.span_id == span.span_id
+    assert e.trace_id == span.trace_id
 
 
 @pytest.fixture
@@ -358,9 +370,9 @@ def tracer_and_collector(tracer):
 
 def test_thread_to_span_thread_isolation(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
 
     quit_thread = threading.Event()
     span_started = threading.Event()
@@ -368,7 +380,7 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     store = {}
 
     def start_span():
-        store["span2"] = t.start_span("thread2")
+        store["span2"] = t.start_span("thread2", activate=True)
         span_started.set()
         quit_thread.wait()
 
@@ -377,11 +389,11 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
     span_started.wait()
     if TESTING_GEVENT:
         # We track *real* threads, gevent is using only one in this case
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root, store["span2"]}
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(th.ident) == set()
+        assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == store["span2"]
+        assert c._thread_span_links.get_active_span_from_thread_id(th.ident) is None
     else:
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
-        assert c._thread_span_links.get_active_leaf_spans_from_thread_id(th.ident) == {store["span2"]}
+        assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
+        assert c._thread_span_links.get_active_span_from_thread_id(th.ident) == store["span2"]
     # Do not quit the thread before we test, otherwise the collector might clean up the thread from the list of spans
     quit_thread.set()
     th.join()
@@ -389,51 +401,52 @@ def test_thread_to_span_thread_isolation(tracer_and_collector):
 
 def test_thread_to_span_multiple(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
-    subspan = t.start_span("subtrace", child_of=root)
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subspan}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
+    subspan = t.start_span("subtrace", child_of=root, activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subspan
     subspan.finish()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
     root.finish()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) is None
 
 
 def test_thread_to_child_span_multiple_unknown_thread(tracer_and_collector):
     t, c = tracer_and_collector
-    t.start_span("root")
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(3456789) == set()
+    t.start_span("root", activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(3456789) is None
 
 
 def test_thread_to_child_span_clear(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
     c._thread_span_links.clear_threads(set())
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == set()
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) is None
 
 
 def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     t, c = tracer_and_collector
-    root = t.start_span("root")
+    root = t.start_span("root", activate=True)
     thread_id = nogevent.thread_get_ident()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root}
-    subspan = t.start_span("subtrace", child_of=root)
-    subsubspan = t.start_span("subsubtrace", child_of=subspan)
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subsubspan}
-    subsubspan2 = t.start_span("subsubtrace2", child_of=subspan)
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {subsubspan, subsubspan2}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == root
+    subspan = t.start_span("subtrace", child_of=root, activate=True)
+    subsubspan = t.start_span("subsubtrace", child_of=subspan, activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan
+    subsubspan2 = t.start_span("subsubtrace2", child_of=subspan, activate=True)
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan2
     # ⚠ subspan is not supposed to finish before its children, but the API authorizes it
-    # In that case, we would return also the root span as it's becoming a parent without children 🤷
     subspan.finish()
-    assert c._thread_span_links.get_active_leaf_spans_from_thread_id(thread_id) == {root, subsubspan, subsubspan2}
+    assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan2
 
 
-def test_collect_span_ids(tracer_and_collector):
+def test_collect_span_id(tracer_and_collector):
     t, c = tracer_and_collector
-    span = t.start_span("foobar")
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
     # This test will run forever if it fails. Don't make it fail.
     while True:
         try:
@@ -441,14 +454,18 @@ def test_collect_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id in event.trace_ids and span.span_id in event.span_ids:
+        if span.trace_id == event.trace_id and span.span_id == event.span_id:
+            assert event.trace_resource == resource
+            assert event.trace_type == span_type
             break
 
 
-def test_collect_multiple_span_ids(tracer_and_collector):
+def test_collect_multiple_span_id(tracer_and_collector):
     t, c = tracer_and_collector
-    span = t.start_span("foobar")
-    child = t.start_span("foobar", child_of=span)
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
+    child = t.start_span("foobar", child_of=span, activate=True)
     # This test will run forever if it fails. Don't make it fail.
     while True:
         try:
@@ -456,7 +473,9 @@ def test_collect_multiple_span_ids(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id in event.trace_ids and child.span_id in event.span_ids:
+        if child.trace_id == event.trace_id and child.span_id == event.span_id:
+            assert event.trace_resource == resource
+            assert event.trace_type == span_type
             break
 
 

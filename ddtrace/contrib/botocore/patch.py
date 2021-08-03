@@ -37,6 +37,7 @@ config._add(
     "botocore",
     {
         "distributed_tracing": get_env("botocore", "distributed_tracing", default=True),
+        "invoke_with_legacy_context": get_env("botocore", "invoke_with_legacy_context", default=False),
     },
 )
 
@@ -68,36 +69,35 @@ def inject_trace_to_sqs_message(args, span):
     inject_trace_data_to_message_attributes(trace_data, params)
 
 
-def modify_client_context(client_context_base64, trace_headers):
-    try:
-        client_context_json = base64.b64decode(client_context_base64).decode("utf-8")
-        client_context_object = json.loads(client_context_json)
+def modify_client_context(client_context_object, trace_headers):
+    if config.botocore["invoke_with_legacy_context"]:
+        trace_headers = {"_datadog": trace_headers}
 
-        if "custom" in client_context_object:
-            client_context_object["custom"]["_datadog"] = trace_headers
-        else:
-            client_context_object["custom"] = {"_datadog": trace_headers}
-
-        new_context = base64.b64encode(json.dumps(client_context_object).encode("utf-8")).decode("utf-8")
-        return new_context
-    except Exception:
-        log.warning("malformed client_context=%s", client_context_base64, exc_info=True)
-        return client_context_base64
+    if "custom" in client_context_object:
+        client_context_object["custom"].update(trace_headers)
+    else:
+        client_context_object["custom"] = trace_headers
 
 
 def inject_trace_to_client_context(args, span):
     trace_headers = {}
     HTTPPropagator.inject(span.context, trace_headers)
-
+    client_context_object = {}
     params = args[1]
     if "ClientContext" in params:
-        params["ClientContext"] = modify_client_context(params["ClientContext"], trace_headers)
-    else:
-        trace_headers = {}
-        HTTPPropagator.inject(span.context, trace_headers)
-        client_context_object = {"custom": {"_datadog": trace_headers}}
+        try:
+            client_context_json = base64.b64decode(params["ClientContext"]).decode("utf-8")
+            client_context_object = json.loads(client_context_json)
+        except Exception:
+            log.warning("malformed client_context=%s", params["ClientContext"], exc_info=True)
+            return
+    modify_client_context(client_context_object, trace_headers)
+    try:
         json_context = json.dumps(client_context_object).encode("utf-8")
-        params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")
+    except Exception:
+        log.warning("unable to encode modified client context as json: %s", client_context_object, exc_info=True)
+        return
+    params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")
 
 
 def patch():
@@ -130,7 +130,10 @@ def patched_api_call(original_func, instance, args, kwargs):
         operation = None
         if args:
             operation = args[0]
-            span.resource = "%s.%s" % (endpoint_name, operation.lower())
+            # DEV: join is the fastest way of concatenating strings that is compatible
+            # across Python versions (see
+            # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
+            span.resource = ".".join((endpoint_name, operation.lower()))
 
             if config.botocore["distributed_tracing"]:
                 if endpoint_name == "lambda" and operation == "Invoke":
@@ -147,12 +150,11 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         region_name = deep_getattr(instance, "meta.region_name")
 
-        meta = {
-            "aws.agent": "botocore",
-            "aws.operation": operation,
-            "aws.region": region_name,
-        }
-        span.set_tags(meta)
+        span._set_str_tag("aws.agent", "botocore")
+        if operation is not None:
+            span._set_str_tag("aws.operation", operation)
+        if region_name is not None:
+            span._set_str_tag("aws.region", region_name)
 
         result = original_func(*args, **kwargs)
 

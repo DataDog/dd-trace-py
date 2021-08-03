@@ -1,9 +1,9 @@
 """
 Some utils used by the dogtrace redis integration
 """
-from ...compat import stringify
 from ...ext import net
 from ...ext import redis as redisx
+from ...internal.compat import stringify
 
 
 VALUE_PLACEHOLDER = "?"
@@ -13,7 +13,7 @@ CMD_MAX_LEN = 1000
 
 
 def _extract_conn_tags(conn_kwargs):
-    """ Transform redis conn info into dogtrace metas """
+    """Transform redis conn info into dogtrace metas"""
     try:
         return {
             net.TARGET_HOST: conn_kwargs["host"],

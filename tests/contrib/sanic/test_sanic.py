@@ -4,7 +4,9 @@ import re
 
 import pytest
 from sanic import Sanic
+from sanic.config import DEFAULT_CONFIG
 from sanic.exceptions import ServerError
+from sanic.exceptions import abort
 from sanic.response import json
 from sanic.response import stream
 from sanic.response import text
@@ -21,7 +23,7 @@ from tests.utils import override_http_config
 
 
 def _response_status(response):
-    return getattr(response, "status_code", getattr(response, "status"))
+    return getattr(response, "status_code", getattr(response, "status", None))
 
 
 async def _response_json(response):
@@ -32,19 +34,25 @@ async def _response_json(response):
 
 
 async def _response_text(response):
-    resp_text = response.text()
+    resp_text = response.text
+    if callable(resp_text):
+        resp_text = resp_text()
     if asyncio.iscoroutine(resp_text):
         resp_text = await resp_text
     return resp_text
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def app(tracer):
+    # Sanic 20.12 and newer prevent loading multiple applications
+    # with the same name if register is True.
+    DEFAULT_CONFIG["REGISTER"] = False
+    DEFAULT_CONFIG["RESPONSE_TIMEOUT"] = 1.0
     app = Sanic(__name__)
 
     @tracer.wrap()
     async def random_sleep():
-        await asyncio.sleep(random.random())
+        await asyncio.sleep(random.random() * 0.1)
 
     @app.route("/hello")
     async def hello(request):
@@ -80,6 +88,14 @@ def app(tracer):
     @app.route("/empty")
     async def empty(request):
         pass
+
+    @app.route("/<n:int>/count", methods=["GET"])
+    async def count(request, n):
+        try:
+            pass
+        except Exception as e:
+            abort(500, e)
+        return json({"hello": n})
 
     @app.exception(ServerError)
     def handler_exception(request, exception):
@@ -283,7 +299,7 @@ async def test_multiple_requests(tracer, client, test_spans):
 async def test_invalid_response_type_str(tracer, client, test_spans):
     response = await client.get("/invalid")
     assert _response_status(response) == 500
-    assert await _response_text(response) == "Invalid response type"
+    assert (await _response_text(response)).startswith("Invalid response type")
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -301,7 +317,7 @@ async def test_invalid_response_type_str(tracer, client, test_spans):
 async def test_invalid_response_type_empty(tracer, client, test_spans):
     response = await client.get("/empty")
     assert _response_status(response) == 500
-    assert await _response_text(response) == "Invalid response type"
+    assert (await _response_text(response)).startswith("Invalid response type")
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -332,3 +348,9 @@ async def test_http_request_header_tracing(tracer, client, test_spans):
     assert len(spans[0]) == 2
     request_span = spans[0][0]
     assert request_span.get_tag("http.request.headers.my-header") == "my_value"
+
+
+async def test_endpoint_with_numeric_arg(tracer, client, test_spans):
+    response = await client.get("/42/count")
+    assert _response_status(response) == 200
+    assert (await _response_text(response)) == '{"hello":42}'

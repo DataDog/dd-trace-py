@@ -16,6 +16,14 @@ except ImportError:
     template_module = False
 
 
+config._add(
+    "aiohttp",
+    dict(
+        distributed_tracing=True,
+    ),
+)
+
+
 def patch():
     """
     Patch aiohttp third party modules:

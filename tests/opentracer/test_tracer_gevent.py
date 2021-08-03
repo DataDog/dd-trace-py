@@ -42,11 +42,12 @@ class TestTracerGevent(object):
                 gevent.sleep(0.03)
                 span.set_tag("g", "yes")
 
-        with ot_tracer.start_span("root"):
+        with ot_tracer.start_active_span("root"):
             gevent.joinall([gevent.spawn(f), gevent.spawn(g)])
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 3
+        assert len(traces) == 1
+        assert len(traces[0]) == 3
 
     def test_trace_greenlet(self, ot_tracer, test_spans):
         # a greenlet can be traced using the trace API
@@ -134,11 +135,11 @@ class TestTracerGeventCompatibility(object):
 
         gevent.spawn(entrypoint).join()
         traces = test_spans.pop_traces()
-        assert len(traces) == 3
-        assert len(traces[0]) == 1
-        parent_span = traces[2][0]
-        worker_1 = traces[0][0]
-        worker_2 = traces[1][0]
+        assert len(traces) == 1
+        assert len(traces[0]) == 3
+        parent_span = traces[0][0]
+        worker_1 = traces[0][1]
+        worker_2 = traces[0][2]
         # check spans data and hierarchy
         assert parent_span.name == "greenlet.main"
         assert worker_1.get_tag("worker_id") == "1"
@@ -175,11 +176,11 @@ class TestTracerGeventCompatibility(object):
 
         gevent.spawn(entrypoint).join()
         traces = test_spans.pop_traces()
-        assert len(traces) == 3
-        assert len(traces[0]) == 1
-        parent_span = traces[2][0]
-        worker_1 = traces[0][0]
-        worker_2 = traces[1][0]
+        assert len(traces) == 1
+        assert len(traces[0]) == 3
+        parent_span = traces[0][0]
+        worker_1 = traces[0][1]
+        worker_2 = traces[0][2]
         # check spans data and hierarchy
         assert parent_span.name == "greenlet.main"
         assert worker_1.get_tag("worker_id") == "1"

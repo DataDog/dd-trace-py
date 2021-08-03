@@ -3,10 +3,10 @@ from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
+from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
-from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
 
 from ..internal.logger import get_logger
@@ -21,11 +21,11 @@ from .utils import get_context_provider_for_scope_manager
 log = get_logger(__name__)
 
 DEFAULT_CONFIG = {
-    keys.AGENT_HOSTNAME: "localhost",
-    keys.AGENT_HTTPS: False,
-    keys.AGENT_PORT: 8126,
+    keys.AGENT_HOSTNAME: None,
+    keys.AGENT_HTTPS: None,
+    keys.AGENT_PORT: None,
     keys.DEBUG: False,
-    keys.ENABLED: True,
+    keys.ENABLED: None,
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
     keys.PRIORITY_SAMPLING: None,
@@ -58,12 +58,11 @@ class Tracer(opentracing.Tracer):
             to the global ``ddtrace.tracer`` tracer.
         """
         # Merge the given config with the default into a new dict
-        config = config or {}
-        self._config = merge_dicts(DEFAULT_CONFIG, config)
-
+        self._config = DEFAULT_CONFIG.copy()
+        if config is not None:
+            self._config.update(config)
         # Pull out commonly used properties for performance
         self._service_name = service_name or get_application_name()
-        self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 
         if self._debug:
@@ -87,7 +86,7 @@ class Tracer(opentracing.Tracer):
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
         self._dd_tracer.configure(
-            enabled=self._enabled,
+            enabled=self._config.get(keys.ENABLED),
             hostname=self._config.get(keys.AGENT_HOSTNAME),
             https=self._config.get(keys.AGENT_HTTPS),
             port=self._config.get(keys.AGENT_PORT),
@@ -166,6 +165,7 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
+        self._dd_tracer.context_provider.activate(otspan._dd_span)
         return scope
 
     def start_span(
@@ -236,14 +236,18 @@ class Tracer(opentracing.Tracer):
             scope = self._scope_manager.active
             parent_span = getattr(scope, "span", None)
             ot_parent_context = getattr(parent_span, "context", None)
-            # we want the ddcontext of the active span in order to maintain the
-            # ddspan hierarchy
-            dd_parent = getattr(ot_parent_context, "_dd_context", None)
 
-            # if we cannot get the context then try getting it from the DD tracer
-            # this emulates the behaviour of tracer.trace()
-            if dd_parent is None:
-                dd_parent = self._dd_tracer.get_call_context()
+            # Compare the active ot and dd spans. Using the one which
+            # was created later as the parent.
+            active_dd_parent = self._dd_tracer.context_provider.active()
+            if parent_span and isinstance(active_dd_parent, DatadogSpan):
+                dd_parent_span = parent_span._dd_span
+                if active_dd_parent.start_ns >= dd_parent_span.start_ns:
+                    dd_parent = active_dd_parent
+                else:
+                    dd_parent = dd_parent_span
+            else:
+                dd_parent = active_dd_parent
         elif ot_parent is not None and isinstance(ot_parent, Span):
             # a span is given to use as a parent
             ot_parent_context = ot_parent.context
@@ -264,6 +268,7 @@ class Tracer(opentracing.Tracer):
             name=operation_name,
             child_of=dd_parent,
             service=self._service_name,
+            activate=False,
         )
 
         # set the start time if one is specified

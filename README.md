@@ -31,6 +31,17 @@ documentation][visualization docs].
 
 See [docs/contributing.rst](docs/contributing.rst).
 
+
+### Pre-commit Hooks
+
+The tracer library uses formatting/linting tools including black, flake8, and mypy.
+While these are run in each CI pipeline for pull requests, they are automated to run
+when you call `git commit` as pre-commit hooks to catch any formatting errors before 
+you commit. To initialize the pre-commit hook script to run in your development 
+branch, run the following command:
+
+    $ hooks/autohook.sh install
+
 ### Testing
 
 
@@ -51,24 +62,26 @@ launch them through:
 
 #### Running Tests in docker
 
-Once your docker-compose environment is running, you can run the test runner image:
+Once your docker-compose environment is running, you can use the shell script to
+execute tests within a Docker image. You can start the container with a bash shell: 
 
-    $ docker-compose run --rm testrunner
+    $ scripts/ddtest
 
-Now you are in a bash shell. You can now run tests as you would do in your local environment:
+You can now run tests as you would do in your local environment. We use
+[tox][tox] as well as [riot][riot], a new tool that we developed for addressing
+our specific needs with an ever growing matrix of tests. You can list the tests
+managed by each:
 
-    $ tox -e '{py35,py36}-redis{210}'
+    $ tox -l
+    $ riot list
+    
+You can run multiple tests by using regular expressions:
 
-We also provide a shell script to execute commands in the provided container.
-
-For example to run the tests for `redis-py` 2.10 on Python 3.5 and 3.6:
-
-    $ ./scripts/ddtest tox -e '{py35,py36}-redis{210}'
-
-If you want to run a list of tox environment (as CircleCI does) based on a
-pattern, you can use the following command:
-
-    $ scripts/ddtest scripts/run-tox-scenario '^futures_contrib-'
+    $ scripts/run-tox-scenario '^futures_contrib-'
+    $ riot run psycopg
+    
+[tox]: https://github.com/tox-dev/tox/
+[riot]: https://github.com/DataDog/riot/
 
 ### Continuous Integration
 

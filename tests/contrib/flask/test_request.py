@@ -3,10 +3,10 @@ import flask
 from flask import abort
 from flask import make_response
 
-from ddtrace.compat import PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.utils import assert_is_measured
@@ -463,10 +463,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
-        self.assertEqual(dispatch_span.error, 1)
-        self.assertTrue(dispatch_span.get_tag("error.msg").startswith("404 Not Found"))
-        self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback"))
-        self.assertEqual(dispatch_span.get_tag("error.type"), "werkzeug.exceptions.NotFound")
+        self.assertEqual(dispatch_span.error, 0)
+        self.assertIsNone(dispatch_span.get_tag("error.msg"))
+        self.assertIsNone(dispatch_span.get_tag("error.stack"))
+        self.assertIsNone(dispatch_span.get_tag("error.type"))
 
     def test_request_abort_404(self):
         """
@@ -529,10 +529,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
-        self.assertEqual(dispatch_span.error, 1)
-        self.assertTrue(dispatch_span.get_tag("error.msg").startswith("404 Not Found"))
-        self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback"))
-        self.assertEqual(dispatch_span.get_tag("error.type"), "werkzeug.exceptions.NotFound")
+        self.assertEqual(dispatch_span.error, 0)
+        self.assertIsNone(dispatch_span.get_tag("error.msg"))
+        self.assertIsNone(dispatch_span.get_tag("error.stack"))
+        self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # Handler span
         handler_span = spans[4]

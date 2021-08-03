@@ -9,18 +9,19 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from .compat import iteritems
-from .compat import pattern_type
+import six
+
 from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
+from .internal.compat import iteritems
+from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .utils.formats import get_env
-from .vendor import six
 
 
 if TYPE_CHECKING:
@@ -35,13 +36,13 @@ MAX_TRACE_ID = 2 ** 64
 KNUTH_FACTOR = 1111111111111111111
 
 
-class BaseSampler(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
+class BaseSampler(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def sample(self, span):
         pass
 
 
-class BasePrioritySampler(six.with_metaclass(abc.ABCMeta)):  # type: ignore[misc]
+class BasePrioritySampler(BaseSampler):
     @abc.abstractmethod
     def update_rate_by_service_sample_rates(self, sample_rates):
         pass
@@ -83,12 +84,14 @@ class RateSampler(BaseSampler):
         return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
 
 
-class RateByServiceSampler(BaseSampler, BasePrioritySampler):
+class RateByServiceSampler(BasePrioritySampler):
     """Sampler based on a rate, by service
 
     Keep (100 * `sample_rate`)% of the traces.
     The sample rate is kept independently for each service/env tuple.
     """
+
+    _default_key = "service:,env:"
 
     @staticmethod
     def _key(
@@ -121,7 +124,7 @@ class RateByServiceSampler(BaseSampler, BasePrioritySampler):
 
     def sample(self, span):
         # type: (Span) -> bool
-        tags = span.tracer.tags  # type: ignore[union-attr]
+        tags = span.tracer.tags if span.tracer else {}
         env = tags[ENV_KEY] if ENV_KEY in tags else None
         key = self._key(span.service, env)
 
@@ -138,11 +141,7 @@ class RateByServiceSampler(BaseSampler, BasePrioritySampler):
         self._by_service_samplers = new_by_service_samplers
 
 
-# Default key for service with no specific rate
-RateByServiceSampler._default_key = RateByServiceSampler._key()
-
-
-class DatadogSampler(BaseSampler, BasePrioritySampler):
+class DatadogSampler(BasePrioritySampler):
     __slots__ = ("default_sampler", "limiter", "rules")
 
     NO_RATE_LIMIT = -1
@@ -173,7 +172,7 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(get_env("trace", "rate_limit", default=self.DEFAULT_RATE_LIMIT))
+            rate_limit = int(get_env("trace", "rate_limit", default=self.DEFAULT_RATE_LIMIT))  # type: ignore[arg-type]
 
         # Ensure rules is a list
         if not rules:
@@ -189,9 +188,15 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
         self.limiter = RateLimiter(rate_limit)
 
         if default_sample_rate is None:
+            log.debug("initialized DatadogSampler, limit %r traces per second", rate_limit)
             # Default to previous default behavior of RateByServiceSampler
-            self.default_sampler = RateByServiceSampler()
+            self.default_sampler = RateByServiceSampler()  # type: BaseSampler
         else:
+            log.debug(
+                "initialized DatadogSampler, sample %s%% traces, limit %r traces per second",
+                100 * default_sample_rate,
+                rate_limit,
+            )
             self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
 
     def update_rate_by_service_sample_rates(self, sample_rates):
@@ -202,8 +207,7 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
-        if span._context:
-            span._context.sampling_priority = priority
+        span.context.sampling_priority = priority
         span.sampled = priority is AUTO_KEEP
 
     def sample(self, span):
@@ -219,7 +223,7 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
         :rtype: :obj:`bool`
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
-        matching_rule = None
+        matching_rule = None  # type: Optional[BaseSampler]
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:
@@ -240,7 +244,8 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
             matching_rule = self.default_sampler
 
         # Sample with the matching sampling rule
-        span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
+        if isinstance(matching_rule, (RateSampler, SamplingRule)):
+            span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
         if not matching_rule.sample(span):
             self._set_priority(span, AUTO_REJECT)
             return False

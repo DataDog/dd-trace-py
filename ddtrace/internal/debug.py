@@ -3,6 +3,10 @@ import logging
 import os
 import platform
 import sys
+from typing import Any
+from typing import Dict
+from typing import TYPE_CHECKING
+from typing import Union
 
 import pkg_resources
 
@@ -13,10 +17,15 @@ from ddtrace.internal.writer import LogWriter
 from .logger import get_logger
 
 
+if TYPE_CHECKING:
+    from ddtrace import Tracer
+
+
 logger = get_logger(__name__)
 
 
 def in_venv():
+    # type: () -> bool
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -27,26 +36,20 @@ def in_venv():
 
 
 def tags_to_str(tags):
+    # type: (Dict[str, Any]) -> str
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
 def collect(tracer):
+    # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    # The tracer doesn't actually maintain a hostname/port, instead it stores
-    # it on the possibly None writer which actually stores it on an API object.
-    # Note that the tracer DOES have hostname and port attributes that it
-    # sets to the defaults and ignores afterwards.
-    if tracer.writer and isinstance(tracer.writer, LogWriter):
+    if isinstance(tracer.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    else:
-        if isinstance(tracer.writer, AgentWriter):
-            writer = tracer.writer
-        else:
-            writer = AgentWriter()
-
+    elif isinstance(tracer.writer, AgentWriter):
+        writer = tracer.writer
         agent_url = writer.agent_url
         try:
             writer.write([])
@@ -55,11 +58,14 @@ def collect(tracer):
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:
             agent_error = None
+    else:
+        agent_url = "CUSTOM"
+        agent_error = None
 
     is_venv = in_venv()
 
     packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
-    integration_configs = {}
+    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace.monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
@@ -128,4 +134,6 @@ def collect(tracer):
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer.tags),
         integrations=integration_configs,
+        partial_flush_enabled=tracer._partial_flush_enabled,
+        partial_flush_min_spans=tracer._partial_flush_min_spans,
     )

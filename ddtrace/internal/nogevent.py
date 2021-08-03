@@ -2,13 +2,15 @@
 """This files exposes non-gevent Python original functions."""
 import threading
 
-from ddtrace import compat
-from ddtrace.vendor import attr
-from ddtrace.vendor import six
+import attr
+import six
+
+from ddtrace.internal import compat
+from ddtrace.internal import forksafe
 
 
 try:
-    import gevent.monkey  # type: ignore[import]
+    import gevent.monkey
 except ImportError:
 
     def get_original(module, func):
@@ -31,8 +33,8 @@ try:
 except AttributeError:
     threading_get_native_id = None
 
-start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")  # type: ignore[attr-defined]
-thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")  # type: ignore[attr-defined]
+start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")
+thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")
 Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
 
@@ -43,20 +45,25 @@ if is_module_patched("threading"):
     class DoubleLock(object):
         """A lock that prevent concurrency from a gevent coroutine and from a threading.Thread at the same time."""
 
-        _lock = attr.ib(factory=threading.Lock, init=False, repr=False)
-        _thread_lock = attr.ib(factory=Lock, init=False, repr=False)
+        # This is a gevent-patched threading.Lock (= a gevent Lock)
+        _lock = attr.ib(factory=forksafe.Lock, init=False, repr=False)
+        # This is a unpatched threading.Lock (= a real threading.Lock)
+        _thread_lock = attr.ib(factory=lambda: forksafe.ResetObject(Lock), init=False, repr=False)
 
         def acquire(self):
+            # type: () -> None
             # You cannot acquire a gevent-lock from another thread if it has been acquired already:
             # make sure we exclude the gevent-lock from being acquire by another thread by using a thread-lock first.
             self._thread_lock.acquire()
             self._lock.acquire()
 
         def release(self):
+            # type: () -> None
             self._lock.release()
             self._thread_lock.release()
 
         def __enter__(self):
+            # type: () -> DoubleLock
             self.acquire()
             return self
 

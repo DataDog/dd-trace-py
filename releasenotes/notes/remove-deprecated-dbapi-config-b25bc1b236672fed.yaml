@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    The deprecated dbapi2 configuration has been removed. The
+    integration-specific configuration should be used instead. Look at the
+    v0.48.0 release notes for migration instructions.

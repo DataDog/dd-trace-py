@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The pytest plugin now includes support for automatically tagging spans with parameters in parameterized tests.

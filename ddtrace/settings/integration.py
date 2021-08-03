@@ -1,5 +1,6 @@
-from copy import deepcopy
 import os
+from typing import Optional
+from typing import Tuple
 
 from .._hooks import Hooks
 from ..utils.attrdict import AttrDict
@@ -40,20 +41,9 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
 
-        # Set default analytics configuration, default is disabled
-        # DEV: Default to `None` which means do not set this key
-        # Inject environment variables for integration
-        old_analytics_enabled_env = get_env(name, "analytics_enabled")
-        analytics_enabled_env = os.environ.get(
-            "DD_TRACE_%s_ANALYTICS_ENABLED" % name.upper(), old_analytics_enabled_env
-        )
-        if analytics_enabled_env is not None:
-            analytics_enabled_env = asbool(analytics_enabled_env)
-        self.setdefault("analytics_enabled", analytics_enabled_env)
-        old_analytics_rate = get_env(name, "analytics_sample_rate", default=1.0)
-
-        analytics_rate = os.environ.get("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % name.upper(), old_analytics_rate)
-        self.setdefault("analytics_sample_rate", float(analytics_rate))
+        analytics_enabled, analytics_sample_rate = self._get_analytics_settings()
+        self.setdefault("analytics_enabled", analytics_enabled)
+        self.setdefault("analytics_sample_rate", float(analytics_sample_rate))
 
         service = get_env(name, "service", default=get_env(name, "service_name", default=None))
         self.setdefault("service", service)
@@ -62,23 +52,39 @@ class IntegrationConfig(AttrDict):
         # unified.
         self.setdefault("service_name", service)
 
-    def __deepcopy__(self, memodict=None):
-        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self), memodict))
-        new.hooks = deepcopy(self.hooks, memodict)
-        new.http = deepcopy(self.http, memodict)
-        return new
+    def _get_analytics_settings(self):
+        # type: () -> Tuple[Optional[bool], float]
+        # Set default analytics configuration, default is disabled
+        # DEV: Default to `None` which means do not set this key
+        # Inject environment variables for integration
+        _ = os.environ.get("DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper()) or get_env(
+            self.integration_name, "analytics_enabled"
+        )
+        analytics_enabled = asbool(_) if _ is not None else None
 
-    def copy(self):
-        new = IntegrationConfig(self.global_config, self.integration_name, dict(self))
-        new.hooks = self.hooks
-        new.http = self.http
-        return new
+        analytics_sample_rate = float(
+            os.environ.get("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper())
+            or get_env(self.integration_name, "analytics_sample_rate")
+            or 1.0
+        )
+
+        return analytics_enabled, analytics_sample_rate
 
     @property
     def trace_query_string(self):
         if self.http.trace_query_string is not None:
             return self.http.trace_query_string
         return self.global_config.http.trace_query_string
+
+    @property
+    def is_header_tracing_configured(self):
+        # type: (...) -> bool
+        """Returns whether header tracing is enabled for this integration.
+
+        Will return true if traced headers are configured for this integration
+        or if they are configured globally.
+        """
+        return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
 
     def header_is_traced(self, header_name):
         """

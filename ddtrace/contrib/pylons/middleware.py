@@ -6,13 +6,13 @@ from webob import Request
 from ddtrace import config as ddconfig
 
 from .. import trace_utils
-from ...compat import reraise
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
+from ...internal.compat import reraise
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
@@ -21,11 +21,13 @@ log = get_logger(__name__)
 
 
 class PylonsTraceMiddleware(object):
-    def __init__(self, app, tracer, service="pylons", distributed_tracing=True):
+    def __init__(self, app, tracer, service="pylons", distributed_tracing=None):
         self.app = app
         self._service = service
-        self._distributed_tracing = distributed_tracing
         self._tracer = tracer
+
+        if distributed_tracing is not None:
+            self._distributed_tracing = distributed_tracing
 
         # register middleware reference
         config[CONFIG_MIDDLEWARE] = self
@@ -33,12 +35,19 @@ class PylonsTraceMiddleware(object):
         # add template tracing
         trace_rendering()
 
+    @property
+    def _distributed_tracing(self):
+        return ddconfig.pylons.distributed_tracing
+
+    @_distributed_tracing.setter
+    def _distributed_tracing(self, distributed_tracing):
+        ddconfig.pylons["distributed_tracing"] = asbool(distributed_tracing)
+
     def __call__(self, environ, start_response):
         request = Request(environ)
-        if self._distributed_tracing:
-            context = HTTPPropagator.extract(request.headers)
-            if context.trace_id:
-                self._tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self._tracer, int_config=ddconfig.pylons, request_headers=request.headers
+        )
 
         with self._tracer.trace("pylons.request", service=self._service, span_type=SpanTypes.WEB) as span:
             span.set_tag(SPAN_MEASURED_KEY)
@@ -55,7 +64,7 @@ class PylonsTraceMiddleware(object):
 
             # tentative on status code, otherwise will be caught by except below
             def _start_response(status, *args, **kwargs):
-                """ a patched response callback which will pluck some metadata. """
+                """a patched response callback which will pluck some metadata."""
                 if len(args):
                     response_headers = args[0]
                 else:
@@ -109,5 +118,7 @@ class PylonsTraceMiddleware(object):
                     url=url,
                     query=environ.get("QUERY_STRING"),
                 )
-                span._set_str_tag("pylons.route.controller", controller)
-                span._set_str_tag("pylons.route.action", action)
+                if controller:
+                    span._set_str_tag("pylons.route.controller", controller)
+                if action:
+                    span._set_str_tag("pylons.route.action", action)
