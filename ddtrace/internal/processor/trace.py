@@ -151,6 +151,7 @@ class SpanAggregator(SpanProcessor):
                     del self._traces[span.trace_id]
 
                 spans = finished  # type: Optional[List[Span]]
+
                 for tp in self._trace_processors:
                     try:
                         if spans is None:
@@ -158,6 +159,17 @@ class SpanAggregator(SpanProcessor):
                         spans = tp.process_trace(spans)
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
+
+                # mark top level span
+                if not spans:
+                    return
+                chunk_root = spans[0]
+                if chunk_root is chunk_root._local_root:
+                    chunk_root.set_metric("_dd.top_level", 1)
+                elif chunk_root._parent and chunk_root._parent.service != chunk_root.service:
+                    chunk_root.set_metric("_dd.top_level", 1)
+                elif should_partial_flush:
+                    chunk_root.set_metric("_dd.top_level", 0)
 
                 self._writer.write(spans)
                 return
