@@ -162,8 +162,9 @@ def pytest_runtest_makereport(item, call):
 
     try:
         result = outcome.get_result()
+        xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
 
-        if hasattr(result, "wasxfail") or "xfail" in result.keywords:
+        if xfail and not any(x in result.keywords for x in ["skip", "skipif", "skipped"]):
             if result.skipped:
                 # XFail tests that fail are recorded skipped by pytest
                 span.set_tag(test.RESULT, test.Status.XFAIL.value)
@@ -172,13 +173,13 @@ def pytest_runtest_makereport(item, call):
                 span.set_tag(test.RESULT, test.Status.XPASS.value)
                 if result.passed:
                     # XPass (strict=False) are recorded passed by pytest
-                    span.set_tag(test.XFAIL_REASON, result.wasxfail)
+                    span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                 else:
                     # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
                     span.set_tag(test.XFAIL_REASON, result.longrepr)
 
         if result.skipped:
-            if hasattr(result, "wasxfail"):
+            if xfail and not any(x in result.keywords for x in ["skip", "skipif", "skipped"]):
                 # XFail tests that fail are recorded skipped by pytest, should be passed instead
                 span.set_tag(test.STATUS, test.Status.PASS.value)
             else:
