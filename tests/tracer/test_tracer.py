@@ -1140,7 +1140,7 @@ def test_early_exit(tracer, test_spans):
 
 class TestPartialFlush(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush(self):
         root = self.tracer.trace("root")
@@ -1211,6 +1211,13 @@ class TestPartialFlush(TracerTestCase):
     )
     def test_partial_flush_configure_precedence(self):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
+        self.test_partial_flush()
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+    )
+    def test_partial_flush_deprecated_config(self):
+        # Test tracer with deprecated configs D_TRACER_...
         self.test_partial_flush()
 
 
