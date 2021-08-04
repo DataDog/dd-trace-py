@@ -1,6 +1,7 @@
 FROM debian:buster-slim as base
 
 ARG PYTHON_VERSION=3.9.6
+ARG PYENV_VERSION=2.0.4
 RUN apt-get update && apt-get install --no-install-recommends -y \
     make build-essential libssl-dev zlib1g-dev \
     libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
@@ -12,8 +13,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 ENV PYENV_ROOT "/pyenv"
 WORKDIR "$PYENV_ROOT"
 ENV PATH "$PYENV_ROOT/bin:$PATH"
-RUN git clone -n https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
-RUN git checkout cef86ce462674c726cb60ddd0e19da0bf39a27c9 # v2.0.4
+RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VERSION" --single-branch
 RUN pyenv install "$PYTHON_VERSION"
 
 FROM debian:buster-slim
