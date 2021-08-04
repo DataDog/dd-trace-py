@@ -213,3 +213,4 @@ def test_get_or_create_kwarg_only(region):
         The arguments should be handled correctly
     """
     assert region.get_or_create(key="key", creator=lambda: 3) == 3
+    assert region.get_or_create_multi(keys="keys", creator=lambda *args: [1, 2])
