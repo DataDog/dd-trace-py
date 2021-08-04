@@ -1217,7 +1217,7 @@ class TestPartialFlush(TracerTestCase):
         env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush_deprecated_config(self):
-        # Test tracer with deprecated configs D_TRACER_...
+        # Test tracer with deprecated config DD_TRACER_...
         self.test_partial_flush()
 
 
