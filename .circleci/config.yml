@@ -619,12 +619,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
-  httplib:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
-
   grpc:
     <<: *machine_executor
     parallelism: 6
@@ -632,6 +626,20 @@ jobs:
       - run_test:
           pattern: "grpc"
           snapshot: true
+
+  httplib:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^httplib_contrib'
+
+  httpx:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'httpx'
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   mariadb:
     <<: *machine_executor
@@ -955,6 +963,7 @@ requires_tests: &requires_tests
     - gevent
     - grpc
     - httplib
+    - httpx
     - integration_agent5
     - integration_agent
     - integration_testagent
@@ -1038,6 +1047,7 @@ workflows:
       - gevent: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
+      - httpx: *requires_base_venvs
       - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
