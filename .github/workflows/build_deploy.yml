@@ -105,6 +105,11 @@ jobs:
         # Rust + Cargo are needed for Cryptography
         run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
 
+      - name: Check source package
+        run: |
+          pip install twine readme_renderer[md]
+          twine check dist/*.tar.gz
+
       - name: Install source package
         run: pip install dist/*.tar.gz
 
