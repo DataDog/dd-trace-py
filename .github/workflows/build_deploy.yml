@@ -88,17 +88,22 @@ jobs:
           path: dist/*.tar.gz
 
   test_alpine_sdist:
+    # alpine is the only environment not built/tested by cibuildwheel
     name: Test source distribution on Alpine Linux
     needs: [build_sdist]
     runs-on: ubuntu-latest
     container:
-      image: python:alpine
+      image: python:3.9-alpine
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
           name: artifact
           path: dist
+
+      - name: Install build dependencies
+        # Rust + Cargo are needed for Cryptography
+        run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
 
       - name: Test source package
         run: |
