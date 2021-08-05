@@ -431,9 +431,6 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
-    # Disable Django's distributed tracing because it'll be handled by the middleware.
-    config.django.distributed_tracing_enabled = False
-
     def django_asgi_modifier(span, scope):
         span.name = "django.request"
 
