@@ -1,7 +1,7 @@
 version: '0.1'
 events:
   - id: crs-913-110
-    name: Found request header associated with security scanner
+    name: Found request header associated with Acunetix security scanner
     tags:
       type: security_scanner
       crs_id: '913110'
@@ -9,19 +9,15 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.headers
+            - http.headers
           list:
             - acunetix-product
             - (acunetix web vulnerability scanner
             - acunetix-scanning-agreement
             - acunetix-user-agreement
-            - myvar=1234
-            - x-ratproxy-loop
-            - >-
-              bytes=0-,5-0,5-1,5-2,5-3,5-4,5-5,5-6,5-7,5-8,5-9,5-10,5-11,5-12,5-13,5-14
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-913-120
     name: Found request filename/argument associated with security scanner
     tags:
@@ -31,9 +27,9 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           list:
             - /.adsensepostnottherenonobook
             - /<invalid>hello.html
@@ -54,7 +50,7 @@ events:
             - w00tw00t.at.blackhats.romanian.anti-sec
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-920-260
     name: Unicode Full/Half Width Abuse Attack Attempt
     tags:
@@ -64,13 +60,13 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.target
+            - http.target
           regex: \%u[fF]{2}[0-9a-fA-F]{2}
           options:
             case_sensitive: true
             min_length: 6
     transformers: []
-    action: log
+    action: record
   - id: crs-921-110
     name: HTTP Request Smuggling Attack
     tags:
@@ -80,9 +76,9 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?:get|post|head|options|connect|put|delete|trace|track|patch|propfind|propatch|mkcol|copy|move|lock|unlock)\s+[^\s]+\s+http/\d
           options:
@@ -90,7 +86,7 @@ events:
             min_length: 12
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-921-140
     name: HTTP Header Injection Attack via headers
     tags:
@@ -100,13 +96,13 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.headers
+            - http.headers
           regex: '[\n\r]'
           options:
             case_sensitive: true
             min_length: 1
     transformers: []
-    action: log
+    action: record
   - id: crs-921-160
     name: HTTP Header Injection Attack via payload (CR/LF and header-name detected)
     tags:
@@ -116,8 +112,8 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.path_params
+            - http.server.query
+            - http.server.path_params
           regex: >-
             [\n\r]+(?:\s|location|refresh|(?:set-)?cookie|(?:x-)?(?:forwarded-(?:for|host|server)|host|via|remote-ip|remote-addr|originating-IP))\s*:
           options:
@@ -125,7 +121,7 @@ events:
             min_length: 3
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-930-100
     name: Obfuscated Path Traversal Attack (/../)
     tags:
@@ -135,16 +131,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.target
-            - $http.headers
+            - http.target
+            - http.headers
           regex: >-
             (?:\x5c|(?:%(?:c(?:0%(?:[2aq]f|5c|9v)|1%(?:[19p]c|8s|af))|2(?:5(?:c(?:0%25af|1%259c)|2f|5c)|%46|f)|(?:(?:f(?:8%8)?0%8|e)0%80%a|bg%q)f|%3(?:2(?:%(?:%6|4)6|F)|5%%63)|u(?:221[56]|002f|EFC8|F025)|1u|5c)|0x(?:2f|5c)|/))(?:%(?:(?:f(?:(?:c%80|8)%8)?0%8|e)0%80%ae|2(?:(?:5(?:c0%25a|2))?e|%45)|u(?:(?:002|ff0)e|2024)|%32(?:%(?:%6|4)5|E)|c0(?:%[256aef]e|\.))|\.(?:%0[01]|\?)?|\?\.?|0x2e){2}(?:\x5c|(?:%(?:c(?:0%(?:[2aq]f|5c|9v)|1%(?:[19p]c|8s|af))|2(?:5(?:c(?:0%25af|1%259c)|2f|5c)|%46|f)|(?:(?:f(?:8%8)?0%8|e)0%80%a|bg%q)f|%3(?:2(?:%(?:%6|4)6|F)|5%%63)|u(?:221[56]|002f|EFC8|F025)|1u|5c)|0x(?:2f|5c)|/))
           options:
             min_length: 4
     transformers: []
-    action: log
+    action: record
   - id: crs-930-110
-    name: Obfuscated Path Traversal Attack (/../)
+    name: Simple Path Traversal Attack (/../)
     tags:
       type: lfi
       crs_id: '930110'
@@ -152,15 +148,15 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.target
-            - $http.headers
+            - http.target
+            - http.headers
           regex: (?:^|[\\/])\.\.(?:[\\/]|$)
           options:
             case_sensitive: true
             min_length: 2
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-930-120
     name: OS File Access Attempt
     tags:
@@ -170,10 +166,10 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           list:
             - .htaccess
             - .htdigest
@@ -1280,7 +1276,7 @@ events:
             - yarn.lock
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-931-110
     name: >-
       Possible Remote File Inclusion (RFI) Attack: Common RFI Vulnerable
@@ -1292,13 +1288,13 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
+            - http.server.query
           regex: >-
             (?:\binclude\s*\([^)]*|mosConfig_absolute_path|_CONF\[path\]|_SERVER\[DOCUMENT_ROOT\]|GALLERY_BASEDIR|path\[docroot\]|appserv_root|config\[root_dir\])=(?:file|ftps?|https?)://
           options:
             min_length: 15
     transformers: []
-    action: log
+    action: record
   - id: crs-931-120
     name: >-
       Possible Remote File Inclusion (RFI) Attack: URL Payload Used w/Trailing
@@ -1310,15 +1306,15 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: ^(?i:file|ftps?|https?).*?\?+$
           options:
             case_sensitive: true
             min_length: 4
     transformers: []
-    action: log
+    action: record
   - id: crs-932-160
     name: 'Remote Command Execution: Unix Shell Code Found'
     tags:
@@ -1328,10 +1324,10 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           list:
             - ${cdpath}
             - ${dirstack}
@@ -1450,7 +1446,7 @@ events:
             - usr/local/bin/wget
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-932-171
     name: 'Remote Command Execution: Shellshock (CVE-2014-6271)'
     tags:
@@ -1460,16 +1456,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.headers
           regex: ^\(\s*\)\s+{
           options:
             case_sensitive: true
             min_length: 4
     transformers: []
-    action: log
+    action: record
   - id: crs-932-180
     name: Restricted File Upload Attempt
     tags:
@@ -1479,9 +1475,9 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.headers:x-filename
-            - $http.headers:x_filename
-            - $http.headers:x-file-name
+            - http.headers:x-filename
+            - http.headers:x_filename
+            - http.headers:x-file-name
           list:
             - .htaccess
             - .htdigest
@@ -1502,7 +1498,7 @@ events:
             - .env
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-933-111
     name: 'PHP Injection Attack: PHP Script File Upload Found'
     tags:
@@ -1512,19 +1508,19 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.headers:x-filename
-            - $http.headers:x_filename
-            - $http.headers:x.filename
-            - $http.headers:x-file-name
+            - http.headers:x-filename
+            - http.headers:x_filename
+            - http.headers:x.filename
+            - http.headers:x-file-name
           regex: .*\.(?:php\d*|phtml)\..*$
           options:
             case_sensitive: true
             min_length: 5
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-933-130
-    name: 'PHP Injection Attack: Variables Found'
+    name: 'PHP Injection Attack: Global Variables Found'
     tags:
       type: php_code_injection
       crs_id: '933130'
@@ -1532,10 +1528,10 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           list:
             - $globals
             - $http_cookie_vars
@@ -1558,9 +1554,9 @@ events:
             - $argv
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-933-131
-    name: 'PHP Injection Attack: Variables Found'
+    name: 'PHP Injection Attack: HTTP Headers Values Found'
     tags:
       type: php_code_injection
       crs_id: '933131'
@@ -1568,17 +1564,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?:HTTP_(?:ACCEPT(?:_(?:ENCODING|LANGUAGE|CHARSET))?|(?:X_FORWARDED_FO|REFERE)R|(?:USER_AGEN|HOS)T|CONNECTION|KEEP_ALIVE)|PATH_(?:TRANSLATED|INFO)|ORIG_PATH_INFO|QUERY_STRING|REQUEST_URI|AUTH_TYPE)
           options:
             case_sensitive: true
             min_length: 9
     transformers: []
-    action: log
+    action: record
   - id: crs-933-140
     name: 'PHP Injection Attack: I/O Stream Found'
     tags:
@@ -1588,15 +1584,15 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: php://(?:std(?:in|out|err)|(?:in|out)put|fd|memory|temp|filter)
           options:
             min_length: 8
     transformers: []
-    action: log
+    action: record
   - id: crs-933-150
     name: 'PHP Injection Attack: High-Risk PHP Function Name Found'
     tags:
@@ -1606,10 +1602,10 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           list:
             - __halt_compiler
             - apache_child_terminate
@@ -1657,7 +1653,7 @@ events:
             - zlib_decode
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-933-160
     name: 'PHP Injection Attack: High-Risk PHP Function Call Found'
     tags:
@@ -1667,16 +1663,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             \b(?:s(?:e(?:t(?:_(?:e(?:xception|rror)_handler|magic_quotes_runtime|include_path)|defaultstub)|ssion_s(?:et_save_handler|tart))|qlite_(?:(?:(?:unbuffered|single|array)_)?query|create_(?:aggregate|function)|p?open|exec)|tr(?:eam_(?:context_create|socket_client)|ipc?slashes|rev)|implexml_load_(?:string|file)|ocket_c(?:onnect|reate)|h(?:ow_sourc|a1_fil)e|pl_autoload_register|ystem)|p(?:r(?:eg_(?:replace(?:_callback(?:_array)?)?|match(?:_all)?|split)|oc_(?:(?:terminat|clos|nic)e|get_status|open)|int_r)|o(?:six_(?:get(?:(?:e[gu]|g)id|login|pwnam)|mk(?:fifo|nod)|ttyname|kill)|pen)|hp(?:_(?:strip_whitespac|unam)e|version|info)|g_(?:(?:execut|prepar)e|connect|query)|a(?:rse_(?:ini_file|str)|ssthru)|utenv)|r(?:unkit_(?:function_(?:re(?:defin|nam)e|copy|add)|method_(?:re(?:defin|nam)e|copy|add)|constant_(?:redefine|add))|e(?:(?:gister_(?:shutdown|tick)|name)_function|ad(?:(?:gz)?file|_exif_data|dir))|awurl(?:de|en)code)|i(?:mage(?:createfrom(?:(?:jpe|pn)g|x[bp]m|wbmp|gif)|(?:jpe|pn)g|g(?:d2?|if)|2?wbmp|xbm)|s_(?:(?:(?:execut|write?|read)ab|fi)le|dir)|ni_(?:get(?:_all)?|set)|terator_apply|ptcembed)|g(?:et(?:_(?:c(?:urrent_use|fg_va)r|meta_tags)|my(?:[gpu]id|inode)|(?:lastmo|cw)d|imagesize|env)|z(?:(?:(?:defla|wri)t|encod|fil)e|compress|open|read)|lob)|a(?:rray_(?:u(?:intersect(?:_u?assoc)?|diff(?:_u?assoc)?)|intersect_u(?:assoc|key)|diff_u(?:assoc|key)|filter|reduce|map)|ssert(?:_options)?)|h(?:tml(?:specialchars(?:_decode)?|_entity_decode|entities)|(?:ash(?:_(?:update|hmac))?|ighlight)_file|e(?:ader_register_callback|x2bin))|f(?:i(?:le(?:(?:[acm]tim|inod)e|(?:_exist|perm)s|group)?|nfo_open)|tp_(?:nb_(?:ge|pu)|connec|ge|pu)t|(?:unction_exis|pu)ts|write|open)|o(?:b_(?:get_(?:c(?:ontents|lean)|flush)|end_(?:clean|flush)|clean|flush|start)|dbc_(?:result(?:_all)?|exec(?:ute)?|connect)|pendir)|m(?:b_(?:ereg(?:_(?:replace(?:_callback)?|match)|i(?:_replace)?)?|parse_str)|(?:ove_uploaded|d5)_file|ethod_exists|ysql_query|kdir)|e(?:x(?:if_(?:t(?:humbnail|agname)|imagetype|read_data)|ec)|scapeshell(?:arg|cmd)|rror_reporting|val)|c(?:url_(?:file_create|exec|init)|onvert_uuencode|reate_function|hr)|u(?:n(?:serialize|pack)|rl(?:de|en)code|[ak]?sort)|(?:json_(?:de|en)cod|debug_backtrac|tmpfil)e|b(?:(?:son_(?:de|en)|ase64_en)code|zopen)|var_dump)(?:\s|/\*.*\*/|//.*|#.*)*\(.*\)
           options:
             min_length: 5
     transformers: []
-    action: log
+    action: record
   - id: crs-933-170
     name: 'PHP Injection Attack: Serialized Object Injection'
     tags:
@@ -1686,17 +1682,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.headers
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: '[oOcC]:\d+:\".+?\":\d+:{[\W\w]*}'
           options:
             case_sensitive: true
             min_length: 12
     transformers: []
-    action: log
+    action: record
   - id: crs-933-200
     name: 'PHP Injection Attack: Wrapper scheme detected'
     tags:
@@ -1706,17 +1702,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: (?i:zlib|glob|phar|ssh2|rar|ogg|expect|zip)://
           options:
             case_sensitive: true
             min_length: 6
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-934-100
     name: Node.js Injection Attack
     tags:
@@ -1726,17 +1722,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?:(?:_(?:\$\$ND_FUNC\$\$_|_js_function)|(?:new\s+Function|\beval)\s*\(|String\s*\.\s*fromCharCode|function\s*\(\s*\)\s*{|this\.constructor)|module\.exports\s*=)
           options:
             case_sensitive: true
             min_length: 5
     transformers: []
-    action: log
+    action: record
   - id: crs-941-110
     name: 'XSS Filter - Category 1: Script Tag Vector'
     tags:
@@ -1746,20 +1742,20 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.user_agent
-            - $http.headers:referer
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.user_agent
+            - http.headers:referer
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <script[^>]*>[\s\S]*?
           options:
             min_length: 8
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-200
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via vmlframe tag
     tags:
       type: xss
       crs_id: '941200'
@@ -1767,19 +1763,19 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: (?i:<.*[:]?vmlframe.*?[\s/+]*?src[\s/+]*=)
           options:
             case_sensitive: true
             min_length: 13
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-210
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Obfuscated Attack Detected via javascript injection
     tags:
       type: xss
       crs_id: '941210'
@@ -1787,10 +1783,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:(?:j|&#x?0*(?:74|4A|106|6A);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:a|&#x?0*(?:65|41|97|61);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:v|&#x?0*(?:86|56|118|76);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:a|&#x?0*(?:65|41|97|61);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:s|&#x?0*(?:83|53|115|73);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:c|&#x?0*(?:67|43|99|63);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:r|&#x?0*(?:82|52|114|72);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:i|&#x?0*(?:73|49|105|69);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:p|&#x?0*(?:80|50|112|70);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:t|&#x?0*(?:84|54|116|74);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?::|&(?:#x?0*(?:58|3A);?|colon;)).)
           options:
@@ -1798,9 +1794,9 @@ events:
             min_length: 12
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-220
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Obfuscated Attack Detected via vbscript injection
     tags:
       type: xss
       crs_id: '941220'
@@ -1808,10 +1804,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:(?:v|&#x?0*(?:86|56|118|76);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:b|&#x?0*(?:66|42|98|62);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:s|&#x?0*(?:83|53|115|73);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:c|&#x?0*(?:67|43|99|63);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:r|&#x?0*(?:82|52|114|72);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:i|&#x?0*(?:73|49|105|69);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:p|&#x?0*(?:80|50|112|70);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?:t|&#x?0*(?:84|54|116|74);?)(?:\t|&(?:#x?0*(?:9|13|10|A|D);?|tab;|newline;))*(?::|&(?:#x?0*(?:58|3A);?|colon;)).)
           options:
@@ -1819,9 +1815,9 @@ events:
             min_length: 10
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-230
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via embed tag
     tags:
       type: xss
       crs_id: '941230'
@@ -1829,18 +1825,18 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <EMBED[\s/+].*?(?:src|type).*?=
           options:
             min_length: 11
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-240
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via import tag
     tags:
       type: xss
       crs_id: '941240'
@@ -1848,10 +1844,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <[?]?import[\s/+\S]*?implementation[\s/+]*?=
           options:
             case_sensitive: true
@@ -1859,9 +1855,9 @@ events:
     transformers:
       - lowercase
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-270
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via link tag
     tags:
       type: xss
       crs_id: '941270'
@@ -1869,18 +1865,18 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <LINK[\s/+].*?href[\s/+]*=
           options:
             min_length: 11
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-280
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via base tag
     tags:
       type: xss
       crs_id: '941280'
@@ -1888,18 +1884,18 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <BASE[\s/+].*?href[\s/+]*=
           options:
             min_length: 11
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-290
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via applet tag
     tags:
       type: xss
       crs_id: '941290'
@@ -1907,18 +1903,18 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <APPLET[\s/+>]
           options:
             min_length: 8
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-300
-    name: IE XSS Filters - Attack Detected
+    name: IE XSS Filters - Attack Detected via object tag
     tags:
       type: xss
       crs_id: '941300'
@@ -1926,16 +1922,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: <OBJECT[\s/+].*?(?:type|codetype|classid|code|data)[\s/+]*=
           options:
             min_length: 13
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: crs-941-350
     name: UTF-7 Encoding IE XSS - Attack Detected
     tags:
@@ -1945,16 +1941,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: \+ADw-.*(?:\+AD4-|>)|<.*\+AD4-
           options:
             case_sensitive: true
             min_length: 6
     transformers: []
-    action: log
+    action: record
   - id: crs-941-360
     name: JSFuck / Hieroglyphy obfuscation detected
     tags:
@@ -1964,16 +1960,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: '![!+ ]\[\]'
           options:
             case_sensitive: true
             min_length: 4
     transformers: []
-    action: log
+    action: record
   - id: crs-942-140
     name: 'SQL Injection Attack: Common DB Names Detected'
     tags:
@@ -1983,17 +1979,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:\b(?:(?:m(?:s(?:ys(?:ac(?:cess(?:objects|storage|xml)|es)|(?:relationship|object|querie)s|modules2?)|db)|aster\.\.sysdatabases|ysql\.db)|pg_(?:catalog|toast)|information_schema|northwind|tempdb)\b|s(?:(?:ys(?:\.database_name|aux)|qlite(?:_temp)?_master)\b|chema(?:_name\b|\W*\())|d(?:atabas|b_nam)e\W*\())
           options:
             case_sensitive: true
             min_length: 4
     transformers: []
-    action: log
+    action: record
   - id: crs-942-160
     name: Detects blind sqli tests using sleep() or benchmark()
     tags:
@@ -2003,16 +1999,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: (?i:sleep\(\s*?\d*?\s*?\)|benchmark\(.*?\,.*?\))
           options:
             case_sensitive: true
             min_length: 7
     transformers: []
-    action: log
+    action: record
   - id: crs-942-220
     name: >-
       Looking for integer overflow attacks, these are taken from skipfish,
@@ -2024,17 +2020,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             ^(?i:-0000023456|4294967295|4294967296|2147483648|2147483647|0000012345|-2147483648|-2147483649|0000023456|3.0.00738585072007e-308|1e309)$
           options:
             case_sensitive: true
             min_length: 5
     transformers: []
-    action: log
+    action: record
   - id: crs-942-240
     name: Detects MySQL charset switch and MSSQL DoS attempts
     tags:
@@ -2044,17 +2040,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:(?:[\"'`](?:;*?\s*?waitfor\s+(?:delay|time)\s+[\"'`]|;.*?:\s*?goto)|alter\s*?\w+.*?cha(?:racte)?r\s+set\s+\w+))
           options:
             case_sensitive: true
             min_length: 7
     transformers: []
-    action: log
+    action: record
   - id: crs-942-250
     name: Detects MATCH AGAINST, MERGE and EXECUTE IMMEDIATE injections
     tags:
@@ -2064,17 +2060,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:merge.*?using\s*?\(|execute\s*?immediate\s*?[\"'`]|match\s*?[\w(?:),+-]+\s*?against\s*?\()
           options:
             case_sensitive: true
             min_length: 11
     transformers: []
-    action: log
+    action: record
   - id: crs-942-270
     name: >-
       Looking for basic sql injection. Common attack string for mysql, oracle
@@ -2086,15 +2082,15 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: union.*?select.*?from
           options:
             min_length: 15
     transformers: []
-    action: log
+    action: record
   - id: crs-942-280
     name: >-
       Detects Postgres pg_sleep injection, waitfor delay attacks and database
@@ -2106,17 +2102,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:(?:;\s*?shutdown\s*?(?:[#;]|/\*|--|\{)|waitfor\s*?delay\s?[\"'`]+\s?\d|select\s*?pg_sleep))
           options:
             case_sensitive: true
             min_length: 10
     transformers: []
-    action: log
+    action: record
   - id: crs-942-290
     name: Finds basic MongoDB SQL injection attempts
     tags:
@@ -2126,17 +2122,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:(?:\[\$(?:ne|eq|lte?|gte?|n?in|mod|all|size|exists|type|slice|x?or|div|like|between|and)\]))
           options:
             case_sensitive: true
             min_length: 5
     transformers: []
-    action: log
+    action: record
   - id: crs-942-500
     name: MySQL in-line comment detected
     tags:
@@ -2146,16 +2142,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: (?i:/\*[!+](?:[\w\s=_\-(?:)]+)?\*/)
           options:
             case_sensitive: true
             min_length: 5
     transformers: []
-    action: log
+    action: record
   - id: crs-943-100
     name: 'Possible Session Fixation Attack: Setting Cookie Values in HTML'
     tags:
@@ -2165,17 +2161,17 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.cookies
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.cookies
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i:\.cookie\b.*?;\W*?(?:expires|domain)\W*?=|\bhttp-equiv\W+set-cookie\b)
           options:
             case_sensitive: true
             min_length: 15
     transformers: []
-    action: log
+    action: record
   - id: crs-944-100
     name: 'Remote Command Execution: Suspicious Java class detected'
     tags:
@@ -2185,18 +2181,18 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.server.cookies
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.server.cookies
+            - http.headers
           regex: java\.lang\.(?:runtime|processbuilder)
           options:
             case_sensitive: true
             min_length: 17
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-944-110
     name: 'Remote Command Execution: Java process spawn (CVE-2017-9805)'
     tags:
@@ -2206,11 +2202,11 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.server.cookies
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.server.cookies
+            - http.headers
           regex: (?:runtime|processbuilder)
           options:
             case_sensitive: true
@@ -2218,18 +2214,18 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.server.cookies
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.server.cookies
+            - http.headers
           regex: (?:unmarshaller|base64data|java\.)
           options:
             case_sensitive: true
             min_length: 5
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: crs-944-130
     name: Suspicious Java class detected
     tags:
@@ -2239,11 +2235,11 @@ events:
       - operation: phrase_match
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.server.cookies
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.server.cookies
+            - http.headers
           list:
             - com.opensymphony.xwork2
             - com.sun.org.apache
@@ -2290,7 +2286,7 @@ events:
             - java.beans.xmldecode
     transformers:
       - lowercase
-    action: log
+    action: record
   - id: sqr-000-001
     name: 'SSRF: Try to access the credential manager of the main cloud services'
     tags:
@@ -2299,16 +2295,16 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: >-
             (?i)^\W*((http|ftp)s?://)?\W*((::f{4}:)?(169|(0x)?0*a9|0+251)\.?(254|(0x)?0*fe|0+376)[0-9a-fx\.:]+|metadata\.google\.internal|metadata\.goog)\W*/
           options:
             min_length: 4
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: sqr-000-002
     name: 'Server-side Javascript injection: Try to detect obvious JS injection'
     tags:
@@ -2317,15 +2313,15 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
           regex: require\(['"][\w\.]+['"]\)|process\.\w+\([\w\.]*\)|\.toString\(\)
           options:
             min_length: 4
     transformers:
       - removeNulls
-    action: log
+    action: record
   - id: sqr-000-007
     name: 'NoSQL: Detect common exploitation strategy'
     tags:
@@ -2334,10 +2330,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.headers
+            - http.headers
           regex: \$(eq|ne|lte?|gte?|n?in)\b
     transformers: []
-    action: log
+    action: record
   - id: sqr-000-008
     name: 'Windows: Detect attempts to exfiltrate .ini files'
     tags:
@@ -2346,13 +2342,13 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.headers
           regex: (?i)[&|]\s*type\s+%\w+%\\+\w+\.ini\s*[&|]
     transformers: []
-    action: log
+    action: record
   - id: sqr-000-009
     name: 'Linux: Detect attempts to exfiltrate passwd files'
     tags:
@@ -2361,13 +2357,13 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.headers
           regex: (?i)[&|]\s*cat\s+\/etc\/[\w\.\/]*passwd\s*[&|]
     transformers: []
-    action: log
+    action: record
   - id: sqr-000-010
     name: 'Windows: Detect attempts to timeout a shell'
     tags:
@@ -2376,13 +2372,13 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.server.query
-            - $http.server.body
-            - $http.server.path_params
-            - $http.headers
+            - http.server.query
+            - http.server.body
+            - http.server.path_params
+            - http.headers
           regex: (?i)[&|]\s*timeout\s+/t\s+\d+\s*[&|]
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-0xx
     name: Joomla exploitation tool
     tags:
@@ -2391,10 +2387,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: JDatabaseDriverMysqli
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-10x
     name: Nessus
     tags:
@@ -2403,10 +2399,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)^Nessus(/|([ :]+SOAP))
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-12x
     name: Arachni
     tags:
@@ -2415,10 +2411,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: ^Arachni\/v
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-13x
     name: Jorgee
     tags:
@@ -2427,10 +2423,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bJorgee\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-14x
     name: Probely
     tags:
@@ -2439,10 +2435,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bProbely\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-15x
     name: Metis
     tags:
@@ -2451,10 +2447,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bmetis\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-16x
     name: SQL power injector
     tags:
@@ -2463,10 +2459,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: sql power injector
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-18x
     name: N-Stealth
     tags:
@@ -2475,10 +2471,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bn-stealth\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-19x
     name: Brutus
     tags:
@@ -2487,10 +2483,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bbrutus\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-1xx
     name: Shellshock exploitation tool
     tags:
@@ -2499,10 +2495,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: \(\) \{ :; *\}
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-20x
     name: Netsparker
     tags:
@@ -2511,10 +2507,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)(<script>netsparker\(0x0|ns:netsparker.*=vuln)
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-22x
     name: JAASCois
     tags:
@@ -2523,10 +2519,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bjaascois\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-23x
     name: PMAFind
     tags:
@@ -2535,10 +2531,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bpmafind\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-25x
     name: Webtrends
     tags:
@@ -2547,10 +2543,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: webtrends security analyzer
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-26x
     name: Nsauditor
     tags:
@@ -2559,10 +2555,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bnsauditor\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-27x
     name: Paros
     tags:
@@ -2571,10 +2567,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)Mozilla/.* Paros/
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-28x
     name: DirBuster
     tags:
@@ -2583,10 +2579,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bdirbuster\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-29x
     name: Pangolin
     tags:
@@ -2595,10 +2591,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bpangolin\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-2xx
     name: Qualys
     tags:
@@ -2607,10 +2603,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bqualys\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-30x
     name: SQLNinja
     tags:
@@ -2619,10 +2615,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bsqlninja\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-31x
     name: Nikto
     tags:
@@ -2631,10 +2627,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: \(Nikto/[\d\.]+\)
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-32x
     name: WebInspect
     tags:
@@ -2643,10 +2639,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bwebinspect\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-33x
     name: BlackWidow
     tags:
@@ -2655,10 +2651,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bblack\s?widow\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-34x
     name: Grendel-Scan
     tags:
@@ -2667,10 +2663,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bgrendel-scan\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-35x
     name: Havij
     tags:
@@ -2679,10 +2675,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bhavij\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-36x
     name: w3af
     tags:
@@ -2691,10 +2687,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bw3af\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-37x
     name: Nmap
     tags:
@@ -2703,10 +2699,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: nmap (nse|scripting engine)
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-39x
     name: Nessus Scripted
     tags:
@@ -2715,10 +2711,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)^'?[a-z0-9]+\.nasl'?$
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-3xx
     name: Evil Scanner
     tags:
@@ -2727,10 +2723,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bevilScanner\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-40x
     name: WebFuck
     tags:
@@ -2739,10 +2735,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bWebFuck\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-41x
     name: Acunetix
     tags:
@@ -2751,10 +2747,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: md5\(acunetix_wvs_security_test\)
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-42x
     name: OpenVAS
     tags:
@@ -2763,10 +2759,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)OpenVAS\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-43x
     name: Spider-Pig
     tags:
@@ -2775,10 +2771,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: Powered by Spider-Pig by tinfoilsecurity\.com
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-44x
     name: Zgrab
     tags:
@@ -2787,10 +2783,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: Mozilla/\d+.\d+ zgrab
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-45x
     name: Zmeu
     tags:
@@ -2799,10 +2795,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bZmEu\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-46x
     name: Crowdstrike
     tags:
@@ -2811,10 +2807,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bcrowdstrike\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-47x
     name: GoogleSecurityScanner
     tags:
@@ -2823,10 +2819,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bGoogleSecurityScanner\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-48x
     name: Commix
     tags:
@@ -2835,10 +2831,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: ^commix\/
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-49x
     name: Gobuster
     tags:
@@ -2847,10 +2843,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: ^gobuster\/
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-4xx
     name: CGIchk
     tags:
@@ -2859,10 +2855,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bcgichk\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-51x
     name: FFUF
     tags:
@@ -2871,10 +2867,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)^Fuzz Faster U Fool\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-52x
     name: >-
       Nuclei is a fast tool for configurable targeted scanning based on
@@ -2885,10 +2881,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)^Nuclei\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-53x
     name: >-
       Tsunami is a general purpose network security scanner with an extensible
@@ -2900,10 +2896,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bTsunamiSecurityScanner\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-54x
     name: Nimbostratus is a vulnerability scanner that scan websites unprompted
     tags:
@@ -2912,10 +2908,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bnimbostratus-bot\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-5xx
     name: Blind Sql Injection Brute Forcer
     tags:
@@ -2924,10 +2920,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)\bbsqlbf\b
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-6xx
     name: Suspicious user agent
     tags:
@@ -2936,10 +2932,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: mozilla/4\.0 \(compatible(; msie 6\.0; win32)?\)
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-7xx
     name: SQLmap
     tags:
@@ -2948,10 +2944,10 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: ^sqlmap/
     transformers: []
-    action: log
+    action: record
   - id: ua0-600-9xx
     name: Skipfish
     tags:
@@ -2960,7 +2956,7 @@ events:
       - operation: match_regex
         parameters:
           inputs:
-            - $http.user_agent
+            - http.user_agent
           regex: (?i)mozilla/5\.0 sf/
     transformers: []
-    action: log
+    action: record
