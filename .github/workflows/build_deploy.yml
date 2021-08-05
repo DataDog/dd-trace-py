@@ -16,7 +16,7 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }} (${{ matrix.archs }})
+    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -87,8 +87,27 @@ jobs:
         with:
           path: dist/*.tar.gz
 
+  test_alpine_sdist:
+    name: Test source distribution on Alpine Linux
+    needs: [build_sdist]
+    runs-on: ubuntu-latest
+    container:
+      image: python:alpine
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - name: Test source package
+        run: |
+          pip install dist/*.tar.gz
+          # Move out of the workspace to avoid importing ddtrace from the source
+          cd / && python $GITHUB_WORKSPACE/tests/smoke_test.py
+
   upload_pypi:
-    needs: [build_wheels, build_sdist]
+    needs: [build_wheels, test_alpine_sdist]
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published') || (github.event.action == 'workflow_dispatch')
     steps:
