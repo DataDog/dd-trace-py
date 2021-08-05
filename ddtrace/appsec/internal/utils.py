@@ -7,43 +7,43 @@ import yaml
 
 
 _EVENT_RULES_MANIFEST_0_1 = {
-    "$http.method": OrderedDict(
+    "http.method": OrderedDict(
         inherit_from="method",
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.target": OrderedDict(
+    "http.target": OrderedDict(
         inherit_from="target",
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.headers": OrderedDict(
+    "http.headers": OrderedDict(
         inherit_from="headers",
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.user_agent": OrderedDict(
+    "http.user_agent": OrderedDict(
         inherit_from="headers",
         key_access=OrderedDict(paths=[["user-agent"], ["User-Agent"]], is_allowlist=True),
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.server.query": OrderedDict(
+    "http.server.query": OrderedDict(
         inherit_from="query",
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.server.cookies": OrderedDict(
+    "http.server.cookies": OrderedDict(
         inherit_from="cookies",
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.server.body": OrderedDict(
+    "http.server.body": OrderedDict(
         inherit_from="body",
         run_on_key=False,
         run_on_value=True,
     ),
-    "$http.server.path_params": OrderedDict(
+    "http.server.path_params": OrderedDict(
         inherit_from="path_params",
         run_on_key=False,
         run_on_value=True,
