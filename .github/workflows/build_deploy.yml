@@ -105,11 +105,13 @@ jobs:
         # Rust + Cargo are needed for Cryptography
         run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
 
-      - name: Test source package
-        run: |
-          pip install dist/*.tar.gz
-          # Move out of the workspace to avoid importing ddtrace from the source
-          cd / && python $GITHUB_WORKSPACE/tests/smoke_test.py
+      - name: Install source package
+        run: pip install dist/*.tar.gz
+
+      - name: Test the source package
+        run: python $GITHUB_WORKSPACE/tests/smoke_test.py
+        # Move out of the workspace to avoid importing ddtrace from the source
+        working-directory: /
 
   upload_pypi:
     needs: [build_wheels, test_alpine_sdist]
