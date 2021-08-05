@@ -6,6 +6,9 @@ on:
       - master
   pull_request:
 
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
   bottle-testsuite-0_12_19:
