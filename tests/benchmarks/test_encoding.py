@@ -3,7 +3,7 @@ from msgpack.fallback import Packer
 import pytest
 
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
-from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import Encoder as MsgpackEncoder
 from ddtrace.internal.encoding import _EncoderBase
 from tests.tracer.test_encoders import RefMsgpackEncoder
 from tests.tracer.test_encoders import gen_trace
@@ -91,10 +91,15 @@ def test_dd_origin_tagging_spans_via_encoder(benchmark, trace_size):
                 span.set_tag("tag", "value")
                 pass
     trace = tracer.writer.pop()
-    benchmark(trace_encoder.encode_trace, trace)
+
+    def _(trace):
+        trace_encoder.put(trace)
+        trace_encoder.encode()
+
+    benchmark(_, trace)
 
     # Ensure encoded trace contains dd_origin tag in all spans
-    encoded_trace = trace_encoder.encode_trace(trace)
-    decoded_trace = trace_encoder._decode(encoded_trace)
+    trace_encoder.put(trace)
+    (decoded_trace,) = trace_encoder._decode(trace_encoder.encode())
     for span in decoded_trace:
         assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
