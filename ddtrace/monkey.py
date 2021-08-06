@@ -136,7 +136,7 @@ def _on_import_factory(module, raise_errors=True):
 
 
 def patch_all(**patch_modules):
-    # type: (Dict[str, bool]) -> None
+    # type: (bool) -> None
     """Automatically patches all available modules.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -166,7 +166,7 @@ def patch_all(**patch_modules):
 
 
 def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Dict[str, bool]) -> None
+    # type: (bool, bool) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
