@@ -1,6 +1,25 @@
-ARG PYTHON_VERSION=3.9-slim-buster
+FROM debian:buster-slim as base
 
-FROM python:${PYTHON_VERSION} as python
+ARG PYTHON_VERSION=3.9.6
+ARG PYENV_VERSION=2.0.4
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    make build-essential libssl-dev zlib1g-dev \
+    libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
+    git ca-certificates
+ENV PYENV_ROOT "/pyenv"
+WORKDIR "$PYENV_ROOT"
+ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
+RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VERSION" --single-branch "$PYENV_ROOT"
+RUN pyenv install "$PYTHON_VERSION"
+
+FROM debian:buster-slim
+ARG PYTHON_VERSION=3.9.6
+
+COPY --from=base /pyenv /pyenv
+ENV PYENV_ROOT "/pyenv"
+ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
+RUN pyenv global "$PYTHON_VERSION"
 
 ARG SCENARIO=base
 
@@ -14,7 +33,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   curl \
   git \
   # ddtrace includes c extensions
-  build-essential \ 
+  build-essential \
   # uuid is used to generate identifier for run if one is not provided
   uuid-runtime \
   # provides ab for testing
@@ -31,7 +50,7 @@ COPY ./${SCENARIO}/ /app/
 
 # Create venv for scenario requirements (other than ddtrace)
 ENV VIRTUAL_ENV=/app/.venv
-RUN python3 -m venv $VIRTUAL_ENV
+RUN python -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN pip install -r requirements.txt
 
