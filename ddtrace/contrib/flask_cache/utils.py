@@ -17,6 +17,17 @@ def _resource_from_cache_prefix(resource, cache):
     return name.lower()
 
 
+def _extract_client(cache, write=False):
+    """
+    Get the client from the cache instance according to the current operation
+    """
+    client = getattr(cache, "_client", None)
+    if client is None:
+        # flask-caching has _read_clients & _write_client for the redis backend
+        client = getattr(cache, "_write_client" if write else "_read_clients", None)
+    return client
+
+
 def _extract_conn_tags(client):
     """
     For the given client extracts connection tags
