@@ -15,6 +15,7 @@ agentless
 analytics
 api
 app
+args
 asgi
 asyncio
 attrs
@@ -43,6 +44,7 @@ ddtrace
 deprecations
 django
 dogpile
+dogpile.cache
 dogstatsd
 elasticsearch
 elasticsearch1
@@ -71,6 +73,7 @@ js
 kombu
 kubernetes
 kwarg
+kwargs
 lifecycle
 lookups
 mako
