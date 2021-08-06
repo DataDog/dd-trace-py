@@ -68,7 +68,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.flask_cache.get_analytics_sample_rate())
             # add connection meta if there is one
-            client = _extract_client(self.cache)
+            client = _extract_client(self.cache, write=write)
             if client is not None:
                 try:
                     s.set_tags(_extract_conn_tags(client))
