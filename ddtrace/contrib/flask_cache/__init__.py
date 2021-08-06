@@ -2,6 +2,9 @@
 The flask cache tracer will track any access to a cache backend.
 You can use this tracer together with the Flask tracer middleware.
 
+The tracer supports both `Flask-Cache <https://pythonhosted.org/Flask-Cache/>`_
+and `Flask-Caching <https://flask-caching.readthedocs.io/>`_.
+
 To install the tracer, ``from ddtrace import tracer`` needs to be added::
 
     from ddtrace import tracer
@@ -30,7 +33,7 @@ Here is the end result, in a sample app::
         # this access is traced
         conn_counter = cache.get("conn_counter")
 
-Use an alternative ``Cache`` implementation with::
+Use a specific ``Cache`` implementation with::
 
     from ddtrace import tracer
     from ddtrace.contrib.flask_cache import get_traced_cache
