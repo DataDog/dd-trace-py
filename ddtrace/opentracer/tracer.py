@@ -21,11 +21,11 @@ from .utils import get_context_provider_for_scope_manager
 log = get_logger(__name__)
 
 DEFAULT_CONFIG = {
-    keys.AGENT_HOSTNAME: "localhost",
-    keys.AGENT_HTTPS: False,
-    keys.AGENT_PORT: 8126,
+    keys.AGENT_HOSTNAME: None,
+    keys.AGENT_HTTPS: None,
+    keys.AGENT_PORT: None,
     keys.DEBUG: False,
-    keys.ENABLED: True,
+    keys.ENABLED: None,
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
     keys.PRIORITY_SAMPLING: None,
@@ -63,7 +63,6 @@ class Tracer(opentracing.Tracer):
             self._config.update(config)
         # Pull out commonly used properties for performance
         self._service_name = service_name or get_application_name()
-        self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 
         if self._debug:
@@ -87,7 +86,7 @@ class Tracer(opentracing.Tracer):
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
         self._dd_tracer.configure(
-            enabled=self._enabled,
+            enabled=self._config.get(keys.ENABLED),
             hostname=self._config.get(keys.AGENT_HOSTNAME),
             https=self._config.get(keys.AGENT_HTTPS),
             port=self._config.get(keys.AGENT_PORT),

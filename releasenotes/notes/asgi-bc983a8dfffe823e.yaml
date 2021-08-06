@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASGI: handle decoding errors when extracting headers for trace propagation.

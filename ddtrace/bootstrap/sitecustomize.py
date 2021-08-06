@@ -99,11 +99,7 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
-    # FIXME: Remove as part of the deprecation of collect_metrics
-    opts["collect_metrics"] = asbool(get_env("runtime_metrics", "enabled"))
-
-    if opts:
-        tracer.configure(**opts)
+    tracer.configure(**opts)
 
     if patch:
         update_patched_modules()

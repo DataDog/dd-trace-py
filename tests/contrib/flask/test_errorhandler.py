@@ -30,13 +30,10 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.get_tag("flask.url_rule"))
 
         # flask.dispatch_request span
-        self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag("error.msg")
-        self.assertTrue(error_msg.startswith("404 Not Found"))
-        error_stack = dispatch_span.get_tag("error.stack")
-        self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = dispatch_span.get_tag("error.type")
-        self.assertEqual(error_type, "werkzeug.exceptions.NotFound")
+        self.assertEqual(dispatch_span.error, 0)
+        self.assertIsNone(dispatch_span.get_tag("error.msg"))
+        self.assertIsNone(dispatch_span.get_tag("error.stack"))
+        self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.meta, dict())
