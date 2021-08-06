@@ -34,6 +34,8 @@ cdef extern from "buff_converter.h":
 cdef long long ITEM_LIMIT = (2**32)-1
 
 
+cdef int MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
+
 class BufferFull(Exception):
     pass
 
@@ -51,7 +53,7 @@ cdef inline int array_prefix_size(int l):
         return 1
     elif l < (2<<16):
         return 3
-    return 5
+    return MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
 
 cdef inline int pack_bytes(msgpack_packer *pk, char *bytes, Py_ssize_t l):
@@ -130,8 +132,13 @@ cdef class BufferedEncoder(object):
         self.max_item_size = max_item_size
         self._lock = threading.Lock()
 
-    def put(self, item): ...
-    def encode(self): ...
+    # ---- Abstract methods ----
+
+    def put(self, item):
+        raise NotImplementedError()
+
+    def encode(self):
+        raise NotImplementedError()
 
 
 cdef class MsgpackEncoderBase(BufferedEncoder):
@@ -148,8 +155,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.pk.buf_size = self.max_size = max_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
         self._lock = threading.Lock()
-        self._count = 0
-        self.pk.length = 5  # Leave room for array length prefix
+        self._reset_buffer()
 
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
@@ -158,12 +164,15 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     def __len__(self):  # TODO: Use a better name?
         return self._count
 
-    cpdef _decode(self, data):  # TODO: Make module util/class method?
+    cpdef _decode(self, data):
         import msgpack
         if msgpack.version[:2] < (0, 6):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
 
+    cdef _reset_buffer(self):
+        self._count = 0
+        self.pk.length = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE  # Leave room for array length prefix
 
     cpdef encode(self):
         if not self._count:
@@ -173,7 +182,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
     cdef inline int _update_array_len(self):
         """Update traces array size prefix"""
-        cdef int offset = 5 - array_prefix_size(self._count)
+        cdef int offset = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE - array_prefix_size(self._count)
         cdef int old_pos = self.pk.length
 
         with self._lock:
@@ -246,14 +255,14 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
-        return self.pk.length + array_prefix_size(self._count) - 5
+        return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
     # ---- Abstract methods ----
 
     cpdef flush(self):
         raise NotImplementedError()
 
-    cpdef pack_span(self, object span, object dd_origin):
+    cdef pack_span(self, object span, object dd_origin):
         raise NotImplementedError()
 
 
@@ -262,9 +271,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
         try:
             return self.get_bytes()
         finally:
-            # Reset the buffer.
-            self.pk.length = 5
-            self._count = 0
+            self._reset_buffer()
 
     cdef inline int _pack_meta(self, object meta, object dd_origin):
         cdef Py_ssize_t L
@@ -316,7 +323,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cpdef pack_span(self, object span, object dd_origin):
+    cdef pack_span(self, object span, object dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
