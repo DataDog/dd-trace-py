@@ -12,7 +12,6 @@ import sys
 import threading
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import List
 
 from ddtrace.vendor.wrapt.importer import when_imported
