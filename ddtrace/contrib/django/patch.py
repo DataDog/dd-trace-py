@@ -455,6 +455,16 @@ def _patch(django):
 
         trace_utils.wrap(django, "core.handlers.base.BaseHandler.get_response_async", traced_get_response_async(django))
 
+        # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
+        # because get_response and get_asgi_application will be used.
+        if "django.core.asgi" not in sys.modules:
+            try:
+                import django.core.asgi
+            except ImportError:
+                pass
+            else:
+                trace_utils.wrap(django, "core.asgi.get_asgi_application", traced_get_asgi_application(django))
+
     # DEV: this check will be replaced with import hooks in the future
     if "django.template.base" not in sys.modules:
         import django.template.base
@@ -473,13 +483,6 @@ def _patch(django):
         import django.views.generic.base
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
 
-    if "django.core.asgi" not in sys.modules:
-        try:
-            import django.core.asgi
-        except ImportError:
-            pass
-        else:
-            trace_utils.wrap(django, "core.asgi.get_asgi_application", traced_get_asgi_application(django))
 
 
 def patch():
