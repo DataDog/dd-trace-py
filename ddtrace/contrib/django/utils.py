@@ -139,18 +139,7 @@ def get_request_uri(request):
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
 
-def _before_request_tags(pin, span, request):
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
-    span.name = "django.request"
-    span.resource = request.method
-    span.service = trace_utils.int_service(pin, config.django)
-    span.span_type = SpanTypes.WEB
-    span.metrics[SPAN_MEASURED_KEY] = 1
-
-    analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
-    if analytics_sr is not None:
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
-
+def _set_resolver_tags(pin, span, request):
     try:
         # Get resolver match result and build resource name pieces
         resolver_match = request.resolver_match
@@ -194,6 +183,18 @@ def _before_request_tags(pin, span, request):
             getattr(request, "path_info", "not-set"),
             exc_info=True,
         )
+
+
+def _before_request_tags(pin, span, request):
+    span.resource = request.method
+    span.service = trace_utils.int_service(pin, config.django)
+    span.span_type = SpanTypes.WEB
+    span.metrics[SPAN_MEASURED_KEY] = 1
+
+    analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
+    if analytics_sr is not None:
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
+
     span._set_str_tag("django.request.class", func_name(request))
 
     url = get_request_uri(request)
@@ -274,7 +275,11 @@ def _after_request_tags(pin, span, request, response):
 
             set_tag_array(span, "django.response.template", template_names)
 
-        response_headers = dict(response.items())
+        # DEV: Resolve the view and resource name at the end of the request in case
+        #      urlconf changes at any point during the request
+        _set_resolver_tags(pin, span, request)
+
+        response_headers = dict(response.items()) if response else {}
         _events.WebResponse(
             span=span, status_code=status, headers=response_headers, integration=config.django.integration_name
         ).emit()
