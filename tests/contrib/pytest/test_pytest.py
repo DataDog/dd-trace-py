@@ -212,7 +212,7 @@ class TestPytest(TracerTestCase):
         assert json.loads(spans[0].meta[test.PARAMETERS]) == {"arguments": {"item": "Could not encode"}, "metadata": {}}
 
     def test_skip(self):
-        """Test parametrize case."""
+        """Test skip case."""
         py_file = self.testdir.makepyfile(
             """
             import pytest
@@ -236,6 +236,62 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == "body"
 
+    def test_skip_module_with_xfail_cases(self):
+        """Test Xfail test cases for a module that is skipped entirely, which should be treated as skip tests."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            pytestmark = pytest.mark.skip(reason="reason")
+
+            @pytest.mark.xfail(reason="XFail Case")
+            def test_xfail():
+                pass
+
+            @pytest.mark.xfail(condition=False, reason="XFail Case")
+            def test_xfail_conditional():
+                pass
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=2)
+        spans = self.pop_spans()
+
+        assert len(spans) == 2
+        assert spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[0].get_tag(test.SKIP_REASON) == "reason"
+        assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[1].get_tag(test.SKIP_REASON) == "reason"
+
+    def test_skipif_module(self):
+        """Test XFail test cases for a module that is skipped entirely with the skipif marker."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            pytestmark = pytest.mark.skipif(True, reason="reason")
+
+            @pytest.mark.xfail(reason="XFail")
+            def test_xfail():
+                pass
+
+            @pytest.mark.xfail(condition=False, reason="XFail Case")
+            def test_xfail_conditional():
+                pass
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=2)
+        spans = self.pop_spans()
+
+        assert len(spans) == 2
+        assert spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[0].get_tag(test.SKIP_REASON) == "reason"
+        assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[1].get_tag(test.SKIP_REASON) == "reason"
+
     def test_xfail_fails(self):
         """Test xfail (expected failure) which fails, should be marked as pass."""
         py_file = self.testdir.makepyfile(
@@ -245,18 +301,25 @@ class TestPytest(TracerTestCase):
             @pytest.mark.xfail(reason="test should fail")
             def test_should_fail():
                 assert 0
+
+            @pytest.mark.xfail(condition=True, reason="test should xfail")
+            def test_xfail_conditional():
+                assert 0
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         # pytest records xfail as skipped
-        rec.assertoutcome(skipped=1)
+        rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XFAIL.value
         assert spans[0].get_tag(test.XFAIL_REASON) == "test should fail"
+        assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
+        assert spans[1].get_tag(test.XFAIL_REASON) == "test should xfail"
 
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
@@ -265,19 +328,26 @@ class TestPytest(TracerTestCase):
             import pytest
 
             @pytest.mark.xfail(reason="test should fail")
-            def test_should_fail():
+            def test_should_fail_but_passes():
+                pass
+
+            @pytest.mark.xfail(condition=True, reason="test should not xfail")
+            def test_should_not_fail():
                 pass
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
+        rec.assertoutcome(passed=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
         assert spans[0].get_tag(test.XFAIL_REASON) == "test should fail"
+        assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[1].get_tag(test.RESULT) == test.Status.XPASS.value
+        assert spans[1].get_tag(test.XFAIL_REASON) == "test should not xfail"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -298,8 +368,8 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
-        # Note: xpass (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
-        # however this provides the entire traceback/error into longrepr.
+        # Note: XFail (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
+        # however it provides the entire traceback/error into longrepr.
         assert "test should fail" in spans[0].get_tag(test.XFAIL_REASON)
 
     def test_tags(self):
