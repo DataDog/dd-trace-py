@@ -3,8 +3,6 @@ from cpython.bytearray cimport PyByteArray_Check
 from libc cimport stdint
 import threading
 
-from ..constants import ORIGIN_KEY
-
 
 cdef extern from "Python.h":
     char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
@@ -35,6 +33,7 @@ cdef long long ITEM_LIMIT = (2**32)-1
 
 
 cdef int MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
+
 
 class BufferFull(Exception):
     pass
@@ -123,6 +122,8 @@ cdef inline int pack_text(msgpack_packer *pk, object text):
 
 
 cdef class BufferedEncoder(object):
+    content_type: str = None
+
     cdef public int max_size
     cdef public int max_item_size
     cdef object _lock
@@ -294,7 +295,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, v)
                     if ret != 0: break
                 if dd_origin is not None:
-                    ret = pack_text(&self.pk, ORIGIN_KEY)
+                    ret = pack_bytes(&self.pk, <char *> b"_dd.origin", 10)
                     if ret == 0:
                         ret = pack_text(&self.pk, dd_origin)
             return ret
