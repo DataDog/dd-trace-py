@@ -25,18 +25,21 @@ class IntegrationEvent(object):
     integration = attr.ib(type=str)
 
     def emit(self):
+        # type: () -> None
         """Alias for emitting this event."""
         emit(self)
 
     @classmethod
-    def register(cls, func=None, integration=None):
+    def register(cls, func=None):
+        # type: (Optional[Callable]) -> Optional[Callable]
         """Alias for registering a listener for this event type."""
-        return register(cls, func=func, integration=integration)
+        return register(cls, func=func)
 
     @classmethod
-    def deregister(cls, func, integration=None):
+    def deregister(cls, func):
+        # type: (Callable) -> None
         """Alias for deregistering a listener for this event type."""
-        deregister(cls, func, integration=integration)
+        deregister(cls, func)
 
     if config._raise:
         @span.validator  # type: ignore
@@ -85,28 +88,17 @@ class WebResponse(IntegrationEvent):
 
 def emit(event):
     # type: (IntegrationEvent) -> None
-    """
-    Notify registered listeners about an event.
-
-    Integration-specific listeners are notified before global listeners.
-    """
-    # Integration-specific hook listeners
-    _HOOKS.emit((event.integration, event.__class__), event)
-    # Global hook listeners
-    _HOOKS.emit((None, event.__class__), event)
+    """Notify registered listeners about an event."""
+    _HOOKS.emit(event.__class__, event)
 
 
-def register(event_type, func=None, integration=None):
-    # type: (Type[IntegrationEvent], Optional[Callable], Optional[str]) -> Optional[Callable]
-    """
-    Register a function for a specific event type and optionally for events coming exclusively from a given integration.
-    """
-    return _HOOKS.register((integration, event_type), func)
+def register(event_type, func=None):
+    # type: (Type[IntegrationEvent], Optional[Callable]) -> Optional[Callable]
+    """Register a function for a specific event type."""
+    return _HOOKS.register(event_type, func)
 
 
-def deregister(event_type, func, integration=None):
-    # type: (Type[IntegrationEvent], Callable, Optional[str]) -> None
-    """
-    Deregister a function for an event type and integration.
-    """
-    _HOOKS.deregister((integration, event_type), func)
+def deregister(event_type, func):
+    # type: (Type[IntegrationEvent], Callable) -> None
+    """Deregister a function for an event type."""
+    _HOOKS.deregister(event_type, func)
