@@ -569,7 +569,9 @@ venv = Venv(
                             "~=7.6.0",
                             "~=7.8.0",
                             "~=7.10.0",
-                            latest,
+                            # FIXME: Elasticsearch introduced a breaking change in 7.14
+                            # which makes it incompatible with previous major versions.
+                            # latest,
                         ]
                     },
                 ),
@@ -577,7 +579,7 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0"]}),
             ],
         ),
         Venv(
@@ -591,7 +593,7 @@ venv = Venv(
                         "elasticsearch2": [latest],
                         "elasticsearch5": [latest],
                         "elasticsearch6": [latest],
-                        "elasticsearch7": [latest],
+                        "elasticsearch7": ["<7.14.0"],
                     },
                 ),
             ],
@@ -690,6 +692,8 @@ venv = Venv(
                     pys=select_pys(max_version="2.7"),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
+                        "pytest": "~=3.0",
+                        "Werkzeug": ["<1.0"],
                         "Flask-Cache": ["~=0.12.0"],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
@@ -699,9 +703,18 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "Werkzeug": ["<1.0"],
                         "Flask-Cache": ["~=0.13.0", latest],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
             ],
