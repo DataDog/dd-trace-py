@@ -241,7 +241,11 @@ To run snapshot tests:
 2) Use the @snapshot annotation to specify for which tests you'd like the tracer to write to the snapshot 
 trace-agent. See ``tests/contrib/mariadb/test_maridb.py`` for examples.
 
-3) Make sure your snaps are generated in ``dd-trace-py/tests/snapshots/``
+3) Use the ``DD_TRACE_AGENT_URL`` environment variable to tell the tracer to send its traces to the snapshot 
+trace-agent listening on port 9126.
+For example ``DD_TRACE_AGENT_URL=http://localhost:9126 riot run -s mariadb``
+
+4) Make sure your snaps are generated in ``dd-trace-py/tests/snapshots/``
 
 
 Trace Examples
