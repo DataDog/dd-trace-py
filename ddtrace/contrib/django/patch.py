@@ -484,7 +484,6 @@ def _patch(django):
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
 
 
-
 def patch():
     # DEV: this import will eventually be replaced with the module given from an import hook
     import django
