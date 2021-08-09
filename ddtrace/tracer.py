@@ -239,7 +239,7 @@ class Tracer(object):
 
         If there is no active trace then None is returned.
         """
-        active = self.context_provider.active(*args, **kwargs)
+        active = self.context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
