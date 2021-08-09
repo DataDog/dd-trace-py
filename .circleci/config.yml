@@ -2,7 +2,6 @@ version: 2.1
 
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
-python39-alpine_image: &python39-alpine_image python:3.9-alpine
 python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
@@ -218,14 +217,6 @@ commands:
       - store_artifacts:
           path: test-results
 
-  test_build:
-    description: "Build the package extensions and wheel to validate builds work"
-    steps:
-      - checkout
-      - run:
-          name: Run test build
-          command: .circleci/scripts/test_build.sh
-
   build_docs:
     steps:
       - setup_riot
@@ -238,10 +229,6 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: small
-  python39-alpine:
-    docker:
-      - image: *python39-alpine_image
     resource_class: small
   python39:
     docker:
@@ -367,15 +354,6 @@ jobs:
           root: .
           paths:
             - "."
-
-
-  # alpine is the only environment not built/tested by cibuildwheel
-  test_build_alpine:
-    executor: python39-alpine
-    steps:
-      # Rust + Cargo are needed for Cryptography
-      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
-      - test_build
 
   tracer:
     <<: *contrib_job
@@ -1015,9 +993,6 @@ workflows:
 
       # Build necessary base venvs for integration tests
       - build_base_venvs: *requires_pre_check
-
-      # Test building the package
-      - test_build_alpine: *requires_pre_check
 
       # Integration test suites
       - aiobotocore: *requires_base_venvs
