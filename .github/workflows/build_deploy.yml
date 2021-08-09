@@ -16,11 +16,19 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, windows-latest, macos-latest]
+        include:
+         - os: ubuntu-18.04
+           archs: x86_64 i686
+         - os: ubuntu-18.04
+           archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
+         - os: macos-latest
+           archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v2
         # Include all history and tags
@@ -43,11 +51,14 @@ jobs:
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
-          CIBW_ARCHS_LINUX: auto aarch64
-          CIBW_ARCHS_MACOS: x86_64 universal2
+          CIBW_ARCHS: ${{ matrix.archs }}
           # PyPY is not supported
           # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
           CIBW_SKIP: pp* cp27-win*
+          # Run a smoke test on every supported platform
+          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
+          # Testing arm on MacOS is currently not supported by Github
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
 
       - uses: actions/upload-artifact@v2
         with:
@@ -76,8 +87,39 @@ jobs:
         with:
           path: dist/*.tar.gz
 
+  test_alpine_sdist:
+    # alpine is the only environment not built/tested by cibuildwheel
+    name: Test source distribution on Alpine Linux
+    needs: [build_sdist]
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.9-alpine
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - name: Install build dependencies
+        # Rust + Cargo are needed for Cryptography
+        run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
+
+      - name: Check source package
+        run: |
+          pip install twine readme_renderer[md]
+          twine check dist/*.tar.gz
+
+      - name: Install source package
+        run: pip install dist/*.tar.gz
+
+      - name: Test the source package
+        run: python $GITHUB_WORKSPACE/tests/smoke_test.py
+        # Move out of the workspace to avoid importing ddtrace from the source
+        working-directory: /
+
   upload_pypi:
-    needs: [build_wheels, build_sdist]
+    needs: [build_wheels, test_alpine_sdist]
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published') || (github.event.action == 'workflow_dispatch')
     steps:
