@@ -1,8 +1,12 @@
-Performance Testing
-===================
+.. _benchmarks:
 
-New scenario
-------------
+_Benchmarks
+-----------
+
+Framework
+^^^^^^^^^
+
+
 
 Create a new directory for a scenario which includes a ``scenario.py`` script to be run. Add any additional dependencies in a ``requirements_scenario.txt``.
 

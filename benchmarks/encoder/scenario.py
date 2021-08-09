@@ -1,30 +1,23 @@
 from contextlib import contextmanager
 
-import attr
 import bm
 import utils
 
 
-
+@bm.register
 class Encoder(bm.Scenario):
-    @attr.s
-    class Config(bm.Scenario.Config):
-        ntraces = attr.ib(type=int)
-        nspans = attr.ib(type=int)
-        ntags = attr.ib(type=int)
-        ltags = attr.ib(type=int)
-        nmetrics = attr.ib(type=int)
+    ntraces = bm.var(type=int)
+    nspans = bm.var(type=int)
+    ntags = bm.var(type=int)
+    ltags = bm.var(type=int)
+    nmetrics = bm.var(type=int)
 
-    @contextmanager
-    def run_ctx(self):
+    def run(self):
         encoder = utils.init_encoder()
-        traces = utils.gen_traces(self.config)
+        traces = utils.gen_traces(self)
 
         def _(loops):
             for _ in range(loops):
                 encoder.encode_traces(traces)
 
         yield _
-
-
-bm.register(Encoder)

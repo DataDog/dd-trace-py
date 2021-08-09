@@ -6,22 +6,19 @@ if [[ -z "${RUN_ID}" ]]; then
 fi
 
 ARTIFACTS=/artifacts/${RUN_ID}/${SCENARIO}
-mkdir -p ${ARTIFACTS}
-RESULTS_V1=${ARTIFACTS}/${DDTRACE_V1}.json
-RESULTS_V2=${ARTIFACTS}/${DDTRACE_V2}.json
+OUTPUT_V1=${ARTIFACTS}/${DDTRACE_V1}/
+OUTPUT_V2=${ARTIFACTS}/${DDTRACE_V2}/
+mkdir -p ${OUTPUT_V1}
+mkdir -p ${OUTPUT_V2}
 
 # append venvs with ddtrace to sys.path
 
 PYTHONPATH=${VENV_DDTRACE_V1}/lib/python3.9/site-packages \
-    python scenario.py \
-    --copy-env \
-    --fast \
-    -o ${RESULTS_V1}
+    python run.py \
+    ${OUTPUT_V1}
 
 PYTHONPATH=${VENV_DDTRACE_V2}/lib/python3.9/site-packages \
-    python scenario.py \
-    --copy-env \
-    --fast \
-    -o ${RESULTS_V2}
+    python run.py \
+    ${OUTPUT_V1}
 
-pyperf compare_to --table ${RESULTS_V2} ${RESULTS_V1}
+pyperf compare_to --table ${OUTPUT_V2}/results.json ${OUTPUT_V1}/results.json
