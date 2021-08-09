@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentracer: don't override default tracing config for the `ENABLED`,
+      `AGENT_HOSTNAME`, `AGENT_HTTPS` or `AGENT_PORT` settings.
