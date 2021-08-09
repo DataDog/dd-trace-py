@@ -104,7 +104,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/route_params/test/100/5.5/some/sub/path")
         self.assertEqual(res.status_code, 200)
-        data = json.loads(res.data)
+        if isinstance(res.data, bytes):
+            data = json.loads(res.data.decode())
+        else:
+            data = json.loads(res.data)
 
         assert data == {
             "first": "test",
