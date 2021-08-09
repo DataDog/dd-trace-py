@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Django: add support for version 3.1+ ASGI applications. A different
+    codepath is taken for requests starting in Django 3.1 which led to the top
+    level span not being generated for requests. The fix introduces automatic
+    installation of the ASGI middleware to trace Django requests.
