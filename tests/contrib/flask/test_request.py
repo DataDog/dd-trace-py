@@ -85,7 +85,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.resource, "/")
         self.assertEqual(req_span.error, 0)
 
-    def test_request(self):
+    def test_route_params_request(self):
         """
         When making a request to an endpoint with non-string url params
             We create the expected spans
