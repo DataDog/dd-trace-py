@@ -24,39 +24,36 @@ def _rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def _random_values(k, size):
-    if k == 0:
-        return []
-
     return list(set([_rands(size=size) for _ in range(k)]))
 
 
-def gen_traces(ntraces, nspans, ntags, ltags, nmetrics):
+def gen_traces(config):
     traces = []
 
     # choose from a set of randomly generated span attributes
     span_names = _random_values(256, 16)
     resources = _random_values(256, 16)
     services = _random_values(16, 16)
-    tag_keys = _random_values(ntags, 16)
-    metric_keys = _random_values(nmetrics, 16)
+    tag_keys = _random_values(config.ntags, 16)
+    metric_keys = _random_values(config.nmetrics, 16)
 
-    for _ in range(ntraces):
+    for _ in range(config.ntraces):
         trace = []
-        for i in range(0, nspans):
+        for i in range(0, config.nspans):
             # first span is root so has no parent otherwise parent is root span
             parent_id = trace[0].span_id if i > 0 else None
             span_name = random.choice(span_names)
             resource = random.choice(resources)
             service = random.choice(services)
             with Span(None, span_name, resource=resource, service=service, parent_id=parent_id) as span:
-                if ntags > 0:
-                    span.set_tags(dict(zip(tag_keys, [_rands(size=ltags) for _ in range(ntags)])))
-                if nmetrics > 0:
+                if config.ntags > 0:
+                    span.set_tags(dict(zip(tag_keys, [_rands(size=config.ltags) for _ in range(config.ntags)])))
+                if config.nmetrics > 0:
                     span.set_metrics(
                         dict(
                             zip(
                                 metric_keys,
-                                [random.randint(0, 2 ** 16) for _ in range(nmetrics)],
+                                [random.randint(0, 2 ** 16) for _ in range(config.nmetrics)],
                             )
                         )
                     )
