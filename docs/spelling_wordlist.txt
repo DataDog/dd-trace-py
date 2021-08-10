@@ -29,6 +29,7 @@ botocore
 CGroup
 cgroups
 cherrypy
+codepath
 compat
 composable
 config
