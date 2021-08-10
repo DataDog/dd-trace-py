@@ -45,6 +45,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Add base common files used by all scenarios
 COPY ./base/ /app/
 
+# Add bm package for scenario framework
+COPY ./bm/ /app/bm/
+
 # Add scenario code, overriding anything from base
 COPY ./${SCENARIO}/ /app/
 
