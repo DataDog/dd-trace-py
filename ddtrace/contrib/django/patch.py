@@ -33,6 +33,7 @@ from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.utils.formats import asbool
 from ddtrace.utils.formats import get_env
+from ddtrace.utils.http import WSGIHeaders
 from ddtrace.vendor import wrapt
 
 from . import utils
@@ -301,7 +302,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     if request is None:
         return func(*args, **kwargs)
 
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    if utils.DJANGO22:
+        request_headers = utils.DjangoHeaders(request.headers)
+    else:
+        request_headers = WSGIHeaders(request.META)
+
+    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request_headers)
 
     with pin.tracer.trace(
         "django.request",

@@ -21,7 +21,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.propagation.utils import from_wsgi_header
+from ddtrace.utils.http import WSGIHeaders
 
 from .. import trace_utils
 
@@ -65,17 +65,6 @@ def construct_url(environ):
     return url
 
 
-def get_request_headers(environ):
-    """
-    Manually grab the request headers from the environ dictionary.
-    """
-    request_headers = {}
-    for key in environ.keys():
-        if key.startswith("HTTP"):
-            request_headers[from_wsgi_header(key)] = environ[key]
-    return request_headers
-
-
 def default_wsgi_span_modifier(span, environ):
     span.resource = "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"])
 
@@ -109,7 +98,8 @@ class DDWSGIMiddleware(object):
                 write = start_response(status, response_headers, exc_info)
             return write
 
-        trace_utils.activate_distributed_headers(self.tracer, int_config=config.wsgi, request_headers=environ)
+        headers = WSGIHeaders(environ)
+        trace_utils.activate_distributed_headers(self.tracer, int_config=config.wsgi, request_headers=headers)
 
         with self.tracer.trace(
             "wsgi.request",
@@ -135,9 +125,8 @@ class DDWSGIMiddleware(object):
             url = construct_url(environ)
             method = environ.get("REQUEST_METHOD")
             query_string = environ.get("QUERY_STRING")
-            request_headers = get_request_headers(environ)
             trace_utils.set_http_meta(
-                span, config.wsgi, method=method, url=url, query=query_string, request_headers=request_headers
+                span, config.wsgi, method=method, url=url, query=query_string, request_headers=headers
             )
 
             if self.span_modifier:

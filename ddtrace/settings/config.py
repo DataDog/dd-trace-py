@@ -202,15 +202,6 @@ class Config(object):
         self.http.trace_headers(whitelist)
         return self
 
-    def header_is_traced(self, header_name):
-        """
-        Returns whether or not the current header should be traced.
-        :param header_name: the header name
-        :type header_name: str
-        :rtype: bool
-        """
-        return self.http.header_is_traced(header_name)
-
     def _get_service(self, default=None):
         """
         Returns the globally configured service.

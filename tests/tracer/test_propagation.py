@@ -9,7 +9,7 @@ from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.propagation.utils import get_wsgi_header
+from ddtrace.utils.http import WSGIHeaders
 from tests.utils import DummyTracer
 
 
@@ -59,12 +59,14 @@ class TestHttpPropagation(TestCase):
         """Ensure we support the WSGI formatted headers as well."""
         tracer = DummyTracer()
 
-        headers = {
-            "HTTP_X_DATADOG_TRACE_ID": "1234",
-            "HTTP_X_DATADOG_PARENT_ID": "5678",
-            "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
-            "HTTP_X_DATADOG_ORIGIN": "synthetics",
-        }
+        headers = WSGIHeaders(
+            {
+                "HTTP_X_DATADOG_TRACE_ID": "1234",
+                "HTTP_X_DATADOG_PARENT_ID": "5678",
+                "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
+                "HTTP_X_DATADOG_ORIGIN": "synthetics",
+            }
+        )
 
         context = HTTPPropagator.extract(headers)
         tracer.context_provider.activate(context)
@@ -74,6 +76,10 @@ class TestHttpPropagation(TestCase):
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
             assert span.context.dd_origin == "synthetics"
+
+
+def get_wsgi_header(header):
+    return "HTTP_{}".format(header.upper().replace("-", "_"))
 
 
 @pytest.mark.parametrize(
@@ -92,20 +98,20 @@ class TestHttpPropagation(TestCase):
 )
 def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_origin):
     headers = dict()
-    wsgi_headers = dict()
+    wsgi_environ = dict()
 
     if trace_id is not NOT_SET:
         headers[HTTP_HEADER_TRACE_ID] = trace_id
-        wsgi_headers[get_wsgi_header(HTTP_HEADER_TRACE_ID)] = trace_id
+        wsgi_environ[get_wsgi_header(HTTP_HEADER_TRACE_ID)] = trace_id
     if parent_span_id is not NOT_SET:
         headers[HTTP_HEADER_PARENT_ID] = parent_span_id
-        wsgi_headers[get_wsgi_header(HTTP_HEADER_PARENT_ID)] = parent_span_id
+        wsgi_environ[get_wsgi_header(HTTP_HEADER_PARENT_ID)] = parent_span_id
     if sampling_priority is not NOT_SET:
         headers[HTTP_HEADER_SAMPLING_PRIORITY] = sampling_priority
-        wsgi_headers[get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY)] = sampling_priority
+        wsgi_environ[get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY)] = sampling_priority
     if dd_origin is not NOT_SET:
         headers[HTTP_HEADER_ORIGIN] = dd_origin
-        wsgi_headers[get_wsgi_header(HTTP_HEADER_ORIGIN)] = dd_origin
+        wsgi_environ[get_wsgi_header(HTTP_HEADER_ORIGIN)] = dd_origin
 
     # x-datadog-*headers
     context = HTTPPropagator.extract(headers)
@@ -115,7 +121,7 @@ def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_orig
     assert context.dd_origin is None
 
     # HTTP_X_DATADOG_* headers
-    context = HTTPPropagator.extract(wsgi_headers)
+    context = HTTPPropagator.extract(WSGIHeaders(wsgi_environ))
     assert context.trace_id is None
     assert context.span_id is None
     assert context.sampling_priority is None

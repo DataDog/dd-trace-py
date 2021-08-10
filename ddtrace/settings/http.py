@@ -4,7 +4,6 @@ from typing import Set
 from typing import Union
 
 from ..internal.logger import get_logger
-from ..utils.cache import cachedmethod
 from ..utils.http import normalize_header_name
 
 
@@ -19,13 +18,13 @@ class HttpConfig(object):
 
     def __init__(self):
         # type: () -> None
-        self._whitelist_headers = set()  # type: Set[str]
+        self.traced_headers = set()  # type: Set[str]
         self.trace_query_string = None
 
     @property
     def is_header_tracing_configured(self):
         # type: () -> bool
-        return len(self._whitelist_headers) > 0
+        return len(self.traced_headers) > 0
 
     def trace_headers(self, whitelist):
         # type: (Union[List[str], str]) -> Optional[HttpConfig]
@@ -44,30 +43,11 @@ class HttpConfig(object):
             normalized_header_name = normalize_header_name(whitelist_entry)
             if not normalized_header_name:
                 continue
-            self._whitelist_headers.add(normalized_header_name)
-
-        # Mypy can't catch cached method's invalidate()
-        self.header_is_traced.invalidate()  # type: ignore[attr-defined]
+            self.traced_headers.add(normalized_header_name)
 
         return self
 
-    @cachedmethod()
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
-        """
-        Returns whether or not the current header should be traced.
-        :param header_name: the header name
-        :type header_name: str
-        :rtype: bool
-        """
-        if not self._whitelist_headers:
-            return False
-
-        normalized_header_name = normalize_header_name(header_name)
-        log.debug("Checking header '%s' tracing in whitelist %s", normalized_header_name, self._whitelist_headers)
-        return normalized_header_name in self._whitelist_headers
-
     def __repr__(self):
         return "<{} traced_headers={} trace_query_string={}>".format(
-            self.__class__.__name__, self._whitelist_headers, self.trace_query_string
+            self.__class__.__name__, self.traced_headers, self.trace_query_string
         )

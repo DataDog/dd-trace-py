@@ -5,12 +5,12 @@ from collections import deque
 import re
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Generator
 from typing import Iterator
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import Union
 
 from ddtrace import Pin
 from ddtrace import config
@@ -18,6 +18,9 @@ from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.cache import cached
+from ddtrace.utils.http import AnyHeaders
+from ddtrace.utils.http import BaseHeaders
+from ddtrace.utils.http import Headers
 from ddtrace.utils.http import normalize_header_name
 from ddtrace.utils.http import strip_query_string
 import ddtrace.utils.wrappers
@@ -77,7 +80,7 @@ def _normalize_tag_name(request_or_response, header_name):
 
 
 def _store_headers(headers, span, integration_config, request_or_response):
-    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+    # type: (AnyHeaders, Span, IntegrationConfig, str) -> None
     """
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -86,9 +89,9 @@ def _store_headers(headers, span, integration_config, request_or_response):
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
-    if not isinstance(headers, dict):
+    if not isinstance(headers, BaseHeaders):
         try:
-            headers = dict(headers)
+            headers = Headers(headers)
         except Exception:
             return
 
@@ -96,15 +99,16 @@ def _store_headers(headers, span, integration_config, request_or_response):
         log.debug("Skipping headers tracing as no integration config was provided")
         return
 
-    for header_name, header_value in headers.items():
-        if not integration_config.header_is_traced(header_name):
-            continue
-        tag_name = _normalize_tag_name(request_or_response, header_name)
-        span.set_tag(tag_name, header_value)
+    for header_name in integration_config.traced_headers:
+        header_value = headers.get(header_name)
+        if header_value:
+            tag_name = _normalize_tag_name(request_or_response, header_name)
+            # Only the first header value is supported
+            span.set_tag(tag_name, header_value[0])
 
 
 def _store_request_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    # type: (AnyHeaders, Span, IntegrationConfig) -> None
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -118,7 +122,7 @@ def _store_request_headers(headers, span, integration_config):
 
 
 def _store_response_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    # type: (AnyHeaders, Span, IntegrationConfig) -> None
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -230,17 +234,18 @@ def ext_service(pin, int_config, default=None):
 
 
 def set_http_meta(
-    span,
-    integration_config,
-    method=None,
-    url=None,
-    status_code=None,
-    status_msg=None,
-    query=None,
-    request_headers=None,
-    response_headers=None,
-    retries_remain=None,
+    span,  # type: Span
+    integration_config,  # type: IntegrationConfig
+    method=None,  # type: Optional[str]
+    url=None,  # type: Optional[str]
+    status_code=None,  # type: Optional[Union[int, str]]
+    status_msg=None,  # type: Optional[str]
+    query=None,  # type: Optional[str]
+    request_headers=None,  # type: Optional[AnyHeaders]
+    response_headers=None,  # type: Optional[AnyHeaders]
+    retries_remain=None,  # type: Optional[int]
 ):
+    # type: (...) -> None
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
@@ -264,24 +269,24 @@ def set_http_meta(
         span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers is not None and integration_config.is_header_tracing_configured:
-        _store_request_headers(dict(request_headers), span, integration_config)
+        _store_request_headers(request_headers, span, integration_config)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
-        _store_response_headers(dict(response_headers), span, integration_config)
+        _store_response_headers(response_headers, span, integration_config)
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
+    # type: (Tracer, Optional[IntegrationConfig], Optional[AnyHeaders], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
     override will override whatever value is set in int_config if passed any value other than None.
     """
-    if override is False:
-        return None
+    if override is False or request_headers is None:
+        return
 
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)

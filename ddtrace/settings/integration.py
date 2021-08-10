@@ -1,3 +1,4 @@
+from itertools import chain
 import os
 from typing import Optional
 from typing import Tuple
@@ -77,6 +78,10 @@ class IntegrationConfig(AttrDict):
         return self.global_config.http.trace_query_string
 
     @property
+    def traced_headers(self):
+        return frozenset(chain(self.http.traced_headers, self.global_config.http.traced_headers))
+
+    @property
     def is_header_tracing_configured(self):
         # type: (...) -> bool
         """Returns whether header tracing is enabled for this integration.
@@ -85,19 +90,6 @@ class IntegrationConfig(AttrDict):
         or if they are configured globally.
         """
         return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
-
-    def header_is_traced(self, header_name):
-        """
-        Returns whether or not the current header should be traced.
-        :param header_name: the header name
-        :type header_name: str
-        :rtype: bool
-        """
-        return (
-            self.http.header_is_traced(header_name)
-            if self.http.is_header_tracing_configured
-            else self.global_config.header_is_traced(header_name)
-        )
 
     def _is_analytics_enabled(self, use_global_config):
         # DEV: analytics flag can be None which should not be taken as

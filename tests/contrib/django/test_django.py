@@ -28,7 +28,6 @@ from ddtrace.internal.compat import string_type
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
@@ -36,6 +35,10 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+
+
+def get_wsgi_header(header):
+    return "HTTP_{}".format(header.upper().replace("-", "_"))
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")

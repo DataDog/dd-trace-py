@@ -1,3 +1,6 @@
+from typing import Iterator
+from typing import Sequence
+
 from django.utils.functional import SimpleLazyObject
 import six
 
@@ -6,10 +9,13 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
-from ddtrace.propagation.utils import from_wsgi_header
+from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...internal.logger import get_logger
+from ...utils.http import BaseHeaders
+from ...utils.http import WSGIHeaders
+from ...utils.http import normalize_header_name
 from .compat import get_resolver
 from .compat import user_is_authenticated
 
@@ -20,6 +26,20 @@ log = get_logger(__name__)
 # Set on patch, when django is imported
 Resolver404 = None
 DJANGO22 = None
+
+
+class DjangoHeaders(wrapt.ObjectProxy, BaseHeaders):
+    """
+    Compatibility wrapper for the django Headers class.
+    """
+
+    def __getitem__(self, name):
+        # type: () -> Sequence[str]
+        return [self.__wrapped__.__getitem__(name)]
+
+    def __iter__(self):
+        # type: () -> Iterator[str]
+        return [normalize_header_name(name) for name in iter(self.__wrapped__)]
 
 
 def resource_from_cache_prefix(resource, cache):
@@ -255,19 +275,14 @@ def _after_request_tags(pin, span, request, response):
         url = get_request_uri(request)
 
         if DJANGO22:
-            request_headers = request.headers
+            request_headers = DjangoHeaders(request.headers)
         else:
-            request_headers = {}
-            for header, value in request.META.items():
-                name = from_wsgi_header(header)
-                if name:
-                    request_headers[name] = value
+            request_headers = WSGIHeaders(request.META)
 
         # DEV: Resolve the view and resource name at the end of the request in case
         #      urlconf changes at any point during the request
         _set_resolver_tags(pin, span, request)
 
-        response_headers = dict(response.items()) if response else {}
         trace_utils.set_http_meta(
             span,
             config.django,
@@ -276,5 +291,5 @@ def _after_request_tags(pin, span, request, response):
             status_code=status,
             query=request.META.get("QUERY_STRING", None),
             request_headers=request_headers,
-            response_headers=response_headers,
+            response_headers=DjangoHeaders(response),
         )
