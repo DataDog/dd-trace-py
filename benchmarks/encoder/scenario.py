@@ -84,7 +84,9 @@ def time_encode(loops, variant):
     range_it = range(loops)
     t0 = pyperf.perf_counter()
     for _ in range_it:
-        encoder.encode_traces(traces)
+        for trace in traces:
+            encoder.put(trace)
+            encoder.encode()
     dt = pyperf.perf_counter() - t0
     return dt
 
