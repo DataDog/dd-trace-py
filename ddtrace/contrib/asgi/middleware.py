@@ -1,4 +1,5 @@
 import sys
+from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
@@ -10,6 +11,14 @@ from .. import trace_utils
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable
+
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Mapping
+    from typing import Optional
+
+    from ddtrace import Span
 
 
 log = get_logger(__name__)
@@ -58,15 +67,12 @@ def _default_handle_exception_span(exc, span):
     span.set_tag(http.STATUS_CODE, 500)
 
 
-<<<<<<< HEAD
-=======
 def span_from_scope(scope):
     # type: (Mapping[str, Any]) -> Optional[Span]
     """Retrieve the top-level ASGI span from the scope."""
     return scope.get("datadog", {}).get("request_span")
 
 
->>>>>>> 41ae8b4b (Use dictionary for ASGI scope storage (#2726))
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -94,11 +100,15 @@ class TraceMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
-        headers = _extract_headers(scope)
-
-        trace_utils.activate_distributed_headers(
-            self.tracer, int_config=self.integration_config, request_headers=headers
-        )
+        try:
+            headers = _extract_headers(scope)
+        except Exception:
+            log.warning("failed to decode headers for distributed tracing", exc_info=True)
+            headers = {}
+        else:
+            trace_utils.activate_distributed_headers(
+                self.tracer, int_config=self.integration_config, request_headers=headers
+            )
 
         resource = "{} {}".format(scope["method"], scope["path"])
 
@@ -109,11 +119,9 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-<<<<<<< HEAD
-=======
+
         scope["datadog"] = {"request_span": span}
 
->>>>>>> 41ae8b4b (Use dictionary for ASGI scope storage (#2726))
         if self.span_modifier:
             self.span_modifier(span, scope)
 
