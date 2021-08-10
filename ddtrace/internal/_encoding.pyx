@@ -55,6 +55,63 @@ cdef inline int pack_bytes(msgpack_packer *pk, char *bytes, Py_ssize_t l):
     return ret
 
 
+cdef inline int pack_number(msgpack_packer * pk, object n):
+    if n is None:
+        return msgpack_pack_nil(pk)
+
+    if PyLong_Check(n):
+        # PyInt_Check(long) is True for Python 3.
+        # So we should test long before int.
+        try:
+            if n > 0:
+                return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
+            return msgpack_pack_long_long(pk, <long long> n)
+        except OverflowError as oe:
+            raise OverflowError("Integer value out of range")
+
+    if PyInt_Check(n):
+        return msgpack_pack_long(pk, <long> n)
+
+    if PyFloat_Check(n):
+        return msgpack_pack_double(pk, <double> n)
+
+    raise TypeError("Unhandled numeric type: %r" % type(n))
+
+
+cdef inline int pack_text(msgpack_packer *pk, object text):
+    cdef Py_ssize_t L
+    cdef int ret
+
+    if text is None:
+        return msgpack_pack_nil(pk)
+
+    if PyBytesLike_Check(text):
+        L = len(text)
+        if L > ITEM_LIMIT:
+            PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
+        ret = msgpack_pack_raw(pk, L)
+        if ret == 0:
+            ret = msgpack_pack_raw_body(pk, <char *> text, L)
+        return ret
+
+    if PyUnicode_Check(text):
+        IF PY_MAJOR_VERSION >= 3:
+            ret = msgpack_pack_unicode(pk, text, ITEM_LIMIT)
+            if ret == -2:
+                raise ValueError("unicode string is too large")
+        ELSE:
+            text = PyUnicode_AsEncodedString(text, "utf-8", NULL)
+            L = len(text)
+            if L > ITEM_LIMIT:
+                raise ValueError("unicode string is too large")
+            ret = msgpack_pack_raw(pk, L)
+            if ret == 0:
+                ret = msgpack_pack_raw_body(pk, <char *> text, L)
+        return ret
+
+    raise TypeError("Unhandled text type: %r" % type(text))
+
+
 cdef class Packer(object):
     """
     MessagePack Packer
@@ -65,14 +122,8 @@ cdef class Packer(object):
         astream.write(packer.pack_trace(trace))
         astream.write(packer.pack_traces(traces))
 
-    Packer's constructor has some keyword arguments:
-
-    :param callable default:
-        Convert user type to builtin type that Packer supports.
-        See also simplejson's document.
     """
     cdef msgpack_packer pk
-    cdef object _default
     cdef const char *encoding
     cdef const char *unicode_errors
 
@@ -84,17 +135,6 @@ cdef class Packer(object):
         self.pk.buf_size = buf_size
         self.pk.length = 0
 
-    def __init__(self, default=None):
-        if default is not None:
-            if not PyCallable_Check(default):
-                raise TypeError("default must be a callable.")
-        self._default = default
-
-        if PY_MAJOR_VERSION < 3:
-            self.encoding = "utf-8"
-        else:
-            self.encoding = NULL
-
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
@@ -104,62 +144,6 @@ cdef class Packer(object):
         # Reset the buffer.
         self.pk.length = 0
         return buf
-
-    cdef inline int _pack_number(self, object n):
-        if n is None:
-            return msgpack_pack_nil(&self.pk)
-        if PyLong_Check(n):
-            # PyInt_Check(long) is True for Python 3.
-            # So we should test long before int.
-            try:
-                if n > 0:
-                    return msgpack_pack_unsigned_long_long(&self.pk, <unsigned long long> n)
-                return msgpack_pack_long_long(&self.pk, <long long> n)
-            except OverflowError as oe:
-                if n is not self._default:
-                    return self._pack_number(self._default)
-                raise OverflowError("Integer value out of range")
-
-        elif PyInt_Check(n):
-            return msgpack_pack_long(&self.pk, <long> n)
-
-        elif PyFloat_Check(n):
-            return msgpack_pack_double(&self.pk, <double> n)
-
-        raise TypeError("Unhandled numeric type: %r" % type(n))
-
-    cdef inline int _pack_text(self, object text):
-        cdef Py_ssize_t L
-        cdef int ret
-
-        if text is None:
-            return msgpack_pack_nil(&self.pk)
-
-        if PyBytesLike_Check(text):
-            L = len(text)
-            if L > ITEM_LIMIT:
-                PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
-            ret = msgpack_pack_raw(&self.pk, L)
-            if ret == 0:
-                ret = msgpack_pack_raw_body(&self.pk, <char *> text, L)
-            return ret
-
-        if PyUnicode_Check(text):
-            if self.encoding == NULL:
-                ret = msgpack_pack_unicode(&self.pk, text, ITEM_LIMIT)
-                if ret == -2:
-                    raise ValueError("unicode string is too large")
-            else:
-                text = PyUnicode_AsEncodedString(text, self.encoding, self.unicode_errors)
-                L = len(text)
-                if L > ITEM_LIMIT:
-                    raise ValueError("unicode string is too large")
-                ret = msgpack_pack_raw(&self.pk, L)
-                if ret == 0:
-                    ret = msgpack_pack_raw_body(&self.pk, <char *> text, L)
-            return ret
-
-        raise TypeError("Unhandled text type: %r" % type(text))
 
     cdef inline int _pack_meta(self, object meta, object dd_origin):
         cdef Py_ssize_t L
@@ -177,14 +161,14 @@ cdef class Packer(object):
             ret = msgpack_pack_map(&self.pk, L)
             if ret == 0:
                 for k, v in d.items():
-                    ret = self._pack_text(k)
+                    ret = pack_text(&self.pk, k)
                     if ret != 0: break
-                    ret = self._pack_text(v)
+                    ret = pack_text(&self.pk, v)
                     if ret != 0: break
                 if dd_origin is not None:
-                    ret = self._pack_text(ORIGIN_KEY)
+                    ret = pack_text(&self.pk, ORIGIN_KEY)
                     if ret == 0:
-                        ret = self._pack_text(dd_origin)
+                        ret = pack_text(&self.pk, dd_origin)
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -203,9 +187,9 @@ cdef class Packer(object):
             ret = msgpack_pack_map(&self.pk, L)
             if ret == 0:
                 for k, v in d.items():
-                    ret = self._pack_text(k)
+                    ret = pack_text(&self.pk, k)
                     if ret != 0: break
-                    ret = self._pack_number(v)
+                    ret = pack_number(&self.pk, v)
                     if ret != 0: break
             return ret
 
@@ -229,32 +213,32 @@ cdef class Packer(object):
         if ret == 0:
             ret = pack_bytes(&self.pk, <char *> b"trace_id", 8)
             if ret != 0: return ret
-            ret = self._pack_number(span.trace_id)
+            ret = pack_number(&self.pk, span.trace_id)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
             if ret != 0: return ret
-            ret = self._pack_number(span.parent_id)
+            ret = pack_number(&self.pk, span.parent_id)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
             if ret != 0: return ret
-            ret = self._pack_number(span.span_id)
+            ret = pack_number(&self.pk, span.span_id)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"service", 7)
             if ret != 0: return ret
-            ret = self._pack_text(span.service)
+            ret = pack_text(&self.pk, span.service)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"resource", 8)
             if ret != 0: return ret
-            ret = self._pack_text(span.resource)
+            ret = pack_text(&self.pk, span.resource)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"name", 4)
             if ret != 0: return ret
-            ret = self._pack_text(span.name)
+            ret = pack_text(&self.pk, span.name)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"error", 5)
@@ -264,18 +248,18 @@ cdef class Packer(object):
 
             ret = pack_bytes(&self.pk, <char *> b"start", 5)
             if ret != 0: return ret
-            ret = self._pack_number(span.start_ns)
+            ret = pack_number(&self.pk, span.start_ns)
             if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"duration", 8)
             if ret != 0: return ret
-            ret = self._pack_number(span.duration_ns)
+            ret = pack_number(&self.pk, span.duration_ns)
             if ret != 0: return ret
 
             if has_span_type:
                 ret = pack_bytes(&self.pk, <char *> b"type", 4)
                 if ret != 0: return ret
-                ret = self._pack_text(span.span_type)
+                ret = pack_text(&self.pk, span.span_type)
                 if ret != 0: return ret
 
             if has_meta:
