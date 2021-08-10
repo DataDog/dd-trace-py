@@ -2,3 +2,4 @@
 
 pyperf
 pyyaml
+attrs

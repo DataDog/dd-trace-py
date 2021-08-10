@@ -1,5 +1,6 @@
 import random
 import string
+
 from ddtrace.internal.encoding import Encoder
 from ddtrace.span import Span
 
