@@ -234,12 +234,12 @@ class Tracer(object):
         return ctx
 
     def current_trace_context(self, *args, **kwargs):
-        # type (...) -> Optional[Context]
+        # type: (...) -> Optional[Context]
         """Return the context for the current trace.
 
         If there is no active trace then None is returned.
         """
-        active = self.context_provider.active(*args, **kwargs)
+        active = self.context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
