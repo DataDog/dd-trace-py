@@ -481,7 +481,9 @@ def request_tracer(name):
 
             if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
                 for k, v in request.view_args.items():
-                    span._set_str_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+                    # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
+                    #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
+                    span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
         except Exception:
             log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
