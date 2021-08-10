@@ -119,7 +119,6 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-
         scope["datadog"] = {"request_span": span}
 
         if self.span_modifier:
