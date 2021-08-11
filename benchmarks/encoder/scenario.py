@@ -19,4 +19,5 @@ class Encoder(bm.Scenario):
                 for trace in traces:
                     encoder.put(trace)
                     encoder.encode()
+
         yield _
