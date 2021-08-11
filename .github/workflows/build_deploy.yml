@@ -121,7 +121,7 @@ jobs:
   upload_pypi:
     needs: [build_wheels, test_alpine_sdist]
     runs-on: ubuntu-latest
-    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event.action == 'workflow_dispatch')
+    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/download-artifact@v2
         with:
@@ -129,12 +129,12 @@ jobs:
           path: dist
 
       - uses: actions/checkout@v2
-        if: github.event.action == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch'
         # Include all history and tags
         with:
           fetch-depth: 0
       - name: Validate deploy version
-        if: github.event.action == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch'
         run: |
           ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
 
