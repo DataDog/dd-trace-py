@@ -151,11 +151,13 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cdef stdint.uint32_t _count
 
     def __cinit__(self, max_size, max_item_size):
-        self.pk.buf = <char*> PyMem_Malloc(max_size)
+        cdef int buf_size = 1024*1024
+        self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
 
-        self.pk.buf_size = self.max_size = max_size
+        self.max_size = max_size
+        self.pk.buf_size = buf_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
         self._lock = threading.Lock()
         self._reset_buffer()
