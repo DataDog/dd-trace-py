@@ -11,12 +11,13 @@ from sq_native import waf
 
 from ddtrace.appsec.internal.protections import BaseProtection
 from ddtrace.internal import logger
+from ddtrace.utils.formats import get_env
 from ddtrace.utils.time import StopWatch
 
 
 log = logger.get_logger(__name__)
 
-DEFAULT_BUDGET_MS = 5.0
+DEFAULT_WAF_BUDGET_MS = 5.0
 
 
 class SqreenLibrary(BaseProtection):
@@ -27,7 +28,7 @@ class SqreenLibrary(BaseProtection):
     def __init__(self, rules, budget_ms=None):
         # type: (str, Optional[float]) -> None
         if budget_ms is None:
-            budget_ms = DEFAULT_BUDGET_MS
+            budget_ms = float(get_env("appsec", "waf_budget_ms", default=DEFAULT_WAF_BUDGET_MS))  # type: ignore[arg-type]
         self._budget = int(budget_ms * 1000)
         self._instance = waf.WAFEngine(rules)
 
