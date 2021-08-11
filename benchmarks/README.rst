@@ -54,23 +54,32 @@ Example
     size: 1000000
 
 
-.. _docker:
+.. _build:
 
-Docker
-^^^^^^
+Build
+^^^^^
 
-Assuming you have added ``benchmarks/<scenario>``, you can build an image for scenario::
+To build the image used for running a scenario::
 
-  docker build \
-    -t <scenario> \
-    --build-arg SCENARIO=<scenario> \
-    .
+  scripts/perf-build-scenario <scenario> <image>
 
-The image supports the comparison of two versions of the library::
+Example::
 
-  docker run -it --rm \
-    -e DDTRACE_INSTALL_V1="ddtrace" \
-    -e DDTRACE_INSTALL_V2="ddtrace==0.50.0" \
-    <scenario>
+  scripts/perf-build-scenario span perf-span
 
-The environment variables for installing the library also support git urls.
+.. _run:
+
+Run
+^^^
+
+The scenario can be run using the built image to compare two versions of the library and save the results in a local artifacts folder::
+
+  scripts/perf-run-scenario <image> <version> <version> <artifacts>
+
+The version specifiers can reference published versions on PyPI or git
+repositories.
+
+Example::
+
+  scripts/perf-run-scenario perf-span ddtrace==0.50.0 ddtrace==0.51.0 ./artifacts/
+  scripts/perf-run-scenario perf-span Datadog/dd-trace-py@master Datadog/dd-trace-py@my-feature ./artifacts/

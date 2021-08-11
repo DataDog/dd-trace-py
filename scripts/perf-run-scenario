@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPTNAME=$(basename $0)
+
+if [ $# != 4 ]; then
+    cat << EOF
+Usage: ${SCRIPTNAME} <imagetag> <version> <version> <artifacts>
+Examples:
+    ${SCRIPTNAME} perf-span:latest ddtrace==0.51.0 ddtrace==0.50.0
+    ${SCRIPTNAME} perf-span:latest Datadog/dd-trace-py@v0.51.0 Datadog/dd-trace-py@v0.50.0
+    ${SCRIPTNAME} perf-span:latest ddtrace==0.51.0 ddtrace==0.50.0 ./artifacts/
+
+EOF
+    exit 1
+fi
+
+function expand_git_version {
+    gitpattern="dd-trace-py@"
+    version=${1}
+
+    if [[ $version =~ $gitpattern ]]; then
+        version="git+https://github.com/${version}"
+    fi
+    echo $version
+}
+
+IMAGETAG="$1"
+shift
+DDTRACE_V1="$1"
+shift
+DDTRACE_V2="$1"
+shift
+ARTIFACTS="$1"
+shift
+
+mkdir -p ${ARTIFACTS}
+
+docker run -it --rm \
+    -v ${ARTIFACTS}:/artifacts/ \
+    -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
+    -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
+    $IMAGETAG
