@@ -46,7 +46,7 @@ def test_enable_custom_rules(appsec):
 
 def test_enable_nonexistent_rules(appsec):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "nonexistent"))):
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(IOError):
             appsec.enable()
         assert appsec._mgmt.protections == []
 
