@@ -46,18 +46,12 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Add base common files used by all scenarios
 COPY ./base/ /app/
 
+# Add bm package for scenario framework
+COPY ./bm/ /app/bm/
+
 # Add scenario code, overriding anything from base
 COPY ./${SCENARIO}/ /app/
 
-# Create venv for scenario requirements (other than ddtrace)
-ENV VIRTUAL_ENV=/app/.venv
-RUN python -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN pip install -r requirements.txt
-
-# Use separate venvs for the two versions of the library being compared
-ENV VENV_DDTRACE_V1=/app/.venv_ddtrace_v1/
-ENV VENV_DDTRACE_V2=/app/.venv_ddtrace_v2/
 ENV SCENARIO=${SCENARIO}
 
 ENTRYPOINT ["/app/entrypoint"]

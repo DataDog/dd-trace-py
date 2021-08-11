@@ -171,6 +171,7 @@ Indices and tables
     integrations
     basic_usage
     advanced_usage
+    benchmarks
     contributing
     release_notes
     troubleshooting
