@@ -1143,20 +1143,7 @@ class TestPartialFlush(TracerTestCase):
         env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush(self):
-        root = self.tracer.trace("root")
-        for i in range(5):
-            self.tracer.trace("child%s" % i).finish()
-
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 5
-        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
-
-        root.finish()
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        assert traces[0][0].name == "root"
+        self._test_partial_flush()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1")
@@ -1216,17 +1203,25 @@ class TestPartialFlush(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
     )
-
     def test_enable_partial_flush_with_deprecated_config(self):
         # Test tracer with deprecated configs D_TRACER_...
-        self.test_partial_flush()
+        self._test_partial_flush()
     
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="false", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
-    )
-    def test_disable_partial_flush_with_deprecated_config(self):
-        # Test tracer with deprecated configs D_TRACER_...
-        self.test_partial_flush_too_few()
+    def _test_partial_flush(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 5
+        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
+
+        root.finish()
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "root"
 
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
