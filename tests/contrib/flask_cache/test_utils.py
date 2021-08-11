@@ -3,6 +3,7 @@ import unittest
 from flask import Flask
 
 from ddtrace.contrib.flask_cache import get_traced_cache
+from ddtrace.contrib.flask_cache.utils import _extract_client
 from ddtrace.contrib.flask_cache.utils import _extract_conn_tags
 from ddtrace.contrib.flask_cache.utils import _resource_from_cache_prefix
 from ddtrace.tracer import Tracer
@@ -25,7 +26,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         }
         traced_cache = Cache(app, config=config)
         # extract client data
-        meta = _extract_conn_tags(traced_cache.cache._client)
+        meta = _extract_conn_tags(_extract_client(traced_cache.cache))
         expected_meta = {"out.host": "localhost", "out.port": REDIS_CONFIG["port"], "out.redis_db": 0}
         assert meta == expected_meta
 
@@ -40,7 +41,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         }
         traced_cache = Cache(app, config=config)
         # extract client data
-        meta = _extract_conn_tags(traced_cache.cache._client)
+        meta = _extract_conn_tags(_extract_client(traced_cache.cache))
         expected_meta = {"out.host": "127.0.0.1", "out.port": MEMCACHED_CONFIG["port"]}
         assert meta == expected_meta
 
@@ -58,7 +59,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         }
         traced_cache = Cache(app, config=config)
         # extract client data
-        meta = _extract_conn_tags(traced_cache.cache._client)
+        meta = _extract_conn_tags(_extract_client(traced_cache.cache))
         expected_meta = {
             "out.host": "127.0.0.1",
             "out.port": MEMCACHED_CONFIG["port"],
