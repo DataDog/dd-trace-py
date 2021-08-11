@@ -22,13 +22,14 @@ from ddtrace.appsec.internal.events.context import get_required_context
 from ddtrace.appsec.internal.protections import BaseProtection
 from ddtrace.internal import logger
 from ddtrace.internal.compat import utc
+from ddtrace.utils.formats import get_env
 from ddtrace.utils.http import strip_query_string
 from ddtrace.utils.time import StopWatch
 
 
 log = logger.get_logger(__name__)
 
-DEFAULT_BUDGET_MS = 5.0
+DEFAULT_WAF_BUDGET_MS = 5.0
 
 
 class SqreenLibrary(BaseProtection):
@@ -39,7 +40,9 @@ class SqreenLibrary(BaseProtection):
     def __init__(self, rules, budget_ms=None):
         # type: (str, Optional[float]) -> None
         if budget_ms is None:
-            budget_ms = DEFAULT_BUDGET_MS
+            budget_ms = float(
+                get_env("appsec", "waf_budget_ms", default=DEFAULT_WAF_BUDGET_MS)  # type: ignore[arg-type]
+            )
         self._budget = int(budget_ms * 1000)
         self._instance = waf.WAFEngine(rules)
 
@@ -51,7 +54,7 @@ class SqreenLibrary(BaseProtection):
         elapsed_ms = timer.elapsed() * 1000
         log.debug("context returned %r in %.5fms for %r", ret, elapsed_ms, span)
         span.set_metric("_dd.sq.process_ms", elapsed_ms)
-        if elapsed_ms > self._budget:
+        if ret.timeout:
             span.set_metric("_dd.sq.overtime_ms", elapsed_ms - self._budget)
         if ret.report:
             span.set_metric("_dd.sq.reports", 1)

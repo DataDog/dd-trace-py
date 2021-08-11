@@ -1,45 +1,33 @@
-from ddtrace import appsec
-from tests.utils import TracerTestCase
+from tests.utils import DummyTracer
 from tests.utils import override_env
 
 
-class DummyEventWriter:
-    def __init__(self):
-        self.events = []
+def test_sqreen_library_report(appsec):
+    tracer = DummyTracer()
+    appsec.enable()
 
-    def write(self, events):
-        self.events.extend(events)
+    with tracer.trace("test") as span:
+        appsec.process_request(span, query="foo=bar")
+    assert "_dd.sq.process_ms" in span.metrics
 
-    def flush(self, timeout=None):
-        pass
+    with tracer.trace("test") as span:
+        appsec.process_request(span, query="q=<script>alert(1);")
+    assert "_dd.sq.process_ms" in span.metrics
+    assert "_dd.sq.reports" in span.metrics
 
 
-class TestSqreenLibrary(TracerTestCase):
-    def setUp(self):
-        super(TestSqreenLibrary, self).setUp()
+def test_sqreen_library_overtime(appsec):
+    tracer = DummyTracer()
+    with override_env({"DD_APPSEC_WAF_BUDGET_MS": "0"}):
         appsec.enable()
-        appsec._mgmt.writer = self.writer = DummyEventWriter()
-
-    def test_report(self):
-        with self.trace("test") as span:
+        with tracer.trace("test") as span:
             appsec.process_request(span, query="foo=bar")
         assert "_dd.sq.process_ms" in span.metrics
+        assert span.metrics.get("_dd.sq.overtime_ms") == span.metrics.get("_dd.sq.process_ms")
 
-        with self.trace("test") as span:
-            appsec.process_request(span, query="q=<script>alert(1);")
-        assert "_dd.sq.process_ms" in span.metrics
-        assert "_dd.sq.reports" in span.metrics
 
-    def test_overtime(self):
-        with override_env({"DD_APPSEC_BUDGET_MS": "0"}):
-            appsec.enable()
-
-            with self.trace("test") as span:
-                appsec.process_request(span, query="foo=bar")
-            assert "_dd.sq.process_ms" in span.metrics
-            assert span.metrics.get("_dd.sq.overtime_ms") == span.metrics.get("_dd.sq.process_ms")
-
-    def test_attack_event(self):
-        with self.trace("test") as span:
-            appsec.process_request(span, query="q=<script>alert(1);")
-        assert self.writer.events[0].event_type == "appsec.threat.attack"
+def test_sqreen_library_attack_event(appsec, appsec_dummy_writer):
+    tracer = DummyTracer()
+    with tracer.trace("test") as span:
+        appsec.process_request(span, query="q=<script>alert(1);")
+    assert appsec_dummy_writer.events[0].event_type == "appsec.threat.attack"

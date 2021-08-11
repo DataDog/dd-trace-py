@@ -314,7 +314,7 @@ def set_flattened_tags(
     items,  # type: Iterator[Tuple[str, Any]]
     sep=".",  # type: str
     exclude_policy=None,  # type: Optional[Callable[[str], bool]]
-    processor=None,  # type Optional[Callable[[Any], Any]]
+    processor=None,  # type: Optional[Callable[[Any], Any]]
 ):
     # type: (...) -> None
     for prefix, value in items:

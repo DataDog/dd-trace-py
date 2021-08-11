@@ -177,6 +177,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="profile-diff",
+            command="python scripts/diff.py {cmdargs}",
+            pys="3",
+            pkgs={
+                "austin-python": "~=1.0",
+                "rich": latest,
+            },
+        ),
+        Venv(
             name="tracer",
             command="pytest {cmdargs} tests/tracer/",
             venvs=[
@@ -466,6 +475,34 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="django_hosts",
+            command="pytest {cmdargs} tests/contrib/django_hosts",
+            pkgs={
+                "django_hosts": ["~=4.0", latest],
+                "pytest-django": [
+                    "==3.10.0",
+                ],
+            },
+            venvs=[
+                Venv(
+                    pys=["3.5"],
+                    pkgs={
+                        "django": ["~=2.2"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
+                            "~=2.2",
+                            "~=3.2",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             venvs=[
@@ -537,7 +574,9 @@ venv = Venv(
                             "~=7.6.0",
                             "~=7.8.0",
                             "~=7.10.0",
-                            latest,
+                            # FIXME: Elasticsearch introduced a breaking change in 7.14
+                            # which makes it incompatible with previous major versions.
+                            # latest,
                         ]
                     },
                 ),
@@ -545,7 +584,7 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0", latest]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0"]}),
             ],
         ),
         Venv(
@@ -559,7 +598,7 @@ venv = Venv(
                         "elasticsearch2": [latest],
                         "elasticsearch5": [latest],
                         "elasticsearch6": [latest],
-                        "elasticsearch7": [latest],
+                        "elasticsearch7": ["<7.14.0"],
                     },
                 ),
             ],
@@ -658,6 +697,8 @@ venv = Venv(
                     pys=select_pys(max_version="2.7"),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
+                        "pytest": "~=3.0",
+                        "Werkzeug": ["<1.0"],
                         "Flask-Cache": ["~=0.12.0"],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
@@ -667,9 +708,18 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "Werkzeug": ["<1.0"],
                         "Flask-Cache": ["~=0.13.0", latest],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
             ],
@@ -966,6 +1016,23 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="httpx",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/httpx",
+            pkgs={
+                "pytest-asyncio": latest,
+                "httpx": [
+                    "~=0.14.0",
+                    "~=0.15.0",
+                    "~=0.16.0",
+                    "~=0.17.0",
+                    "~=0.18.0",
+                    "<1.0.0",
+                    latest,
+                ],
+            },
         ),
         Venv(
             name="urllib3",

@@ -9,7 +9,6 @@ Test it with::
 import os.path
 from typing import Any
 from typing import List
-from typing import Mapping
 
 import attr
 
@@ -25,6 +24,9 @@ from ddtrace.internal import logger
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.utils.formats import get_env
 
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 
 log = logger.get_logger(__name__)
 
@@ -47,27 +49,32 @@ class Management(object):
         else:
             dogstatsd = None
 
-        root_dir = os.path.dirname(os.path.abspath(__file__))
-        default_rules = os.path.join(root_dir, "rules.json")
-        path = get_env("appsec", "rules", default=default_rules)
-
-        budget_ms = get_env("appsec", "budget_ms")
+        try:
+            path = get_env("appsec", "rules", default=DEFAULT_RULES)
+            with open(path, "r") as f:  # type: ignore[arg-type]
+                rules = f.read()
+        except Exception as e:
+            log.warning(
+                "AppSec module failed to load rules. Your application is not protected.",
+                exc_info=True,
+            )
+            if config._raise:
+                raise e
 
         try:
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
-            with open(str(path), "r") as f:
-                rules = f.read()
-
-            self.protections = [SqreenLibrary(rules, float(budget_ms) if budget_ms is not None else None)]
+            self.protections = [SqreenLibrary(rules)]
             self.writer.flush(timeout=0)
             self.writer = HTTPEventWriter(api_key=get_env("api_key"), dogstatsd=dogstatsd)
-        except Exception:
+        except Exception as e:
             log.warning(
                 "AppSec module failed to load. Your application is not protected. "
                 "Please report this issue to support@datadoghq.com",
                 exc_info=True,
             )
+            if config._raise:
+                raise e
         else:
             log.info("AppSec module is enabled. Your application is protected.")
 
@@ -80,7 +87,7 @@ class Management(object):
         log.warning("AppSec module is disabled. Your application is not protected anymore.")
 
     def process_request(self, span, **data):
-        # type: (Span, Mapping[str, Any]) -> None
+        # type: (Span, Any) -> None
         """Process HTTP request data emitted by the integration hooks."""
         events = []  # type: List[Event]
         for protection in self.protections:

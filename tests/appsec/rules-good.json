@@ -1,0 +1,38 @@
+{
+	"manifest": {
+		"query": {
+			"inherit_from": "query",
+			"run_on_value": true,
+			"run_on_key": false
+		}
+	},
+	"rules": [
+		{
+			"rule_id": "42",
+			"filters": [
+				{
+					"operator": "@rx",
+					"targets": [
+						"query"
+					],
+					"transformations": ["urlDecode"],
+					"value": "<script>"
+				}
+			]
+		}
+	],
+	"flows": [
+		{
+			"name": "test",
+			"steps": [
+				{
+					"id": "start",
+					"rule_ids": [
+						"42"
+					],
+					"on_match": "exit_monitor"
+				}
+			]
+		}
+	]
+}
