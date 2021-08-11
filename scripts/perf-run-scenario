@@ -5,11 +5,11 @@ SCRIPTNAME=$(basename $0)
 
 if [ $# != 4 ]; then
     cat << EOF
-Usage: ${SCRIPTNAME} <imagetag> <version> <version> <artifacts>
+Usage: ${SCRIPTNAME} <scenario> <version> <version> <artifacts>
 Examples:
-    ${SCRIPTNAME} perf-span:latest ddtrace==0.51.0 ddtrace==0.50.0
-    ${SCRIPTNAME} perf-span:latest Datadog/dd-trace-py@v0.51.0 Datadog/dd-trace-py@v0.50.0
-    ${SCRIPTNAME} perf-span:latest ddtrace==0.51.0 ddtrace==0.50.0 ./artifacts/
+    ${SCRIPTNAME} span ddtrace==0.51.0 ddtrace==0.50.0
+    ${SCRIPTNAME} span Datadog/dd-trace-py@v0.51.0 Datadog/dd-trace-py@v0.50.0
+    ${SCRIPTNAME} span ddtrace==0.51.0 ddtrace==0.50.0 ./artifacts/
 
 EOF
     exit 1
@@ -25,7 +25,7 @@ function expand_git_version {
     echo $version
 }
 
-IMAGETAG="$1"
+SCENARIO="$1"
 shift
 DDTRACE_V1="$1"
 shift
@@ -34,10 +34,15 @@ shift
 ARTIFACTS="$1"
 shift
 
+
+# Build scenario image
+TAG="dd-trace-py/perf-${SCENARIO}"
+scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
+
 mkdir -p ${ARTIFACTS}
 
 docker run -it --rm \
     -v ${ARTIFACTS}:/artifacts/ \
     -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
     -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
-    $IMAGETAG
+    $TAG

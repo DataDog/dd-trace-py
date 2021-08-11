@@ -54,32 +54,19 @@ Example
     size: 1000000
 
 
-.. _build:
-
-Build
-^^^^^
-
-To build the image used for running a scenario::
-
-  scripts/perf-build-scenario <scenario> <image>
-
-Example::
-
-  scripts/perf-build-scenario span perf-span
-
 .. _run:
 
-Run
-^^^
+Run scenario
+^^^^^^^^^^^^
 
 The scenario can be run using the built image to compare two versions of the library and save the results in a local artifacts folder::
 
-  scripts/perf-run-scenario <image> <version> <version> <artifacts>
+  scripts/perf-run-scenario <scenario> <version> <version> <artifacts>
 
 The version specifiers can reference published versions on PyPI or git
 repositories.
 
 Example::
 
-  scripts/perf-run-scenario perf-span ddtrace==0.50.0 ddtrace==0.51.0 ./artifacts/
-  scripts/perf-run-scenario perf-span Datadog/dd-trace-py@master Datadog/dd-trace-py@my-feature ./artifacts/
+  scripts/perf-run-scenario span ddtrace==0.50.0 ddtrace==0.51.0 ./artifacts/
+  scripts/perf-run-scenario span Datadog/dd-trace-py@master Datadog/dd-trace-py@my-feature ./artifacts/
