@@ -31,7 +31,8 @@ WORKDIR /app
 # Install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
   curl \
-  git ca-certificates \
+  git \
+  ca-certificates \
   # ddtrace includes c extensions
   build-essential \
   # uuid is used to generate identifier for run if one is not provided
