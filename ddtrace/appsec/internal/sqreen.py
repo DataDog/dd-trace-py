@@ -29,8 +29,8 @@ class SqreenLibrary(BaseProtection):
         # type: (str, Optional[float]) -> None
         if budget_ms is None:
             budget_ms = float(
-                get_env("appsec", "waf_budget_ms", default=DEFAULT_WAF_BUDGET_MS)
-            )  # type: ignore[arg-type]
+                get_env("appsec", "waf_budget_ms", default=DEFAULT_WAF_BUDGET_MS)  # type: ignore[arg-type]
+            )
         self._budget = int(budget_ms * 1000)
         self._instance = waf.WAFEngine(rules)
 

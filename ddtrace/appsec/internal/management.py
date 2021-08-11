@@ -39,7 +39,7 @@ class Management(object):
 
         try:
             path = get_env("appsec", "rules", default=DEFAULT_RULES)
-            with open(str(path), "r") as f:
+            with open(path, "r") as f:  # type: ignore[arg-type]
                 rules = f.read()
         except Exception as e:
             log.warning(
