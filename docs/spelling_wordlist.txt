@@ -15,6 +15,7 @@ agentless
 analytics
 api
 app
+args
 asgi
 asyncio
 attrs
@@ -28,6 +29,7 @@ botocore
 CGroup
 cgroups
 cherrypy
+codepath
 compat
 composable
 config
@@ -43,6 +45,7 @@ ddtrace
 deprecations
 django
 dogpile
+dogpile.cache
 dogstatsd
 elasticsearch
 elasticsearch1
@@ -60,6 +63,7 @@ hostname
 http
 httplib
 https
+httpx
 iPython
 initializer
 integration
@@ -70,6 +74,7 @@ js
 kombu
 kubernetes
 kwarg
+kwargs
 lifecycle
 lookups
 mako
@@ -126,6 +131,7 @@ submodules
 timestamp
 tweens
 uWSGI
+uninstrumented
 unix
 unpatch
 unregister

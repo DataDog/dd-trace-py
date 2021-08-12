@@ -1,0 +1,35 @@
+name: django-overhead-profile
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  django-overhead-profile:
+    runs-on: ubuntu-latest
+    env:
+      PREFIX: ${{ github.workspace }}/prefix
+    defaults:
+      run:
+        working-directory: ddtrace
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: Setup
+        run: |
+          bash scripts/profiles/django-simple/setup.sh ${PREFIX}
+
+      - name: Run
+        run: |
+          bash scripts/profiles/django-simple/run.sh ${PREFIX}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: django-overhead-profile
+          path: ${{ github.workspace }}/prefix/artifacts
+

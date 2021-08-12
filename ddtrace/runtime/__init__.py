@@ -8,7 +8,7 @@ import ddtrace.internal.runtime.runtime_metrics
 class _RuntimeMetricsStatus(type):
     @property
     def _enabled(_):
-        # type () -> bool
+        # type: () -> bool
         """Runtime metrics enabled status."""
         return ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enabled
 
