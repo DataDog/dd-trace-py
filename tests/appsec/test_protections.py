@@ -1,9 +1,7 @@
-from tests.utils import DummyTracer
 from tests.utils import override_env
 
 
-def test_sqreen_library_report(appsec):
-    tracer = DummyTracer()
+def test_sqreen_library_report(appsec, tracer):
     appsec.enable()
 
     with tracer.trace("test") as span:
@@ -16,8 +14,7 @@ def test_sqreen_library_report(appsec):
     assert "_dd.sq.reports" in span.metrics
 
 
-def test_sqreen_library_overtime(appsec):
-    tracer = DummyTracer()
+def test_sqreen_library_overtime(appsec, tracer):
     with override_env({"DD_APPSEC_WAF_BUDGET_MS": "0"}):
         appsec.enable()
         with tracer.trace("test") as span:
