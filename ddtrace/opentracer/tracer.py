@@ -1,3 +1,8 @@
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Union
+
 import opentracing
 from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
@@ -33,7 +38,7 @@ DEFAULT_CONFIG = {
     keys.SETTINGS: {
         FILTERS_KEY: [],
     },
-}
+}  # type: Dict[str, Optional[Union[str, int, bool, Dict[str, Any]]]]
 
 
 class Tracer(opentracing.Tracer):

@@ -1,21 +1,22 @@
 from collections import namedtuple
 
 
-CONFIG_KEY_NAMES = [
-    "AGENT_HOSTNAME",
-    "AGENT_HTTPS",
-    "AGENT_PORT",
-    "DEBUG",
-    "ENABLED",
-    "GLOBAL_TAGS",
-    "SAMPLER",
-    "PRIORITY_SAMPLING",
-    "UDS_PATH",
-    "SETTINGS",
-]
-
 # Keys used for the configuration dict
-ConfigKeyNames = namedtuple("ConfigKeyNames", CONFIG_KEY_NAMES)
+ConfigKeyNames = namedtuple(
+    "ConfigKeyNames",
+    [
+        "AGENT_HOSTNAME",
+        "AGENT_HTTPS",
+        "AGENT_PORT",
+        "DEBUG",
+        "ENABLED",
+        "GLOBAL_TAGS",
+        "SAMPLER",
+        "PRIORITY_SAMPLING",
+        "UDS_PATH",
+        "SETTINGS",
+    ],
+)
 
 ConfigKeys = ConfigKeyNames(
     AGENT_HOSTNAME="agent_hostname",
