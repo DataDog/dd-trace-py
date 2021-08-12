@@ -1,2 +1,5 @@
 #!/bin/sh
-riot -v run -s mypy
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$')
+if [ -z "$staged_files" ]; then
+    riot -v run -s mypy
+fi
