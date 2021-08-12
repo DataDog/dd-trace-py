@@ -27,3 +27,6 @@ dd-origin:
   ntags: 10
   ltags: 16
   dd_origin: true
+no-tags-with-dd-origin:
+  <<: *base_variant
+  dd_origin: true

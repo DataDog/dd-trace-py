@@ -37,7 +37,7 @@ def gen_traces(config):
     services = _random_values(16, 16)
     tag_keys = _random_values(config.ntags, 16)
     metric_keys = _random_values(config.nmetrics, 16)
-    dd_origin_values = _random_values(16, 16)
+    dd_origin_values = ["synthetics", "ciapp-test"]
 
     for _ in range(config.ntraces):
         trace = []
