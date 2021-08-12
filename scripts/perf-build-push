@@ -13,7 +13,7 @@ IMAGES=()
 
 for SCENARIO in "encoder" "span" "tracer" "django_simple"; do
     TAG="${REPOSITORY}/perf-${SCENARIO}"
-    docker build -q -t "${TAG}" --build-arg SCENARIO="${SCENARIO}" benchmarks/
+    scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
     IMAGE="${TAG}:latest"
     docker push -q "${IMAGE}"
     IMAGES+=("${IMAGE}")
