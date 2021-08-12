@@ -14,6 +14,7 @@ import attr
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace import constants
 from ddtrace.appsec.internal.events import Event
 from ddtrace.appsec.internal.protections import BaseProtection
 from ddtrace.appsec.internal.writer import BaseEventWriter
@@ -27,6 +28,7 @@ from ddtrace.utils.formats import get_env
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
+APPSEC_EVENT_TAG = "appsec.event"
 
 log = logger.get_logger(__name__)
 
@@ -94,3 +96,9 @@ class Management(object):
             events.extend(protection.process(span, data))
         if events:
             self.writer.write(events)
+            self._retain_trace(span)
+
+    def _retain_trace(self, span):
+        # type: (Span) -> None
+        span.set_tag(constants.MANUAL_KEEP_KEY)
+        span.set_tag(APPSEC_EVENT_TAG, "true")
