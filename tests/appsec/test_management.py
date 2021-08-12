@@ -3,7 +3,6 @@ import os.path
 import pytest
 
 from ddtrace.ext import priority
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -11,8 +10,7 @@ from tests.utils import override_global_config
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def test_enable(appsec):
-    tracer = DummyTracer()
+def test_enable(appsec, tracer):
     appsec.enable()
 
     # Check the Sqreen Library was successfully loaded
