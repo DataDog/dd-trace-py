@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
 
-from ddtrace.internal.compat import to_unicode
 import six
 
+from ddtrace.internal.compat import to_unicode
 from ddtrace.utils.cache import cached
 
 
@@ -111,7 +111,7 @@ class Headers(BaseHeaders):
             if not isinstance(value, six.string_types) and isinstance(value, ABCIterable):
                 headers[_normalize_header_name(key)].extend([to_unicode(v) for v in value])
             else:
-                headers[_normalize_header_name(key)].append(to_unicode(value))
+                headers[_normalize_header_name(key)].append(to_unicode(value))  # type: ignore[type-var]
         # freeze the headers dict otherwise lookups create empty values
         return dict(headers)
 
