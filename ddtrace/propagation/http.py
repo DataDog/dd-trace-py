@@ -1,5 +1,6 @@
 from typing import Dict
 
+from .. import config
 from ..context import Context
 from ..internal.logger import get_logger
 from ..utils.http import AnyHeaders
@@ -95,7 +96,9 @@ class HTTPPropagator(object):
                     dd_origin=origins[0] if origins else None,
                 )
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
-            except (TypeError, IndexError, ValueError):
+            except (TypeError, IndexError, ValueError) as e:
+                if config._raise:
+                    raise e
                 log.debug(
                     "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
                     trace_ids,
@@ -105,6 +108,8 @@ class HTTPPropagator(object):
                     exc_info=True,
                 )
                 return Context()
-        except Exception:
+        except Exception as e:
+            if config._raise:
+                raise e
             log.debug("error while extracting x-datadog-* headers", exc_info=True)
             return Context()

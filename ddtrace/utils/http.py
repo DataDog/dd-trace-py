@@ -1,7 +1,9 @@
 try:
+    from collections.abc import Iterable as ABCIterable
     from collections.abc import Mapping as ABCMapping
 except ImportError:
     from collections import Mapping as ABCMapping
+    from collections import Iterable as ABCIterable
 
 from collections import defaultdict
 from typing import Iterator
@@ -13,6 +15,7 @@ from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal.compat import to_unicode
 import six
 
 from ddtrace.utils.cache import cached
@@ -103,8 +106,12 @@ class Headers(BaseHeaders):
         # type: () -> Mapping[str, Sequence[str]]
         headers = defaultdict(list)  # type: Mapping[str, List[str]]
         for key, value in self._it:
-            # value can be either a string or a list of string
-            headers[_normalize_header_name(key)].extend([value] if isinstance(value, six.string_types) else value)
+            # value should be either a string or a list of string
+            # but in practice it can be anything
+            if not isinstance(value, six.string_types) and isinstance(value, ABCIterable):
+                headers[_normalize_header_name(key)].extend([to_unicode(v) for v in value])
+            else:
+                headers[_normalize_header_name(key)].append(to_unicode(value))
         # freeze the headers dict otherwise lookups create empty values
         return dict(headers)
 
