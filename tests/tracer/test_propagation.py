@@ -10,8 +10,8 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.utils.http import WSGIHeaders
-from tests.utils import override_global_config
 from tests.utils import DummyTracer
+from tests.utils import override_global_config
 
 
 NOT_SET = object()
