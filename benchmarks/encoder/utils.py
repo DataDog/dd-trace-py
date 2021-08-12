@@ -37,6 +37,7 @@ def gen_traces(config):
     services = _random_values(16, 16)
     tag_keys = _random_values(config.ntags, 16)
     metric_keys = _random_values(config.nmetrics, 16)
+    dd_origin_values = _random_values(16, 16)
 
     for _ in range(config.ntraces):
         trace = []
@@ -47,6 +48,8 @@ def gen_traces(config):
             resource = random.choice(resources)
             service = random.choice(services)
             with Span(None, span_name, resource=resource, service=service, parent_id=parent_id) as span:
+                if i == 0 and config.dd_origin:
+                    span.context.dd_origin = random.choice(dd_origin_values)
                 if config.ntags > 0:
                     span.set_tags(dict(zip(tag_keys, [_rands(size=config.ltags) for _ in range(config.ntags)])))
                 if config.nmetrics > 0:
