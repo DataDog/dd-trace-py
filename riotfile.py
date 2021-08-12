@@ -78,6 +78,8 @@ venv = Venv(
         "pytest": latest,
         "coverage": latest,
         "pytest-cov": latest,
+        "pytest-xdist": latest,  # ">=1.34.0,<2.0.0",
+        "pytest-forked": latest,  # ">=1.3.0,<2.0.0",
         "opentracing": latest,
         "hypothesis": latest,
     },
@@ -187,16 +189,22 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            pkgs={
+                "msgpack": latest,
+                "attrs": ["==19.2.0", latest],
+                "packaging": ["==17.1", latest],
+            },
             venvs=[
+                # pytest-xdist collects different tests in different processes,
+                # and fails on Python 3.5.
                 Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "msgpack": latest,
-                        "attrs": ["==19.2.0", latest],
-                        "packaging": ["==17.1", latest],
-                    },
-                )
+                    pys="3.5",
+                    command="pytest {cmdargs} tests/tracer/",
+                ),
+                Venv(
+                    pys=select_pys(max_version="3") + select_pys(min_version="3.6"),
+                    command="pytest -n 2 --dist loadscope {cmdargs} tests/tracer/",
+                ),
             ],
         ),
         Venv(
@@ -972,7 +980,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="python -m pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest -n 2 --dist loadscope {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
             },
