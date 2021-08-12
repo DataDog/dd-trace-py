@@ -10,6 +10,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.utils.http import WSGIHeaders
+from tests.utils import override_global_config
 from tests.utils import DummyTracer
 
 
@@ -113,19 +114,20 @@ def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_orig
         headers[HTTP_HEADER_ORIGIN] = dd_origin
         wsgi_environ[get_wsgi_header(HTTP_HEADER_ORIGIN)] = dd_origin
 
-    # x-datadog-*headers
-    context = HTTPPropagator.extract(headers)
-    assert context.trace_id is None
-    assert context.span_id is None
-    assert context.sampling_priority is None
-    assert context.dd_origin is None
+    with override_global_config(dict(_raise=False)):
+        # x-datadog-*headers
+        context = HTTPPropagator.extract(headers)
+        assert context.trace_id is None
+        assert context.span_id is None
+        assert context.sampling_priority is None
+        assert context.dd_origin is None
 
-    # HTTP_X_DATADOG_* headers
-    context = HTTPPropagator.extract(WSGIHeaders(wsgi_environ))
-    assert context.trace_id is None
-    assert context.span_id is None
-    assert context.sampling_priority is None
-    assert context.dd_origin is None
+        # HTTP_X_DATADOG_* headers
+        context = HTTPPropagator.extract(WSGIHeaders(wsgi_environ))
+        assert context.trace_id is None
+        assert context.span_id is None
+        assert context.sampling_priority is None
+        assert context.dd_origin is None
 
 
 class TestPropagationUtils(object):

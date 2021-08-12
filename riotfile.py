@@ -169,6 +169,10 @@ venv = Venv(
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
+            env={
+                # DEV: run benchmark tests in production conditions
+                "DD_TESTING_RAISE": "0",
+            },
             venvs=[
                 Venv(
                     name="benchmarks-nogc",
