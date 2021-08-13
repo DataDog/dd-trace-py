@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    It is now possible to specify any of the following git metadata through environment variables:
+    Only for CI Visibility (`pytest` integration): It is now possible to specify any of the following git metadata through environment variables:
     * `DD_GIT_REPOSITORY_URL`: The url of the repository where the code is stored 
     * `DD_GIT_TAG`: The tag of the commit, if it has one
     * `DD_GIT_BRANCH`: The branch where this commit belongs to
