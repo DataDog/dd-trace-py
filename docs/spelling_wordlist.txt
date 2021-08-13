@@ -30,6 +30,7 @@ CGroup
 cgroups
 cherrypy
 codepath
+committer
 compat
 composable
 config
