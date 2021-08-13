@@ -19,6 +19,7 @@ class SpanContext(OpenTracingSpanContext):
         baggage=None,  # type: Optional[Dict[str, Any]]
         ddcontext=None,  # type: Optional[DatadogContext]
     ):
+        # type: (...) -> None
         # create a new dict for the baggage if it is not provided
         # NOTE: it would be preferable to use opentracing.SpanContext.EMPTY_BAGGAGE
         #       but it is mutable.

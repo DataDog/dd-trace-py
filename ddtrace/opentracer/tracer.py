@@ -6,6 +6,7 @@ from typing import Union
 
 import opentracing
 from opentracing import Format
+from opentracing import Scope
 from opentracing import ScopeManager
 from opentracing.scope_managers import ThreadLocalScopeManager
 
@@ -132,6 +133,7 @@ class Tracer(opentracing.Tracer):
         ignore_active_span=False,  # type: bool
         finish_on_close=True,  # type: bool
     ):
+        # type: (...) -> Scope
         """Returns a newly started and activated `Scope`.
         The returned `Scope` supports with-statement contexts. For example::
 
@@ -193,6 +195,7 @@ class Tracer(opentracing.Tracer):
         start_time=None,  # type: Optional[int]
         ignore_active_span=False,  # type: bool
     ):
+        # type: (...) -> Span
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
