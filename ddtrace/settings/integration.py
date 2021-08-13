@@ -90,6 +90,8 @@ class IntegrationConfig(AttrDict):
         # type: (str) -> Optional[str]
         """
         Returns the tag associated with the current header if it should be traced.
+        An empty string is returned when the current header must be retained but
+        no tag was configured.
         :param header_name: the header name
         :type header_name: str
         :rtype: str or None
