@@ -112,7 +112,7 @@ def tags(env=None, cwd=None):
     user_specified_git_info = git.extract_user_git_metadata(env)
 
     # Tags provided by the user take precedence over everything
-    tags.update({k: v for k, v in user_specified_git_info.items() if user_specified_git_info.get(k)})
+    tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
     tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
