@@ -142,7 +142,7 @@ def extract_git_metadata(cwd=None):
 
 def extract_user_git_metadata(env=None):
     # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
-    """Extract git commit metadata."""
+    """Extract git commit metadata from user-provided env vars."""
     env = os.environ if env is None else env
 
     tags = {}
