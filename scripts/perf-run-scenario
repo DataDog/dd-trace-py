@@ -3,9 +3,9 @@ set -e
 
 SCRIPTNAME=$(basename $0)
 
-if [ $# != 4 ]; then
+if [[ $# -lt 3 ]]; then
     cat << EOF
-Usage: ${SCRIPTNAME} <scenario> <version> <version> <artifacts>
+Usage: ${SCRIPTNAME} <scenario> <version> <version> [artifacts]
 Examples:
     ${SCRIPTNAME} span ddtrace==0.51.0 ddtrace==0.50.0
     ${SCRIPTNAME} span Datadog/dd-trace-py@v0.51.0 Datadog/dd-trace-py@v0.50.0
@@ -31,18 +31,30 @@ DDTRACE_V1="$1"
 shift
 DDTRACE_V2="$1"
 shift
-ARTIFACTS="$1"
-shift
+
+ARTIFACTS=""
+if [[ $# -gt 0 ]]; then
+    ARTIFACTS="$1"
+    shift
+fi
 
 
 # Build scenario image
 TAG="dd-trace-py/perf-${SCENARIO}"
 scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
 
-mkdir -p ${ARTIFACTS}
-
-docker run -it --rm \
-    -v ${ARTIFACTS}:/artifacts/ \
-    -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
-    -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
-    $TAG
+if [[ -n ${ARTIFACTS} ]]; then
+   # Resolve artifacts to an absolute path
+   ARTIFACTS="$(echo $ARTIFACTS | python -c 'import os,sys; print(os.path.abspath(sys.stdin.read()))')"
+   mkdir -p ${ARTIFACTS}
+   docker run -it --rm \
+          -v ${ARTIFACTS}:/artifacts/ \
+          -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
+          -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
+          $TAG
+else
+   docker run -it --rm \
+          -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
+          -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
+          $TAG
+fi
