@@ -1,7 +1,9 @@
 from typing import List
+from typing import Mapping
 from typing import Optional
-from typing import Set
 from typing import Union
+
+import six
 
 from ..internal.logger import get_logger
 from ..utils.cache import cachedmethod
@@ -17,15 +19,15 @@ class HttpConfig(object):
     related to the http context.
     """
 
-    def __init__(self):
-        # type: () -> None
-        self._whitelist_headers = set()  # type: Set[str]
+    def __init__(self, header_tags=None):
+        # type: (Optional[Mapping[str, str]]) -> None
+        self.header_tags = {normalize_header_name(k): v for k, v in header_tags.items()} if header_tags else {}
         self.trace_query_string = None
 
     @property
     def is_header_tracing_configured(self):
         # type: () -> bool
-        return len(self._whitelist_headers) > 0
+        return len(self.header_tags) > 0
 
     def trace_headers(self, whitelist):
         # type: (Union[List[str], str]) -> Optional[HttpConfig]
@@ -44,30 +46,34 @@ class HttpConfig(object):
             normalized_header_name = normalize_header_name(whitelist_entry)
             if not normalized_header_name:
                 continue
-            self._whitelist_headers.add(normalized_header_name)
+            # Empty tag is replaced by the default tag for this header:
+            #  Host on the request defaults to http.request.headers.host
+            self.header_tags.setdefault(normalized_header_name, "")
 
         # Mypy can't catch cached method's invalidate()
-        self.header_is_traced.invalidate()  # type: ignore[attr-defined]
+        self.header_tag_name.invalidate()  # type: ignore[attr-defined]
 
         return self
 
     @cachedmethod()
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
+    def header_tag_name(self, header_name):
+        # type: (str) -> Optional[str]
         """
-        Returns whether or not the current header should be traced.
+        Returns the tag associated with the current header if it should be traced.
         :param header_name: the header name
         :type header_name: str
-        :rtype: bool
+        :rtype: str or None
         """
-        if not self._whitelist_headers:
-            return False
+        if not self.header_tags:
+            return None
 
         normalized_header_name = normalize_header_name(header_name)
-        log.debug("Checking header '%s' tracing in whitelist %s", normalized_header_name, self._whitelist_headers)
-        return normalized_header_name in self._whitelist_headers
+        log.debug(
+            "Checking header '%s' tracing in whitelist %s", normalized_header_name, six.viewkeys(self.header_tags)
+        )
+        return self.header_tags.get(normalized_header_name)
 
     def __repr__(self):
         return "<{} traced_headers={} trace_query_string={}>".format(
-            self.__class__.__name__, self._whitelist_headers, self.trace_query_string
+            self.__class__.__name__, self.header_tags.keys(), self.trace_query_string
         )
