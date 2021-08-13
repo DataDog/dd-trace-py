@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -ex
 
+# Include step to install any additional packages for a scenario
+if [[ -f "/app/install.sh" ]]; then
+    /app/install.sh
+fi
+
 # Use separate venvs for the two versions of the library being compared
 export VENV_DDTRACE_V1=/app/.venv_ddtrace_v1/
 export VENV_DDTRACE_V2=/app/.venv_ddtrace_v2/

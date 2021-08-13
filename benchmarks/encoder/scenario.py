@@ -16,6 +16,8 @@ class Encoder(bm.Scenario):
 
         def _(loops):
             for _ in range(loops):
-                encoder.encode_traces(traces)
+                for trace in traces:
+                    encoder.put(trace)
+                    encoder.encode()
 
         yield _
