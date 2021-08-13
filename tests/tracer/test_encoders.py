@@ -331,7 +331,7 @@ def test_encoder_buffer_size_limit():
 
     trace = [Span(tracer=None, name="test")]
     encoder.put(trace)
-    trace_size = encoder.size - 1
+    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
 
     for _ in range(1, int(buffer_size / trace_size)):
         encoder.put(trace)

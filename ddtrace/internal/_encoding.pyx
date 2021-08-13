@@ -1,10 +1,12 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 from libc cimport stdint
-import struct
 import threading
 
 from ..constants import ORIGIN_KEY
+
+
+DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 
 
 cdef extern from "Python.h":
@@ -51,6 +53,14 @@ cdef inline int PyBytesLike_Check(object o):
     return PyBytes_Check(o) or PyByteArray_Check(o)
 
 
+cdef inline int array_prefix_size(int l):
+    if l < 16:
+        return 1
+    elif l < (2<<16):
+        return 3
+    return MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+
+
 cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
     cdef int ret
 
@@ -60,7 +70,7 @@ cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
     return ret
 
 
-cdef inline int pack_number(msgpack_packer * pk, object n):
+cdef inline int pack_number(msgpack_packer *pk, object n):
     if n is None:
         return msgpack_pack_nil(pk)
 
@@ -115,14 +125,6 @@ cdef inline int pack_text(msgpack_packer *pk, object text):
         return ret
 
     raise TypeError("Unhandled text type: %r" % type(text))
-
-
-cdef inline int array_prefix_size(int l):
-    if l < 16:
-        return 1
-    elif l < (2<<16):
-        return 3
-    return 5
 
 
 cdef class StringTable(object):
@@ -247,6 +249,8 @@ cdef class MsgpackStringTable(StringTable):
 
 
 cdef class BufferedEncoder(object):
+    content_type: str = None
+
     cdef public int max_size
     cdef public int max_item_size
     cdef object _lock
@@ -256,8 +260,13 @@ cdef class BufferedEncoder(object):
         self.max_item_size = max_item_size
         self._lock = threading.Lock()
 
-    def put(self, item): ...
-    def encode(self): ...
+    # ---- Abstract methods ----
+
+    def put(self, item):
+        raise NotImplementedError()
+
+    def encode(self):
+        raise NotImplementedError()
 
 
 cdef class ListBufferedEncoder(BufferedEncoder):
@@ -305,23 +314,23 @@ cdef class ListBufferedEncoder(BufferedEncoder):
     def encode_item(self, item): ...
 
 
-cdef class MsgpackEncoder(BufferedEncoder):
+cdef class MsgpackEncoderBase(BufferedEncoder):
     content_type = "application/msgpack"
 
     cdef msgpack_packer pk
     cdef stdint.uint32_t _count
 
     def __cinit__(self, max_size, max_item_size):
-        self.pk.buf = <char*> PyMem_Malloc(max_size)
+        cdef int buf_size = 1024*1024
+        self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
 
-        self.pk.buf_size = self.max_size = max_size
+        self.max_size = max_size
+        self.pk.buf_size = buf_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
         self._lock = threading.Lock()
-        self._count = 0
-
-        self.pk.length = 5  # Leave room for array length prefix
+        self._reset_buffer()
 
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
@@ -330,20 +339,25 @@ cdef class MsgpackEncoder(BufferedEncoder):
     def __len__(self):  # TODO: Use a better name?
         return self._count
 
-    cpdef _decode(self, data):  # TODO: Make module util/class method?
+    cpdef _decode(self, data):
         import msgpack
         if msgpack.version[:2] < (0, 6):
             return msgpack.unpackb(data)
         return msgpack.unpackb(data, raw=True)
+
+    cdef _reset_buffer(self):
+        self._count = 0
+        self.pk.length = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE  # Leave room for array length prefix
 
     cpdef encode(self):
         if not self._count:
             return None
 
         return self.flush()
-    
+
     cdef inline int _update_array_len(self):
-        cdef int offset = 5 - array_prefix_size(self._count)
+        """Update traces array size prefix"""
+        cdef int offset = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE - array_prefix_size(self._count)
         cdef int old_pos = self.pk.length
 
         with self._lock:
@@ -416,25 +430,23 @@ cdef class MsgpackEncoder(BufferedEncoder):
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
-        return self.pk.length + array_prefix_size(self._count) - 5
+        return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
     # ---- Abstract methods ----
 
     cpdef flush(self):
         raise NotImplementedError()
 
-    cpdef pack_span(self, object span, object dd_origin):
+    cdef pack_span(self, object span, object dd_origin):
         raise NotImplementedError()
 
 
-cdef class MsgpackEncoderV03(MsgpackEncoder):
+cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cpdef flush(self):
         try:
             return self.get_bytes()
         finally:
-            # Reset the buffer.
-            self.pk.length = 5
-            self._count = 0
+            self._reset_buffer()
 
     cdef inline int _pack_meta(self, object meta, object dd_origin):
         cdef Py_ssize_t L
@@ -486,7 +498,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoder):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cpdef pack_span(self, object span, object dd_origin):
+    cdef pack_span(self, object span, object dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -568,7 +580,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoder):
         return ret
 
 
-cdef class MsgpackEncoderV05(MsgpackEncoder):
+cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef object _st
 
     def __cinit__(self, max_size, max_item_size):
