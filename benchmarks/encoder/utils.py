@@ -10,13 +10,24 @@ try:
     # see https://github.com/DataDog/dd-trace-py/pull/2422
     from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
 
-    def init_encoder(max_size=8 << 20, max_item_size=8 << 20):
-        return Encoder(max_size, max_item_size)
+    try:
+        from ddtrace.internal.encoding import MsgpackEncoderV03
+        from ddtrace.internal.encoding import MsgpackEncoderV05
+
+        ENCODERS = {
+            "v0.3": MsgpackEncoderV03,
+            "v0.5": MsgpackEncoderV05,
+        }
+    except ImportError:
+        ENCODERS = {}
+
+    def init_encoder(version, max_size=8 << 20, max_item_size=8 << 20):
+        return ENCODERS.get(version, Encoder)(max_size, max_item_size)
 
 
 except ImportError:
 
-    def init_encoder():
+    def init_encoder(_):
         return Encoder()
 
 
@@ -32,9 +43,9 @@ def gen_traces(config):
     traces = []
 
     # choose from a set of randomly generated span attributes
-    span_names = _random_values(256, 16)
-    resources = _random_values(256, 16)
-    services = _random_values(16, 16)
+    span_names = _random_values(config.nnames, 16)
+    resources = _random_values(config.nresources, 16)
+    services = _random_values(config.nservices, 16)
     tag_keys = _random_values(config.ntags, 16)
     metric_keys = _random_values(config.nmetrics, 16)
 

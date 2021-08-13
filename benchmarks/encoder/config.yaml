@@ -2,11 +2,21 @@ one-trace: &base_variant
   ntraces: 1
   nspans: 1000
   ntags: 0
+  nnames: 256
+  nservices: 16
+  nresources: 256
   ltags: 0
   nmetrics: 0
-many-traces:
+  version: "v0.3"
+
+many-traces: &many-traces
   <<: *base_variant
   ntraces: 100
+many-traces-low-entropy:
+  <<: *many-traces
+  nservices: 2
+  nresources: 16
+  nnames: 8
 one-tag:
   <<: *base_variant
   ntags: 1
@@ -21,3 +31,14 @@ one-metric:
 many-metrics:
   <<: *base_variant
   nmetrics: 48
+
+many-traces-v05:
+  <<: *many-traces
+  version: "v0.5"
+
+many-traces-low-entropy-v05:
+  <<: *many-traces
+  version: "v0.5"
+  nservices: 2
+  nresources: 16
+  nnames: 8
