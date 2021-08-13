@@ -9,7 +9,7 @@ DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 
 
 cdef extern from "Python.h":
-    char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
+    const char* PyUnicode_AsUTF8(object o)
 
 cdef extern from "pack.h":
     struct msgpack_packer:
@@ -17,7 +17,6 @@ cdef extern from "pack.h":
         size_t length
         size_t buf_size
 
-    int msgpack_pack_int(msgpack_packer* pk, int d)
     int msgpack_pack_nil(msgpack_packer* pk)
     int msgpack_pack_long(msgpack_packer* pk, long d)
     int msgpack_pack_long_long(msgpack_packer* pk, long long d)
@@ -28,9 +27,6 @@ cdef extern from "pack.h":
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
-
-cdef extern from "buff_converter.h":
-    object buff_to_buff(char *, Py_ssize_t)
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
@@ -219,10 +215,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
             IF PY_MAJOR_VERSION >= 3:
-                # To cast as a char array, the unicode string needs to be converted to a bytestring
-                # with the reference to the Python bytestring as long as the char array is in use.
-                dd_origin_bytestring = trace[0].context.dd_origin.encode("UTF-8")
-                dd_origin = dd_origin_bytestring
+                dd_origin = PyUnicode_AsUTF8(trace[0].context.dd_origin)
             ELSE:
                 dd_origin = trace[0].context.dd_origin
 

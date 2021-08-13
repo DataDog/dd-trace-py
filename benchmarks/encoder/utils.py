@@ -49,6 +49,9 @@ def gen_traces(config):
             service = random.choice(services)
             with Span(None, span_name, resource=resource, service=service, parent_id=parent_id) as span:
                 if i == 0 and config.dd_origin:
+                    # Since we're not using the tracer API, a span's context isn't automatically propagated
+                    # to its children. The encoder only checks the root span's context in a trace for dd_origin, so
+                    # here we need to add dd_origin to the root span's context.
                     span.context.dd_origin = random.choice(dd_origin_values)
                 if config.ntags > 0:
                     span.set_tags(dict(zip(tag_keys, [_rands(size=config.ltags) for _ in range(config.ntags)])))
