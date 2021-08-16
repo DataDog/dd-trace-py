@@ -1,9 +1,14 @@
 import concurrent.futures
 import random
+from typing import Callable
+from typing import Generator
+from typing import List
+from typing import Optional
 
 import bm
 
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.tracer import Tracer
 
 
 class NoopWriter(TraceWriter):
@@ -27,6 +32,7 @@ class Threading(bm.Scenario):
     nspans = bm.var(type=int)
 
     def create_trace(self, tracer):
+        # type: (Tracer) -> None
         with tracer.trace("root"):
             for _ in range(self.nspans - 1):
                 with tracer.trace("child"):
@@ -34,12 +40,14 @@ class Threading(bm.Scenario):
                     random.random()
 
     def run(self):
+        # type: () -> Generator[Callable[[int], None], None, None]
         from ddtrace import tracer
 
         # configure global tracer to drop traces rather
         tracer.configure(writer=NoopWriter())
 
         def _(loops):
+            # type: (int) -> None
             for _ in range(loops):
                 with concurrent.futures.ThreadPoolExecutor(max_workers=self.nthreads) as executor:
                     tasks = {executor.submit(self.create_trace, tracer) for i in range(self.ntraces)}
