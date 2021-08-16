@@ -9,6 +9,7 @@ class Encoder(bm.Scenario):
     ntags = bm.var(type=int)
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
+    dd_origin = bm.var(type=bool)
 
     def run(self):
         encoder = utils.init_encoder()
