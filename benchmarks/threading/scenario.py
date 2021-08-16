@@ -8,6 +8,7 @@ from typing import Optional
 import bm
 
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 
 
