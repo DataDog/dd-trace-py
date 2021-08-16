@@ -1,13 +1,22 @@
 import concurrent.futures
+import random
 
 import bm
 
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import TraceWriter
 
 
-class DummyWriter(AgentWriter):
-    def _send_payload(self, payload, count):
-        # Do nothing
+class NoopWriter(TraceWriter):
+    def recreate(self):
+        # type: () -> TraceWriter
+        return NoopWriter()
+
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        pass
+
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
         pass
 
 
@@ -21,13 +30,14 @@ class Threading(bm.Scenario):
         with tracer.trace("root"):
             for _ in range(self.nspans - 1):
                 with tracer.trace("child"):
-                    pass
+                    # Simulate work in each child
+                    random.random()
 
     def run(self):
-        # use DummyWriter to prevent network calls to the agent
         from ddtrace import tracer
 
-        tracer.configure(writer=DummyWriter("http://localhost:8126/"))
+        # configure global tracer to drop traces rather
+        tracer.configure(writer=NoopWriter())
 
         def _(loops):
             for _ in range(loops):

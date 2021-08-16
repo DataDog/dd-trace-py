@@ -5,6 +5,6 @@ This benchmark test is used to simulate the creation, encoding, and flushing of 
 
 It uses a ``concurrent.futures.ThreadPool`` to manage the total number of workers.
 
-The only modification to the tracing workflow that has been modified is the ``AgentWriter``'s ``_send_payload`` has been overridden to do nothing.
-This means we will still start the background worker for the agent, put traces into the queue, and encode them into payloads to send. We will just
-not try to make the HTTP call to the agent to reduce any impact from an external process on this test.
+The only modification to the tracing workflow that has been modified is using a ``NoopWriter`` which does not start a
+background thread and drops traces on ``writer.write``. This means we skip encoding, queueing, and flushing payloads
+to the agent, but we will still use the span processors.
