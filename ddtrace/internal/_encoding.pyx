@@ -371,10 +371,13 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         """Return internal buffer."""
         return self.pk.buf + self._update_array_len()
 
+    cdef void * get_dd_origin_ref(self, object dd_origin):
+        raise NotImplementedError()
+
     cdef inline int _pack_trace(self, list trace):
         cdef int ret
         cdef Py_ssize_t L
-        cdef char *dd_origin = NULL
+        cdef void * dd_origin = NULL
 
         L = len(trace)
         if L > ITEM_LIMIT:
@@ -384,10 +387,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if ret != 0: raise RuntimeError("Couldn't pack trace")
 
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
-            IF PY_MAJOR_VERSION >= 3:
-                dd_origin = PyUnicode_AsUTF8(trace[0].context.dd_origin)
-            ELSE:
-                dd_origin = trace[0].context.dd_origin
+            dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
         with self._lock:
             for span in trace:
@@ -434,7 +434,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef flush(self):
         raise NotImplementedError()
 
-    cdef pack_span(self, object span, char *dd_origin):
+    cdef pack_span(self, object span, void *dd_origin):
         raise NotImplementedError()
 
 
@@ -444,6 +444,12 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             return self.get_bytes()
         finally:
             self._reset_buffer()
+
+    cdef void * get_dd_origin_ref(self, object dd_origin):        
+        IF PY_MAJOR_VERSION >= 3:
+            return <void *> PyUnicode_AsUTF8(dd_origin)
+        ELSE:
+            return <void *> dd_origin
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin):
         cdef Py_ssize_t L
@@ -495,7 +501,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef pack_span(self, object span, char *dd_origin):
+    cdef pack_span(self, object span, void *dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -565,7 +571,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0: return ret
-                ret = self._pack_meta(span.meta, dd_origin)
+                ret = self._pack_meta(span.meta, <char *> dd_origin)
                 if ret != 0: return ret
 
             if has_metrics:
@@ -608,7 +614,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef inline int _pack_string(self, object string):
         return msgpack_pack_uint32(&self.pk, self._st.index(string))
 
-    cpdef pack_span(self, object span, object dd_origin):
+    cdef void * get_dd_origin_ref(self, object dd_origin):
+        return <void *> PyLong_AsLong(self._st.index(dd_origin))
+
+    cdef pack_span(self, object span, void *dd_origin):
         cdef int ret
 
         ret = msgpack_pack_array(&self.pk, 12)
@@ -633,17 +642,17 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = msgpack_pack_int32(&self.pk, span.error or 0)
         if ret != 0: return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span.meta) + (dd_origin is not None))
+        ret = msgpack_pack_map(&self.pk, len(span.meta) + (dd_origin is not NULL))
         if ret != 0: return ret
         for k, v in span.meta:
             ret = self._pack_string(k)
             if ret != 0: return ret
             ret = self._pack_string(v)
             if ret != 0: return ret
-        if dd_origin is not None:
-            ret = self._pack_string(ORIGIN_KEY)
+        if dd_origin is not NULL:
+            ret = self._pack_string("_dd.origin")  # TODO: add to string table by default and use index 1 instead
             if ret != 0: return ret
-            ret = self._pack_string(dd_origin)
+            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
             if ret != 0: return ret
         
         ret = msgpack_pack_map(&self.pk, len(span.metrics))
