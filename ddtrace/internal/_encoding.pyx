@@ -1,16 +1,15 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_Check
 from libc cimport stdint
+from libc.string cimport strlen
 import threading
-
-from ..constants import ORIGIN_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 
 
 cdef extern from "Python.h":
-    char* PyUnicode_AsUTF8AndSize(object obj, Py_ssize_t *l) except NULL
+    const char* PyUnicode_AsUTF8(object o)
 
 cdef extern from "pack.h":
     struct msgpack_packer:
@@ -18,7 +17,6 @@ cdef extern from "pack.h":
         size_t length
         size_t buf_size
 
-    int msgpack_pack_int(msgpack_packer* pk, int d)
     int msgpack_pack_nil(msgpack_packer* pk)
     int msgpack_pack_long(msgpack_packer* pk, long d)
     int msgpack_pack_long_long(msgpack_packer* pk, long long d)
@@ -29,9 +27,6 @@ cdef extern from "pack.h":
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
-
-cdef extern from "buff_converter.h":
-    object buff_to_buff(char *, Py_ssize_t)
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
@@ -209,6 +204,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cdef inline int _pack_trace(self, list trace):
         cdef int ret
         cdef Py_ssize_t L
+        cdef char *dd_origin = NULL
 
         L = len(trace)
         if L > ITEM_LIMIT:
@@ -217,10 +213,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         ret = msgpack_pack_array(&self.pk, L)
         if ret != 0: raise RuntimeError("Couldn't pack trace")
 
-        if L > 0 and trace[0].context is not None:
-            dd_origin = trace[0].context.dd_origin
-        else:
-            dd_origin = None
+        if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
+            IF PY_MAJOR_VERSION >= 3:
+                dd_origin = PyUnicode_AsUTF8(trace[0].context.dd_origin)
+            ELSE:
+                dd_origin = trace[0].context.dd_origin
 
         with self._lock:
             for span in trace:
@@ -267,7 +264,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef flush(self):
         raise NotImplementedError()
 
-    cdef pack_span(self, object span, object dd_origin):
+    cdef pack_span(self, object span, char *dd_origin):
         raise NotImplementedError()
 
 
@@ -278,7 +275,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
         finally:
             self._reset_buffer()
 
-    cdef inline int _pack_meta(self, object meta, object dd_origin):
+    cdef inline int _pack_meta(self, object meta, char *dd_origin):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -286,7 +283,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
         if PyDict_CheckExact(meta):
             d = <dict> meta
             L = len(d)
-            if dd_origin is not None:
+            if dd_origin is not NULL:
                 L += 1
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
@@ -298,10 +295,10 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
                     if ret != 0: break
                     ret = pack_text(&self.pk, v)
                     if ret != 0: break
-                if dd_origin is not None:
-                    ret = pack_text(&self.pk, ORIGIN_KEY)
+                if dd_origin is not NULL:
+                    ret = pack_bytes(&self.pk, <char *> b"_dd.origin", 10)
                     if ret == 0:
-                        ret = pack_text(&self.pk, dd_origin)
+                        ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -328,7 +325,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef pack_span(self, object span, object dd_origin):
+    cdef pack_span(self, object span, char *dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -336,7 +333,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
         cdef int has_metrics
 
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span.meta) > 0 or dd_origin is not None)
+        has_meta = <bint> (len(span.meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span.metrics) > 0)
 
         L = 9 + has_span_type + has_meta + has_metrics
