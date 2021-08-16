@@ -8,7 +8,6 @@ class _DropTraces(TraceFilter):
         return
 
 
-@bm.register
 class Tracer(bm.Scenario):
     depth = bm.var(type=int)
 
