@@ -14,7 +14,7 @@ one-tag:
   ltags: 16
 many-tags:
   <<: *base_variant
-  ntags: 1
+  ntags: 100
   ltags: 16
 one-metric:
   <<: *base_variant
