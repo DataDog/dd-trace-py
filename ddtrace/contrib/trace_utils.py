@@ -100,7 +100,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         tag_name = integration_config.header_tag_name(header_name)
         if tag_name is None:
             continue
-        # Empty tag name uses the default tag name for this header
+        # An empty tag defaults to a http.<request or response>.headers.<header name> tag
         span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
