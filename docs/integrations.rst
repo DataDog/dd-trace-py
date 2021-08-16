@@ -171,6 +171,12 @@ httplib
 ^^^^^^^
 .. automodule:: ddtrace.contrib.httplib
 
+.. _httpx:
+
+httpx
+^^^^^
+.. automodule:: ddtrace.contrib.httpx
+
 
 .. _jinja2:
 
@@ -191,6 +197,13 @@ kombu
 Mako
 ^^^^
 .. automodule:: ddtrace.contrib.mako
+
+
+.. _mariadb:
+
+MariaDB
+^^^^^^^
+.. automodule:: ddtrace.contrib.mariadb
 
 
 .. _molten:

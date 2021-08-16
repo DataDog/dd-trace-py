@@ -1,5 +1,4 @@
 import json
-from typing import Any
 from typing import Dict
 
 import pytest
@@ -35,20 +34,6 @@ def _extract_span(item):
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
     setattr(item, "_datadog_span", span)
-
-
-def _json_encode(params):
-    # type: (Dict[str, Any]) -> str
-    """JSON encode parameters. If complex object show inner values, otherwise default to string representation."""
-
-    def inner_encode(obj):
-        try:
-            obj_dict = getattr(obj, "__dict__", None)
-            return obj_dict if obj_dict else repr(obj)
-        except Exception as e:
-            return repr(e)
-
-    return json.dumps(params, default=inner_encode)
 
 
 def _extract_repository_name(repository_url):
@@ -128,6 +113,7 @@ def pytest_runtest_protocol(item, nextitem):
         resource=item.nodeid,
         span_type=SpanTypes.TEST.value,
     ) as span:
+        span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
@@ -138,8 +124,14 @@ def pytest_runtest_protocol(item, nextitem):
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
-            params = {"arguments": item.callspec.params, "metadata": {}}
-            span.set_tag(test.PARAMETERS, _json_encode(params))
+            parameters = {"arguments": {}, "metadata": {}}  # type: Dict[str, Dict[str, str]]
+            for param_name, param_val in item.callspec.params.items():
+                try:
+                    parameters["arguments"][param_name] = repr(param_val)
+                except Exception:
+                    parameters["arguments"][param_name] = "Could not encode"
+                    log.warning("Failed to encode %r", param_name, exc_info=True)
+            span.set_tag(test.PARAMETERS, json.dumps(parameters))
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
@@ -170,24 +162,14 @@ def pytest_runtest_makereport(item, call):
 
     try:
         result = outcome.get_result()
-
-        if hasattr(result, "wasxfail") or "xfail" in result.keywords:
-            if result.skipped:
-                # XFail tests that fail are recorded skipped by pytest
-                span.set_tag(test.RESULT, test.Status.XFAIL.value)
-                span.set_tag(test.XFAIL_REASON, result.wasxfail)
-            else:
-                span.set_tag(test.RESULT, test.Status.XPASS.value)
-                if result.passed:
-                    # XPass (strict=False) are recorded passed by pytest
-                    span.set_tag(test.XFAIL_REASON, result.wasxfail)
-                else:
-                    # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-                    span.set_tag(test.XFAIL_REASON, result.longrepr)
+        xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
+        has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
         if result.skipped:
-            if hasattr(result, "wasxfail"):
+            if xfail and not has_skip_keyword:
                 # XFail tests that fail are recorded skipped by pytest, should be passed instead
+                span.set_tag(test.RESULT, test.Status.XFAIL.value)
+                span.set_tag(test.XFAIL_REASON, result.wasxfail)
                 span.set_tag(test.STATUS, test.Status.PASS.value)
             else:
                 span.set_tag(test.STATUS, test.Status.SKIP.value)
@@ -196,7 +178,15 @@ def pytest_runtest_makereport(item, call):
                 span.set_tag(test.SKIP_REASON, reason)
         elif result.passed:
             span.set_tag(test.STATUS, test.Status.PASS.value)
+            if xfail and not has_skip_keyword:
+                # XPass (strict=False) are recorded passed by pytest
+                span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                span.set_tag(test.RESULT, test.Status.XPASS.value)
         else:
+            if xfail and not has_skip_keyword:
+                # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
+                span.set_tag(test.XFAIL_REASON, result.longrepr)
+                span.set_tag(test.RESULT, test.Status.XPASS.value)
             raise RuntimeWarning(result)
     except Exception:
         span.set_traceback()

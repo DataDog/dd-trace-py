@@ -1,5 +1,4 @@
 import itertools
-import os
 import subprocess
 
 import django
@@ -37,9 +36,6 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
-
-
-pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -1171,6 +1167,9 @@ def test_django_request_distributed(client, test_spans):
         },
     )
 
+    first_child_span = test_spans.find_span(parent_id=root.span_id)
+    assert first_child_span
+
 
 def test_django_request_distributed_disabled(client, test_spans):
     """
@@ -1364,7 +1363,7 @@ def test_collecting_requests_handles_improperly_configured_error(client, test_sp
     """
     # patch django._patch - django.__init__.py imports patch.py module as _patch
     with mock.patch(
-        "ddtrace.contrib.django._patch.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+        "ddtrace.contrib.django.utils.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
     ):
         # If ImproperlyConfigured error bubbles up, should automatically fail the test.
         resp = client.get("/")

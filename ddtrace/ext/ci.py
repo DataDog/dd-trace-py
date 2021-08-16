@@ -12,6 +12,9 @@ from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
 
 
+# CI app dd_origin tag
+CI_APP_TEST_ORIGIN = "ciapp-test"
+
 # Stage Name
 STAGE_NAME = "ci.stage.name"
 
@@ -105,6 +108,11 @@ def tags(env=None, cwd=None):
     # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
     # is None or "" should be overwritten.
     tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
+
+    user_specified_git_info = git.extract_user_git_metadata(env)
+
+    # Tags provided by the user take precedence over everything
+    tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
     tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
@@ -254,7 +262,7 @@ def extract_circle_ci(env):
         PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
         PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
         PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
-        PIPELINE_URL: env.get("CIRCLE_BUILD_URL"),
+        PIPELINE_URL: "https://app.circleci.com/pipelines/workflows/{0}".format(env.get("CIRCLE_WORKFLOW_ID")),
         JOB_URL: env.get("CIRCLE_BUILD_URL"),
         JOB_NAME: env.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
@@ -291,6 +299,13 @@ def extract_github_actions(env):
 def extract_gitlab(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Gitlab environ."""
+    author = env.get("CI_COMMIT_AUTHOR")
+    author_name = None  # type: Optional[str]
+    author_email = None  # type: Optional[str]
+    if author:
+        # Extract name and email from `author` which is in the form "name <email>"
+        author_name, author_email = author.strip("> ").split(" <")
+    commit_timestamp = env.get("CI_COMMIT_TIMESTAMP")
     url = env.get("CI_PIPELINE_URL")
     if url:
         url = re.sub("/-/pipelines/", "/pipelines/", url)
@@ -309,6 +324,9 @@ def extract_gitlab(env):
         PROVIDER_NAME: "gitlab",
         WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
         git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
+        git.COMMIT_AUTHOR_NAME: author_name,
+        git.COMMIT_AUTHOR_EMAIL: author_email,
+        git.COMMIT_AUTHOR_DATE: commit_timestamp,
     }
 
 
@@ -330,7 +348,7 @@ def extract_jenkins(env):
     return {
         git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GIT_COMMIT"),
-        git.REPOSITORY_URL: env.get("GIT_URL"),
+        git.REPOSITORY_URL: env.get("GIT_URL", env.get("GIT_URL_1")),
         git.TAG: tag,
         PIPELINE_ID: env.get("BUILD_TAG"),
         PIPELINE_NAME: name,
@@ -395,7 +413,7 @@ def extract_bitrise(env):
     return {
         PROVIDER_NAME: "bitrise",
         PIPELINE_ID: env.get("BITRISE_BUILD_SLUG"),
-        PIPELINE_NAME: env.get("BITRISE_APP_TITLE"),
+        PIPELINE_NAME: env.get("BITRISE_TRIGGERED_WORKFLOW_ID"),
         PIPELINE_NUMBER: env.get("BITRISE_BUILD_NUMBER"),
         PIPELINE_URL: env.get("BITRISE_BUILD_URL"),
         WORKSPACE_PATH: env.get("BITRISE_SOURCE_DIR"),

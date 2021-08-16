@@ -15,6 +15,7 @@ from ...ext import SpanTypes
 from ...ext import cassandra as cassx
 from ...ext import errors
 from ...ext import net
+from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...pin import Pin
@@ -210,9 +211,12 @@ def _extract_result_metas(result):
 
     if future:
         # get the host
-        host = getattr(future, "coordinator_host", None)
+        host = maybe_stringify(getattr(future, "coordinator_host", None))
         if host:
+            host, _, port = host.partition(":")
             metas[net.TARGET_HOST] = host
+            if port:
+                metas[net.TARGET_PORT] = int(port)
         elif hasattr(future, "_current_host"):
             address = deep_getattr(future, "_current_host.address")
             if address:
