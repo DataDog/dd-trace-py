@@ -18,7 +18,7 @@ class Threading(bm.Scenario):
     nspans = bm.var(type=int)
 
     def create_trace(self, tracer):
-        with tracer.trace("root") as root:
+        with tracer.trace("root"):
             for _ in range(self.nspans - 1):
                 with tracer.trace("child"):
                     pass
