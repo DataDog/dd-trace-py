@@ -36,8 +36,8 @@ def _register(scenario_cls):
 
 
 class ScenarioMeta(abc.ABCMeta):
-    def __init__(cls, name, bases, dict):
-        super(ScenarioMeta, cls).__init__(name, bases, dict)
+    def __init__(cls, name, bases, _dict):
+        super(ScenarioMeta, cls).__init__(name, bases, _dict)
 
         # Make sure every sub-class is wrapped by `attr.s`
         cls = attr.s()(cls)
