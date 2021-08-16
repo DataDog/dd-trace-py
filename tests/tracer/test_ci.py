@@ -137,9 +137,11 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags["git.commit.committer.email"] == "jane@doe.com"
     assert extracted_tags["git.commit.committer.date"] == "2021-01-20T04:37:21-0400"
     assert extracted_tags["git.branch"] == "master"
+    assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
 
 
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
+    """Test that user-provided git metadata overwrites CI provided env vars."""
     ci_env = {
         "DD_GIT_REPOSITORY_URL": "https://github.com/user-repo-name.git",
         "DD_GIT_COMMIT_SHA": "1234",
