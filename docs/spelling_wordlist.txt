@@ -144,5 +144,6 @@ uvicorn
 versioned
 vertica
 whitelist
+workflow
 wsgi
 xfail
