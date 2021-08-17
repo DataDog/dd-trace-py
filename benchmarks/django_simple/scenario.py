@@ -2,7 +2,6 @@ import bm
 import utils
 
 
-@bm.register
 class DjangoSimple(bm.Scenario):
     tracer_enabled = bm.var(type=bool)
     profiler_enabled = bm.var(type=bool)

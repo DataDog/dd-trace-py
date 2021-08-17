@@ -4,7 +4,6 @@ import utils
 from ddtrace import Span as dd_Span
 
 
-@bm.register
 class Span(bm.Scenario):
     nspans = bm.var(type=int)
     ntags = bm.var(type=int)
