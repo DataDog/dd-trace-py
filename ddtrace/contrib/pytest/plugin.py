@@ -1,3 +1,4 @@
+from doctest import DocTest
 import json
 from typing import Dict
 
@@ -120,7 +121,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(test.NAME, item.name)
         if hasattr(item, "module"):
             span.set_tag(test.SUITE, item.module.__name__)
-        elif hasattr(item, "dtest"):
+        elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
