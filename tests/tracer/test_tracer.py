@@ -1656,7 +1656,7 @@ def test_fork_manual_span_different_contexts(tracer):
     assert exit_code == 12
 
 
-def test_fork_different_contexts_span_tags(tracer):
+def test_fork_pid(tracer):
     root = tracer.trace("root_span")
     assert root.get_tag("runtime-id") is not None
     assert root.get_metric(system.PID) is not None
