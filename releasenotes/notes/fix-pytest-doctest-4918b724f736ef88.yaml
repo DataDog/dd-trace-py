@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes an issue when using the pytest plugin with doctest, where ``DoctestItem`` does not contain the
+    test module name.
