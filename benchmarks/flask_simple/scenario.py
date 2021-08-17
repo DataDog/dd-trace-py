@@ -2,7 +2,6 @@ import bm
 import utils
 
 
-@bm.register
 class FlaskSimple(bm.Scenario):
     tracer_enabled = bm.var(type=bool)
     profiler_enabled = bm.var(type=bool)
