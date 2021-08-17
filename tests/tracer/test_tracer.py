@@ -1668,7 +1668,6 @@ def test_fork_pid(tracer):
         assert child1.get_tag("runtime-id") is None
         assert child1.get_metric(system.PID) is None
         child1.finish()
-        os._exit(12)
     else:
         child2 = tracer.trace("span2")
         assert child2.get_tag("runtime-id") is not None
