@@ -6,44 +6,7 @@ import pyperf
 import six
 
 
-def register(cls):
-    """Decorator for scenario class that registers the scenario to be run."""
-    wrapped_cls = attr.s(cls)
-    _register(wrapped_cls)
-    return wrapped_cls
-
-
 var = attr.ib
-
-
-@attr.s
-class Scenario(six.with_metaclass(abc.ABCMeta)):
-    """The base class for specifying a benchmark."""
-
-    name = attr.ib(type=str)
-
-    @property
-    def scenario_name(self):
-        return "{}-{}".format(self.__class__.__name__.lower(), self.name)
-
-    @abc.abstractmethod
-    def run(self):
-        """Returns a context manager that yields a function to be run for performance testing."""
-        pass
-
-    def _pyperf(self, loops):
-        rungen = self.run()
-        run = next(rungen)
-        t0 = time.perf_counter()
-        run(loops)
-        dt = time.perf_counter() - t0
-        try:
-            # perform any teardown
-            next(rungen)
-        except StopIteration:
-            pass
-        finally:
-            return dt
 
 
 def _register(scenario_cls):
@@ -70,3 +33,45 @@ def _register(scenario_cls):
     scenario = scenario_cls(**config_dict)
 
     runner.bench_time_func(scenario.scenario_name, scenario._pyperf)
+
+
+class ScenarioMeta(abc.ABCMeta):
+    def __init__(cls, name, bases, _dict):
+        super(ScenarioMeta, cls).__init__(name, bases, _dict)
+
+        # Make sure every sub-class is wrapped by `attr.s`
+        cls = attr.s()(cls)
+
+        # Do not register the base Scenario class
+        # DEV: We cannot compare `cls` to `Scenario` since it doesn't exist yet
+        if cls.__module__ != __name__:
+            _register(cls)
+
+
+class Scenario(six.with_metaclass(ScenarioMeta)):
+    """The base class for specifying a benchmark."""
+
+    name = attr.ib(type=str)
+
+    @property
+    def scenario_name(self):
+        return "{}-{}".format(self.__class__.__name__.lower(), self.name)
+
+    @abc.abstractmethod
+    def run(self):
+        """Returns a context manager that yields a function to be run for performance testing."""
+        pass
+
+    def _pyperf(self, loops):
+        rungen = self.run()
+        run = next(rungen)
+        t0 = time.perf_counter()
+        run(loops)
+        dt = time.perf_counter() - t0
+        try:
+            # perform any teardown
+            next(rungen)
+        except StopIteration:
+            pass
+        finally:
+            return dt
