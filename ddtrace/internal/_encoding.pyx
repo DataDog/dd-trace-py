@@ -124,37 +124,41 @@ cdef inline int pack_text(msgpack_packer *pk, object text):
 
 cdef class StringTable(object):
     cdef dict _index
+    cdef stdint.uint32_t _next_id
 
     def __init__(self):
         self._index = {"": 0}
         self.insert("")
+        self._next_id = 1
 
-    cpdef insert(self, object string):
+    cdef insert(self, object string):
         pass
 
-    cpdef stdint.uint32_t index(self, object string):
-        cdef stdint.uint32_t index
+    cdef stdint.uint32_t index(self, object string):
+        cdef stdint.uint32_t _id
 
         if string is None:
             return 0
-        
-        try:
-            return self._index[string]
-        except KeyError:
-            index = len(self)
-            self._index[string] = index
-            self.insert(string)
-            return index
 
-    cpdef reset(self):
-        self._index.clear()
+        if PyDict_Contains(self._index, string):
+            return PyLong_AsLong(<object>PyDict_GetItem(self._index, string))
+
+        _id = self._next_id
+        PyDict_SetItem(self._index, string, PyLong_FromLong(_id))
+        self.insert(string)
+        self._next_id += 1
+        return _id
+
+    cdef reset(self):
+        PyDict_Clear(self._index)
+        self._next_id = 0
         assert self.index("") == 0
 
     def __len__(self):
-        return len(self._index)
+        return PyLong_FromLong(self._next_id)
 
     def __contains__(self, object string):
-        return string in self._index
+        return PyBool_FromLong(PyDict_Contains(self._index, string))
 
 
 cdef class ListStringTable(StringTable):
@@ -164,8 +168,8 @@ cdef class ListStringTable(StringTable):
         self._list = []
         super(ListStringTable, self).__init__()
 
-    cpdef insert(self, string):
-        self._list.append(string)
+    cdef insert(self, object string):
+        PyList_Append(self._list, string)
 
     def __iter__(self):
         return iter(self._list)
@@ -191,22 +195,22 @@ cdef class MsgpackStringTable(StringTable):
         PyMem_Free(self.pk.buf)
         self.pk.buf = NULL
 
-    cpdef insert(self, object string):
+    cdef insert(self, object string):
         cdef int ret
 
         ret = pack_text(&self.pk, string)
         if ret != 0:
             raise RuntimeError("Failed to add string to msgpack string table")
 
-    cpdef savepoint(self):
+    cdef savepoint(self):
         self._sp = self.pk.length
 
-    cpdef rollback(self):
+    cdef rollback(self):
         if self._sp > 0:
             self.pk.length = self._sp
 
-    cpdef get_bytes(self):
-        cdef int l = len(self._index)
+    cdef get_bytes(self):
+        cdef stdint.uint32_t l = self._next_id
         cdef int offset = 6 - array_prefix_size(l)
         cdef int old_pos = self.pk.length
         
@@ -225,7 +229,7 @@ cdef class MsgpackStringTable(StringTable):
     def size(self):
         return self.pk.length - 5 + array_prefix_size(len(self._index))
 
-    cpdef append_raw(self, object src, Py_ssize_t size):
+    cdef append_raw(self, object src, Py_ssize_t size):
         cdef int res
         with self._lock:
             assert self.size + size <= self.max_size
@@ -234,7 +238,7 @@ cdef class MsgpackStringTable(StringTable):
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
 
 
-    cpdef flush(self):
+    cdef flush(self):
         try:
             return self.get_bytes()
         finally:
@@ -246,11 +250,11 @@ cdef class MsgpackStringTable(StringTable):
 cdef class BufferedEncoder(object):
     content_type: str = None
 
-    cdef public int max_size
-    cdef public int max_item_size
+    cdef public Py_ssize_t max_size
+    cdef public Py_ssize_t max_item_size
     cdef object _lock
 
-    def __cinit__(self, max_size, max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         self.max_size = max_size
         self.max_item_size = max_item_size
         self._lock = threading.Lock()
@@ -268,7 +272,7 @@ cdef class ListBufferedEncoder(BufferedEncoder):
     cdef list _buffer
     cdef Py_ssize_t _size
 
-    def __cinit__(self, max_size, max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         self._buffer = []
         self._size = 0
 
@@ -315,7 +319,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cdef msgpack_packer pk
     cdef stdint.uint32_t _count
 
-    def __cinit__(self, max_size, max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         cdef int buf_size = 1024*1024
         self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
@@ -361,13 +365,13 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             self.pk.length = old_pos
             return offset
 
-    cpdef get_bytes(self):
+    cdef get_bytes(self):
         """Return internal buffer contents as bytes object"""
         cdef int offset = self._update_array_len()
         with self._lock:
             return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
 
-    cpdef char * get_buffer(self):
+    cdef char * get_buffer(self):
         """Return internal buffer."""
         return self.pk.buf + self._update_array_len()
 
@@ -584,9 +588,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
-    cdef object _st
+    cdef MsgpackStringTable _st
 
-    def __cinit__(self, max_size, max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         self._st = MsgpackStringTable(max_size)
 
     cpdef flush(self):
@@ -594,9 +598,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             self._st.append_raw(PyLong_FromLong(<long> self.get_buffer()), <Py_ssize_t> super(MsgpackEncoderV05, self).size)
             return self._st.flush()
         finally:
-            # Reset the buffer.
-            self.pk.length = 5
-            self._count = 0
+            self._reset_buffer()
 
     @property
     def size(self):
@@ -629,26 +631,39 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0: return ret
         ret = self._pack_string(span.resource)
         if ret != 0: return ret
-        ret = msgpack_pack_uint64(&self.pk, span.trace_id or 0)
+
+        _ = span.trace_id
+        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        ret = msgpack_pack_uint64(&self.pk, span.span_id or 0)
+        
+        _ = span.span_id
+        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        ret = msgpack_pack_uint64(&self.pk, span.parent_id or 0)
+        
+        _ = span.parent_id
+        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        ret = msgpack_pack_int64(&self.pk, span.start_ns or 0)
+        
+        _ = span.start_ns
+        ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        ret = msgpack_pack_int64(&self.pk, span.duration_ns or 0)
+        
+        _ = span.duration_ns
+        ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        ret = msgpack_pack_int32(&self.pk, span.error or 0)
+        
+        _ = span.error
+        ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
 
         ret = msgpack_pack_map(&self.pk, len(span.meta) + (dd_origin is not NULL))
         if ret != 0: return ret
-        for k, v in span.meta:
-            ret = self._pack_string(k)
-            if ret != 0: return ret
-            ret = self._pack_string(v)
-            if ret != 0: return ret
+        if span.meta:
+            for k, v in span.meta.items():
+                ret = self._pack_string(k)
+                if ret != 0: return ret
+                ret = self._pack_string(v)
+                if ret != 0: return ret
         if dd_origin is not NULL:
             ret = self._pack_string("_dd.origin")  # TODO: add to string table by default and use index 1 instead
             if ret != 0: return ret
@@ -657,11 +672,12 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         
         ret = msgpack_pack_map(&self.pk, len(span.metrics))
         if ret != 0: return ret
-        for k, v in span.metrics:
-            ret = self._pack_string(k)
-            if ret != 0: return ret
-            ret = pack_number(&self.pk, v)
-            if ret != 0: return ret
+        if span.metrics:
+            for k, v in span.metrics.items():
+                ret = self._pack_string(k)
+                if ret != 0: return ret
+                ret = pack_number(&self.pk, v)
+                if ret != 0: return ret
 
         ret = self._pack_string(span.span_type)
         if ret != 0: return ret
