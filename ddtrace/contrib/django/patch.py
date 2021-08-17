@@ -58,7 +58,8 @@ config._add(
         trace_query_string=None,  # Default to global config
         include_user_name=True,
         use_handler_resource_format=asbool(get_env("django", "use_handler_resource_format", default=False)),
-        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
+        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False),)
+        use_legacy_db_wrapping=asbool(get_env("django", "use_legacy_db_wrapping", default=False)),
     ),
 )
 
@@ -82,15 +83,26 @@ def patch_conn(django, conn):
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
         cursor = func(*args, **kwargs)  # type: django.db.backends.utils.CursorWrapper
 
-        # Ensure the CursorWrapper.cursor is wrapped
-        if not isinstance(cursor.cursor, dbapi.TracedCursor):
-            traced_cursor_cls = dbapi.TracedCursor
-            if Psycopg2TracedCursor is not None and isinstance(cursor.cursor, psycopg_cursor_cls):
-                traced_cursor_cls = Psycopg2TracedCursor
-            setattr(cursor, "cursor", traced_cursor_cls(cursor.cursor, pin, config.django))
+        # If the cursor is already wrapper
+        #   update the pin metadata to add django specific tags
+        #   do we need to update the service name?
+        # else
+        #   wrap it with a generic trace cursor (do we want to check for psycopg2 here?)
+        # TODO: Fallback config to always double wrap the cursor?
+
+        if config.django.use_legacy_db_wrapping:
+            # TODO: Should we use the version that "supports" Psycopg2 composed queries?
+            # https://github.com/DataDog/dd-trace-py/commit/af326b6a289600d9ba43d6979dc4de713d85aebe#diff-8f30c25b0c036c175363c0913e45dfa2a17cc2fd41f65669202423501b1e60fb
+            return dbapi.TracedCursor(cursor, pin, config.django)
         else:
-            # Update the pin on the CursorWrapper.cursor with the data from Django
-            pin.onto(cursor.cursor)
+            if isinstance(cursor.cursor, dbapi.TracedCursor):
+                pass
+            else:
+                # Wrap the cursor
+                traced_cursor_cls = dbapi.TracedCursor
+                if Psycopg2TracedCursor is not None and isinstance(cursor.cursor, psycopg_cursor_cls):
+                    traced_cursor_cls = Psycopg2TracedCursor
+                setattr(cursor, "cursor", traced_cursor_cls(cursor.cursor, pin, config.django))
         return cursor
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
