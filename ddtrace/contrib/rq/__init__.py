@@ -89,9 +89,6 @@ config._add(
 )
 
 
-propagator = HTTPPropagator()
-
-
 @trace_utils.with_traced_module
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")
@@ -108,7 +105,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:
-            propagator.inject(span.context, job.meta)
+            HTTPPropagator.inject(span.context, job.meta)
 
         try:
             return func(*args, **kwargs)
@@ -133,7 +130,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
 
-    ctx = propagator.extract(job.meta)
+    ctx = HTTPPropagator.extract(job.meta)
     if ctx.trace_id:
         pin.tracer.context_provider.activate(ctx)
 
