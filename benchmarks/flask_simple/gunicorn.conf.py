@@ -22,6 +22,5 @@ def post_worker_init(worker):
 bind = "0.0.0.0:8000"
 worker_class = "sync"
 workers = 1
-wsgi_app = "django.core.wsgi:get_wsgi_application()"
+wsgi_app = "app:app"
 pidfile = "gunicorn.pid"
-raw_env = ["DJANGO_SETTINGS_MODULE=app"]

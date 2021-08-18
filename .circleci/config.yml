@@ -910,6 +910,8 @@ requires_pre_check: &requires_pre_check
 
 requires_base_venvs: &requires_base_venvs
   requires:
+    - pre_check
+    - ccheck
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -988,11 +990,11 @@ workflows:
       - pre_check
       - ccheck
 
+      # Build necessary base venvs for integration tests
+      - build_base_venvs
+
       # Docs
       - build_docs: *requires_pre_check
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs: *requires_pre_check
 
       # Integration test suites
       - aiobotocore: *requires_base_venvs

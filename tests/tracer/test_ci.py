@@ -126,17 +126,57 @@ def test_git_extract_workspace_path_error(tmpdir):
 
 def test_extract_git_metadata(git_repo):
     """Test that extract_git_metadata() sets all tags correctly."""
-    expected_tags = {
-        git.REPOSITORY_URL: "git@github.com:test-repo-url.git",
-        git.COMMIT_MESSAGE: "this is a commit msg",
-        git.COMMIT_AUTHOR_NAME: "John Doe",
-        git.COMMIT_AUTHOR_EMAIL: "john@doe.com",
-        git.COMMIT_AUTHOR_DATE: "2021-01-19T09:24:53-0400",
-        git.COMMIT_COMMITTER_NAME: "Jane Doe",
-        git.COMMIT_COMMITTER_EMAIL: "jane@doe.com",
-        git.COMMIT_COMMITTER_DATE: "2021-01-20T04:37:21-0400",
+    extracted_tags = git.extract_git_metadata(cwd=git_repo)
+
+    assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
+    assert extracted_tags["git.commit.message"] == "this is a commit msg"
+    assert extracted_tags["git.commit.author.name"] == "John Doe"
+    assert extracted_tags["git.commit.author.email"] == "john@doe.com"
+    assert extracted_tags["git.commit.author.date"] == "2021-01-19T09:24:53-0400"
+    assert extracted_tags["git.commit.committer.name"] == "Jane Doe"
+    assert extracted_tags["git.commit.committer.email"] == "jane@doe.com"
+    assert extracted_tags["git.commit.committer.date"] == "2021-01-20T04:37:21-0400"
+    assert extracted_tags["git.branch"] == "master"
+    assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
+
+
+def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
+    """Test that user-provided git metadata overwrites CI provided env vars."""
+    ci_env = {
+        "DD_GIT_REPOSITORY_URL": "https://github.com/user-repo-name.git",
+        "DD_GIT_COMMIT_SHA": "1234",
+        "DD_GIT_BRANCH": "branch",
+        "DD_GIT_COMMIT_MESSAGE": "message",
+        "DD_GIT_COMMIT_AUTHOR_NAME": "author name",
+        "DD_GIT_COMMIT_AUTHOR_EMAIL": "author email",
+        "DD_GIT_COMMIT_AUTHOR_DATE": "author date",
+        "DD_GIT_COMMIT_COMMITTER_NAME": "committer name",
+        "DD_GIT_COMMIT_COMMITTER_EMAIL": "committer email",
+        "DD_GIT_COMMIT_COMMITTER_DATE": "committer date",
+        "APPVEYOR": "true",
+        "APPVEYOR_BUILD_FOLDER": "/foo/bar",
+        "APPVEYOR_BUILD_ID": "appveyor-build-id",
+        "APPVEYOR_BUILD_NUMBER": "appveyor-pipeline-number",
+        "APPVEYOR_REPO_BRANCH": "master",
+        "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
+        "APPVEYOR_REPO_NAME": "appveyor-repo-name",
+        "APPVEYOR_REPO_PROVIDER": "github",
+        "APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED": "this is the correct commit message",
+        "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
+        "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
-    assert git.extract_git_metadata(cwd=git_repo) == expected_tags
+    extracted_tags = ci.tags(env=ci_env, cwd=git_repo)
+
+    assert extracted_tags["git.repository_url"] == "https://github.com/user-repo-name.git"
+    assert extracted_tags["git.commit.sha"] == "1234"
+    assert extracted_tags["git.branch"] == "branch"
+    assert extracted_tags["git.commit.message"] == "message"
+    assert extracted_tags["git.commit.author.name"] == "author name"
+    assert extracted_tags["git.commit.author.email"] == "author email"
+    assert extracted_tags["git.commit.author.date"] == "author date"
+    assert extracted_tags["git.commit.committer.name"] == "committer name"
+    assert extracted_tags["git.commit.committer.email"] == "committer email"
+    assert extracted_tags["git.commit.committer.date"] == "committer date"
 
 
 def test_git_executable_not_found_error(git_repo_empty):
