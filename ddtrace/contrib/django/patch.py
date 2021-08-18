@@ -107,7 +107,10 @@ def patch_conn(django, conn):
             if not existing_pin:
                 pin.onto(cursor.cursor)
             else:
-                existing_pin.tags.update(pin.tags)
+                if existing_pin.tags:
+                    existing_pin.tags.update(pin.tags)
+                else:
+                    existing_pin.tags = pin.tags.copy()
                 # TODO: Do we update the service?
         else:
             # Wrap the cursor
