@@ -1,20 +1,25 @@
 [[{"name" "postgres.query"
-   "service" "postgresdb"
+   "service" "postgres"
    "resource" "select 'one' as \"x\""
    "type" "sql"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1624103334938617300
-   "duration" 1192800
-   "meta" {"runtime-id" "25fe3bf994c8480dbf2e18d4ea25956b"
+   "start" 1629296970419773000
+   "duration" 1426800
+   "meta" {"runtime-id" "c0c0e8c613844dd2bd4f1462db492d55"
+           "out.host" "127.0.0.1"
+           "db.name" "test_postgres"
+           "db.user" "postgres"
+           "db.application" "None"
            "django.db.vendor" "postgresql"
            "django.db.alias" "postgres"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 2152
+              "system.pid" 611
+              "out.port" 5432
               "db.rowcount" 1
               "sql.rows" 1
               "_dd.tracer_kr" 1.0}}]]
