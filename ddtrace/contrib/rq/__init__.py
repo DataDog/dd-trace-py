@@ -64,6 +64,7 @@ from ddtrace import config
 from .. import trace_utils
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
+from ...utils import get_argument_value
 
 
 __all__ = [
@@ -93,7 +94,7 @@ propagator = HTTPPropagator()
 
 @trace_utils.with_traced_module
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
-    job = args[0]
+    job = get_argument_value(args, kwargs, 0, "f")
 
     with pin.tracer.trace(
         "rq.queue.enqueue_job",
@@ -121,7 +122,8 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
     with pin.tracer.trace("rq.queue.fetch_job", service=trace_utils.int_service(pin, config.rq)) as span:
-        span.set_tag("job.id", args[0])
+        job_id = get_argument_value(args, kwargs, 0, "job_id")
+        span.set_tag("job.id", job_id)
         return func(*args, **kwargs)
 
 
@@ -129,7 +131,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
 def traced_perform_job(rq, pin, func, instance, args, kwargs):
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
-    job = args[0]
+    job = get_argument_value(args, kwargs, 0, "job")
 
     ctx = propagator.extract(job.meta)
     if ctx.trace_id:
@@ -176,7 +178,8 @@ def traced_job_fetch(rq, pin, func, instance, args, kwargs):
     job = None
     try:
         with pin.tracer.trace("rq.job.fetch", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
-            span.set_tag("job.id", args[0])
+            job_id = get_argument_value(args, kwargs, 0, "id")
+            span.set_tag("job.id", job_id)
             job = func(*args, **kwargs)
             return job
     finally:
@@ -189,7 +192,8 @@ def traced_job_fetch(rq, pin, func, instance, args, kwargs):
 def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
     with pin.tracer.trace("rq.job.fetch_many", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
-        span.set_tag("job_ids", args[0])
+        job_ids = get_argument_value(args, kwargs, 0, "job_ids")
+        span.set_tag("job_ids", job_ids)
         return func(*args, **kwargs)
 
 

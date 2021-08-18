@@ -46,7 +46,6 @@ def sync_queue(connection):
         unpatch()
 
 
-
 @snapshot(ignores=snapshot_ignores)
 def test_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
