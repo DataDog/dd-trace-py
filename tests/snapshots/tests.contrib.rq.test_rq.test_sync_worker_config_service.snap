@@ -6,54 +6,31 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1625890388867922000
-   "duration" 3309000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
+   "start" 1629147871366581000
+   "duration" 2119500
+   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
            "queue.name" "q"
-           "job.id" "3933e641-ae97-45c1-8835-39e756b642ec"
+           "job.id" "378dc0d8-1378-4c9d-8755-0babfb487296"
            "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8544
+              "system.pid" 503
               "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.job.fetch"
    "service" "my-worker-svc"
    "resource" "rq.job.fetch"
-   "error" 0
+   "error" 1
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1625890388878903000
-   "duration" 743000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "3933e641-ae97-45c1-8835-39e756b642ec"}
+   "start" 1629147871374234900
+   "duration" 1078900
+   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
+           "job.id" "1c8fafd3-8e22-4c9e-99b1-1d8097b1e621"
+           "error.msg" "time data '' does not match format '%Y-%m-%dT%H:%M:%SZ'"
+           "error.type" "builtins.ValueError"
+           "error.stack" "Traceback (most recent call last):\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/utils.py\", line 172, in utcparse\n    return datetime.datetime.strptime(string, _TIMESTAMP_FORMAT)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 568, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 349, in _strptime\n    raise ValueError(\"time data %r does not match format %r\" %\nValueError: time data '' does not match format '%Y-%m-%dT%H:%M:%S.%fZ'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 180, in traced_job_fetch\n    job = func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 287, in fetch\n    job.refresh()\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 428, in refresh\n    self.started_at = to_date(as_text(obj.get('started_at')))\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 411, in to_date\n    return utcparse(as_text(date_str))\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/utils.py\", line 175, in utcparse\n    return datetime.datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ')\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 568, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 349, in _strptime\n    raise ValueError(\"time data %r does not match format %r\" %\nValueError: time data '' does not match format '%Y-%m-%dT%H:%M:%SZ'\n"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.worker.perform_job"
-   "service" "my-worker-svc"
-   "resource" "tests.contrib.rq.jobs.job_add1"
-   "type" "worker"
-   "error" 0
-   "span_id" 0
-   "trace_id" 2
-   "parent_id" nil
-   "start" 1625890388881209000
-   "duration" 3726000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "3933e641-ae97-45c1-8835-39e756b642ec"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}
-      {"name" "rq.job.perform"
-       "service" "my-worker-svc"
-       "resource" "tests.contrib.rq.jobs.job_add1"
-       "error" 0
-       "span_id" 1
-       "trace_id" 2
-       "parent_id" 0
-       "start" 1625890388882237000
-       "duration" 514000
-       "meta" {"job.id" "3933e641-ae97-45c1-8835-39e756b642ec"}}]]
+              "system.pid" 503
+              "_dd.tracer_kr" 1.0}}]]

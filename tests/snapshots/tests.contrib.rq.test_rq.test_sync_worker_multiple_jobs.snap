@@ -1,29 +1,21 @@
-[[{"name" "rq.worker.perform_job"
-   "service" "rq-worker"
+[[{"name" "rq.queue.enqueue_job"
+   "service" "rq"
    "resource" "tests.contrib.rq.jobs.job_add1"
    "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1625890389220527000
-   "duration" 3679000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "9c5dacc8-ed41-4ebf-9966-b2b2e698258a"}
+   "start" 1629147871171694700
+   "duration" 2136500
+   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
+           "queue.name" "q"
+           "job.id" "ebc1d53c-c447-4a58-98fb-73612052c418"
+           "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}
-      {"name" "rq.job.perform"
-       "service" "rq-worker"
-       "resource" "tests.contrib.rq.jobs.job_add1"
-       "error" 0
-       "span_id" 1
-       "trace_id" 0
-       "parent_id" 0
-       "start" 1625890389221466000
-       "duration" 564000
-       "meta" {"job.id" "9c5dacc8-ed41-4ebf-9966-b2b2e698258a"}}]
+              "system.pid" 503
+              "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.queue.enqueue_job"
    "service" "rq"
    "resource" "tests.contrib.rq.jobs.job_add1"
@@ -32,146 +24,49 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1625890389152321000
-   "duration" 2571000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
+   "start" 1629147871174010600
+   "duration" 1052600
+   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
            "queue.name" "q"
-           "job.id" "7acaa782-57b1-4323-b974-ec889b31c923"
+           "job.id" "ca435eb2-6cd9-426a-8922-9075a84d73bd"
            "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8544
+              "system.pid" 503
               "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.worker.perform_job"
-   "service" "rq-worker"
+ [{"name" "rq.queue.enqueue_job"
+   "service" "rq"
    "resource" "tests.contrib.rq.jobs.job_add1"
    "type" "worker"
    "error" 0
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1625890389199209000
-   "duration" 3569000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "b3f858d1-0ef3-43b7-bef1-e3273512a7dc"}
+   "start" 1629147871175212100
+   "duration" 1065000
+   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
+           "queue.name" "q"
+           "job.id" "b67f9fa4-5651-4a7b-b54f-023861c64390"
+           "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}
-      {"name" "rq.job.perform"
-       "service" "rq-worker"
-       "resource" "tests.contrib.rq.jobs.job_add1"
-       "error" 0
-       "span_id" 1
-       "trace_id" 2
-       "parent_id" 0
-       "start" 1625890389200189000
-       "duration" 495000
-       "meta" {"job.id" "b3f858d1-0ef3-43b7-bef1-e3273512a7dc"}}]
- [{"name" "rq.worker.perform_job"
+              "system.pid" 503
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "rq.job.fetch"
    "service" "rq-worker"
-   "resource" "tests.contrib.rq.jobs.job_add1"
-   "type" "worker"
-   "error" 0
+   "resource" "rq.job.fetch"
+   "error" 1
    "span_id" 0
    "trace_id" 3
    "parent_id" nil
-   "start" 1625890389170235000
-   "duration" 4590000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "7acaa782-57b1-4323-b974-ec889b31c923"}
+   "start" 1629147871183031800
+   "duration" 1029300
+   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
+           "job.id" "89dead51-5770-4b72-9669-9cb8ecb3c14c"
+           "error.msg" "time data '' does not match format '%Y-%m-%dT%H:%M:%SZ'"
+           "error.type" "builtins.ValueError"
+           "error.stack" "Traceback (most recent call last):\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/utils.py\", line 172, in utcparse\n    return datetime.datetime.strptime(string, _TIMESTAMP_FORMAT)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 568, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 349, in _strptime\n    raise ValueError(\"time data %r does not match format %r\" %\nValueError: time data '' does not match format '%Y-%m-%dT%H:%M:%S.%fZ'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 180, in traced_job_fetch\n    job = func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 287, in fetch\n    job.refresh()\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 428, in refresh\n    self.started_at = to_date(as_text(obj.get('started_at')))\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 411, in to_date\n    return utcparse(as_text(date_str))\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/utils.py\", line 175, in utcparse\n    return datetime.datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ')\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 568, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 349, in _strptime\n    raise ValueError(\"time data %r does not match format %r\" %\nValueError: time data '' does not match format '%Y-%m-%dT%H:%M:%SZ'\n"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}
-      {"name" "rq.job.perform"
-       "service" "rq-worker"
-       "resource" "tests.contrib.rq.jobs.job_add1"
-       "error" 0
-       "span_id" 1
-       "trace_id" 3
-       "parent_id" 0
-       "start" 1625890389171611000
-       "duration" 796000
-       "meta" {"job.id" "7acaa782-57b1-4323-b974-ec889b31c923"}}]
- [{"name" "rq.job.fetch"
-   "service" "rq-worker"
-   "resource" "rq.job.fetch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 4
-   "parent_id" nil
-   "start" 1625890389167028000
-   "duration" 873000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "7acaa782-57b1-4323-b974-ec889b31c923"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.job.fetch"
-   "service" "rq-worker"
-   "resource" "rq.job.fetch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 5
-   "parent_id" nil
-   "start" 1625890389218156000
-   "duration" 774000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "9c5dacc8-ed41-4ebf-9966-b2b2e698258a"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.queue.enqueue_job"
-   "service" "rq"
-   "resource" "tests.contrib.rq.jobs.job_add1"
-   "type" "worker"
-   "error" 0
-   "span_id" 0
-   "trace_id" 6
-   "parent_id" nil
-   "start" 1625890389155044000
-   "duration" 1483000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "queue.name" "q"
-           "job.id" "b3f858d1-0ef3-43b7-bef1-e3273512a7dc"
-           "job.func_name" "tests.contrib.rq.jobs.job_add1"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.queue.enqueue_job"
-   "service" "rq"
-   "resource" "tests.contrib.rq.jobs.job_add1"
-   "type" "worker"
-   "error" 0
-   "span_id" 0
-   "trace_id" 7
-   "parent_id" nil
-   "start" 1625890389156634000
-   "duration" 1466000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "queue.name" "q"
-           "job.id" "9c5dacc8-ed41-4ebf-9966-b2b2e698258a"
-           "job.func_name" "tests.contrib.rq.jobs.job_add1"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 8544
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.job.fetch"
-   "service" "rq-worker"
-   "resource" "rq.job.fetch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 8
-   "parent_id" nil
-   "start" 1625890389196704000
-   "duration" 859000
-   "meta" {"runtime-id" "8b4aa804aa9b4fd2adea8426ea842ee8"
-           "job.id" "b3f858d1-0ef3-43b7-bef1-e3273512a7dc"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 8544
+              "system.pid" 503
               "_dd.tracer_kr" 1.0}}]]

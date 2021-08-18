@@ -3,4 +3,4 @@ def job_add1(x):
 
 
 def job_fail():
-    raise Exception("error")
+    raise ValueError("error")
