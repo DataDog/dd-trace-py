@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 import attr
 import tenacity
 
+from ddtrace.appsec.internal.buffer import Buffer
+from ddtrace.appsec.internal.buffer import BufferFull
+from ddtrace.appsec.internal.buffer import BufferItemTooLarge
 from ddtrace.appsec.internal.events import Event
-from ddtrace.internal import _encoding
 from ddtrace.internal import _rand
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
@@ -54,14 +56,16 @@ class NullEventWriter(BaseEventWriter):
         pass
 
 
-class HTTPEventEncoderV1(_encoding.ListBufferedEncoder):
+class HTTPEventEncoderV1(Buffer):
 
     content_type = "application/json"
 
-    def encode_item(self, item):
-        return json.dumps(attr.asdict(item), separators=(",", ":")).encode("ascii")
+    def put_item(self, item):
+        # type: (Event) -> None
+        return self.put(json.dumps(attr.asdict(item), separators=(",", ":")).encode("ascii"))
 
     def encode(self):
+        # type: () -> Optional[bytes]
         data = self.get()
         if data:
             return (
@@ -71,6 +75,7 @@ class HTTPEventEncoderV1(_encoding.ListBufferedEncoder):
                 + b",".join(data)
                 + b"]}"
             )
+        return None
 
 
 class HTTPRequestFailed(Exception):
@@ -138,8 +143,8 @@ class HTTPEventWriter(periodic.PeriodicService, BaseEventWriter):
 
         for event in events:
             try:
-                self._encoder.put(event)
-            except _encoding.BufferItemTooLarge as e:
+                self._encoder.put_item(event)
+            except BufferItemTooLarge as e:
                 payload_size = e.args[0]
                 log.warning(
                     "AppSec event (%db) larger than payload max size (%db), dropping",
@@ -148,7 +153,7 @@ class HTTPEventWriter(periodic.PeriodicService, BaseEventWriter):
                 )
                 self._metrics_dist("buffer.dropped.events", tags=["reason:too_big"])
                 self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:too_big"])
-            except _encoding.BufferFull as e:
+            except BufferFull as e:
                 payload_size = e.args[0]
                 log.warning(
                     "AppSec buffer (%s events %db/%db) cannot fit event of size %db, dropping",

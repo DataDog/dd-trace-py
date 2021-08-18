@@ -71,28 +71,29 @@ class SqreenLibrary(BaseProtection):
                     remote_port=0,
                 )
             )
-            return [self.sqreen_waf_to_attack(ret.data, context=context, blocked=ret.block)]
+            return list(self.sqreen_waf_to_attacks(ret.data, context=context, blocked=ret.block))
         return []
 
     @staticmethod
-    def sqreen_waf_to_attack(data, context=None, blocked=False, at=None):
-        """Convert a Sqreen WAF result to an AppSec Attack event."""
+    def sqreen_waf_to_attacks(data, context=None, blocked=False, at=None):
+        """Convert a Sqreen WAF result to an AppSec Attack events."""
         if at is None:
             at = datetime.now(utc)
         waf_data = json.loads(data.decode("utf-8", errors="replace"))
-        filter_data = waf_data[0]["filter"][0]
-        return Attack_0_1_0(
-            event_id=str(uuid.uuid4()),
-            detected_at=at.isoformat(),
-            type="waf",
-            blocked=blocked,
-            rule=Rule(id=waf_data[0]["rule"], name=waf_data[0]["flow"], set="waf"),
-            rule_match=RuleMatch(
-                operator=filter_data["operator"],
-                operator_value=filter_data["operator_value"],
-                parameters=[],  # DEV: do not report user data yet
-                highlight=[],  # DEV: do not report user data yet
-                has_server_side_match=False,
-            ),
-            context=context or get_required_context(),
-        )
+        for data in waf_data:
+            for filter_data in data["filter"]:
+                yield Attack_0_1_0(
+                    event_id=str(uuid.uuid4()),
+                    detected_at=at.isoformat(),
+                    type="waf",
+                    blocked=blocked,
+                    rule=Rule(id=data["rule"], name=data["flow"], set="waf"),
+                    rule_match=RuleMatch(
+                        operator=filter_data["operator"],
+                        operator_value=filter_data.get("operator_value", filter_data.get("match_status", "")),
+                        parameters=[],  # DEV: do not report user data yet
+                        highlight=[],  # DEV: do not report user data yet
+                        has_server_side_match=False,
+                    ),
+                    context=context or get_required_context(),
+                )
