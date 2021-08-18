@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-
 import opentracing
 from opentracing import Format
 from opentracing import Scope
