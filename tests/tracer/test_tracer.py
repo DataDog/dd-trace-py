@@ -1654,3 +1654,28 @@ def test_fork_manual_span_different_contexts(tracer):
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_fork_pid(tracer):
+    root = tracer.trace("root_span")
+    assert root.get_tag("runtime-id") is not None
+    assert root.get_metric(system.PID) is not None
+
+    pid = os.fork()
+
+    if pid:
+        child1 = tracer.trace("span1")
+        assert child1.get_tag("runtime-id") is None
+        assert child1.get_metric(system.PID) is None
+        child1.finish()
+    else:
+        child2 = tracer.trace("span2")
+        assert child2.get_tag("runtime-id") is not None
+        assert child2.get_metric(system.PID) is not None
+        child2.finish()
+        os._exit(12)
+
+    root.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
