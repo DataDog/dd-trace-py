@@ -69,3 +69,9 @@ Example::
 
   scripts/perf-run-scenario span ddtrace==0.50.0 ddtrace==0.51.0 ./artifacts/
   scripts/perf-run-scenario span Datadog/dd-trace-py@master Datadog/dd-trace-py@my-feature ./artifacts/
+
+
+Scenarios
+^^^^^^^^^
+
+.. include:: ../benchmarks/threading/README.rst
