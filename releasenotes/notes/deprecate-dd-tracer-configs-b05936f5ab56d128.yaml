@@ -9,7 +9,7 @@ features:
     DD_TRACE... configuration while maintaining backwards compatibility.
 upgrade:
   - |
-    Replace DD_TRACER_PARTIAL_FLUSH_MIN_SPANS with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
+    Replace DD_TRACER_PARTIAL_FLUSH_ENABLED with DD_TRACE_PARTIAL_FLUSH_ENABLED
     Replace DD_TRACER_PARTIAL_FLUSH_MIN_SPANS with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
 deprecations:
   - |
