@@ -498,6 +498,36 @@ class TestPytest(TracerTestCase):
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
 
+    def test_pytest_doctest_module(self):
+        """Test that pytest with doctest works as expected."""
+        py_file = self.testdir.makepyfile(
+            """
+        '''
+        This module supplies one function foo(). For example,
+        >>> foo()
+        42
+        '''
+
+        def foo():
+            '''Returns the answer to life, the universe, and everything.
+            >>> foo()
+            42
+            '''
+            return 42
+
+        def test_foo():
+            assert foo() == 42
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", "--doctest-modules", file_name)
+        rec.assertoutcome(passed=3)
+        spans = self.pop_spans()
+
+        assert len(spans) == 3
+        for span in spans:
+            assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",
