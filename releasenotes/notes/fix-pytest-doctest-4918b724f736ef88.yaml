@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue when using the pytest plugin with doctest which raises an ``AttributeError`` on ``DoctestItem``.

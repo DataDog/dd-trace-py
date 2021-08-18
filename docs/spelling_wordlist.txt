@@ -45,6 +45,7 @@ dbapi
 ddtrace
 deprecations
 django
+doctest
 dogpile
 dogpile.cache
 dogstatsd
@@ -145,5 +146,6 @@ uvicorn
 versioned
 vertica
 whitelist
+workflow
 wsgi
 xfail
