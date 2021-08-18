@@ -48,6 +48,7 @@ class Management(object):
             )
             if config._raise:
                 raise e
+            return
 
         try:
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
