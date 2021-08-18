@@ -48,7 +48,7 @@ cdef inline int PyBytesLike_Check(object o):
     return PyBytes_Check(o) or PyByteArray_Check(o)
 
 
-cdef inline int array_prefix_size(int l):
+cdef inline int array_prefix_size(stdint.uint32_t l):
     if l < 16:
         return 1
     elif l < (2<<16):
@@ -123,42 +123,45 @@ cdef inline int pack_text(msgpack_packer *pk, object text):
 
 
 cdef class StringTable(object):
-    cdef dict _index
+    cdef dict _table
     cdef stdint.uint32_t _next_id
 
     def __init__(self):
-        self._index = {"": 0}
+        self._table = {"": 0}
         self.insert("")
         self._next_id = 1
 
     cdef insert(self, object string):
         pass
 
-    cdef stdint.uint32_t index(self, object string):
+    cdef stdint.uint32_t _index(self, object string):
         cdef stdint.uint32_t _id
 
         if string is None:
             return 0
 
-        if PyDict_Contains(self._index, string):
-            return PyLong_AsLong(<object>PyDict_GetItem(self._index, string))
+        if PyDict_Contains(self._table, string):
+            return PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
 
         _id = self._next_id
-        PyDict_SetItem(self._index, string, PyLong_FromLong(_id))
+        PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
         self.insert(string)
         self._next_id += 1
         return _id
 
+    cpdef index(self, object string):
+        return self._index(string)
+
     cdef reset(self):
-        PyDict_Clear(self._index)
+        PyDict_Clear(self._table)
         self._next_id = 0
-        assert self.index("") == 0
+        assert self._index("") == 0
 
     def __len__(self):
         return PyLong_FromLong(self._next_id)
 
     def __contains__(self, object string):
-        return PyBool_FromLong(PyDict_Contains(self._index, string))
+        return PyBool_FromLong(PyDict_Contains(self._table, string))
 
 
 cdef class ListStringTable(StringTable):
@@ -227,7 +230,7 @@ cdef class MsgpackStringTable(StringTable):
 
     @property
     def size(self):
-        return self.pk.length - 5 + array_prefix_size(len(self._index))
+        return self.pk.length - 5 + array_prefix_size(self._next_id)
 
     cdef append_raw(self, object src, Py_ssize_t size):
         cdef int res
@@ -238,7 +241,7 @@ cdef class MsgpackStringTable(StringTable):
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
 
 
-    cdef flush(self):
+    cpdef flush(self):
         try:
             return self.get_bytes()
         finally:
@@ -250,8 +253,8 @@ cdef class MsgpackStringTable(StringTable):
 cdef class BufferedEncoder(object):
     content_type: str = None
 
-    cdef public Py_ssize_t max_size
-    cdef public Py_ssize_t max_item_size
+    cdef public size_t max_size
+    cdef public size_t max_item_size
     cdef object _lock
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
@@ -453,7 +456,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         IF PY_MAJOR_VERSION >= 3:
             return <void *> PyUnicode_AsUTF8(dd_origin)
         ELSE:
-            return <void *> dd_origin
+            return <void *> (<char *> dd_origin)
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin):
         cdef Py_ssize_t L
@@ -614,10 +617,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             raise
 
     cdef inline int _pack_string(self, object string):
-        return msgpack_pack_uint32(&self.pk, self._st.index(string))
+        return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
     cdef void * get_dd_origin_ref(self, object dd_origin):
-        return <void *> PyLong_AsLong(self._st.index(dd_origin))
+        return <void *> PyLong_AsLong(self._st._index(dd_origin))
 
     cdef pack_span(self, object span, void *dd_origin):
         cdef int ret
