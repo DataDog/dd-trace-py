@@ -45,6 +45,7 @@ dbapi
 ddtrace
 deprecations
 django
+doctest
 dogpile
 dogpile.cache
 dogstatsd

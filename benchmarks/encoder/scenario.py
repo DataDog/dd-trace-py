@@ -2,7 +2,6 @@ import bm
 import utils
 
 
-@bm.register
 class Encoder(bm.Scenario):
     ntraces = bm.var(type=int)
     nspans = bm.var(type=int)
