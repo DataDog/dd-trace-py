@@ -7,6 +7,8 @@ def post_fork(server, worker):
         os.environ.update(
             {"DD_PROFILING_ENABLED": "1", "DD_PROFILING_API_TIMEOUT": "0.1", "DD_PROFILING_UPLOAD_INTERVAL": "10"}
         )
+    if os.environ.get("PERF_APPSEC_ENABLED") == "1":
+        os.environ["DD_APPSEC_ENABLED"] = "1"
     # This will not work with gevent workers as the gevent hub has not been
     # initialized when this hook is called.
     if os.environ.get("PERF_TRACER_ENABLED") == "1":
@@ -22,6 +24,5 @@ def post_worker_init(worker):
 bind = "0.0.0.0:8000"
 worker_class = "sync"
 workers = 1
-wsgi_app = "django.core.wsgi:get_wsgi_application()"
+wsgi_app = "app:app"
 pidfile = "gunicorn.pid"
-raw_env = ["DJANGO_SETTINGS_MODULE=app"]
