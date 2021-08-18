@@ -662,6 +662,20 @@ def test_sequence():
     assert s.next_id == 2
 
 
+def test_string_table():
+    t = pprof._StringTable()
+    assert len(t) == 1
+    id1 = t.to_id("foobar")
+    assert len(t) == 2
+    assert id1 == t.to_id("foobar")
+    assert len(t) == 2
+    id2 = t.to_id("foobaz")
+    assert len(t) == 3
+    assert id2 == t.to_id("foobaz")
+    assert len(t) == 3
+    assert id1 != id2
+
+
 def test_to_str_none():
     c = pprof._PprofConverter()
     id1 = c._str(None)
