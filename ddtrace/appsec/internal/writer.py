@@ -211,7 +211,7 @@ class HTTPEventWriter(periodic.PeriodicService, BaseEventWriter):
         self._metrics_dist("http.requests")
         with StopWatch() as sw:
             try:
-                self._conn.request("POST", "v1/input", payload, self._headers)
+                self._conn.request("POST", "api/v2/appsecevts", payload, self._headers)
                 resp = self._conn.getresponse()
                 # read the response body otherwise we can't reuse the connection
                 # even if we don't use it.

@@ -39,7 +39,7 @@ class FakeAppSecHandler(server.BaseHTTPRequestHandler):
     def do_POST(self):
         self.server.num_requests += 1
 
-        assert self.path.endswith("v1/input")
+        assert self.path.endswith("api/v2/appsecevts")
         assert self.headers.get("Content-Type") == "application/json"
 
         # Keep the request body
