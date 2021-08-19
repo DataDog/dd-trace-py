@@ -2,7 +2,6 @@ version: 2.1
 
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
-python39-alpine_image: &python39-alpine_image python:3.9-alpine
 python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
@@ -110,7 +109,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: false
+        default: true
     steps:
       - attach_workspace:
           at: .
@@ -192,7 +191,7 @@ commands:
         default: ""
       store_coverage:
         type: boolean
-        default: false
+        default: true
     steps:
       - checkout
       - setup_tox
@@ -218,14 +217,6 @@ commands:
       - store_artifacts:
           path: test-results
 
-  test_build:
-    description: "Build the package extensions and wheel to validate builds work"
-    steps:
-      - checkout
-      - run:
-          name: Run test build
-          command: .circleci/scripts/test_build.sh
-
   build_docs:
     steps:
       - setup_riot
@@ -238,10 +229,6 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: small
-  python39-alpine:
-    docker:
-      - image: *python39-alpine_image
     resource_class: small
   python39:
     docker:
@@ -349,7 +336,7 @@ jobs:
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/
       # Print diff-cover report to stdout (compares against origin/master)
-      - run: diff-cover coverage.xml
+      - run: diff-cover --compare-branch origin/master coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -368,15 +355,6 @@ jobs:
           paths:
             - "."
 
-
-  # alpine is the only environment not built/tested by cibuildwheel
-  test_build_alpine:
-    executor: python39-alpine
-    steps:
-      # Rust + Cargo are needed for Cryptography
-      - run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
-      - test_build
-
   tracer:
     <<: *contrib_job
     steps:
@@ -394,6 +372,7 @@ jobs:
     parallelism: 6
     steps:
       - run_tox_scenario:
+          store_coverage: false
           pattern: '^py..-profile'
 
   integration_agent5:
@@ -578,6 +557,13 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
+  django_hosts:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'django_hosts$'
+          snapshot: true
+
   djangorestframework:
     <<: *machine_executor
     parallelism: 6
@@ -611,12 +597,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
-  httplib:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
-
   grpc:
     <<: *machine_executor
     parallelism: 6
@@ -624,6 +604,20 @@ jobs:
       - run_test:
           pattern: "grpc"
           snapshot: true
+
+  httplib:
+    <<: *contrib_job
+    steps:
+      - run_tox_scenario:
+          pattern: '^httplib_contrib'
+
+  httpx:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'httpx'
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   mariadb:
     <<: *machine_executor
@@ -916,6 +910,8 @@ requires_pre_check: &requires_pre_check
 
 requires_base_venvs: &requires_base_venvs
   requires:
+    - pre_check
+    - ccheck
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -937,6 +933,7 @@ requires_tests: &requires_tests
     - ddtracerun
     - dogpile_cache
     - django
+    - django_hosts
     - djangorestframework
     - elasticsearch
     - falcon
@@ -946,6 +943,7 @@ requires_tests: &requires_tests
     - gevent
     - grpc
     - httplib
+    - httpx
     - integration_agent5
     - integration_agent
     - integration_testagent
@@ -992,14 +990,11 @@ workflows:
       - pre_check
       - ccheck
 
+      # Build necessary base venvs for integration tests
+      - build_base_venvs
+
       # Docs
       - build_docs: *requires_pre_check
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs: *requires_pre_check
-
-      # Test building the package
-      - test_build_alpine: *requires_pre_check
 
       # Integration test suites
       - aiobotocore: *requires_base_venvs
@@ -1018,6 +1013,7 @@ workflows:
       - dbapi: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
+      - django_hosts: *requires_base_venvs
       - djangorestframework: *requires_base_venvs
       - dogpile_cache: *requires_base_venvs
       - elasticsearch: *requires_base_venvs
@@ -1028,6 +1024,7 @@ workflows:
       - gevent: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
+      - httpx: *requires_base_venvs
       - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
@@ -1067,4 +1064,4 @@ workflows:
       - wsgi: *requires_base_venvs
 
       # Final reports
-      # - coverage_report: *requires_tests
+      - coverage_report: *requires_tests

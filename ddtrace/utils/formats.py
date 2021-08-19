@@ -99,7 +99,7 @@ def asbool(value):
 
 
 def parse_tags_str(tags_str):
-    # type: (str) -> Dict[str, str]
+    # type: (Optional[str]) -> Dict[str, str]
     """Parse a string of tags typically provided via environment variables.
 
     The expected string is of the form::

@@ -1,3 +1,5 @@
+from typing import Dict
+
 from opentracing import InvalidCarrierException
 from opentracing import SpanContextCorruptedException
 
@@ -24,6 +26,7 @@ class HTTPPropagator(Propagator):
 
     @staticmethod
     def inject(span_context, carrier):
+        # type: (SpanContext, Dict[str, str]) -> None
         """Inject a span context into a carrier.
 
         *span_context* is injected into the carrier by first using an
@@ -48,6 +51,7 @@ class HTTPPropagator(Propagator):
 
     @staticmethod
     def extract(carrier):
+        # type: (Dict[str, str]) -> SpanContext
         """Extract a span context from a carrier.
 
         :class:`ddtrace.propagation.http.HTTPPropagator` is used to extract
