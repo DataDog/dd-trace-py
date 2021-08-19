@@ -203,6 +203,7 @@ venv = Venv(
             name="appsec",
             command="pytest {cmdargs} tests/appsec/",
             pys=select_pys(),
+            pkgs={"sq-native": latest},
         ),
         Venv(
             name="runtime",
