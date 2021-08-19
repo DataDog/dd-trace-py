@@ -98,7 +98,7 @@ class Pin(object):
 
     @staticmethod
     def get_from(obj):
-        # type: (Any) -> Pin
+        # type: (Any) -> Optional[Pin]
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
@@ -115,11 +115,11 @@ class Pin(object):
             return obj.__getddpin__()
 
         pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
-        pin = getattr(obj, pin_name, None)
+        pin = getattr(obj, pin_name, None)  # type: Optional[Pin]
         # detect if the PIN has been inherited from a class
         if pin is not None and pin._target != id(obj):
             pin = pin.clone()
-            pin.onto(obj)
+            pin.onto(obj)  # type: ignore[union-attr]
         return pin
 
     @classmethod
@@ -147,7 +147,7 @@ class Pin(object):
             return
 
         pin = cls.get_from(obj)
-        if not pin:
+        if pin is None:
             pin = Pin(service)
 
         pin.clone(

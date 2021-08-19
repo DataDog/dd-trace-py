@@ -50,9 +50,9 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    return get_env(
+    return get_env(  # type: ignore[return-value]
         "dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port())
-    )  # type: ignore[return-value]
+    )
 
 
 def verify_url(url):

@@ -125,10 +125,10 @@ venv = Venv(
         Venv(
             pys=["3"],
             name="mypy",
-            command="mypy {cmdargs}",
+            command="mypy --install-types --non-interactive {cmdargs}",
             pkgs={
                 # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
-                "mypy": "<0.900",
+                "mypy": latest,
             },
         ),
         Venv(
