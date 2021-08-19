@@ -70,7 +70,7 @@ commands:
     description: "Install riot"
     steps:
       # Make sure we install and run riot on Python 3
-      - run: pip3 install git+https://github.com/datadog/riot@master
+      - run: pip3 install git+https://github.com/datadog/riot@gab/riot-shell
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"

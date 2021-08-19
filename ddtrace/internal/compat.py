@@ -192,7 +192,7 @@ def to_unicode(s):
     # If the object has a `decode` method, then decode into `utf-8`
     #   e.g. Python 2 `str`, Python 2/3 `bytearray`, etc
     if hasattr(s, "decode"):
-        return s.decode("utf-8")
+        return s.decode("utf-8")  # type: ignore[attr-defined]
 
     # Always try to coerce the object into the `six.text_type` object we expect
     #   e.g. `to_unicode(1)`, `to_unicode(dict(key='value'))`
