@@ -945,3 +945,17 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             # Exception should not be propagated
         finally:
             appsec.disable()
+
+    def test_http_integration_appsec_headers(self):
+        appsec.enable()
+        try:
+            # Flask integration headers used to be treated as a string
+            # instead of a dict and trigger the protocol violation because
+            # it contained \r\n characters. This test checks that no event
+            # rule triggers.
+            self.client.get("/")
+            traces = self.pop_traces()
+            span = traces[0][0]
+            assert "_dd.sq.reports" not in span.metrics
+        finally:
+            appsec.disable()

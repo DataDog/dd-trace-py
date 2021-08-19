@@ -48,6 +48,11 @@ class SqreenLibrary(BaseProtection):
 
     def process(self, span, data):
         # type: (Span, Mapping[str, Any]) -> Sequence[Attack_0_1_0]
+        # DEV: Headers require special transformation as the integrations don't
+        # do it yet (implemented in https://github.com/DataDog/dd-trace-py/pull/2762)
+        headers = {k.lower(): v for k, v in data.get("headers", {}).items()}
+        data = dict(data)
+        data["headers"] = headers
         with StopWatch() as timer:
             context = self._instance.create_context()
             ret = context.run(data, self._budget)
