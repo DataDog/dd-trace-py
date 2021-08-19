@@ -217,6 +217,7 @@ venv = Venv(
             pkgs={
                 "redis": latest,
                 "gevent": latest,
+                "sq-native": latest,
             },
         ),
         Venv(
