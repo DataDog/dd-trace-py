@@ -364,3 +364,12 @@ class Tracer(opentracing.Tracer):
         dd_span_ctx = ot_span_ctx._dd_context
         self._dd_tracer.context_provider.activate(dd_span_ctx)
         return ot_span_ctx
+
+    def get_log_correlation_context(self):
+        # type: () -> Dict[str, str]
+        """Retrieves the data used to correlate a log with the current active trace.
+        Generates a dictionary for custom logging instrumentation including the trace id and
+        span id of the current active span, as well as the configured service, version, and environment names.
+        If there is no active span, a dictionary with an empty string for each value will be returned.
+        """
+        return self._dd_tracer.get_log_correlation_context()

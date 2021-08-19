@@ -246,6 +246,25 @@ class Tracer(object):
             return active.context
         return None
 
+    def get_log_correlation_context(self):
+        # type: () -> Dict[str, str]
+        """Retrieves the data used to correlate a log with the current active trace.
+        Generates a dictionary for custom logging instrumentation including the trace id and
+        span id of the current active span, as well as the configured service, version, and environment names.
+        If there is no active span, a dictionary with an empty string for each value will be returned.
+        """
+        span = None
+        if self.enabled:
+            span = self.current_span()
+
+        return {
+            "trace_id": str(span.trace_id) if span else "0",
+            "span_id": str(span.span_id) if span else "0",
+            "service": config.service or "",
+            "version": config.version or "",
+            "env": config.env or "",
+        }
+
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(
         self,
