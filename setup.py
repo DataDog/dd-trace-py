@@ -176,12 +176,12 @@ setup(
         "attrs>=19.2.0",
         "six>=1.12.0",
         "pep562; python_version<'3.7'",
-        "sq-native>=1.0",
     ],
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        "appsec-beta": ["sq-native>=1.0"],
     },
     # plugin tox
     tests_require=["tox", "flake8"],

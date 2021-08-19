@@ -27,7 +27,6 @@ def server(scenario):
     env = {
         "PERF_TRACER_ENABLED": str(scenario.tracer_enabled),
         "PERF_PROFILER_ENABLED": str(scenario.profiler_enabled),
-        "PERF_APPSEC_ENABLED": str(scenario.appsec_enabled),
     }
     # copy over current environ
     env.update(os.environ)

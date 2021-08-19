@@ -2,11 +2,9 @@ import bm
 import utils
 
 
-@bm.register
 class FlaskSimple(bm.Scenario):
     tracer_enabled = bm.var(type=bool)
     profiler_enabled = bm.var(type=bool)
-    appsec_enabled = bm.var(type=bool)
 
     def run(self):
         with utils.server(self) as get_response:
