@@ -181,7 +181,7 @@ setup(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
-        "appsec": ["sq-native>=1.0"],
+        "appsec-beta": ["sq-native>=1.0"],
     },
     # plugin tox
     tests_require=["tox", "flake8"],
