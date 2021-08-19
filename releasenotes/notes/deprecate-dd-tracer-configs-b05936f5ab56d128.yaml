@@ -1,12 +1,4 @@
 ---
-features:
-  - |
-    This change introduces new config keys for enabling and configuring 
-    partial span flushing. 
-
-    This change does not introduce any additional functionality. It only 
-    deprecates DD_TRACER... config keys and replaces it an equivalent 
-    DD_TRACE... configuration while maintaining backwards compatibility.
 upgrade:
   - |
     Replace DD_TRACER_PARTIAL_FLUSH_ENABLED with DD_TRACE_PARTIAL_FLUSH_ENABLED
@@ -14,7 +6,6 @@ upgrade:
 deprecations:
   - |
     Adds deprecation warning for the DD_TRACER_PARTIAL_FLUSH_ENABLED and 
-    DD_TRACER_PARTIAL_FLUSH_MIN_SPANS configurations. 
-
-    With the release of version 1.0.0 these configuration will no longer be 
-    supported and the warnings will be removed.
+    DD_TRACER_PARTIAL_FLUSH_MIN_SPANS configurations.With the release of 
+    version 1.0.0 these configuration will no longer be supported and the 
+    warnings will be removed.
