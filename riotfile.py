@@ -610,6 +610,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/flask",
             pkgs={
                 "blinker": latest,
+                "sq-native": latest,
             },
             venvs=[
                 # Flask == 0.12.0
