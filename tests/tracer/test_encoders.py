@@ -171,22 +171,6 @@ class TestEncoders(TestCase):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
 
-    def test_list_buffered_encoder(self):
-        # test encoding for MsgPack format
-        encoder = MsgpackEncoder(2 << 10, 2 << 10)
-        encoder.put(
-            [
-                Span(name="client.testing", tracer=None),
-            ]
-        )
-
-        trace = encoder.get()
-        assert len(trace) == 1
-
-        assert isinstance(trace[0], msgpack_type)
-        items = encoder._decode(trace[0])
-        assert len(items) == 1
-
 
 def decode(obj):
     if msgpack.version[:2] < (0, 6):
@@ -326,7 +310,7 @@ def test_custom_msgpack_encode_trace_size(name, service, resource, meta, metrics
     trace = [span, span, span]
 
     encoder.put(trace)
-    assert encoder.size + 1 == len(encoder.encode())
+    assert encoder.size == len(encoder.encode())
 
 
 def test_encoder_buffer_size_limit():
@@ -335,7 +319,7 @@ def test_encoder_buffer_size_limit():
 
     trace = [Span(tracer=None, name="test")]
     encoder.put(trace)
-    trace_size = encoder.size
+    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
 
     for _ in range(1, int(buffer_size / trace_size)):
         encoder.put(trace)
@@ -348,13 +332,13 @@ def test_encoder_buffer_size_limit():
 
 
 def test_encoder_buffer_item_size_limit():
-    buffer_size = 1 << 10
-    encoder = MsgpackEncoder(buffer_size, buffer_size)
+    max_item_size = 1 << 10
+    encoder = MsgpackEncoder(max_item_size << 1, max_item_size)
 
     span = Span(tracer=None, name="test")
     trace = [span]
     encoder.put(trace)
-    trace_size = encoder.size
+    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
 
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(buffer_size / trace_size) + 1))
+        encoder.put([span] * (int(max_item_size / trace_size) + 1))
