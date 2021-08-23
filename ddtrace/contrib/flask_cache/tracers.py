@@ -4,13 +4,12 @@ Datadog trace code for flask_cache
 
 import logging
 
-from flask.ext.cache import Cache
-
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from .utils import _extract_client
 from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
 
@@ -25,12 +24,27 @@ CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
 
 
-def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
+def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
     """
-    Return a traced Cache object that behaves exactly as the ``flask.ext.cache.Cache class``
+    Return a traced Cache object that behaves exactly as ``cache_cls``.
+
+    ``cache_cls`` defaults to ``flask.ext.cache.Cache`` if Flask-Cache is installed
+    or ``flask_caching.Cache`` if flask-caching is installed.
     """
 
-    class TracedCache(Cache):
+    if cache_cls is None:
+        # for compatibility reason, first check if flask_cache is present
+        try:
+            from flask.ext.cache import Cache
+
+            cache_cls = Cache
+        except ImportError:
+            # use flask_caching if flask_cache is not present
+            from flask_caching import Cache
+
+            cache_cls = Cache
+
+    class TracedCache(cache_cls):
         """
         Traced cache backend that monitors any operations done by flask_cache. Observed actions are:
         * get, set, add, delete, clear
@@ -41,7 +55,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self, cmd):
+        def __trace(self, cmd, write=False):
             """
             Start a tracing with default attributes and tags
             """
@@ -54,9 +68,10 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.flask_cache.get_analytics_sample_rate())
             # add connection meta if there is one
-            if getattr(self.cache, "_client", None):
+            client = _extract_client(self.cache, write=write)
+            if client is not None:
                 try:
-                    s.set_tags(_extract_conn_tags(self.cache._client))
+                    s.set_tags(_extract_conn_tags(client))
                 except Exception:
                     log.debug("error parsing connection tags", exc_info=True)
 
@@ -76,7 +91,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             Track ``set`` operation
             """
-            with self.__trace("flask_cache.cmd") as span:
+            with self.__trace("flask_cache.cmd", write=True) as span:
                 span.resource = _resource_from_cache_prefix("SET", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, args[0])
@@ -86,7 +101,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             Track ``add`` operation
             """
-            with self.__trace("flask_cache.cmd") as span:
+            with self.__trace("flask_cache.cmd", write=True) as span:
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, args[0])
@@ -96,7 +111,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             Track ``delete`` operation
             """
-            with self.__trace("flask_cache.cmd") as span:
+            with self.__trace("flask_cache.cmd", write=True) as span:
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, args[0])
@@ -106,7 +121,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             Track ``delete_many`` operation
             """
-            with self.__trace("flask_cache.cmd") as span:
+            with self.__trace("flask_cache.cmd", write=True) as span:
                 span.resource = _resource_from_cache_prefix("DELETE_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
                 return super(TracedCache, self).delete_many(*args, **kwargs)
@@ -115,7 +130,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             Track ``clear`` operation
             """
-            with self.__trace("flask_cache.cmd") as span:
+            with self.__trace("flask_cache.cmd", write=True) as span:
                 span.resource = _resource_from_cache_prefix("CLEAR", self.config)
                 return super(TracedCache, self).clear(*args, **kwargs)
 
@@ -132,7 +147,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             Track ``set_many`` operation
             """
-            with self.__trace("flask_cache.cmd") as span:
+            with self.__trace("flask_cache.cmd", write=True) as span:
                 span.resource = _resource_from_cache_prefix("SET_MANY", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, list(args[0].keys()))
