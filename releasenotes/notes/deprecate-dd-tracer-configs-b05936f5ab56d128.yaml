@@ -6,4 +6,3 @@ upgrade:
 deprecations:
   - |
     The DD_TRACER_PARTIAL_FLUSH_ENABLED and DD_TRACER_PARTIAL_FLUSH_MIN_SPANS environment variables have been deprecated and will be removed in version 1.0 of the library.
-    warnings will be removed.
