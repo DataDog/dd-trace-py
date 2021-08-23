@@ -1206,7 +1206,7 @@ class TestPartialFlush(TracerTestCase):
     def test_enable_partial_flush_with_deprecated_config(self):
         # Test tracer with deprecated configs D_TRACER_...
         self._test_partial_flush()
-    
+
     def _test_partial_flush(self):
         root = self.tracer.trace("root")
         for i in range(5):
@@ -1222,6 +1222,7 @@ class TestPartialFlush(TracerTestCase):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         assert traces[0][0].name == "root"
+
 
 def test_unicode_config_vals():
     t = ddtrace.Tracer()
