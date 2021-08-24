@@ -9,23 +9,42 @@ from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
 
 
-DEFAULT_HOSTNAME = "localhost"
-DEFAULT_TRACE_PORT = 8126
+DEFAULT_HTTP_HOSTNAME = "localhost"
+DEFAULT_UNIX_HOSTNAME = "unix"
+DEFAULT_HTTP_TRACE_PORT = 8126
+DEFAULT_UNIX_TRACE_PORT = "///var/run/datadog/dsd.socket"
 DEFAULT_STATS_PORT = 8125
-DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
+DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HTTP_HOSTNAME, DEFAULT_HTTP_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
+HOST_SET = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")) is not None
+PORT_SET = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT")) is not None
+DEFAULT_UNIX_DOMAIN_SOCK_AVAIL = os.path.exists("/var/run/datadog/dsd.socket")
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 def get_hostname():
     # type: () -> str
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HOSTNAME))
+    hostname = None
+    if HOST_SET or PORT_SET:
+        hostname = os.environ.get(
+            "DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HTTP_HOSTNAME)
+        )
+    else:
+        hostname = DEFAULT_UNIX_HOSTNAME
+
+    return hostname
 
 
 def get_trace_port():
     # type: () -> int
-    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_TRACE_PORT)))
+    port = None
+    if PORT_SET or HOST_SET:
+        port = int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_HTTP_TRACE_PORT)))
+    else:
+        port = DEFAULT_UNIX_TRACE_PORT
+
+    return port
 
 
 def get_stats_port():
@@ -44,7 +63,12 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    url = None
+    if HOST_SET or PORT_SET or not DEFAULT_UNIX_DOMAIN_SOCK_AVAIL:
+        url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%s" % (get_hostname(), get_trace_port()))
+    else:
+        url = os.environ.get("DD_TRACE_AGENT_URL", "%s:%s" % (get_hostname(), get_trace_port()))
+
     return url
 
 
