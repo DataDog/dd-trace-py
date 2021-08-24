@@ -20,7 +20,7 @@ function profile {
 
     python scripts/profiles/encoders/run.py ${ver} &
     sleep 2
-    sudo ${PREFIX}/austinp -i ${AUSTIN_INTERVAL} -x ${AUSTIN_EXPOSURE} -p $! > ${PREFIX}/artifacts/${ver/./_}.austin
+    sudo ${PREFIX}/austinp -si ${AUSTIN_INTERVAL} -x ${AUSTIN_EXPOSURE} -p $! > ${PREFIX}/artifacts/${ver/./_}.austin
     python ${PREFIX}/austin/utils/resolve.py ${PREFIX}/artifacts/${ver/./_}.austin > ${PREFIX}/artifacts/${ver/./_}.resolved.austin || true
 }
 

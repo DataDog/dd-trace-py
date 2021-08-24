@@ -4,6 +4,8 @@ from libc cimport stdint
 from libc.string cimport strlen
 import threading
 
+from ddtrace.constants import ORIGIN_KEY
+
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 
@@ -42,6 +44,17 @@ class BufferFull(Exception):
 
 class BufferItemTooLarge(Exception):
     pass
+
+
+cdef inline const char * string_to_buff(str s):
+    IF PY_MAJOR_VERSION >= 3:
+        return PyUnicode_AsUTF8(s)
+    ELSE:
+        return <const char *> s
+
+
+cdef const char * _ORIGIN_KEY = string_to_buff(ORIGIN_KEY)
+cdef size_t _ORIGIN_KEY_LEN = <size_t> len(ORIGIN_KEY)
 
 
 cdef inline int PyBytesLike_Check(object o):
@@ -183,6 +196,7 @@ cdef class MsgpackStringTable(StringTable):
     cdef int max_size
     cdef int _sp
     cdef object _lock
+    cdef size_t _reset_size
 
     def __init__(self, max_size):
         self.pk.buf = <char*> PyMem_Malloc(max_size)
@@ -193,6 +207,9 @@ cdef class MsgpackStringTable(StringTable):
         self._sp = 0
         self._lock = threading.Lock()
         super(MsgpackStringTable, self).__init__()
+
+        assert self.index(ORIGIN_KEY) == 1
+        self._reset_size = self.pk.length
 
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
@@ -230,7 +247,7 @@ cdef class MsgpackStringTable(StringTable):
 
     @property
     def size(self):
-        return self.pk.length - 5 + array_prefix_size(self._next_id)
+        return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
 
     cdef append_raw(self, object src, Py_ssize_t size):
         cdef int res
@@ -246,7 +263,7 @@ cdef class MsgpackStringTable(StringTable):
             return self.get_bytes()
         finally:
             self.reset()
-            self.pk.length = 6
+            self.pk.length = self._reset_size
             self._sp = 0
 
 
@@ -313,7 +330,8 @@ cdef class ListBufferedEncoder(BufferedEncoder):
                 self._buffer[:] = []
                 self._size = 0
 
-    def encode_item(self, item): ...
+    def encode_item(self, item):
+        raise NotImplementedError()
 
 
 cdef class MsgpackEncoderBase(BufferedEncoder):
@@ -378,7 +396,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         """Return internal buffer."""
         return self.pk.buf + self._update_array_len()
 
-    cdef void * get_dd_origin_ref(self, object dd_origin):
+    cdef void * get_dd_origin_ref(self, str dd_origin):
         raise NotImplementedError()
 
     cdef inline int _pack_trace(self, list trace):
@@ -452,11 +470,8 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         finally:
             self._reset_buffer()
 
-    cdef void * get_dd_origin_ref(self, object dd_origin):        
-        IF PY_MAJOR_VERSION >= 3:
-            return <void *> PyUnicode_AsUTF8(dd_origin)
-        ELSE:
-            return <void *> (<char *> dd_origin)
+    cdef void * get_dd_origin_ref(self, str dd_origin):
+        return string_to_buff(dd_origin)
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin):
         cdef Py_ssize_t L
@@ -479,7 +494,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, v)
                     if ret != 0: break
                 if dd_origin is not NULL:
-                    ret = pack_bytes(&self.pk, <char *> b"_dd.origin", 10)
+                    ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
             return ret
@@ -619,7 +634,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef inline int _pack_string(self, object string):
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
-    cdef void * get_dd_origin_ref(self, object dd_origin):
+    cdef void * get_dd_origin_ref(self, str dd_origin):
         return <void *> PyLong_AsLong(self._st._index(dd_origin))
 
     cdef pack_span(self, object span, void *dd_origin):
@@ -668,7 +683,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 ret = self._pack_string(v)
                 if ret != 0: return ret
         if dd_origin is not NULL:
-            ret = self._pack_string("_dd.origin")  # TODO: add to string table by default and use index 1 instead
+            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 1)
             if ret != 0: return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
             if ret != 0: return ret

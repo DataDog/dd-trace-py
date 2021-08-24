@@ -13,6 +13,7 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
@@ -65,15 +66,6 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
                 root = span
 
     return trace
-
-
-# def dump(data):
-#     """Dump the given binary data in hex and printable chars"""
-#     chunks = [data[i : i + 8] for i in range(0, len(data), 8)]
-#     for c in chunks:
-#         _hex = " ".join(["%02x" % _ for _ in c])
-#         text = "".join([chr(_) if chr(_).isprintable() else "." for _ in c])
-#         print("%-23s  |  %s" % (_hex, text))
 
 
 class RefMsgpackEncoder(_EncoderBase):
@@ -377,38 +369,38 @@ def test_custom_msgpack_encode_v05():
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert st == [b"", ORIGIN_KEY.encode(), b"foo", b"v05-test", b"GET", b"POST", b"bar"]
     assert filter_mut(ts) == [
         [
-            [1, 2, 3, 0, 0, 0, {}, {}, 0],
-            [1, 2, 4, 0, 0, 0, {}, {}, 0],
-            [5, 0, 0, 0, 0, 0, {}, {}, 0],
+            [2, 3, 4, 0, 0, 0, {}, {}, 0],
+            [2, 3, 5, 0, 0, 0, {}, {}, 0],
+            [6, 0, 0, 0, 0, 0, {}, {}, 0],
         ]
     ]
 
 
-def string_table_test(t):
-    assert len(t) == 1
+def string_table_test(t, offset=0):
+    assert len(t) == 1 + offset
     id1 = t.index("foobar")
-    assert len(t) == 2
+    assert len(t) == 2 + offset
     assert id1 == t.index("foobar")
-    assert len(t) == 2
+    assert len(t) == 2 + offset
     id2 = t.index("foobaz")
-    assert len(t) == 3
+    assert len(t) == 3 + offset
     assert id2 == t.index("foobaz")
-    assert len(t) == 3
+    assert len(t) == 3 + offset
     assert id1 != id2
 
 
 def test_msgpack_string_table():
     t = MsgpackStringTable(1 << 10)
 
-    string_table_test(t)
+    string_table_test(t, offset=1)
 
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0") == [[b"", b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0") == [[b"", ORIGIN_KEY.encode(), b"foobar", b"foobaz"], None]
 
     assert len(t) == 1
     assert "foobar" not in t
