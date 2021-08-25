@@ -1,6 +1,7 @@
 import sys
 
 import mock
+import pkg_resources
 
 from ddtrace.version import get_version
 from tests.tracer import _version  # noqa: F401 -> we need to import it so that it can be swapped with the test module
@@ -21,10 +22,9 @@ def test_get_version_from_pkg_resources():
 
 def test_get_version_dev_fallback():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
+        expected_error = pkg_resources.DistributionNotFound()
         with mock.patch("pkg_resources.get_distribution") as mock_get_distribution:
-            import pkg_resources
-
-            mock_get_distribution.side_effect = pkg_resources.DistributionNotFound()
+            mock_get_distribution.side_effect = expected_error
             assert get_version() == "dev"
 
 
