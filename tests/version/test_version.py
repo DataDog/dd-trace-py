@@ -7,6 +7,7 @@ from unittest import mock
 class TestVersion:
     def test_get_version_from_version_file(self):
         from tests.version import _version
+
         with mock.patch.dict(sys.modules, {"ddtrace._version": sys.modules["tests.version._version"]}):
             assert get_version() == "my_test_version_from_generated_file"
 
