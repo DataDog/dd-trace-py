@@ -1,13 +1,12 @@
 import sys
+from unittest import mock
 
 from ddtrace.version import get_version
-from unittest import mock
+from tests.version import _version  # noqa: F401 -> we need to import it so that it can be swaped with the test module
 
 
 class TestVersion:
     def test_get_version_from_version_file(self):
-        from tests.version import _version
-
         with mock.patch.dict(sys.modules, {"ddtrace._version": sys.modules["tests.version._version"]}):
             assert get_version() == "my_test_version_from_generated_file"
 
