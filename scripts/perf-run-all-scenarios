@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e
+
+for SCENARIO in "encoder" "span" "tracer" "django_simple" "flask_simple" "threading"; do
+    scripts/perf-run-scenario "${SCENARIO}" "$@"
+done

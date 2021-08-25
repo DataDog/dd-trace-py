@@ -1,4 +1,5 @@
 import abc
+import os
 import time
 
 import attr
@@ -17,7 +18,17 @@ def _register(scenario_cls):
             if hasattr(args, field.name):
                 cmd.extend(("--{}".format(field.name), str(getattr(args, field.name))))
 
-    runner = pyperf.Runner(add_cmdline_args=add_cmdline_args)
+    metadata = {}
+
+    ddtrace_version = os.environ.get("DDTRACE_VERSION")
+    if ddtrace_version:
+        metadata["ddtrace_version"] = ddtrace_version
+
+    ddtrace_install = os.environ.get("DDTRACE_INSTALL")
+    if ddtrace_install:
+        metadata["ddtrace_install"] = ddtrace_install
+
+    runner = pyperf.Runner(add_cmdline_args=add_cmdline_args, metadata=metadata)
     cmd = runner.argparser
 
     for field in attr.fields(scenario_cls):

@@ -52,6 +52,8 @@ COPY ./bm/ /app/bm/
 # Add scenario code, overriding anything from base
 COPY ./${SCENARIO}/ /app/
 
+RUN pip install -r requirements.txt
+
 ENV SCENARIO=${SCENARIO}
 
 ENTRYPOINT ["/app/entrypoint"]

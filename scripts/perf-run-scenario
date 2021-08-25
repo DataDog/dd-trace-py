@@ -43,18 +43,34 @@ fi
 TAG="dd-trace-py/perf-${SCENARIO}"
 scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
 
+# Same run id for all benchmark runs
+if [[ -z ${RUN_ID} ]]; then
+  RUN_ID=$(uuidgen)
+fi
+
 if [[ -n ${ARTIFACTS} ]]; then
    # Resolve artifacts to an absolute path
-   ARTIFACTS="$(echo $ARTIFACTS | python -c 'import os,sys; print(os.path.abspath(sys.stdin.read()))')"
+   ARTIFACTS="$(realpath $ARTIFACTS)"
    mkdir -p ${ARTIFACTS}
-   docker run -it --rm \
+   docker run --rm \
+          ${DOCKER_RUN_OPTS} \
           -v ${ARTIFACTS}:/artifacts/ \
-          -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
-          -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
+          -e DDTRACE_INSTALL="$(expand_git_version $DDTRACE_V1)" \
+          -e RUN_ID="${RUN_ID}" \
+          $TAG
+   docker run --rm \
+          ${DOCKER_RUN_OPTS} \
+          -v ${ARTIFACTS}:/artifacts/ \
+          -e DDTRACE_INSTALL="$(expand_git_version $DDTRACE_V2)" \
+          -e RUN_ID="${RUN_ID}" \
           $TAG
 else
-   docker run -it --rm \
-          -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
-          -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
+   docker run --rm \
+          -e DDTRACE_INSTALL="$(expand_git_version $DDTRACE_V1)" \
+          -e RUN_ID="${RUN_ID}" \
+          $TAG
+   docker run --rm \
+          -e DDTRACE_INSTALL="$(expand_git_version $DDTRACE_V2)" \
+          -e RUN_ID="${RUN_ID}" \
           $TAG
 fi

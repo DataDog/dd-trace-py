@@ -18,6 +18,8 @@ def run(scenario_py, cname, cvars, output_dir):
         scenario_py,
         # necessary to copy PYTHONPATH for venvs
         "--copy-env",
+        "--values=5",
+        "--rigorous",
         "--append",
         os.path.join(output_dir, "results.json"),
         "--name",
