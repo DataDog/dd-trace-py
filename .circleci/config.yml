@@ -367,6 +367,12 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
+  version:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "version"
+
   profile:
     <<: *contrib_job
     parallelism: 6
@@ -980,6 +986,7 @@ requires_tests: &requires_tests
     - tornado
     - urllib3
     - vertica
+    - version
     - wsgi
 
 workflows:
@@ -1061,6 +1068,7 @@ workflows:
       - tracer: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
+      - version: *requires_base_venvs
       - wsgi: *requires_base_venvs
 
       # Final reports
