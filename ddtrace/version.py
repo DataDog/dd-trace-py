@@ -10,6 +10,6 @@ def get_version():
             import pkg_resources
 
             return pkg_resources.get_distribution(__name__).version
-        except Exception:
+        except pkg_resources.DistributionNotFound:
             # package is not installed
             return "dev"

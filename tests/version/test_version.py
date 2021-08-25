@@ -2,7 +2,7 @@ import sys
 from unittest import mock
 
 from ddtrace.version import get_version
-from tests.version import _version  # noqa: F401 -> we need to import it so that it can be swaped with the test module
+from tests.version import _version  # noqa: F401 -> we need to import it so that it can be swapped with the test module
 
 
 class TestVersion:
