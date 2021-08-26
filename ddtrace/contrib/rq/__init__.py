@@ -28,6 +28,19 @@ for a working example.
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
+To override the service name for a queue::
+
+    from ddtrace import Pin
+
+    connection = redis.Redis()
+    queue = rq.Queue(connection=connection)
+    Pin.override(queue, service="custom_queue_service")
+
+
+To override the service name for a particular worker::
+
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    Pin.override(worker, service="custom_worker_service")
 
 
 Global Configuration
@@ -35,7 +48,7 @@ Global Configuration
 
 .. py:data:: ddtrace.config.rq['distributed_tracing_enabled']
 
-   If ``True`` the integration will connect the traces sent between the queuer
+   If ``True`` the integration will connect the traces sent between the enqueuer
    and the RQ worker.
 
    Default: ``False``
@@ -106,14 +119,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:
             HTTPPropagator.inject(span.context, job.meta)
-
-        try:
-            return func(*args, **kwargs)
-        finally:
-            # If the queue is not async then the job is run immediately so we can
-            # report the results
-            if not instance.is_async:
-                span.set_tag("job.status", job.get_status())
+        return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
@@ -171,18 +177,10 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_job_fetch(rq, pin, func, instance, args, kwargs):
     """Trace rq.Job.fetch(...)"""
-
-    job = None
-    try:
-        with pin.tracer.trace("rq.job.fetch", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
-            job_id = get_argument_value(args, kwargs, 0, "id")
-            span.set_tag("job.id", job_id)
-            job = func(*args, **kwargs)
-            return job
-    finally:
-        if job:
-            job_status = job.get_status()
-            span.set_tag("job.status", job_status)
+    with pin.tracer.trace("rq.job.fetch", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
+        job_id = get_argument_value(args, kwargs, 0, "id")
+        span.set_tag("job.id", job_id)
+        return func(*args, **kwargs)
 
 
 @trace_utils.with_traced_module

@@ -13,6 +13,7 @@ from tests.utils import override_config
 from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
+from .jobs import JobClass
 from .jobs import job_add1
 from .jobs import job_fail
 
@@ -85,6 +86,15 @@ def test_sync_worker_config_service(queue):
 
 
 @snapshot(ignores=snapshot_ignores)
+def test_queue_pin_service(queue):
+    Pin.override(queue, service="my-pin-svc")
+    job = queue.enqueue(job_add1, 10)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+    assert job.result == 11
+
+
+@snapshot(ignores=snapshot_ignores)
 def test_sync_worker_pin_service(queue):
     job = queue.enqueue(job_add1, 10)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
@@ -107,10 +117,9 @@ def test_enqueue(queue):
     p = subprocess.Popen(["ddtrace-run", "rq", "worker", "q"], env=env)
     try:
         job = queue.enqueue(job_add1, 1)
-        # Wait for job to complete.
+        # Wait for job to complete
         while job.result is None:
             time.sleep(0.01)
-        time.sleep(1)
         assert job.result == 2
     finally:
         p.terminate()

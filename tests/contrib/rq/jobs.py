@@ -8,3 +8,11 @@ def job_add1(x):
 
 def job_fail():
     raise MyException("error")
+
+
+class JobClass(object):
+    def __call__(self, x):
+        return x * 2
+
+    def job_on_class(self, x):
+        return x / 2

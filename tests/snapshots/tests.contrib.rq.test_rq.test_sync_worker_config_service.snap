@@ -6,31 +6,54 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1629147871366581000
-   "duration" 2119500
-   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
+   "start" 1630001794902491000
+   "duration" 3392000
+   "meta" {"runtime-id" "5cb716ce6a06428884f5169bcc01c589"
            "queue.name" "q"
-           "job.id" "378dc0d8-1378-4c9d-8755-0babfb487296"
+           "job.id" "efa2b9b2-b084-46c1-b1d1-af77d9841e0f"
            "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 503
+              "system.pid" 62631
               "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.job.fetch"
    "service" "my-worker-svc"
    "resource" "rq.job.fetch"
-   "error" 1
+   "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1629147871374234900
-   "duration" 1078900
-   "meta" {"runtime-id" "78efa804cd724c6ea92a3c4495cacee6"
-           "job.id" "1c8fafd3-8e22-4c9e-99b1-1d8097b1e621"
-           "error.msg" "time data '' does not match format '%Y-%m-%dT%H:%M:%SZ'"
-           "error.type" "builtins.ValueError"
-           "error.stack" "Traceback (most recent call last):\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/utils.py\", line 172, in utcparse\n    return datetime.datetime.strptime(string, _TIMESTAMP_FORMAT)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 568, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 349, in _strptime\n    raise ValueError(\"time data %r does not match format %r\" %\nValueError: time data '' does not match format '%Y-%m-%dT%H:%M:%S.%fZ'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 180, in traced_job_fetch\n    job = func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 287, in fetch\n    job.refresh()\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 428, in refresh\n    self.started_at = to_date(as_text(obj.get('started_at')))\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 411, in to_date\n    return utcparse(as_text(date_str))\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/utils.py\", line 175, in utcparse\n    return datetime.datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ')\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 568, in _strptime_datetime\n    tt, fraction, gmtoff_fraction = _strptime(data_string, format)\n  File \"/root/.pyenv/versions/3.8.7/lib/python3.8/_strptime.py\", line 349, in _strptime\n    raise ValueError(\"time data %r does not match format %r\" %\nValueError: time data '' does not match format '%Y-%m-%dT%H:%M:%SZ'\n"}
+   "start" 1630001794915331000
+   "duration" 901000
+   "meta" {"runtime-id" "5cb716ce6a06428884f5169bcc01c589"
+           "job.id" "efa2b9b2-b084-46c1-b1d1-af77d9841e0f"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 503
-              "_dd.tracer_kr" 1.0}}]]
+              "system.pid" 62631
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "rq.worker.perform_job"
+   "service" "my-worker-svc"
+   "resource" "tests.contrib.rq.jobs.job_add1"
+   "type" "worker"
+   "error" 0
+   "span_id" 0
+   "trace_id" 2
+   "parent_id" nil
+   "start" 1630001794917767000
+   "duration" 4602000
+   "meta" {"runtime-id" "5cb716ce6a06428884f5169bcc01c589"
+           "job.id" "efa2b9b2-b084-46c1-b1d1-af77d9841e0f"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 62631
+              "_dd.tracer_kr" 1.0}}
+      {"name" "rq.job.perform"
+       "service" "my-worker-svc"
+       "resource" "tests.contrib.rq.jobs.job_add1"
+       "error" 0
+       "span_id" 1
+       "trace_id" 2
+       "parent_id" 0
+       "start" 1630001794918868000
+       "duration" 662000
+       "meta" {"job.id" "efa2b9b2-b084-46c1-b1d1-af77d9841e0f"}}]]

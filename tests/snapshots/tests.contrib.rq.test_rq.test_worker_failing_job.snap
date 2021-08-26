@@ -6,15 +6,15 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1629814702901155800
-   "duration" 1849200
-   "meta" {"runtime-id" "b3ac0b2520d740beb970ec38abe1ae0b"
+   "start" 1630001795611412000
+   "duration" 4309000
+   "meta" {"runtime-id" "5cb716ce6a06428884f5169bcc01c589"
            "queue.name" "q"
-           "job.id" "e1a48dfd-a486-4ba6-a03b-ebd8dd175791"
+           "job.id" "b6a09cc4-1e19-473f-bd91-4428dbeb3878"
            "job.func_name" "tests.contrib.rq.jobs.job_fail"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 332
+              "system.pid" 62631
               "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.job.fetch"
    "service" "rq-worker"
@@ -23,13 +23,13 @@
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
-   "start" 1629814702911961900
-   "duration" 781400
-   "meta" {"runtime-id" "b3ac0b2520d740beb970ec38abe1ae0b"
-           "job.id" "e1a48dfd-a486-4ba6-a03b-ebd8dd175791"}
+   "start" 1630001795628350000
+   "duration" 979000
+   "meta" {"runtime-id" "5cb716ce6a06428884f5169bcc01c589"
+           "job.id" "b6a09cc4-1e19-473f-bd91-4428dbeb3878"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 332
+              "system.pid" 62631
               "_dd.tracer_kr" 1.0}}]
  [{"name" "rq.worker.perform_job"
    "service" "rq-worker"
@@ -39,13 +39,13 @@
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
-   "start" 1629814702914510100
-   "duration" 14296000
-   "meta" {"runtime-id" "b3ac0b2520d740beb970ec38abe1ae0b"
-           "job.id" "e1a48dfd-a486-4ba6-a03b-ebd8dd175791"}
+   "start" 1630001795630983000
+   "duration" 4321000
+   "meta" {"runtime-id" "5cb716ce6a06428884f5169bcc01c589"
+           "job.id" "b6a09cc4-1e19-473f-bd91-4428dbeb3878"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 332
+              "system.pid" 62631
               "_dd.tracer_kr" 1.0}}
       {"name" "rq.job.perform"
        "service" "rq-worker"
@@ -54,9 +54,9 @@
        "span_id" 1
        "trace_id" 2
        "parent_id" 0
-       "start" 1629814702918952500
-       "duration" 762900
-       "meta" {"job.id" "e1a48dfd-a486-4ba6-a03b-ebd8dd175791"
+       "start" 1630001795632066000
+       "duration" 781000
+       "meta" {"job.id" "b6a09cc4-1e19-473f-bd91-4428dbeb3878"
                "error.msg" "error"
                "error.type" "tests.contrib.rq.jobs.MyException"
-               "error.stack" "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 168, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n"}}]]
+               "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 174, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/job.py\", line 692, in perform\n    self._result = self._execute()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.venv3.7/lib/python3.7/site-packages/rq/job.py\", line 698, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n"}}]]

@@ -1017,7 +1017,7 @@ venv = Venv(
             command="pytest tests/contrib/rq",
             venvs=[
                 Venv(
-                    pys=["2.7"],
+                    pys=select_pys(max_version="2.7"),
                     pkgs={
                         "rq": [
                             "~=1.0.0",
@@ -1029,7 +1029,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=["3.5", "3.6", "3.7", "3.8", "3.9"],
+                    pys=select_pys(min_version="3.5"),
                     pkgs={
                         "rq": [
                             "~=1.0.0",
@@ -1042,6 +1042,7 @@ venv = Venv(
                             "~=1.7.0",
                             "~=1.8.0",
                             "~=1.9.0",
+                            latest,
                         ],
                         "redis": ["==3.0"],
                     },
