@@ -30,6 +30,7 @@ CGroup
 cgroups
 cherrypy
 codepath
+committer
 compat
 composable
 config
@@ -44,6 +45,7 @@ dbapi
 ddtrace
 deprecations
 django
+doctest
 dogpile
 dogpile.cache
 dogstatsd
@@ -143,5 +145,6 @@ uvicorn
 versioned
 vertica
 whitelist
+workflow
 wsgi
 xfail

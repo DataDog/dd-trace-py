@@ -1,3 +1,4 @@
+from doctest import DocTest
 import json
 from typing import Dict
 
@@ -118,7 +119,10 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.NAME, item.name)
-        span.set_tag(test.SUITE, item.module.__name__)
+        if hasattr(item, "module"):
+            span.set_tag(test.SUITE, item.module.__name__)
+        elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
+            span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
