@@ -460,6 +460,27 @@ def test_collect_span_id(tracer_and_collector):
             break
 
 
+def test_collect_span_resource_after_finish(tracer_and_collector):
+    t, c = tracer_and_collector
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, span_type=span_type)
+    # This test will run forever if it fails. Don't make it fail.
+    while True:
+        try:
+            event = c.recorder.events[stack.StackSampleEvent].pop()
+        except IndexError:
+            # No event left or no event yet
+            continue
+        if span.trace_id == event.trace_id and span.span_id == event.span_id:
+            assert event.trace_resource == "foobar"
+            assert event.trace_type == span_type
+            break
+    span.resource = resource
+    span.finish()
+    assert event.trace_resource == resource
+
+
 def test_collect_multiple_span_id(tracer_and_collector):
     t, c = tracer_and_collector
     resource = str(uuid.uuid4())

@@ -109,3 +109,6 @@ ENV/
 
 # Riot
 .riot/
+
+# Auto-generated version file
+ddtrace/_version.py

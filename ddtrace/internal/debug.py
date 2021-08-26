@@ -8,8 +8,6 @@ from typing import Dict
 from typing import TYPE_CHECKING
 from typing import Union
 
-import pkg_resources
-
 import ddtrace
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -44,6 +42,8 @@ def tags_to_str(tags):
 def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
+
+    import pkg_resources
 
     if isinstance(tracer.writer, LogWriter):
         agent_url = "AGENTLESS"
