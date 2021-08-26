@@ -199,10 +199,11 @@ cdef class MsgpackStringTable(StringTable):
     cdef size_t _reset_size
 
     def __init__(self, max_size):
-        self.pk.buf = <char*> PyMem_Malloc(max_size)
+        self.pk.buf_size = min(max_size, 1 << 20)
+        self.pk.buf = <char*> PyMem_Malloc(self.pk.buf_size)
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
-        self.max_size = self.pk.buf_size = max_size
+        self.max_size = max_size
         self.pk.length = 6
         self._sp = 0
         self._lock = threading.Lock()

@@ -11,7 +11,7 @@ from ._encoding import MsgpackEncoderV05
 from .logger import get_logger
 
 
-__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable"]
+__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "Encoder"]
 
 
 if TYPE_CHECKING:

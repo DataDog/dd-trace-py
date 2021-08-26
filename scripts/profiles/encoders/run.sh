@@ -11,7 +11,7 @@ fi
 PREFIX=${1}
 
 AUSTIN_INTERVAL=1ms
-AUSTIN_EXPOSURE=4  # sec
+AUSTIN_EXPOSURE=4  # seconds
 
 test -d ${PREFIX}/artifacts && rm -rf ${PREFIX}/artifacts || mkdir -p ${PREFIX}/artifacts
 
