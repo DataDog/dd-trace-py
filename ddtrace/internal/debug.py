@@ -49,11 +49,15 @@ def collect(tracer):
         agent_url = "AGENTLESS"
         agent_error = None
     elif isinstance(tracer.writer, AgentWriter):
-        writer = tracer.writer
+        # Recreate the writer so our tests are isolated from normal tracing activity
+        # DEV: Starting the writer during application startup can cause issues with uWSGI
+        #      and worker processes
+        writer = tracer.writer.recreate()
         agent_url = writer.agent_url
         try:
             writer.write([])
             writer.flush_queue(raise_exc=True)
+            writer.stop(timeout=0)
         except Exception as e:
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:
