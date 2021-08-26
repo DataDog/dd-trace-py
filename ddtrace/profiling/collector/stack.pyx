@@ -345,59 +345,40 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
-        if span is None:
-            trace_id = None
-            span_id = None
-            trace_type = None
-            trace_resource = None
-        else:
-            trace_id = span.trace_id
-            span_id = span.span_id
-            if span._local_root is None:
-                trace_type = None
-                trace_resource = None
-            else:
-                trace_type = span._local_root.span_type
-                trace_resource = span._local_root.resource
-
-        stack_events.append(
-            StackSampleEvent(
-                thread_id=thread_id,
-                thread_native_id=thread_native_id,
-                thread_name=thread_name,
-                task_id=task_id,
-                task_name=task_name,
-                trace_id=trace_id,
-                span_id=span_id,
-                trace_resource=trace_resource,
-                trace_type=trace_type,
-                nframes=nframes, frames=frames,
-                wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
-                sampling_period=int(interval * 1e9),
-            ),
+        event = StackSampleEvent(
+            thread_id=thread_id,
+            thread_native_id=thread_native_id,
+            thread_name=thread_name,
+            task_id=task_id,
+            task_name=task_name,
+            nframes=nframes, frames=frames,
+            wall_time_ns=wall_time,
+            cpu_time_ns=cpu_time,
+            sampling_period=int(interval * 1e9),
         )
+
+        event.set_trace_info(span)
+
+        stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
-            exc_events.append(
-                StackExceptionSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=thread_name,
-                    thread_native_id=thread_native_id,
-                    task_id=task_id,
-                    task_name=task_name,
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    trace_resource=trace_resource,
-                    trace_type=trace_type,
-                    nframes=nframes,
-                    frames=frames,
-                    sampling_period=int(interval * 1e9),
-                    exc_type=exc_type,
-                ),
+            exc_event = StackExceptionSampleEvent(
+                thread_id=thread_id,
+                thread_name=thread_name,
+                thread_native_id=thread_native_id,
+                task_id=task_id,
+                task_name=task_name,
+                nframes=nframes,
+                frames=frames,
+                sampling_period=int(interval * 1e9),
+                exc_type=exc_type,
             )
+
+            exc_event.set_trace_info(span)
+
+            exc_events.append(exc_event)
 
     return stack_events, exc_events
 

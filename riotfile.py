@@ -195,6 +195,7 @@ venv = Venv(
                         "msgpack": latest,
                         "attrs": ["==19.2.0", latest],
                         "packaging": ["==17.1", latest],
+                        "structlog": latest,
                     },
                 )
             ],
