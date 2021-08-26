@@ -139,6 +139,9 @@ def get_request_uri(request):
 
 
 def _set_resolver_tags(pin, span, request):
+    # Default to just the HTTP method when we cannot determine a reasonable resource
+    resource = request.method
+
     try:
         # Get resolver match result and build resource name pieces
         resolver_match = request.resolver_match
@@ -149,9 +152,9 @@ def _set_resolver_tags(pin, span, request):
         handler = func_name(resolver_match[0])
 
         if config.django.use_handler_resource_format:
-            span.resource = " ".join((span.resource, handler))
+            resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
-            span.resource = handler
+            resource = handler
         else:
             # In Django >= 2.2.0 we can access the original route or regex pattern
             # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
@@ -159,10 +162,10 @@ def _set_resolver_tags(pin, span, request):
                 # Determine the resolver and resource name for this request
                 route = get_django_2_route(request, resolver_match)
                 if route:
-                    span.resource = " ".join((request.method, route))
+                    resource = " ".join((request.method, route))
                     span._set_str_tag("http.route", route)
             else:
-                span.resource = " ".join((request.method, handler))
+                resource = " ".join((request.method, handler))
 
         span._set_str_tag("django.view", resolver_match.view_name)
         set_tag_array(span, "django.namespace", resolver_match.namespaces)
@@ -174,7 +177,7 @@ def _set_resolver_tags(pin, span, request):
     except Resolver404:
         # Normalize all 404 requests into a single resource name
         # DEV: This is for potential cardinality issues
-        span.resource = " ".join((request.method, "404"))
+        resource = " ".join((request.method, "404"))
     except Exception:
         log.debug(
             "Failed to resolve request path %r with path info %r",
@@ -182,10 +185,17 @@ def _set_resolver_tags(pin, span, request):
             getattr(request, "path_info", "not-set"),
             exc_info=True,
         )
+    finally:
+        # Only update the resource name if it was not explicitly set
+        # by another else during the request lifetime
+        if span.resource == span.name:
+            span.resource = resource
 
 
 def _before_request_tags(pin, span, request):
-    span.resource = request.method
+    # DEV: Do not set `span.resource` here, leave it as `None`
+    #      until `_set_resolver_tags` so we can know if the user
+    #      has explicitly set it during the request lifetime
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
     span.metrics[SPAN_MEASURED_KEY] = 1

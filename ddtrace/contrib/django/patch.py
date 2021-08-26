@@ -303,9 +303,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
 
+    # DEV: Do not set `span.resource` here, leave it as `None`
+    #      until `_set_resolver_tags` so we can know if the user
+    #      has explicitly set it during the request lifetime
     with pin.tracer.trace(
         "django.request",
-        resource=request.method,
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
     ) as span:
