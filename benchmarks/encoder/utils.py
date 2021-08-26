@@ -1,8 +1,9 @@
 import random
 import string
 
-from ddtrace.internal.encoding import Encoder
+from ddtrace.encoding import Encoder
 from ddtrace.span import Span
+from ddtrace.context import Context
 
 
 try:
@@ -11,13 +12,25 @@ try:
     from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
 
     def init_encoder(max_size=8 << 20, max_item_size=8 << 20):
-        return Encoder(max_size, max_item_size)
+        encoder = Encoder(max_size, max_item_size)
+
+        def _(trace):
+            encoder.put(trace)
+            encoder.encode()
+
+        return _
 
 
 except ImportError:
 
+    # pre-buffered encoder internal api
     def init_encoder():
-        return Encoder()
+        encoder = Encoder()
+
+        def _(trace):
+            encoder.encode_trace(trace)
+
+        return _
 
 
 def _rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -47,7 +60,7 @@ def gen_traces(config):
             span_name = random.choice(span_names)
             resource = random.choice(resources)
             service = random.choice(services)
-            with Span(None, span_name, resource=resource, service=service, parent_id=parent_id) as span:
+            with Span(None, span_name, resource=resource, service=service, parent_id=parent_id, context=Context()) as span:
                 if i == 0 and config.dd_origin:
                     # Since we're not using the tracer API, a span's context isn't automatically propagated
                     # to its children. The encoder only checks the root span's context in a trace for dd_origin, so

@@ -7,7 +7,7 @@ one-trace: &base_variant
   dd_origin: false
 many-traces:
   <<: *base_variant
-  ntraces: 100
+  ntraces: 10
 one-tag:
   <<: *base_variant
   ntags: 1
@@ -22,17 +22,21 @@ one-metric:
 many-metrics:
   <<: *base_variant
   nmetrics: 48
-one-trace-with-dd-origin:
+dd-origin:
+  <<: *base_variant
+  dd_origin: true
+dd-origin-many-tags:
   <<: *base_variant
   ntags: 10
   ltags: 16
   dd_origin: true
-one-trace-with-dd-origin-no-tags:
+dd-origin-many-traces:
   <<: *base_variant
+  ntraces: 10
   dd_origin: true
-many-traces-with-dd-origin:
+dd-origin-many-traces-many-tags:
   <<: *base_variant
-  ntraces: 100
+  ntraces: 10
   ntags: 10
   ltags: 16
   dd_origin: true

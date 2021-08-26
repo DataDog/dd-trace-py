@@ -11,13 +11,12 @@ class Encoder(bm.Scenario):
     dd_origin = bm.var(type=bool)
 
     def run(self):
-        encoder = utils.init_encoder()
+        encode = utils.init_encoder()
         traces = utils.gen_traces(self)
 
         def _(loops):
             for _ in range(loops):
                 for trace in traces:
-                    encoder.put(trace)
-                    encoder.encode()
+                    encode(trace)
 
         yield _
