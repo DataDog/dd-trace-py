@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes a bug when running ``uwsgi`` with ``DD_TRACE_DEBUG=true`` environment variable set
+    causing no traces to be sent to the trace agent.
