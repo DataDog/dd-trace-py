@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 # C extensions
+ddtrace/profiling/collector/_task.c
 ddtrace/profiling/collector/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
@@ -109,3 +110,6 @@ ENV/
 
 # Riot
 .riot/
+
+# Auto-generated version file
+ddtrace/_version.py

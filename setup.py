@@ -204,7 +204,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
-    use_scm_version=True,
+    use_scm_version={"write_to": "ddtrace/_version.py"},
     setup_requires=["setuptools_scm[toml]>=4", "cython"],
     ext_modules=ext_modules
     + cythonize(
@@ -235,6 +235,11 @@ setup(
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._threading",
                 sources=["ddtrace/profiling/collector/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._task",
+                sources=["ddtrace/profiling/collector/_task.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(
