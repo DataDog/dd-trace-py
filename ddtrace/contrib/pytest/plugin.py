@@ -13,6 +13,7 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
