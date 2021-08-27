@@ -906,12 +906,14 @@ jobs:
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
-    - ccheck
+    # TODO: Re-enable when setuptools-scm issue is fixed
+    # - ccheck
 
 requires_base_venvs: &requires_base_venvs
   requires:
     - pre_check
-    - ccheck
+    # TODO: Re-enable when setuptools-scm issue is fixed
+    # - ccheck
     - build_base_venvs
 
 requires_tests: &requires_tests
