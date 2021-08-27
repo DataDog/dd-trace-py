@@ -636,7 +636,7 @@ uWSGI
 
 **Note:** ``ddtrace-run`` is not supported with uWSGI.
 
-``ddtrace`` only supports `uWSGI <https://uwsgi-docs.readthedocs.io/>`__ when configured as follows:
+``ddtrace`` only supports `uWSGI <https://uwsgi-docs.readthedocs.io/>`__ when configured with each of the following:
 
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
