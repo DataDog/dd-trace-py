@@ -3,13 +3,16 @@ from __future__ import absolute_import
 import os.path
 import sys
 import threading
+import typing
 
 import attr
-from six.moves import _thread
 
 from ddtrace.internal import compat
+from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.profiling.collector import _task
+from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
 from ddtrace.vendor import wrapt
@@ -38,16 +41,9 @@ class LockReleaseEvent(LockEventBase):
 
 
 def _current_thread():
-    # This is a custom version of `threading.current_thread`
-    # that does not try # to create a `DummyThread` on `KeyError`.
-    ident = _thread.get_ident()
-    try:
-        thread = threading._active[ident]
-    except KeyError:
-        name = None
-    else:
-        name = thread.name
-    return ident, name
+    # type: (...) -> typing.Tuple[int, str]
+    thread_id = nogevent.thread_get_ident()
+    return thread_id, _threading.get_thread_name(thread_id)
 
 
 # We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
@@ -87,12 +83,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
+                task_id, task_name = _task.get_task(thread_id)
                 event = LockAcquireEvent(
                     lock_name=self._self_name,
                     frames=frames,
                     nframes=nframes,
                     thread_id=thread_id,
                     thread_name=thread_name,
+                    task_id=task_id,
+                    task_name=task_name,
                     wait_time_ns=end - start,
                     sampling_pct=self._self_capture_sampler.capture_pct,
                 )
@@ -114,12 +113,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         end = compat.monotonic_ns()
                         frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
                         thread_id, thread_name = _current_thread()
+                        task_id, task_name = _task.get_task(thread_id)
                         event = LockReleaseEvent(
                             lock_name=self._self_name,
                             frames=frames,
                             nframes=nframes,
                             thread_id=thread_id,
                             thread_name=thread_name,
+                            task_id=task_id,
+                            task_name=task_name,
                             locked_for_ns=end - self._self_acquired_at,
                             sampling_pct=self._self_capture_sampler.capture_pct,
                         )
