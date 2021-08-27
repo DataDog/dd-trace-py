@@ -527,7 +527,7 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 3
         for span in spans:
             assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
-    
+
     def test_pytest_sets_sample_priority(self):
         """Test sample priority tags."""
         py_file = self.testdir.makepyfile(
