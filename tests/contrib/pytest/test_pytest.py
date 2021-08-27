@@ -527,6 +527,22 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 3
         for span in spans:
             assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
+    
+    def test_pytest_sets_sample_priority(self):
+        """Test sample priority tags."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_sample_priority():
+                assert True == True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0][b"meta"][b"sampling_priority"] == 1
 
 
 @pytest.mark.parametrize(
