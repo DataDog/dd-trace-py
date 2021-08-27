@@ -200,7 +200,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
-    use_scm_version={"write_to": "ddtrace/_version.py"},
+    use_scm_version=True,
     setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython"],
     ext_modules=ext_modules
     + cythonize(
