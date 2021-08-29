@@ -14,6 +14,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import stack
 
@@ -68,7 +69,7 @@ def test_collect_once():
     stack_events = all_events[0]
     for e in stack_events:
         if e.thread_name == "MainThread":
-            if TESTING_GEVENT and stack.FEATURES["gevent-tasks"]:
+            if TESTING_GEVENT and _task._gevent_tracer is not None:
                 assert e.task_id > 0
                 assert e.task_name == e.thread_name
             else:
@@ -93,7 +94,7 @@ def _fib(n):
         return _fib(n - 1) + _fib(n - 2)
 
 
-@pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
+@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
 def test_collect_gevent_thread_task():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
@@ -161,7 +162,7 @@ class CollectorTest(collector.PeriodicCollector):
         return []
 
 
-@pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
+@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
 @pytest.mark.parametrize("ignore", (True, False))
 def test_ignore_profiler_gevent_task(monkeypatch, ignore):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
@@ -327,7 +328,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 321, "test_exception_collection")]
+    assert e.frames == [(__file__, 322, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -350,7 +351,7 @@ def test_exception_collection_trace(tracer):
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 344, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 345, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -458,6 +459,27 @@ def test_collect_span_id(tracer_and_collector):
             assert event.trace_resource == resource
             assert event.trace_type == span_type
             break
+
+
+def test_collect_span_resource_after_finish(tracer_and_collector):
+    t, c = tracer_and_collector
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, span_type=span_type)
+    # This test will run forever if it fails. Don't make it fail.
+    while True:
+        try:
+            event = c.recorder.events[stack.StackSampleEvent].pop()
+        except IndexError:
+            # No event left or no event yet
+            continue
+        if span.trace_id == event.trace_id and span.span_id == event.span_id:
+            assert event.trace_resource == "foobar"
+            assert event.trace_type == span_type
+            break
+    span.resource = resource
+    span.finish()
+    assert event.trace_resource == resource
 
 
 def test_collect_multiple_span_id(tracer_and_collector):

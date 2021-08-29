@@ -297,9 +297,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools python3-pip
       - run: scripts/cformat.sh
-      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 pip -vvv install .
 
   coverage_report:
     executor: python39
@@ -910,6 +910,8 @@ requires_pre_check: &requires_pre_check
 
 requires_base_venvs: &requires_base_venvs
   requires:
+    - pre_check
+    - ccheck
     - build_base_venvs
 
 requires_tests: &requires_tests
@@ -988,11 +990,11 @@ workflows:
       - pre_check
       - ccheck
 
+      # Build necessary base venvs for integration tests
+      - build_base_venvs
+
       # Docs
       - build_docs: *requires_pre_check
-
-      # Build necessary base venvs for integration tests
-      - build_base_venvs: *requires_pre_check
 
       # Integration test suites
       - aiobotocore: *requires_base_venvs
