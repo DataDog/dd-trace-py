@@ -559,7 +559,7 @@ class TestPytest(TracerTestCase):
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", "--doctest-modules", file_name)
-        rec.assertoutcome(passed=3)
+        rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
         assert len(spans) == 1
