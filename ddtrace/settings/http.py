@@ -21,13 +21,25 @@ class HttpConfig(object):
 
     def __init__(self, header_tags=None):
         # type: (Optional[Mapping[str, str]]) -> None
-        self.header_tags = {normalize_header_name(k): v for k, v in header_tags.items()} if header_tags else {}
+        self._header_tags = {normalize_header_name(k): v for k, v in header_tags.items()} if header_tags else {}
         self.trace_query_string = None
+
+    @cachedmethod()
+    def _header_tag_name(self, header_name):
+        # type: (str) -> Optional[str]
+        if not self._header_tags:
+            return None
+
+        normalized_header_name = normalize_header_name(header_name)
+        log.debug(
+            "Checking header '%s' tracing in whitelist %s", normalized_header_name, six.viewkeys(self._header_tags)
+        )
+        return self._header_tags.get(normalized_header_name)
 
     @property
     def is_header_tracing_configured(self):
         # type: () -> bool
-        return len(self.header_tags) > 0
+        return len(self._header_tags) > 0
 
     def trace_headers(self, whitelist):
         # type: (Union[List[str], str]) -> Optional[HttpConfig]
@@ -48,34 +60,24 @@ class HttpConfig(object):
                 continue
             # Empty tag is replaced by the default tag for this header:
             #  Host on the request defaults to http.request.headers.host
-            self.header_tags.setdefault(normalized_header_name, "")
+            self._header_tags.setdefault(normalized_header_name, "")
 
         # Mypy can't catch cached method's invalidate()
-        self.header_tag_name.invalidate()  # type: ignore[attr-defined]
+        self._header_tag_name.invalidate()  # type: ignore[attr-defined]
 
         return self
 
-    @cachedmethod()
-    def header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def header_is_traced(self, header_name):
+        # type: (str) -> bool
         """
-        Returns the tag associated with the current header if it should be traced.
-        An empty string is returned when the current header must be retained but
-        no tag was configured.
+        Returns whether or not the current header should be traced.
         :param header_name: the header name
         :type header_name: str
-        :rtype: str or None
+        :rtype: bool
         """
-        if not self.header_tags:
-            return None
-
-        normalized_header_name = normalize_header_name(header_name)
-        log.debug(
-            "Checking header '%s' tracing in whitelist %s", normalized_header_name, six.viewkeys(self.header_tags)
-        )
-        return self.header_tags.get(normalized_header_name)
+        return self._header_tag_name(header_name) is not None
 
     def __repr__(self):
         return "<{} traced_headers={} trace_query_string={}>".format(
-            self.__class__.__name__, self.header_tags.keys(), self.trace_query_string
+            self.__class__.__name__, self._header_tags.keys(), self.trace_query_string
         )

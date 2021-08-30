@@ -206,17 +206,19 @@ class Config(object):
         self.http.trace_headers(whitelist)
         return self
 
-    def header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def header_is_traced(self, header_name):
+        # type: (str) -> bool
         """
-        Returns the tag associated with the current header if it should be traced.
-        An empty string is returned when the current header must be retained but
-        no tag was configured.
+        Returns whether or not the current header should be traced.
         :param header_name: the header name
         :type header_name: str
-        :rtype: str or None
+        :rtype: bool
         """
-        return self.http.header_tag_name(header_name)
+        return self.http.header_is_traced(header_name)
+
+    def _header_tag_name(self, header_name):
+        # type: (str) -> Optional[str]
+        return self.http._header_tag_name(header_name)
 
     def _get_service(self, default=None):
         """
