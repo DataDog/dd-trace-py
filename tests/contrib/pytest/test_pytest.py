@@ -545,6 +545,29 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
 
+    def test_pytest_exception(self):
+        """Test that pytest sets exception information correctly."""
+        py_file = self.testdir.makepyfile(
+            """
+        def will_throw():
+            my_dict = dict()
+            return my_dict.value.not_there
+
+        def test_will_throw():
+            assert will_throw() == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", "--doctest-modules", file_name)
+        rec.assertoutcome(passed=3)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
+        assert spans[0].get_tag("error.type") == "AttributeError"
+        assert spans[0].get_tag("error.message") == "AttributeError: 'my_dict' object has no attribute 'value'"
+        assert spans[0].get_tag("error.stack") is not None
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",

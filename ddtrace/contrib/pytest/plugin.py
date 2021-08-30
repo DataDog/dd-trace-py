@@ -193,7 +193,11 @@ def pytest_runtest_makereport(item, call):
                 # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
                 span.set_tag(test.XFAIL_REASON, result.longrepr)
                 span.set_tag(test.RESULT, test.Status.XPASS.value)
-            raise RuntimeWarning(result)
+            if call.excinfo:
+                span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
+                span.set_traceback()
+            span.set_tag(test.STATUS, test.Status.FAIL.value)
+
     except Exception:
         span.set_traceback()
         span.set_tag(test.STATUS, test.Status.FAIL.value)
