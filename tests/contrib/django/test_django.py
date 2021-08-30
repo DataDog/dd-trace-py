@@ -84,6 +84,47 @@ def test_django_v2XX_request_root_span(client, test_spans):
     )
 
 
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_django_v2XX_alter_root_resource(client, test_spans):
+    """
+    When making a request to a Django app
+        We properly create the `django.request` root span
+    """
+    resp = client.get("/alter-resource/")
+    assert resp.status_code == 200
+    assert resp.content == b""
+
+    spans = test_spans.get_spans()
+    # Assert the correct number of traces and spans
+    assert len(spans) == 26
+
+    # Assert the structure of the root `django.request` span
+    root = test_spans.get_root_span()
+
+    meta = {
+        "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+        "django.response.class": "django.http.response.HttpResponse",
+        "django.user.is_authenticated": "False",
+        "django.view": "tests.contrib.django.views.alter_resource",
+        "http.method": "GET",
+        "http.status_code": "200",
+        "http.url": "http://testserver/alter-resource/",
+    }
+    if django.VERSION >= (2, 2, 0):
+        meta["http.route"] = "^alter-resource/$"
+
+    assert http.QUERY_STRING not in root.meta
+    root.assert_matches(
+        name="django.request",
+        service="django",
+        resource="custom django.request resource",
+        parent_id=None,
+        span_type="web",
+        error=0,
+        meta=meta,
+    )
+
+
 @pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason="")
 def test_v1XX_middleware(client, test_spans):
     resp = client.get("/")
