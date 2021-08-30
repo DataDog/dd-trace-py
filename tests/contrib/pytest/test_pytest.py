@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -542,7 +543,7 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 1
-        assert spans[0][b"meta"][b"sampling_priority"] == 1
+        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
 
 
 @pytest.mark.parametrize(
