@@ -550,8 +550,7 @@ class TestPytest(TracerTestCase):
         py_file = self.testdir.makepyfile(
             """
         def will_throw():
-            my_dict = dict()
-            return my_dict.value.not_there
+            return 3/0
 
         def test_will_throw():
             assert will_throw() == 1
@@ -563,8 +562,8 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
-        assert spans[0].get_tag("error.type") == "builtins.AttributeError"
-        assert spans[0].get_tag("error.msg") == "'dict' object has no attribute 'value'"
+        assert spans[0].get_tag("error.type") == "builtins.ZeroDivisionError"
+        assert spans[0].get_tag("error.msg") == "division by zero"
         assert spans[0].get_tag("error.stack") is not None
 
 
