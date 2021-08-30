@@ -1,33 +1,18 @@
-[[{"name" "rq.job.fetch"
-   "service" "rq-worker"
-   "resource" "rq.job.fetch"
-   "error" 0
-   "span_id" 0
-   "trace_id" 0
-   "parent_id" nil
-   "start" 1630004802074589000
-   "duration" 3790000
-   "meta" {"runtime-id" "ae5a8908cde54151bd50f9dc52c1c7d5"
-           "job.id" "d3b3326c-2bab-46fb-8828-e82e785d7f78"}
-   "metrics" {"_dd.agent_psr" 1.0
-              "_sampling_priority_v1" 1
-              "system.pid" 71039
-              "_dd.tracer_kr" 1.0}}]
- [{"name" "rq.queue.enqueue_job"
+[[{"name" "rq.queue.enqueue_job"
    "service" "rq"
    "resource" "tests.contrib.rq.jobs.job_add1"
    "type" "worker"
    "error" 0
    "span_id" 0
-   "trace_id" 1
+   "trace_id" 0
    "parent_id" nil
-   "start" 1630004838206668000
-   "duration" 11636000
-   "meta" {"runtime-id" "2208f60e664840c8828b863987127b9b"
+   "start" 1630333149060411000
+   "duration" 2470500
+   "meta" {"runtime-id" "db58ccbfef044eeab2b2670b8b124068"
            "queue.name" "q"
-           "job.id" "86225a22-0817-464c-ad5a-830adc773c02"
+           "job.id" "436afeb1-d3ae-46d3-9e47-93835d17f3c1"
            "job.func_name" "tests.contrib.rq.jobs.job_add1"}
    "metrics" {"_dd.agent_psr" 1.0
               "_sampling_priority_v1" 1
-              "system.pid" 71228
+              "system.pid" 462
               "_dd.tracer_kr" 1.0}}]]

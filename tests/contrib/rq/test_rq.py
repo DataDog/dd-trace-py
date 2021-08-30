@@ -13,7 +13,6 @@ from tests.utils import override_config
 from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
-from .jobs import JobClass
 from .jobs import job_add1
 from .jobs import job_fail
 
@@ -114,6 +113,7 @@ def test_worker_failing_job(queue):
 def test_enqueue(queue):
     env = os.environ.copy()
     env["DD_TRACE_REDIS_ENABLED"] = "false"
+    env["DD_SERVICE"] = "custom-worker-service"
     p = subprocess.Popen(["ddtrace-run", "rq", "worker", "q"], env=env)
     try:
         job = queue.enqueue(job_add1, 1)

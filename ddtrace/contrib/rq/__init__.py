@@ -18,7 +18,7 @@ Worker Usage
 
 ``ddtrace-run`` can be used to easily trace your workers::
 
-    DD_RQ_WORKER_SERVICE=myworker ddtrace-run rq worker
+    DD_SERVICE=myworker ddtrace-run rq worker
 
 
 See https://github.com/DataDog/trace-examples/tree/kyle-verhoog/rq/python/rq
@@ -51,7 +51,7 @@ Global Configuration
    If ``True`` the integration will connect the traces sent between the enqueuer
    and the RQ worker.
 
-   Default: ``False``
+   Default: ``True``
 
 .. py:data:: ddtrace.config.rq['service']
 
@@ -90,7 +90,7 @@ config._add(
     "rq",
     dict(
         _default_service="rq",
-        distributed_tracing_enabled=False,
+        distributed_tracing_enabled=True,
     ),
 )
 
@@ -143,19 +143,18 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     try:
         with pin.tracer.trace(
             "rq.worker.perform_job",
-            service=trace_utils.ext_service(pin, config.rq_worker),
+            service=trace_utils.int_service(pin, config.rq_worker),
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
         ) as span:
             span.set_tag("job.id", job.get_id())
-            return func(*args, **kwargs)
+            r = func(*args, **kwargs)
+            span.set_tag("job.status", job.get_status())
+            span.set_tag("job.origin", job.origin)
+            if job.is_failed:
+                span.error = 1
+            return r
     finally:
-        if job.get_status() == rq.job.JobStatus.FAILED:
-            span.error = 1
-            span.set_tag("error.stack", job.exc_info)
-        span.set_tag("status", job.get_status())
-        span.set_tag("origin", job.origin)
-
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
         pin.tracer.writer.flush_queue()
@@ -171,15 +170,6 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     #     service.
     with pin.tracer.trace("rq.job.perform", resource=job.func_name) as span:
         span.set_tag("job.id", job.get_id())
-        return func(*args, **kwargs)
-
-
-@trace_utils.with_traced_module
-def traced_job_fetch(rq, pin, func, instance, args, kwargs):
-    """Trace rq.Job.fetch(...)"""
-    with pin.tracer.trace("rq.job.fetch", service=trace_utils.ext_service(pin, config.rq_worker)) as span:
-        job_id = get_argument_value(args, kwargs, 0, "id")
-        span.set_tag("job.id", job_id)
         return func(*args, **kwargs)
 
 
@@ -204,7 +194,6 @@ def patch():
     # Patch rq.job.Job
     Pin().onto(rq.job.Job)
     trace_utils.wrap(rq.job, "Job.perform", traced_job_perform(rq.job.Job))
-    trace_utils.wrap(rq.job, "Job.fetch", traced_job_fetch(rq.job.Job))
 
     # Patch rq.queue.Queue
     Pin().onto(rq.queue.Queue)
@@ -229,7 +218,7 @@ def unpatch():
     # Unpatch rq.job.Job
     Pin().remove_from(rq.job.Job)
     trace_utils.unwrap(rq.job.Job, "perform")
-    trace_utils.unwrap(rq.job.Job, "fetch")
+    # trace_utils.unwrap(rq.job.Job, "fetch")
 
     # Unpatch rq.queue.Queue
     Pin().remove_from(rq.queue.Queue)
