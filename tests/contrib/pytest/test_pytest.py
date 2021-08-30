@@ -563,8 +563,8 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
-        assert spans[0].get_tag("error.type") == "AttributeError"
-        assert spans[0].get_tag("error.message") == "AttributeError: 'my_dict' object has no attribute 'value'"
+        assert spans[0].get_tag("error.type") == "builtins.AttributeError"
+        assert spans[0].get_tag("error.msg") == "'dict' object has no attribute 'value'"
         assert spans[0].get_tag("error.stack") is not None
 
 
