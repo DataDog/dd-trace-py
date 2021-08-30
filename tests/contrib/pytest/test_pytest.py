@@ -534,7 +534,7 @@ class TestPytest(TracerTestCase):
         py_file = self.testdir.makepyfile(
             """
             def test_sample_priority():
-                assert True == True
+                assert True is True
         """
         )
         file_name = os.path.basename(py_file.strpath)
