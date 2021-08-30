@@ -13,6 +13,7 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
@@ -115,6 +116,7 @@ def pytest_runtest_protocol(item, nextitem):
         span_type=SpanTypes.TEST.value,
     ) as span:
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
+        span.context.sampling_priority = AUTO_KEEP
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
