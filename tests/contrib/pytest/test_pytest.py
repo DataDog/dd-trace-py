@@ -549,11 +549,8 @@ class TestPytest(TracerTestCase):
         """Test that pytest sets exception information correctly."""
         py_file = self.testdir.makepyfile(
             """
-        def will_throw():
-            return 3/0
-
-        def test_will_throw():
-            assert will_throw() == 1
+        def test_will_fail():
+            assert 2 == 1
         """
         )
         file_name = os.path.basename(py_file.strpath)
@@ -562,8 +559,8 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
-        assert spans[0].get_tag("error.type") == "builtins.ZeroDivisionError"
-        assert spans[0].get_tag("error.msg") == "division by zero"
+        assert spans[0].get_tag("error.type") == "builtins.AssertionError"
+        assert spans[0].get_tag("error.msg") == "assert 2 == 1"
         assert spans[0].get_tag("error.stack") is not None
 
 
