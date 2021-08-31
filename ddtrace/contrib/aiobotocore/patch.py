@@ -17,10 +17,10 @@ from ...ext import aws
 from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
 from ...pin import Pin
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
-from ...utils import get_argument_value
-from ...utils import ArgumentError
 
 
 ARGS_NAME = ("action", "params", "path", "verb")

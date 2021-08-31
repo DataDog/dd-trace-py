@@ -11,6 +11,8 @@ from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
@@ -151,11 +153,10 @@ class FetchTracedCursor(TracedCursor):
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
         size_tag_key = "db.fetch.size"
-        if "size" in kwargs:
-            extra_tags = {size_tag_key: kwargs.get("size")}
-        elif len(args) == 1 and isinstance(args[0], int):
-            extra_tags = {size_tag_key: args[0]}
-        else:
+
+        try:
+            extra_tags = {size_tag_key: get_argument_value(args, kwargs, 0, "size")}
+        except ArgumentError:
             default_array_size = getattr(self.__wrapped__, "arraysize", None)
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 

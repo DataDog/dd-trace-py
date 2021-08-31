@@ -19,10 +19,10 @@ from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...utils import get_argument_value
 from ...utils.deprecation import deprecated
 from ...utils.formats import deep_getattr
 from ...vendor import wrapt
-from ...utils import get_argument_value
 
 
 log = get_logger(__name__)

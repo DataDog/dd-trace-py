@@ -6,11 +6,11 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...pin import Pin
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 from .constants import DEFAULT_TEMPLATE_NAME
-from ...utils import get_argument_value
-from ...utils import ArgumentError
 
 
 # default settings

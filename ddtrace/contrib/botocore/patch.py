@@ -19,10 +19,10 @@ from ...ext import http
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
+from ...utils import get_argument_value
 from ...utils.formats import deep_getattr
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
-from ...utils import get_argument_value
 
 
 # Original botocore client class

@@ -11,6 +11,7 @@ from ddtrace.ext import http
 from ddtrace.pin import Pin
 from ddtrace.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
+
 from ...utils import get_argument_value
 
 
