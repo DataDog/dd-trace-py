@@ -558,10 +558,11 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 1
-        assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
-        assert spans[0].get_tag("error.type") == "builtins.AssertionError"
-        assert spans[0].get_tag("error.msg") == "assert 2 == 1"
-        assert spans[0].get_tag("error.stack") is not None
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type") == "exceptions.AssertionError"
+        assert test_span.get_tag("error.msg") == "assert 2 == 1"
+        assert test_span.get_tag("error.stack") is not None
 
 
 @pytest.mark.parametrize(
