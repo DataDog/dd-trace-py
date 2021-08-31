@@ -560,7 +560,7 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
-        assert test_span.get_tag("error.type") == "exceptions.AssertionError"
+        assert test_span.get_tag("error.type").endswith("AssertionError") is True
         assert test_span.get_tag("error.msg") == "assert 2 == 1"
         assert test_span.get_tag("error.stack") is not None
 
