@@ -52,15 +52,16 @@ def unregister(after_in_child):
 
 if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=ddtrace_after_in_child)
-else:
-    _threading_after_fork = threading._after_fork  # type: ignore[attr-defined]
+elif hasattr(os, "fork"):
+    _os_fork = os.fork
 
-    def _after_fork():
-        # type: () -> None
-        _threading_after_fork()
-        ddtrace_after_in_child()
+    def _fork():
+        pid = _os_fork()
+        if pid == 0:
+            ddtrace_after_in_child()
+        return pid
 
-    threading._after_fork = _after_fork  # type: ignore[attr-defined]
+    os.fork = _fork
 
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
