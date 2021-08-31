@@ -545,6 +545,25 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
 
+    def test_pytest_exception(self):
+        """Test that pytest sets exception information correctly."""
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_fail():
+            assert 2 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("AssertionError") is True
+        assert test_span.get_tag("error.msg") == "assert 2 == 1"
+        assert test_span.get_tag("error.stack") is not None
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",
