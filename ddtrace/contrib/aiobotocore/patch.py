@@ -19,6 +19,8 @@ from ...internal.compat import PYTHON_VERSION_INFO
 from ...pin import Pin
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
+from ...utils import get_argument_value
+from ...utils import ArgumentError
 
 
 ARGS_NAME = ("action", "params", "path", "verb")
@@ -87,10 +89,10 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 
-        if len(args) > 0:
-            operation = args[0]
+        try:
+            operation = get_argument_value(args, kwargs, 0, "operation_name")
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
-        else:
+        except ArgumentError:
             operation = None
             span.resource = endpoint_name
 

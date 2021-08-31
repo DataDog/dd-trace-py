@@ -22,6 +22,7 @@ from ...propagation.http import HTTPPropagator
 from ...utils.formats import deep_getattr
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
+from ...utils import get_argument_value
 
 
 # Original botocore client class
@@ -129,7 +130,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None
         if args:
-            operation = args[0]
+            operation = get_argument_value(args, kwargs, 0, "operation_name")
             # DEV: join is the fastest way of concatenating strings that is compatible
             # across Python versions (see
             # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
