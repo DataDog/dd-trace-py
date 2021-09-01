@@ -305,7 +305,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
     with pin.tracer.trace(
         "django.request",
-        resource=request.method,
+        resource=utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
     ) as span:
