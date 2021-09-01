@@ -2,13 +2,14 @@ import os
 import platform
 import sys
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.test import test as TestCommand
+
+from setuptools import setup, find_packages, Extension  # isort: skip
+from setuptools.command.test import test as TestCommand  # isort: skip
 
 # ORDER MATTERS
 # Import this after setuptools or it will fail
-from Cython.Build import cythonize  # noqa: I100
-import Cython.Distutils
+from Cython.Build import cythonize  # noqa: I100, isort:skip
+import Cython.Distutils  # isort: skip
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -56,8 +57,9 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import tox
         import shlex
+
+        import tox
 
         args = self.tox_args
         if args:
