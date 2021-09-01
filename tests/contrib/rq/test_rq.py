@@ -13,6 +13,7 @@ from tests.utils import override_config
 from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
+from .jobs import JobClass
 from .jobs import job_add1
 from .jobs import job_fail
 
@@ -105,6 +106,14 @@ def test_sync_worker_pin_service(queue):
 @snapshot(ignores=snapshot_ignores)
 def test_worker_failing_job(queue):
     queue.enqueue(job_fail)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+
+
+@snapshot(ignores=snapshot_ignores)
+def test_worker_class_job(queue):
+    queue.enqueue(JobClass().job_on_class, 2)
+    queue.enqueue(JobClass(), 4)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
 

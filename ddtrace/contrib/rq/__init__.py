@@ -21,9 +21,6 @@ Worker Usage
     DD_SERVICE=myworker ddtrace-run rq worker
 
 
-See https://github.com/DataDog/trace-examples/tree/kyle-verhoog/rq/python/rq
-for a working example.
-
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -57,7 +54,7 @@ Global Configuration
 
    The service name reported by default for RQ spans from the app.
 
-   This option can also be set with the ``DD_RQ_SERVICE`` or ``DD_SERVICE``
+   This option can also be set with the ``DD_SERVICE`` or ``DD_RQ_SERVICE``
    environment variables.
 
    Default: ``rq``
@@ -66,7 +63,7 @@ Global Configuration
 
    The service name reported by default for RQ spans from workers.
 
-   This option can also be set with the ``DD_RQ_WORKER_SERVICE`` environment
+   This option can also be set with the ``DD_SERVICE`` environment
    variable.
 
    Default: ``rq-worker``
@@ -106,11 +103,20 @@ config._add(
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")
 
+    func_name = job.func_name
+    job_inst = job.instance
+    job_inst_str = "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
+
+    if job_inst_str:
+        resource = "%s.%s" % (job_inst_str, func_name)
+    else:
+        resource = func_name
+
     with pin.tracer.trace(
         "rq.queue.enqueue_job",
         service=trace_utils.int_service(pin, config.rq),
+        resource=resource,
         span_type=SpanTypes.WORKER,
-        resource=job.func_name,
     ) as span:
         span._set_str_tag("queue.name", instance.name)
         span.set_tag("job.id", job.get_id())
@@ -148,12 +154,13 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             resource=job.func_name,
         ) as span:
             span.set_tag("job.id", job.get_id())
-            r = func(*args, **kwargs)
-            span.set_tag("job.status", job.get_status())
-            span.set_tag("job.origin", job.origin)
-            if job.is_failed:
-                span.error = 1
-            return r
+            try:
+                return func(*args, **kwargs)
+            finally:
+                span.set_tag("job.status", job.get_status())
+                span.set_tag("job.origin", job.origin)
+                if job.is_failed:
+                    span.error = 1
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
