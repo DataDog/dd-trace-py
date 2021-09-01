@@ -216,13 +216,6 @@ setup(
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=encoding_macros,
-                language="c++",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.internal._span",
-                ["ddtrace/internal/_span.pyx"],
-                include_dirs=["."],
-                language="c++",
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector.stack",
