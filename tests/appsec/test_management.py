@@ -13,19 +13,13 @@ def test_enable(appsec, tracer):
     appsec.enable()
 
     # Check the Sqreen Library was successfully loaded
-    assert len(appsec._mgmt.protections) == 1
-
-    # Load the library after enabling AppSec because it raises at import time
-    # if the platform is not supported.
-    from ddtrace.appsec.internal.sqreen import SqreenLibrary
-
-    assert isinstance(appsec._mgmt.protections[0], SqreenLibrary)
+    assert appsec._mgmt.enabled
 
     with tracer.trace("test") as span:
         appsec.process_request(span, method="GET")
 
     appsec.disable()
-    assert appsec._mgmt.protections == []
+    assert not appsec._mgmt.enabled
 
 
 def test_enable_custom_rules(appsec):
@@ -33,36 +27,34 @@ def test_enable_custom_rules(appsec):
         appsec.enable()
 
         # Check the Sqreen Library was successfully loaded
-        assert len(appsec._mgmt.protections) == 1
-
-        # Load the library after enabling AppSec because it raises at import time
-        # if the platform is not supported.
-        from ddtrace.appsec.internal.sqreen import SqreenLibrary
-
-        assert isinstance(appsec._mgmt.protections[0], SqreenLibrary)
+        assert appsec._mgmt.enabled
 
 
 def test_enable_nonexistent_rules(appsec):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "nonexistent"))):
         with pytest.raises(IOError):
             appsec.enable()
-        assert appsec._mgmt.protections == []
+
+        assert not appsec._mgmt.enabled
 
     with override_global_config(dict(_raise=False)):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "nonexistent"))):
             # by default enable must not crash but display errors in the logs
             appsec.enable()
-            assert appsec._mgmt.protections == []
+
+            assert not appsec._mgmt.enabled
 
 
 def test_enable_bad_rules(appsec):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-bad.json"))):
         with pytest.raises(ValueError):
             appsec.enable()
-        assert appsec._mgmt.protections == []
+
+        assert not appsec._mgmt.enabled
 
     with override_global_config(dict(_raise=False)):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-bad.json"))):
             # by default enable must not crash but display errors in the logs
             appsec.enable()
-            assert appsec._mgmt.protections == []
+
+            assert not appsec._mgmt.enabled

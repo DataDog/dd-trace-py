@@ -906,7 +906,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
     def test_http_integration_appsec(self):
         fake = mock.Mock()
-        appsec._mgmt.protections.append(fake)
+        appsec._mgmt._protections.append(fake)
         try:
             self.client.get(
                 "/?foo=bar",
@@ -930,7 +930,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
     def test_http_integration_appsec_failure(self):
         fake = mock.Mock()
         fake.process.side_effect = ValueError
-        appsec._mgmt.protections.append(fake)
+        appsec._mgmt._protections.append(fake)
         try:
             self.client.get("/")
             fake.process.assert_called_once()
