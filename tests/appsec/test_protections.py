@@ -6,12 +6,7 @@ def test_sqreen_library_report(appsec, tracer):
 
     with tracer.trace("test") as span:
         appsec.process_request(span, query="foo=bar")
-    assert "_dd.sq.process_ms" in span.metrics
-
-    with tracer.trace("test") as span:
-        appsec.process_request(span, query="q=<script>alert(1);")
-    assert "_dd.sq.process_ms" in span.metrics
-    assert "_dd.sq.reports" in span.metrics
+    assert "_dd.appsec.waf_eval_ms" in span.metrics
 
 
 def test_sqreen_library_overtime(appsec, tracer):
@@ -19,8 +14,8 @@ def test_sqreen_library_overtime(appsec, tracer):
         appsec.enable()
         with tracer.trace("test") as span:
             appsec.process_request(span, query="foo=bar")
-        assert "_dd.sq.process_ms" in span.metrics
-        assert span.metrics.get("_dd.sq.overtime_ms") == span.metrics.get("_dd.sq.process_ms")
+        assert "_dd.appsec.waf_eval_ms" in span.metrics
+        assert span.metrics.get("_dd.appsec.waf_overtime_ms") == span.metrics.get("_dd.appsec.waf_eval_ms")
 
 
 def test_sqreen_library_attack_event(appsec, appsec_dummy_writer, tracer):

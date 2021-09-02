@@ -56,13 +56,13 @@ class SqreenLibrary(BaseProtection):
         with StopWatch() as timer:
             context = self._instance.create_context()
             ret = context.run(data, self._budget)
+            del context
         elapsed_ms = timer.elapsed() * 1000
         log.debug("context returned %r in %.5fms for %r", ret, elapsed_ms, span)
-        span.set_metric("_dd.sq.process_ms", elapsed_ms)
+        span.set_metric("_dd.appsec.waf_eval_ms", elapsed_ms)
         if ret.timeout:
-            span.set_metric("_dd.sq.overtime_ms", elapsed_ms - self._budget)
+            span.set_metric("_dd.appsec.waf_overtime_ms", elapsed_ms - self._budget)
         if ret.report:
-            span.set_metric("_dd.sq.reports", 1)
             context = get_required_context(actor_ip=data.get("remote_ip"))
             context.http = Http_0_1_0(
                 request=HttpRequest(

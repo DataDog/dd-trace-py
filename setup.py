@@ -204,8 +204,8 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
-    use_scm_version=True,
-    setup_requires=["setuptools_scm[toml]>=4", "cython"],
+    use_scm_version={"write_to": "ddtrace/_version.py"},
+    setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -238,6 +238,11 @@ setup(
                 language="c",
             ),
             Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._task",
+                sources=["ddtrace/profiling/collector/_task.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
                 "ddtrace.profiling.exporter.pprof",
                 sources=["ddtrace/profiling/exporter/pprof.pyx"],
                 language="c",
@@ -254,6 +259,7 @@ setup(
             "PY_MICRO_VERSION": sys.version_info.micro,
         },
         force=True,
+        annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),

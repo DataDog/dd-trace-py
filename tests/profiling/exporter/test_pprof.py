@@ -455,6 +455,8 @@ TEST_EVENTS = {
                 ("foobar.py", 44, "func2"),
                 ("foobar.py", 19, "func5"),
             ],
+            task_id=12234,
+            task_name="mytask",
             trace_id=23435,
             span_id=345432,
             trace_resource="myresource",
