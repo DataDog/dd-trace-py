@@ -48,15 +48,16 @@ def get_trace_url():
     # check these envars inside of method to make testing easier
     user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")) is not None
     user_supplied_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT")) is not None
-    url = os.environ.get("DD_TRACE_AGENT_URL") 
+    url = os.environ.get("DD_TRACE_AGENT_URL")
 
-    if not url: 
+    if not url:
         if user_supplied_host or user_supplied_port:
-            url = "http://%s:%s" % (get_hostname(), get_trace_port()) 
+            url = "http://%s:%s" % (get_hostname(), get_trace_port())
         elif os.path.exists("/var/run/datadog/apm.socket"):
-                url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH) 
-        else: url = DEFAULT_TRACE_URL 
-                
+            url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
+        else:
+            url = DEFAULT_TRACE_URL
+
     return url
 
 
