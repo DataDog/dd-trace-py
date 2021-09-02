@@ -12,13 +12,13 @@ from .uds import UDSHTTPConnection
 DEFAULT_HTTP_HOSTNAME = "localhost"
 DEFAULT_UNIX_HOSTNAME = "unix"
 DEFAULT_HTTP_TRACE_PORT = 8126
-DEFAULT_UNIX_TRACE_PORT = "///var/run/datadog/dsd.socket"
+DEFAULT_UNIX_TRACE_PORT = "///var/run/datadog/apm.socket"
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HTTP_HOSTNAME, DEFAULT_HTTP_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
 HOST_SET = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")) is not None
 PORT_SET = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT")) is not None
-DEFAULT_UNIX_DOMAIN_SOCK_AVAIL = os.path.exists("/var/run/datadog/dsd.socket")
+DEFAULT_UNIX_DOMAIN_SOCK_AVAIL = os.path.exists("/var/run/datadog/apm.socket")
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
