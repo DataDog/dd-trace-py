@@ -62,8 +62,7 @@ class Management(object):
             self._protections = [SqreenLibrary(rules)]
         except Exception as e:
             log.warning(
-                "AppSec module failed to load. "
-                "Please report this issue to support@datadoghq.com",
+                "AppSec module failed to load. Please report this issue to support@datadoghq.com",
                 exc_info=True,
             )
             if config._raise:
