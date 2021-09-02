@@ -1,6 +1,7 @@
 from copy import deepcopy
 import os
 from typing import List
+from typing import Optional
 from typing import Tuple
 
 from ddtrace.utils.cache import cachedmethod
@@ -106,7 +107,10 @@ class Config(object):
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
-        self.http = HttpConfig()
+
+        header_tags = parse_tags_str(get_env("trace", "header_tags") or "")
+        self.http = HttpConfig(header_tags=header_tags)
+
         # Master switch for turning on and off trace search by default
         # this weird invocation of get_env is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
@@ -203,6 +207,7 @@ class Config(object):
         return self
 
     def header_is_traced(self, header_name):
+        # type: (str) -> bool
         """
         Returns whether or not the current header should be traced.
         :param header_name: the header name
@@ -210,6 +215,10 @@ class Config(object):
         :rtype: bool
         """
         return self.http.header_is_traced(header_name)
+
+    def _header_tag_name(self, header_name):
+        # type: (str) -> Optional[str]
+        return self.http._header_tag_name(header_name)
 
     def _get_service(self, default=None):
         """
