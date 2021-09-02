@@ -60,6 +60,7 @@ def gen_traces(config):
             span_name = random.choice(span_names)
             resource = random.choice(resources)
             service = random.choice(services)
+            # Need to instantiate a context as this is needed for dd_origin but was not initialized in span <0.49
             with Span(None, span_name, resource=resource, service=service, parent_id=parent_id, context=Context()) as span:
                 if i == 0 and config.dd_origin:
                     # Since we're not using the tracer API, a span's context isn't automatically propagated
