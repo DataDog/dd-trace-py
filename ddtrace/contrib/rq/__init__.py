@@ -225,7 +225,6 @@ def unpatch():
     # Unpatch rq.job.Job
     Pin().remove_from(rq.job.Job)
     trace_utils.unwrap(rq.job.Job, "perform")
-    # trace_utils.unwrap(rq.job.Job, "fetch")
 
     # Unpatch rq.queue.Queue
     Pin().remove_from(rq.queue.Queue)

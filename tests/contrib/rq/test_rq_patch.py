@@ -14,7 +14,6 @@ class RqPatchTestCase(PatchTestCase.Base):
     def assert_module_patched(self, rq):
         # Job
         self.assert_wrapped(rq.job.Job.perform)
-        self.assert_wrapped(rq.job.Job.fetch)
 
         # Queue
         assert rq.queue.Queue is rq.Queue
@@ -39,7 +38,6 @@ class RqPatchTestCase(PatchTestCase.Base):
     def assert_not_module_double_patched(self, rq):
         # Job
         self.assert_not_double_wrapped(rq.job.Job.perform)
-        self.assert_not_double_wrapped(rq.job.Job.fetch)
 
         # Queue
         self.assert_not_double_wrapped(rq.queue.Queue.enqueue_job)
