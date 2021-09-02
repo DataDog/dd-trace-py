@@ -10,41 +10,23 @@ from .uds import UDSHTTPConnection
 
 
 DEFAULT_HTTP_HOSTNAME = "localhost"
-DEFAULT_UNIX_HOSTNAME = "unix"
 DEFAULT_HTTP_TRACE_PORT = 8126
-DEFAULT_UNIX_TRACE_PORT = "///var/run/datadog/apm.socket"
+DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HTTP_HOSTNAME, DEFAULT_HTTP_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
-HOST_SET = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")) is not None
-PORT_SET = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT")) is not None
-DEFAULT_UNIX_DOMAIN_SOCK_AVAIL = os.path.exists("/var/run/datadog/apm.socket")
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 def get_hostname():
     # type: () -> str
-    hostname = None
-    if HOST_SET or PORT_SET:
-        hostname = os.environ.get(
-            "DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HTTP_HOSTNAME)
-        )
-    else:
-        hostname = DEFAULT_UNIX_HOSTNAME
-
-    return hostname
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HTTP_HOSTNAME))
 
 
 def get_trace_port():
     # type: () -> int
-    port = None
-    if PORT_SET or HOST_SET:
-        port = int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_HTTP_TRACE_PORT)))
-    else:
-        port = DEFAULT_UNIX_TRACE_PORT
-
-    return port
+    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_HTTP_TRACE_PORT)))
 
 
 def get_stats_port():
@@ -63,12 +45,18 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    url = None
-    if HOST_SET or PORT_SET or not DEFAULT_UNIX_DOMAIN_SOCK_AVAIL:
-        url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%s" % (get_hostname(), get_trace_port()))
-    else:
-        url = os.environ.get("DD_TRACE_AGENT_URL", "%s:%s" % (get_hostname(), get_trace_port()))
+    # check these envars inside of method to make testing easier
+    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")) is not None
+    user_supplied_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT")) is not None
+    url = os.environ.get("DD_TRACE_AGENT_URL") 
 
+    if not url: 
+        if user_supplied_host or user_supplied_port:
+            url = "http://%s:%s" % (get_hostname(), get_trace_port()) 
+        elif os.path.exists("/var/run/datadog/apm.socket"):
+                url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH) 
+        else: url = DEFAULT_TRACE_URL 
+                
     return url
 
 
