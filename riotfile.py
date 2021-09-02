@@ -701,7 +701,6 @@ venv = Venv(
                     pys=select_pys(max_version="2.7"),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0"],
-                        "pytest": "~=3.0",
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": ["~=0.12.0"],
                         "werkzeug": "<1.0",
@@ -712,7 +711,6 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": ["~=0.10.0", "~=0.11.0", "~=0.12.0"],
-                        "pytest": "~=3.0",
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": ["~=0.13.0", latest],
                         "werkzeug": "<1.0",
