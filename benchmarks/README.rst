@@ -14,7 +14,7 @@ A scenario requires:
 * ``config.yaml``: specifies one or more sets of configuration variables for the benchmark
 * ``requirements_scenario.txt``: any additional dependencies
 
-The scenario class inherits from ``bm.Scenario`` and includes the configurable variables using ``bm.var``. The execution of the benchmark uses the ``run()`` generator function to yield a function that will handle the execution of a specified number of loops. The scenario class must also be decorated with ``@bm.register`` to ensure that it is run.
+The scenario class inherits from ``bm.Scenario`` and includes the configurable variables using ``bm.var``. The execution of the benchmark uses the ``run()`` generator function to yield a function that will handle the execution of a specified number of loops.
 
 Example
 ~~~~~~~
@@ -27,7 +27,6 @@ Example
   import bm
 
 
-  @bm.register
   class MyScenario(bm.Scenario):
       size = bm.var(type=int)
 
@@ -54,23 +53,25 @@ Example
     size: 1000000
 
 
-.. _docker:
+.. _run:
 
-Docker
-^^^^^^
+Run scenario
+^^^^^^^^^^^^
 
-Assuming you have added ``benchmarks/<scenario>``, you can build an image for scenario::
+The scenario can be run using the built image to compare two versions of the library and save the results in a local artifacts folder::
 
-  docker build \
-    -t <scenario> \
-    --build-arg SCENARIO=<scenario> \
-    .
+  scripts/perf-run-scenario <scenario> <version> <version> <artifacts>
 
-The image supports the comparison of two versions of the library::
+The version specifiers can reference published versions on PyPI or git
+repositories.
 
-  docker run -it --rm \
-    -e DDTRACE_INSTALL_V1="ddtrace" \
-    -e DDTRACE_INSTALL_V2="ddtrace==0.50.0" \
-    <scenario>
+Example::
 
-The environment variables for installing the library also support git urls.
+  scripts/perf-run-scenario span ddtrace==0.50.0 ddtrace==0.51.0 ./artifacts/
+  scripts/perf-run-scenario span Datadog/dd-trace-py@master Datadog/dd-trace-py@my-feature ./artifacts/
+
+
+Scenarios
+^^^^^^^^^
+
+.. include:: ../benchmarks/threading/README.rst

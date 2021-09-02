@@ -2,13 +2,13 @@ import bm
 import utils
 
 
-@bm.register
 class Encoder(bm.Scenario):
     ntraces = bm.var(type=int)
     nspans = bm.var(type=int)
     ntags = bm.var(type=int)
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
+    dd_origin = bm.var(type=bool)
 
     def run(self):
         encoder = utils.init_encoder()
@@ -16,6 +16,8 @@ class Encoder(bm.Scenario):
 
         def _(loops):
             for _ in range(loops):
-                encoder.encode_traces(traces)
+                for trace in traces:
+                    encoder.put(trace)
+                    encoder.encode()
 
         yield _
