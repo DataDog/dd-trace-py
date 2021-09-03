@@ -15,5 +15,5 @@ class DummyEventWriter:
 @pytest.fixture
 def appsec_dummy_writer(appsec):
     appsec.enable()
-    appsec._mgmt.writer = writer = DummyEventWriter()
+    appsec._mgmt._writer = writer = DummyEventWriter()
     yield writer

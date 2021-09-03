@@ -39,8 +39,8 @@ class Management(object):
     AppSec module management.
     """
 
-    _protections = attr.ib(type=List[BaseProtection], init=False)
-    writer = attr.ib(type=BaseEventWriter, init=False, default=NullEventWriter())
+    _protections = attr.ib(type=List[BaseProtection], init=False, factory=list)
+    _writer = attr.ib(type=BaseEventWriter, init=False, default=NullEventWriter())
 
     @property
     def enabled(self):
@@ -74,8 +74,8 @@ class Management(object):
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
             self._protections = [SqreenLibrary(rules)]
-            self.writer.flush(timeout=0)
-            self.writer = HTTPEventWriter(api_key=get_env("api_key"), dogstatsd=dogstatsd)
+            self._writer.flush(timeout=0)
+            self._writer = HTTPEventWriter(api_key=get_env("api_key"), dogstatsd=dogstatsd)
         except Exception as e:
             log.warning(
                 "AppSec module failed to load. Please report this issue to support@datadoghq.com",
@@ -90,8 +90,8 @@ class Management(object):
         # type: () -> None
         """Disable the AppSec module and unload protections."""
         self._protections = []
-        self.writer.flush(timeout=0)
-        self.writer = NullEventWriter()
+        self._writer.flush(timeout=0)
+        self._writer = NullEventWriter()
         log.warning("AppSec module is disabled.")
 
     def process_request(self, span, **data):
@@ -101,7 +101,7 @@ class Management(object):
         for protection in self._protections:
             events.extend(protection.process(span, data))
         if events:
-            self.writer.write(events)
+            self._writer.write(events)
             self._retain_trace(span)
 
     def _retain_trace(self, span):
