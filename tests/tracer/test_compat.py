@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Define source file encoding to support raw unicode characters in Python 2
+import datetime
 import sys
 
 from hypothesis import given
@@ -15,6 +16,7 @@ from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import reraise
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.compat import utc
 
 
 if PY3:
@@ -105,6 +107,12 @@ class TestPy2Py3Compat(object):
                 # this call must be Python 2 and 3 compatible
                 raise reraise(typ, val, tb)
         assert ex.value.args[0] == "Ouch!"
+
+    def test_utc_timezone(self):
+        dt = datetime.datetime.now(utc)
+        assert dt.tzinfo is not None
+        assert dt.tzinfo.utcoffset(None) == datetime.timedelta(0)
+        assert dt.tzinfo.tzname(None) == "UTC"
 
 
 @pytest.mark.parametrize(

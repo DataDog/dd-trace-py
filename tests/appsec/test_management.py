@@ -2,6 +2,7 @@ import os.path
 
 import pytest
 
+from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -56,5 +57,14 @@ def test_enable_bad_rules(appsec):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-bad.json"))):
             # by default enable must not crash but display errors in the logs
             appsec.enable()
-
             assert not appsec._mgmt.enabled
+
+
+def test_retain_traces(tracer, appsec, appsec_dummy_writer):
+    appsec.enable()
+
+    with tracer.trace("test") as span:
+        appsec.process_request(span, query="<script>")
+
+    assert span.get_tag("appsec.event") == "true"
+    assert span.context.sampling_priority == priority.USER_KEEP
