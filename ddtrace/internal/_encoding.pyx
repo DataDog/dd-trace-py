@@ -276,10 +276,11 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
+        cdef object k
 
         if PyDict_CheckExact(meta):
             d = <dict> meta
-            L = len(d)
+            L = PyDict_Size(d)
             if dd_origin is not NULL:
                 L += 1
             if L > ITEM_LIMIT:
@@ -287,10 +288,10 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
 
             ret = msgpack_pack_map(&self.pk, L)
             if ret == 0:
-                for k, v in d.items():
+                for k in d:
                     ret = pack_text(&self.pk, k)
                     if ret != 0: break
-                    ret = pack_text(&self.pk, v)
+                    ret = pack_text(&self.pk, d[k])
                     if ret != 0: break
                 if dd_origin is not NULL:
                     ret = pack_bytes(&self.pk, <char *> b"_dd.origin", 10)
@@ -304,19 +305,20 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
+        cdef object k
 
         if PyDict_CheckExact(metrics):
             d = <dict> metrics
-            L = len(d)
+            L = PyDict_Size(d)
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
 
             ret = msgpack_pack_map(&self.pk, L)
             if ret == 0:
-                for k, v in d.items():
+                for k in d:
                     ret = pack_text(&self.pk, k)
                     if ret != 0: break
-                    ret = pack_number(&self.pk, v)
+                    ret = pack_number(&self.pk, d[k])
                     if ret != 0: break
             return ret
 
