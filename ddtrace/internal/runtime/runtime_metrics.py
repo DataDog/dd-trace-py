@@ -81,7 +81,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
-    _lock = RLock()
+    _lock = forksafe.Lock()
 
     def __attrs_post_init__(self):
         # type: () -> None
