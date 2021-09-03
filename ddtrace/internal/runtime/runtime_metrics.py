@@ -1,5 +1,4 @@
 import itertools
-from threading import RLock
 from typing import ClassVar
 from typing import Optional
 from typing import Set
