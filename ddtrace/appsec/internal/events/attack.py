@@ -1,4 +1,5 @@
 from typing import List
+from typing import Optional
 from typing import Union
 
 import attr
@@ -20,7 +21,14 @@ class Rule(object):
 
     id = attr.ib(type=str)
     name = attr.ib(type=str)
-    set = attr.ib(type=str)
+
+
+@attr.s(frozen=True)
+class RuleMatchParameter(object):
+    """The rule operator match parameter that detected an attack."""
+    address = attr.ib(type=str)
+    key_path = attr.ib(type=List[Union[str, int]], factory=list)
+    value = attr.ib(type=Optional[str], default=None)
 
 
 @attr.s(frozen=True)
@@ -29,9 +37,8 @@ class RuleMatch(object):
 
     operator = attr.ib(type=str)
     operator_value = attr.ib(type=str)
-    parameters = attr.ib(type=List[KV])
-    highlight = attr.ib(type=List[str])
-    has_server_side_match = attr.ib(type=bool)
+    parameters = attr.ib(type=List[RuleMatchParameter], factory=list)
+    highlight = attr.ib(type=List[str], factory=list)
 
 
 @attr.s(frozen=True)
@@ -40,8 +47,6 @@ class Attack_0_1_0(object):
 
     event_id = attr.ib(type=str)
     detected_at = attr.ib(type=str)
-    type = attr.ib(type=str)
-    blocked = attr.ib(type=bool)
     rule = attr.ib(type=Rule)
     rule_match = attr.ib(type=RuleMatch)
     context = attr.ib(type=Union[Context_0_1_0])

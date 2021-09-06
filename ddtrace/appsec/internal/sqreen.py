@@ -16,6 +16,7 @@ from sq_native import waf
 from ddtrace.appsec.internal.events.attack import Attack_0_1_0
 from ddtrace.appsec.internal.events.attack import Rule
 from ddtrace.appsec.internal.events.attack import RuleMatch
+from ddtrace.appsec.internal.events.attack import RuleMatchParameter
 from ddtrace.appsec.internal.events.context import HttpRequest
 from ddtrace.appsec.internal.events.context import Http_0_1_0
 from ddtrace.appsec.internal.events.context import get_required_context
@@ -63,24 +64,20 @@ class SqreenLibrary(BaseProtection):
         if ret.timeout:
             span.set_metric("_dd.appsec.waf_overtime_ms", elapsed_ms - self._budget)
         if ret.report:
-            context = get_required_context(actor_ip=data.get("remote_ip"))
+            context = get_required_context()
             context.http = Http_0_1_0(
                 request=HttpRequest(
-                    scheme="http",
                     method=data.get("method") or "",
                     url=strip_query_string(data.get("target") or ""),
-                    host="",
-                    port=0,
-                    path="",
                     remote_ip=data.get("remote_ip") or "",
-                    remote_port=0,
+                    remote_port=int(data.get("remote_port") or 0),
                 )
             )
-            return list(self.sqreen_waf_to_attacks(ret.data, context=context, blocked=ret.block))
+            return list(self.sqreen_waf_to_attacks(ret.data, context=context))
         return []
 
     @staticmethod
-    def sqreen_waf_to_attacks(data, context=None, blocked=False, at=None):
+    def sqreen_waf_to_attacks(data, context=None, at=None):
         """Convert a Sqreen WAF result to an AppSec Attack events."""
         if at is None:
             at = datetime.now(utc)
@@ -90,15 +87,15 @@ class SqreenLibrary(BaseProtection):
                 yield Attack_0_1_0(
                     event_id=str(uuid.uuid4()),
                     detected_at=at.isoformat(),
-                    type="waf",
-                    blocked=blocked,
-                    rule=Rule(id=data["rule"], name=data["flow"], set="waf"),
+                    rule=Rule(id=data["rule"], name=data["flow"]),
                     rule_match=RuleMatch(
-                        operator=filter_data["operator"],
+                        operator="match_regex" if filter_data["operator"] == "@rx" else "phrase_match",
                         operator_value=filter_data.get("operator_value", filter_data.get("match_status", "")),
-                        parameters=[],  # DEV: do not report user data yet
-                        highlight=[],  # DEV: do not report user data yet
-                        has_server_side_match=False,
+                        parameters=[
+                            RuleMatchParameter(
+                                address=filter_data.get("manifest_key", ""), key_path=filter_data.get("key_path", [])
+                            )
+                        ],
                     ),
                     context=context or get_required_context(),
                 )

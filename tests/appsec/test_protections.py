@@ -21,4 +21,7 @@ def test_sqreen_library_overtime(appsec, tracer):
 def test_sqreen_library_attack_event(appsec, appsec_dummy_writer, tracer):
     with tracer.trace("test") as span:
         appsec.process_request(span, query="q=<script>alert(1);")
-    assert appsec_dummy_writer.events[0].event_type == "appsec.threat.attack"
+    evt = appsec_dummy_writer.events[0]
+    assert evt.event_type == "appsec.threat.attack"
+    assert evt.rule_match.operator == "match_regex"
+    assert evt.rule_match.parameters[0].address == "http.server.query"
