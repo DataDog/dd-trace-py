@@ -5,7 +5,6 @@ from tests.utils import TracerTestCase
 
 
 class AppSecEventsTestCase(TracerTestCase):
-
     def test_required_context(self):
         with self.trace("test", service="test") as span:
             self.assertEqual(

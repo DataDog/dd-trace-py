@@ -26,6 +26,7 @@ class Rule(object):
 @attr.s(frozen=True)
 class RuleMatchParameter(object):
     """The rule operator match parameter that detected an attack."""
+
     address = attr.ib(type=str)
     key_path = attr.ib(type=List[Union[str, int]], factory=list)
     value = attr.ib(type=Optional[str], default=None)

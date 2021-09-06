@@ -87,7 +87,7 @@ def get_required_context(
     service=None,  # type: Optional[str]
     span_id=None,  # type: Optional[int]
     trace_id=None,  # type: Optional[int]
-    tracer=ddtracer
+    tracer=ddtracer,
 ):
     # type: (...) -> Context_0_1_0
     ddcontext = tracer.current_trace_context()
