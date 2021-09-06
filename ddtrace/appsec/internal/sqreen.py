@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 import json
 from typing import Any
@@ -31,6 +32,20 @@ from ddtrace.utils.time import StopWatch
 log = logger.get_logger(__name__)
 
 DEFAULT_WAF_BUDGET_MS = 5.0
+HTTP_HEADERS_ALLOWLIST = frozenset(
+    [
+        "user-agent",
+        "referer",
+        "x-forwarded-for",
+        "x-real-ip",
+        "client-ip",
+        "x-forwarded",
+        "x-cluster-client-ip",
+        "forwarded-for",
+        "forwarded",
+        "via",
+    ]
+)
 
 
 class SqreenLibrary(BaseProtection):
@@ -51,9 +66,11 @@ class SqreenLibrary(BaseProtection):
         # type: (Span, Mapping[str, Any]) -> Sequence[Attack_0_1_0]
         # DEV: Headers require special transformation as the integrations don't
         # do it yet (implemented in https://github.com/DataDog/dd-trace-py/pull/2762)
-        headers = {k.lower(): v for k, v in data.get("headers", {}).items()}
+        headers = defaultdict(list)
+        for k, v in data.get("headers", {}).items():
+            headers[k.strip().lower()].append(v)
         data = dict(data)
-        data["headers"] = headers
+        data["headers"] = dict(headers)
         with StopWatch() as timer:
             context = self._instance.create_context()
             ret = context.run(data, self._budget)
@@ -69,15 +86,16 @@ class SqreenLibrary(BaseProtection):
                 request=HttpRequest(
                     method=data.get("method") or "",
                     url=strip_query_string(data.get("target") or ""),
+                    headers={k: v for k, v in headers.items() if k in HTTP_HEADERS_ALLOWLIST},
                     remote_ip=data.get("remote_ip") or "",
                     remote_port=int(data.get("remote_port") or 0),
                 )
             )
-            return list(self.sqreen_waf_to_attacks(ret.data, context=context))
+            return list(self._sqreen_waf_to_attacks(ret.data, context=context))
         return []
 
     @staticmethod
-    def sqreen_waf_to_attacks(data, context=None, at=None):
+    def _sqreen_waf_to_attacks(data, context=None, at=None):
         """Convert a Sqreen WAF result to an AppSec Attack events."""
         if at is None:
             at = datetime.now(utc)

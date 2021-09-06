@@ -1,3 +1,5 @@
+from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Union
 
@@ -56,6 +58,7 @@ class HttpRequest(object):
     url = attr.ib(type=str)
     remote_ip = attr.ib(type=str)
     remote_port = attr.ib(type=int)
+    headers = attr.ib(type=Mapping[str, List[str]], factory=dict)
     resource = attr.ib(type=Optional[str], default=None)
     id = attr.ib(type=Optional[str], default=None)
 
@@ -64,6 +67,7 @@ class HttpRequest(object):
 class HttpResponse(object):
     status = attr.ib(type=Optional[int], default=None)
     blocked = attr.ib(type=bool, default=False)
+    headers = attr.ib(type=Mapping[str, List[str]], factory=dict)
 
 
 @attr.s(frozen=True)
