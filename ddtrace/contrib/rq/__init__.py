@@ -44,9 +44,13 @@ Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.rq['distributed_tracing_enabled']
+.. py:data:: ddtrace.config.rq_worker['distributed_tracing_enabled']
 
    If ``True`` the integration will connect the traces sent between the enqueuer
    and the RQ worker.
+
+   This option can also be set with the ``DD_RQ_DISTRIBUTED_TRACING_ENABLED``
+   environment variable on either the enqueuer or worker applications.
 
    Default: ``True``
 
@@ -68,6 +72,8 @@ Global Configuration
 
    Default: ``rq-worker``
 """
+import os
+
 from ddtrace import Pin
 from ddtrace import config
 
@@ -75,6 +81,7 @@ from .. import trace_utils
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from ...utils import get_argument_value
+from ...utils.formats import asbool
 
 
 __all__ = [
@@ -86,14 +93,15 @@ __all__ = [
 config._add(
     "rq",
     dict(
+        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
         _default_service="rq",
-        distributed_tracing_enabled=True,
     ),
 )
 
 config._add(
     "rq_worker",
     dict(
+        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
         _default_service="rq-worker",
     ),
 )
@@ -142,9 +150,10 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
 
-    ctx = HTTPPropagator.extract(job.meta)
-    if ctx.trace_id:
-        pin.tracer.context_provider.activate(ctx)
+    if config.rq_worker.distributed_tracing_enabled:
+        ctx = HTTPPropagator.extract(job.meta)
+        if ctx.trace_id:
+            pin.tracer.context_provider.activate(ctx)
 
     try:
         with pin.tracer.trace(

@@ -11,6 +11,7 @@ from ddtrace.contrib.rq import patch
 from ddtrace.contrib.rq import unpatch
 from tests.utils import override_config
 from tests.utils import snapshot
+from tests.utils import snapshot_context
 
 from ..config import REDIS_CONFIG
 from .jobs import JobClass
@@ -118,21 +119,31 @@ def test_worker_class_job(queue):
     worker.work(burst=True)
 
 
-@snapshot(ignores=snapshot_ignores)
-def test_enqueue(queue):
-    env = os.environ.copy()
-    env["DD_TRACE_REDIS_ENABLED"] = "false"
-    env["DD_SERVICE"] = "custom-worker-service"
-    p = subprocess.Popen(["ddtrace-run", "rq", "worker", "q"], env=env)
-    try:
-        job = queue.enqueue(job_add1, 1)
-        # Wait for job to complete
-        for _ in range(100):
-            if job.result is not None:
-                break
-            time.sleep(0.1)
-        assert job.result == 2
-    finally:
-        p.terminate()
-        # Wait for trace to be sent
-        time.sleep(0.5)
+@pytest.mark.parametrize(
+    "distributed_tracing_enabled,worker_service_name", [(None, "custom-worker-service"), (False, None)]
+)
+def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
+    token = "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s" % (
+        distributed_tracing_enabled,
+        worker_service_name,
+    )
+    with snapshot_context(token, ignores=snapshot_ignores):
+        env = os.environ.copy()
+        env["DD_TRACE_REDIS_ENABLED"] = "false"
+        if distributed_tracing_enabled is not None:
+            env["DD_RQ_DISTRIBUTED_TRACING_ENABLED"] = str(distributed_tracing_enabled)
+        if worker_service_name is not None:
+            env["DD_SERVICE"] = "custom-worker-service"
+        p = subprocess.Popen(["ddtrace-run", "rq", "worker", "q"], env=env)
+        try:
+            job = queue.enqueue(job_add1, 1)
+            # Wait for job to complete
+            for _ in range(100):
+                if job.result is not None:
+                    break
+                time.sleep(0.1)
+            assert job.result == 2
+        finally:
+            p.terminate()
+            # Wait for trace to be sent
+            time.sleep(0.5)
