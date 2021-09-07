@@ -12,6 +12,8 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...pin import Pin
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
 
@@ -54,18 +56,20 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         span.set_tag(SPAN_MEASURED_KEY)
 
-        if args and args[0]:
-            operation = args[0]
+        try:
+            operation = get_argument_value(args, kwargs, 0, "operation_name")
             span.resource = operation
-
-            if args[1] and "TableName" in args[1]:
-                table_name = args[1]["TableName"]
-                span.set_tag("table_name", table_name)
-                span.resource = span.resource + " " + table_name
-
-        else:
+            span.resource = span.resource + " " + table_name
+        except ArgumentError:
             span.resource = "Unknown"
             operation = None
+
+        try:
+            operation_kwargs = get_argument_value(args, kwargs, 1, "operation_kwargs")
+            table_name = operation_kwargs["TableName"]
+            span.set_tag("table_name", table_name)
+        except ArgumentError:
+            table_name = None
 
         region_name = deep_getattr(instance, "client.meta.region_name")
 

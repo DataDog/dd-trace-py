@@ -11,6 +11,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
 from ...pin import Pin
+from ...utils import get_argument_value
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
@@ -87,7 +88,7 @@ def traced_receive(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     # Signature only takes 2 args: (body, message)
-    message = args[1]
+    message = get_argument_value(args, kwargs, 1, "message")
 
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 

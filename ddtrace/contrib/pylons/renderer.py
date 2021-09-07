@@ -5,6 +5,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .compat import legacy_pylons
 from .constants import CONFIG_MIDDLEWARE
+from ...utils import get_argument_value
 
 
 def trace_rendering():
@@ -31,5 +32,6 @@ def _traced_renderer(wrapped, instance, args, kwargs):
     """Traced renderer"""
     tracer = config[CONFIG_MIDDLEWARE]._tracer
     with tracer.trace("pylons.render") as span:
-        span.set_tag("template.name", args[0])
+        template_name = get_argument_value(args, kwargs, 0, "template_name")
+        span.set_tag("template.name", template_name)
         return wrapped(*args, **kwargs)

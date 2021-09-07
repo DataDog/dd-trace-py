@@ -9,6 +9,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...utils import get_argument_value
 
 
 log = get_logger(__name__)
@@ -64,7 +65,7 @@ def _wrap_send(func, instance, args, kwargs):
     if not tracer.enabled:
         return func(*args, **kwargs)
 
-    request = kwargs.get("request") or args[0]
+    request = get_argument_value(args, kwargs, 0, "request")
     if not request:
         return func(*args, **kwargs)
 
