@@ -12,6 +12,8 @@ from tests.integration.test_integration import *  # noqa
 from tests.integration.test_integration import AGENT_VERSION
 
 
+# Skip all the tests if we are not running with the latest agent version as
+# v0.5 might not be available.
 if AGENT_VERSION != "latest":
     if pytest.__version__ < "3.0.0":
         pytest.skip()

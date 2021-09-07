@@ -3,6 +3,7 @@ from cpython.bytearray cimport PyByteArray_Check
 from libc cimport stdint
 from libc.string cimport strlen
 import threading
+from ._utils cimport PyBytesLike_Check
 
 from ddtrace.constants import ORIGIN_KEY
 
@@ -53,12 +54,10 @@ cdef inline const char * string_to_buff(str s):
         return <const char *> s
 
 
+# This is a borrowed reference but should be fine as we don't expect ORIGIN_KEY
+# to get GC'd.
 cdef const char * _ORIGIN_KEY = string_to_buff(ORIGIN_KEY)
 cdef size_t _ORIGIN_KEY_LEN = <size_t> len(ORIGIN_KEY)
-
-
-cdef inline int PyBytesLike_Check(object o):
-    return PyBytes_Check(o) or PyByteArray_Check(o)
 
 
 cdef inline int array_prefix_size(stdint.uint32_t l):
@@ -231,6 +230,7 @@ cdef class MsgpackStringTable(StringTable):
             self.pk.length = self._sp
 
     cdef get_bytes(self):
+        cdef int ret;
         cdef stdint.uint32_t l = self._next_id
         cdef int offset = 6 - array_prefix_size(l)
         cdef int old_pos = self.pk.length
@@ -238,10 +238,14 @@ cdef class MsgpackStringTable(StringTable):
         with self._lock:
             # Update table size prefix
             self.pk.length = offset
-            msgpack_pack_array(&self.pk, l)
+            ret = msgpack_pack_array(&self.pk, l)
+            if ret:
+                return None
             # Add root array size prefix
             self.pk.length = offset = offset - 1
-            msgpack_pack_array(&self.pk, 2)
+            ret = msgpack_pack_array(&self.pk, 2)
+            if ret:
+                return None
             self.pk.length = old_pos
         
         return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
@@ -250,7 +254,7 @@ cdef class MsgpackStringTable(StringTable):
     def size(self):
         return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
 
-    cdef append_raw(self, object src, Py_ssize_t size):
+    cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
         with self._lock:
             assert self.size + size <= self.max_size
@@ -460,7 +464,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef flush(self):
         raise NotImplementedError()
 
-    cdef pack_span(self, object span, void *dd_origin):
+    cdef int pack_span(self, object span, void *dd_origin):
         raise NotImplementedError()
 
 
@@ -524,7 +528,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef pack_span(self, object span, void *dd_origin):
+    cdef int pack_span(self, object span, void *dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -638,7 +642,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return <void *> PyLong_AsLong(self._st._index(dd_origin))
 
-    cdef pack_span(self, object span, void *dd_origin):
+    cdef int pack_span(self, object span, void *dd_origin):
         cdef int ret
 
         ret = msgpack_pack_array(&self.pk, 12)

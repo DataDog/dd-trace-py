@@ -13,6 +13,7 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
@@ -115,6 +116,7 @@ def pytest_runtest_protocol(item, nextitem):
         span_type=SpanTypes.TEST.value,
     ) as span:
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
+        span.context.sampling_priority = AUTO_KEEP
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
@@ -164,34 +166,32 @@ def pytest_runtest_makereport(item, call):
     if not called_without_status and not failed_setup:
         return
 
-    try:
-        result = outcome.get_result()
-        xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
-        has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
+    result = outcome.get_result()
+    xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
+    has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
-        if result.skipped:
-            if xfail and not has_skip_keyword:
-                # XFail tests that fail are recorded skipped by pytest, should be passed instead
-                span.set_tag(test.RESULT, test.Status.XFAIL.value)
-                span.set_tag(test.XFAIL_REASON, result.wasxfail)
-                span.set_tag(test.STATUS, test.Status.PASS.value)
-            else:
-                span.set_tag(test.STATUS, test.Status.SKIP.value)
-            reason = _extract_reason(call)
-            if reason is not None:
-                span.set_tag(test.SKIP_REASON, reason)
-        elif result.passed:
+    if result.skipped:
+        if xfail and not has_skip_keyword:
+            # XFail tests that fail are recorded skipped by pytest, should be passed instead
+            span.set_tag(test.RESULT, test.Status.XFAIL.value)
+            span.set_tag(test.XFAIL_REASON, result.wasxfail)
             span.set_tag(test.STATUS, test.Status.PASS.value)
-            if xfail and not has_skip_keyword:
-                # XPass (strict=False) are recorded passed by pytest
-                span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
-                span.set_tag(test.RESULT, test.Status.XPASS.value)
         else:
-            if xfail and not has_skip_keyword:
-                # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-                span.set_tag(test.XFAIL_REASON, result.longrepr)
-                span.set_tag(test.RESULT, test.Status.XPASS.value)
-            raise RuntimeWarning(result)
-    except Exception:
-        span.set_traceback()
+            span.set_tag(test.STATUS, test.Status.SKIP.value)
+        reason = _extract_reason(call)
+        if reason is not None:
+            span.set_tag(test.SKIP_REASON, reason)
+    elif result.passed:
+        span.set_tag(test.STATUS, test.Status.PASS.value)
+        if xfail and not has_skip_keyword:
+            # XPass (strict=False) are recorded passed by pytest
+            span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+            span.set_tag(test.RESULT, test.Status.XPASS.value)
+    else:
+        if xfail and not has_skip_keyword:
+            # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
+            span.set_tag(test.XFAIL_REASON, result.longrepr)
+            span.set_tag(test.RESULT, test.Status.XPASS.value)
         span.set_tag(test.STATUS, test.Status.FAIL.value)
+        if call.excinfo:
+            span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
