@@ -59,17 +59,15 @@ def patched_api_call(original_func, instance, args, kwargs):
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             span.resource = operation
+
+            if args[1] and "TableName" in args[1]:
+                table_name = args[1]["TableName"]
+                span.set_tag("table_name", table_name)
+                span.resource = span.resource + " " + table_name
+
         except ArgumentError:
             span.resource = "Unknown"
             operation = None
-
-        try:
-            operation_kwargs = get_argument_value(args, kwargs, 1, "operation_kwargs")
-            table_name = operation_kwargs["TableName"]
-            span.set_tag("table_name", table_name)
-            span.resource = span.resource + " " + table_name
-        except ArgumentError:
-            table_name = None
 
         region_name = deep_getattr(instance, "client.meta.region_name")
 
