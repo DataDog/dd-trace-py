@@ -1043,6 +1043,8 @@ venv = Venv(
                             "~=1.9.0",
                             latest,
                         ],
+                        # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
+                        "click": "==7.1.2",
                     },
                 ),
             ],
