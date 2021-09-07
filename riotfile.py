@@ -76,6 +76,7 @@ venv = Venv(
     pkgs={
         "mock": latest,
         "pytest": latest,
+        "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,

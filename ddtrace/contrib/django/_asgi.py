@@ -5,6 +5,7 @@ from ddtrace.contrib.asgi import span_from_scope
 
 from .. import trace_utils
 from ...utils import get_argument_value
+from .utils import REQUEST_DEFAULT_RESOURCE
 from .utils import _after_request_tags
 from .utils import _before_request_tags
 
@@ -23,7 +24,13 @@ async def traced_get_response_async(django, pin, func, instance, args, kwargs):
     if span is None:
         return await func(*args, **kwargs)
 
+    # Reset the span resource so we can know if it was modified during the request or not
+    span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)
-    response = await func(*args, **kwargs)
-    _after_request_tags(pin, span, request, response)
+    response = None
+    try:
+        response = await func(*args, **kwargs)
+    finally:
+        # DEV: Always set these tags, this is where `span.resource` is set
+        _after_request_tags(pin, span, request, response)
     return response
