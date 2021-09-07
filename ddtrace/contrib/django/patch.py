@@ -12,11 +12,12 @@ from inspect import isfunction
 import sys
 
 from ddtrace import Pin
-from ...utils import get_argument_value
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
+
+from ...utils import get_argument_value
 
 
 try:

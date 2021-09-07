@@ -11,8 +11,8 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
 from ...pin import Pin
-from ...utils import get_argument_value
 from ...propagation.http import HTTPPropagator
+from ...utils import get_argument_value
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
 from .constants import DEFAULT_SERVICE
