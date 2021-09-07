@@ -127,8 +127,10 @@ def test_enqueue(queue):
     try:
         job = queue.enqueue(job_add1, 1)
         # Wait for job to complete
-        while job.result is None:
-            time.sleep(0.01)
+        for _ in range(100):
+            if job.result is not None:
+                break
+            time.sleep(0.1)
         assert job.result == 2
     finally:
         p.terminate()
