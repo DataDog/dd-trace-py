@@ -132,6 +132,5 @@ def test_enqueue(queue):
         assert job.result == 2
     finally:
         p.terminate()
-
-    # Wait for trace to be sent
-    time.sleep(1)
+        # Wait for trace to be sent
+        time.sleep(0.5)
