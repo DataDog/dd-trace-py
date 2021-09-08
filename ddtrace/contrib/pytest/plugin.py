@@ -127,6 +127,10 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
+        # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
+        # (where the actual test status is set), it means there was a pytest error
+        span.set_tag(test.STATUS, test.Status.FAIL.value)
+
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
@@ -159,11 +163,6 @@ def pytest_runtest_makereport(item, call):
 
     span = _extract_span(item)
     if span is None:
-        return
-
-    called_without_status = call.when == "call" and span.get_tag(test.STATUS) is None
-    failed_setup = call.when == "setup" and call.excinfo is not None
-    if not called_without_status and not failed_setup:
         return
 
     result = outcome.get_result()
