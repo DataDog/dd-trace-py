@@ -169,6 +169,12 @@ def pytest_runtest_makereport(item, call):
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
     has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
+    is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
+    has_exception = call.excinfo is not None
+
+    if is_setup_or_teardown and not has_exception:
+        return
+
     if result.skipped:
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
