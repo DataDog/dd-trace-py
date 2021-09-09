@@ -87,17 +87,21 @@ class IntegrationConfig(AttrDict):
         return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
 
     def header_is_traced(self, header_name):
+        # type: (str) -> bool
         """
         Returns whether or not the current header should be traced.
         :param header_name: the header name
         :type header_name: str
         :rtype: bool
         """
-        return (
-            self.http.header_is_traced(header_name)
-            if self.http.is_header_tracing_configured
-            else self.global_config.header_is_traced(header_name)
-        )
+        return self._header_tag_name(header_name) is not None
+
+    def _header_tag_name(self, header_name):
+        # type: (str) -> Optional[str]
+        tag_name = self.http._header_tag_name(header_name)
+        if tag_name is None:
+            return self.global_config._header_tag_name(header_name)
+        return tag_name
 
     def _is_analytics_enabled(self, use_global_config):
         # DEV: analytics flag can be None which should not be taken as

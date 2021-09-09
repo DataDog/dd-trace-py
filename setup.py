@@ -255,6 +255,7 @@ setup(
             "PY_MICRO_VERSION": sys.version_info.micro,
         },
         force=True,
+        annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),

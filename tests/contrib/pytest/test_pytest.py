@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -527,6 +528,41 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 3
         for span in spans:
             assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
+
+    def test_pytest_sets_sample_priority(self):
+        """Test sample priority tags."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_sample_priority():
+                assert True is True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
+
+    def test_pytest_exception(self):
+        """Test that pytest sets exception information correctly."""
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_fail():
+            assert 2 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("AssertionError") is True
+        assert test_span.get_tag("error.msg") == "assert 2 == 1"
+        assert test_span.get_tag("error.stack") is not None
 
 
 @pytest.mark.parametrize(
