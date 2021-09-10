@@ -583,6 +583,7 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type") is None
 
     def test_pytest_broken_setup_will_be_reported_as_error(self):
         """Test that pytest sets a fail test status if the setup fails."""
