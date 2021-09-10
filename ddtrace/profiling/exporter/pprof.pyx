@@ -275,7 +275,18 @@ class _PprofConverter(object):
         )
 
     def convert_stack_exception_event(
-        self, thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, exc_type_name, events
+        self,
+        thread_id,
+        thread_native_id,
+        thread_name,
+        trace_id,
+        span_id,
+        trace_resource,
+        trace_type,
+        frames,
+        nframes,
+        exc_type_name,
+        events,
     ):
         location_key = (
             self._to_locations(frames, nframes),
@@ -285,6 +296,8 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("trace id", trace_id),
                 ("span id", span_id),
+                ("trace endpoint", trace_resource),
+                ("trace type", trace_type),
                 ("exception type", exc_type_name),
             ),
         )
@@ -336,15 +349,17 @@ class _PprofConverter(object):
 
 
 _stack_event_group_key_T = typing.Tuple[
-    int,
-    int,
-    str,
-    typing.Optional[int],
-    str,
-    str,
-    typing.Optional[int],
-    typing.Tuple,
-    int,
+    int,  # thread_id
+    int,  # thread_native_id
+    str,  # thread name
+    str,  # task_id
+    str,  # task_name
+    str,  # trace_id
+    str,  # span_id
+    str,  # trace resource
+    str,  # trace type
+    typing.Tuple,  # frames
+    int,  # nframes
 ]
 
 
@@ -373,11 +388,21 @@ class PprofExporter(exporter.Exporter):
     ):
         # type: (...) -> _stack_event_group_key_T
 
-        if event.trace_type == ext.SpanTypes.WEB.value:
-            trace_resource = self._none_to_str(event.trace_resource)
-        else:
-            # Do not export trace_resource for privacy concerns.
-            trace_resource = ""
+        trace_id = None
+        span_id = None
+        trace_resource = None
+        trace_type = None
+        if event.span is not None:
+            span = event.span
+            trace_id = span.trace_id
+            span_id = span.span_id
+
+            if span._local_root is not None:
+                local_root = span._local_root
+                trace_type = local_root.span_type
+                # Do not export trace_resource for non Web spans for privacy concerns.
+                if trace_type == ext.SpanTypes.WEB.value:
+                    trace_resource = local_root.resource
 
         return (
             event.thread_id,
@@ -385,10 +410,10 @@ class PprofExporter(exporter.Exporter):
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.task_id),
             self._none_to_str(event.task_name),
-            self._none_to_str(event.trace_id),
-            self._none_to_str(event.span_id),
-            trace_resource,
-            self._none_to_str(event.trace_type),
+            self._none_to_str(trace_id),
+            self._none_to_str(span_id),
+            self._none_to_str(trace_resource),
+            self._none_to_str(trace_type),
             tuple(event.frames),
             event.nframes,
         )
@@ -406,11 +431,21 @@ class PprofExporter(exporter.Exporter):
     def _lock_event_group_key(
         self, event  # type: lock.LockEventBase
     ):
-        if event.trace_type == ext.SpanTypes.WEB.value:
-            trace_resource = self._none_to_str(event.trace_resource)
-        else:
-            # Do not export trace_resource for privacy concerns.
-            trace_resource = ""
+        trace_id = None
+        span_id = None
+        trace_resource = None
+        trace_type = None
+        if event.span is not None:
+            span = event.span
+            trace_id = span.trace_id
+            span_id = span.span_id
+
+            if span._local_root is not None:
+                local_root = span._local_root
+                trace_type = local_root.span_type
+                # Do not export trace_resource for non Web spans for privacy concerns.
+                if trace_type == ext.SpanTypes.WEB.value:
+                    trace_resource = local_root.resource
 
         return (
             event.lock_name,
@@ -418,10 +453,10 @@ class PprofExporter(exporter.Exporter):
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.task_id),
             self._none_to_str(event.task_name),
-            self._none_to_str(event.trace_id),
-            self._none_to_str(event.span_id),
-            trace_resource,
-            self._none_to_str(event.trace_type),
+            self._none_to_str(trace_id),
+            self._none_to_str(span_id),
+            self._none_to_str(trace_resource),
+            self._none_to_str(trace_type),
             tuple(event.frames),
             event.nframes,
         )
@@ -435,12 +470,31 @@ class PprofExporter(exporter.Exporter):
     def _stack_exception_group_key(self, event):
         exc_type = event.exc_type
         exc_type_name = exc_type.__module__ + "." + exc_type.__name__
+
+        trace_id = None
+        span_id = None
+        trace_resource = None
+        trace_type = None
+        if event.span is not None:
+            span = event.span
+            trace_id = span.trace_id
+            span_id = span.span_id
+
+            if span._local_root is not None:
+                local_root = span._local_root
+                trace_type = local_root.span_type
+                # Do not export trace_resource for non Web spans for privacy concerns.
+                if trace_type == ext.SpanTypes.WEB.value:
+                    trace_resource = local_root.resource
+
         return (
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
-            self._none_to_str(event.trace_id),
-            self._none_to_str(event.span_id),
+            self._none_to_str(trace_id),
+            self._none_to_str(span_id),
+            self._none_to_str(trace_resource),
+            self._none_to_str(trace_type),
             tuple(event.frames),
             event.nframes,
             exc_type_name,
@@ -581,7 +635,18 @@ class PprofExporter(exporter.Exporter):
                     )
 
         for (
-            (thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, exc_type_name),
+            (
+                thread_id,
+                thread_native_id,
+                thread_name,
+                trace_id,
+                span_id,
+                trace_resource,
+                trace_type,
+                frames,
+                nframes,
+                exc_type_name,
+            ),
             se_events,
         ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
             converter.convert_stack_exception_event(
@@ -590,6 +655,8 @@ class PprofExporter(exporter.Exporter):
                 thread_name,
                 trace_id,
                 span_id,
+                trace_resource,
+                trace_type,
                 frames,
                 nframes,
                 exc_type_name,

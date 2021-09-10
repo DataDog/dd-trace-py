@@ -354,8 +354,7 @@ def test_exception_collection_trace(tracer):
     assert e.frames == [(__file__, 345, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
-    assert e.span_id == span.span_id
-    assert e.trace_id == span.trace_id
+    assert e.span == span
 
 
 @pytest.fixture
@@ -455,9 +454,7 @@ def test_collect_span_id(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id == event.trace_id and span.span_id == event.span_id:
-            assert event.trace_resource == resource
-            assert event.trace_type == span_type
+        if event.span == span:
             break
 
 
@@ -473,13 +470,13 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id == event.trace_id and span.span_id == event.span_id:
-            assert event.trace_resource == "foobar"
-            assert event.trace_type == span_type
+        if event.span is not None and span.trace_id == event.span.trace_id and span.span_id == event.span.span_id:
+            assert event.span.resource == "foobar"
+            assert event.span.span_type == span_type
             break
     span.resource = resource
     span.finish()
-    assert event.trace_resource == resource
+    assert event.span.resource == resource
 
 
 def test_collect_multiple_span_id(tracer_and_collector):
@@ -495,9 +492,9 @@ def test_collect_multiple_span_id(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id == event.trace_id and child.span_id == event.span_id:
-            assert event.trace_resource == resource
-            assert event.trace_type == span_type
+        if event.span is not None and child.trace_id == event.span.trace_id and child.span_id == event.span.span_id:
+            assert event.span._local_root.resource == resource
+            assert event.span._local_root.span_type == span_type
             break
 
 
