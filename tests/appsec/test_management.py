@@ -66,5 +66,4 @@ def test_retain_traces(tracer, appsec):
     with tracer.trace("test") as span:
         appsec.process_request(span, query="<script>")
 
-    assert len(span.get_tag("_dd.appsec.events")) > 0
     assert span.context.sampling_priority == priority.USER_KEEP

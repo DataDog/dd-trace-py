@@ -6,7 +6,6 @@ Test it with::
     DD_APPSEC_ENABLED=true FLASK_APP=hello.py ddtrace-run flask run
 
 """
-import json
 import os.path
 from typing import Any
 from typing import List
@@ -93,6 +92,5 @@ class Management(object):
                 events.extend(protection.process(span, data))
             if events:
                 span.set_tag(constants.MANUAL_KEEP_KEY)
-                span.set_tag(APPSEC_EVENTS_TAG, json.dumps([attr.asdict(e) for e in events]))
 
         span.set_metric(APPSEC_EVENTS_MS_TAG, timer.elapsed() * 1000)
