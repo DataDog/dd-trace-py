@@ -7,7 +7,6 @@
 <!-- Please provide a succinct overview of the fix. -->
 
 # Checklist
-- [ ] Entry added to `CHANGELOG.md`
 - [ ] Regression test added; or
 - [ ] Description of manual testing performed and explanation is included in the code and/or PR.
 - [ ] Added to the correct milestone.

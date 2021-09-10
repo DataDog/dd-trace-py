@@ -1,0 +1,48 @@
+[[{"name" "wsgi.request"
+   "service" "wsgi"
+   "resource" "GET /chunked"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1611782048835813000
+   "duration" 692000
+   "meta" {"runtime-id" "51b66a1582624eeba99efbae99057036"
+           "http.status_msg" "OK"
+           "http.status_code" "200"
+           "http.method" "GET"
+           "http.url" "http://localhost:80/chunked"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
+              "system.pid" 86586}}
+      {"name" "wsgi.application"
+       "service" "wsgi"
+       "resource" "wsgi.application"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611782048835915000
+       "duration" 6000}
+      {"name" "wsgi.response"
+       "service" "wsgi"
+       "resource" "wsgi.response"
+       "error" 0
+       "span_id" 2
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611782048835929000
+       "duration" 544000
+       "meta" {"result_class" "generator"}}
+          {"name" "wsgi.start_response"
+           "service" "wsgi"
+           "resource" "wsgi.start_response"
+           "type" "web"
+           "error" 0
+           "span_id" 3
+           "trace_id" 0
+           "parent_id" 2
+           "start" 1611782048835971000
+           "duration" 21000}]]

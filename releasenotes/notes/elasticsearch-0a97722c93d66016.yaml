@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    elasticsearch: patch versioned elasticsearch modules (elasticsearch1, ..., elasticsearch7).

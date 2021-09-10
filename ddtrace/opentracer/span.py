@@ -1,21 +1,37 @@
 import threading
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Text
+from typing import Union
 
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
-from ddtrace.span import Span as DatadogSpan
+
+from ddtrace.context import Context as DatadogContext
 from ddtrace.ext import errors
-from .tags import Tags
+from ddtrace.internal.compat import NumericType
+from ddtrace.span import Span as DatadogSpan
 
 from .span_context import SpanContext
+from .tags import Tags
+
+
+if TYPE_CHECKING:
+    from .tracer import Tracer
+
+
+_TagNameType = Union[Text, bytes]
 
 
 class Span(OpenTracingSpan):
     """Datadog implementation of :class:`opentracing.Span`"""
 
     def __init__(self, tracer, context, operation_name):
+        # type: (Tracer, Optional[SpanContext], str) -> None
         if context is not None:
-            context = SpanContext(ddcontext=context._dd_context,
-                                  baggage=context.baggage)
+            context = SpanContext(ddcontext=context._dd_context, baggage=context.baggage)
         else:
             context = SpanContext()
 
@@ -24,10 +40,10 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
-                                    context=context._dd_context)
+        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name, context=context._dd_context)
 
     def finish(self, finish_time=None):
+        # type: (Optional[float]) -> None
         """Finish the span.
 
         This calls finish on the ddspan.
@@ -44,6 +60,7 @@ class Span(OpenTracingSpan):
         self.finished = True
 
     def set_baggage_item(self, key, value):
+        # type: (str, Any) -> Span
         """Sets a baggage item in the span context of this span.
 
         Baggage is used to propagate state between spans.
@@ -63,6 +80,7 @@ class Span(OpenTracingSpan):
         return self
 
     def get_baggage_item(self, key):
+        # type: (str) -> Optional[str]
         """Gets a baggage item from the span context of this span.
 
         :param key: baggage item key
@@ -74,10 +92,12 @@ class Span(OpenTracingSpan):
         return self.context.get_baggage_item(key)
 
     def set_operation_name(self, operation_name):
+        # type: (str) -> None
         """Set the operation name."""
         self._dd_span.name = operation_name
 
     def log_kv(self, key_values, timestamp=None):
+        # type: (Dict[_TagNameType, Any], Optional[float]) -> Span
         """Add a log record to this span.
 
         Passes on relevant opentracing key values onto the datadog span.
@@ -95,15 +115,15 @@ class Span(OpenTracingSpan):
         # match opentracing defined keys to datadog functionality
         # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
         for key, val in key_values.items():
-            if key == 'event' and val == 'error':
+            if key == "event" and val == "error":
                 # TODO: not sure if it's actually necessary to set the error manually
                 self._dd_span.error = 1
-                self.set_tag('error', 1)
-            elif key == 'error' or key == 'error.object':
+                self.set_tag("error", 1)
+            elif key == "error" or key == "error.object":
                 self.set_tag(errors.ERROR_TYPE, val)
-            elif key == 'message':
+            elif key == "message":
                 self.set_tag(errors.ERROR_MSG, val)
-            elif key == 'stack':
+            elif key == "stack":
                 self.set_tag(errors.ERROR_STACK, val)
             else:
                 pass
@@ -111,6 +131,7 @@ class Span(OpenTracingSpan):
         return self
 
     def set_tag(self, key, value):
+        # type: (_TagNameType, Any) -> None
         """Set a tag on the span.
 
         This sets the tag on the underlying datadog span.
@@ -131,6 +152,7 @@ class Span(OpenTracingSpan):
             self._dd_span.set_tag(key, value)
 
     def _get_tag(self, key):
+        # type: (_TagNameType) -> Optional[Text]
         """Gets a tag from the span.
 
         This method retrieves the tag from the underlying datadog span.
@@ -138,6 +160,7 @@ class Span(OpenTracingSpan):
         return self._dd_span.get_tag(key)
 
     def _get_metric(self, key):
+        # type: (_TagNameType) -> Optional[NumericType]
         """Gets a metric from the span.
 
         This method retrieves the metric from the underlying datadog span.
@@ -157,6 +180,7 @@ class Span(OpenTracingSpan):
         self.finish()
 
     def _associate_dd_span(self, ddspan):
+        # type: (DatadogSpan) -> None
         """Associates a DD span with this span."""
         # get the datadog span context
         self._dd_span = ddspan
@@ -164,4 +188,5 @@ class Span(OpenTracingSpan):
 
     @property
     def _dd_context(self):
+        # type: () -> DatadogContext
         return self._dd_span.context

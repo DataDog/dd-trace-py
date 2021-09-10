@@ -1,6 +1,6 @@
-from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
-
 import rest_framework.views
+
+from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
 
 from ...utils.wrappers import iswrapped
 from ..trace_utils import with_traced_module

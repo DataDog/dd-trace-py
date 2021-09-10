@@ -1,49 +1,29 @@
 import datetime
 import logging
 import os
-import pkg_resources
 import platform
 import sys
+from typing import Any
+from typing import Dict
+from typing import TYPE_CHECKING
+from typing import Union
 
 import ddtrace
-from ddtrace.internal import writer
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import LogWriter
 
 from .logger import get_logger
+
+
+if TYPE_CHECKING:
+    from ddtrace import Tracer
 
 
 logger = get_logger(__name__)
 
 
-def ping_agent(api=None, hostname=None, port=None, uds_path=None):
-    # Attempt to query the agent, returns an api.Response
-    # or one of the following exceptions: httplib.HTTPException, OSError, IOError
-
-    if not api:
-        api = ddtrace.api.API(
-            hostname=hostname,
-            port=port,
-            uds_path=uds_path,
-        )
-
-    # We can't use api.send_traces([]) since it'll shortcut
-    # if traces is falsy.
-    p = ddtrace.payload.Payload(encoder=api._encoder)
-
-    # We can't use payload.add_trace([]) for the same reason
-    # as api.send_trace([]).
-    encoded = p.encoder.encode_trace([])
-    p.traces.append(encoded)
-    p.size += len(encoded)
-
-    try:
-        resp = api._flush(p)
-    except Exception as e:
-        resp = e
-
-    return resp
-
-
 def in_venv():
+    # type: () -> bool
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -54,58 +34,38 @@ def in_venv():
 
 
 def tags_to_str(tags):
+    # type: (Dict[str, Any]) -> str
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
 def collect(tracer):
+    # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    # The tracer doesn't actually maintain a hostname/port, instead it stores
-    # it on the possibly None writer which actually stores it on an API object.
-    # Note that the tracer DOES have hostname and port attributes that it
-    # sets to the defaults and ignores afterwards.
-    if tracer.writer:
-        if isinstance(tracer.writer, writer.LogWriter):
-            agent_url = "AGENTLESS"
-            hostname = port = uds_path = None
-        else:
-            hostname = tracer.writer._hostname
-            port = tracer.writer._port
-            uds_path = tracer.writer._uds_path
-            https = tracer.writer._https
+    import pkg_resources
 
-            # If all specified, uds_path will take precedence
-            if uds_path:
-                agent_url = "uds://%s" % uds_path
-            else:
-                proto = "https" if https else "http"
-                agent_url = "%s://%s:%s" % (proto, hostname, port)
-    else:
-        # Else if we can't infer anything from the tracer, rely on the defaults.
-        hostname = tracer.hostname
-        port = tracer.port
-        agent_url = "http://%s:%s" % (hostname, port)
-
-    if (hostname and port) or uds_path:
-        loc = "%s:%s" % (hostname, port) if hostname and port else uds_path
-        resp = ping_agent(hostname=hostname, port=port, uds_path=uds_path)
-        if isinstance(resp, ddtrace.api.Response):
-            if resp.status == 200:
-                agent_error = None
-            else:
-                agent_error = "HTTP code %s, reason %s, message %s" % (resp.status, resp.reason, resp.msg)
+    if isinstance(tracer.writer, LogWriter):
+        agent_url = "AGENTLESS"
+        agent_error = None
+    elif isinstance(tracer.writer, AgentWriter):
+        writer = tracer.writer
+        agent_url = writer.agent_url
+        try:
+            writer.write([])
+            writer.flush_queue(raise_exc=True)
+        except Exception as e:
+            agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:
-            # There was an exception
-            agent_error = "Agent not reachable at %s. Exception raised: %s" % (loc, str(resp))
+            agent_error = None
     else:
-        # Serverless case
+        agent_url = "CUSTOM"
         agent_error = None
 
     is_venv = in_venv()
 
     packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
-    integration_configs = {}
+    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace.monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
@@ -174,4 +134,6 @@ def collect(tracer):
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer.tags),
         integrations=integration_configs,
+        partial_flush_enabled=tracer._partial_flush_enabled,
+        partial_flush_min_spans=tracer._partial_flush_min_spans,
     )

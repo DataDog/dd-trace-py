@@ -3,10 +3,12 @@ import subprocess
 import sys
 import tempfile
 
+import six
+
 import ddtrace
-from ddtrace.compat import PY3
-from ddtrace.vendor import six
-from .. import BaseTestCase
+from ddtrace.internal.compat import PY3
+
+from ..utils import BaseTestCase
 
 
 def inject_sitecustomize(path):
@@ -84,8 +86,24 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_debug_enabling(self):
         """
-        {DD,DATADOG}_TRACE_DEBUG=true allows setting debug logging of the global tracer
+        DD_TRACE_DEBUG=true allows setting debug logging of the global tracer.
+        Test DATADOG_TRACE_DEBUG flag for backwards compatibility
         """
+        with self.override_env(dict(DD_TRACE_DEBUG="false")):
+            out = subprocess.check_output(
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_no_debug.py"], stderr=subprocess.STDOUT
+            )
+            assert b"Test success" in out
+            assert b"DATADOG TRACER CONFIGURATION" not in out
+
+        with self.override_env(dict(DD_TRACE_DEBUG="true")):
+            out = subprocess.check_output(
+                ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
+                stderr=subprocess.STDOUT,
+            )
+            assert b"Test success" in out
+            assert b"DATADOG TRACER CONFIGURATION" in out
+
         with self.override_env(dict(DATADOG_TRACE_DEBUG="false")):
             out = subprocess.check_output(
                 ["ddtrace-run", "python", "tests/commands/ddtrace_run_no_debug.py"], stderr=subprocess.STDOUT
@@ -175,7 +193,8 @@ class DdtraceRunTest(BaseTestCase):
         """
         DATADOG_PATCH_MODULES overrides the defaults for patch_all()
         """
-        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES, update_patched_modules
+        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES
+        from ddtrace.bootstrap.sitecustomize import update_patched_modules
 
         orig = EXTRA_PATCHED_MODULES.copy()
 
@@ -290,15 +309,15 @@ def test_env_profiling_enabled(monkeypatch):
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "true")
     out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])
-    assert out.strip() == b"RUNNING"
+    assert out.strip() == b"ServiceStatus.RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
     out = subprocess.check_output(["ddtrace-run", "--profiling", "python", "tests/commands/ddtrace_run_profiling.py"])
-    assert out.strip() == b"RUNNING"
+    assert out.strip() == b"ServiceStatus.RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
     out = subprocess.check_output(["ddtrace-run", "-p", "python", "tests/commands/ddtrace_run_profiling.py"])
-    assert out.strip() == b"RUNNING"
+    assert out.strip() == b"ServiceStatus.RUNNING"
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "false")
     out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_profiling.py"])

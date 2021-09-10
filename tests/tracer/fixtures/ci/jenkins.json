@@ -6,7 +6,8 @@
       "BUILD_URL": "jenkins-pipeline-url",
       "GIT_BRANCH": "origin/master",
       "GIT_COMMIT": "jenkins-git-commit",
-      "GIT_URL": "sample",
+      "GIT_URL_1": "sample",
+      "GIR_URL_2": "otherSample",
       "JENKINS_URL": "jenkins",
       "JOB_NAME": "jobName",
       "JOB_URL": "jenkins-job-url"
@@ -19,7 +20,6 @@
       "ci.provider.name": "jenkins",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -43,7 +43,6 @@
       "ci.provider.name": "jenkins",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -69,7 +68,6 @@
       "ci.workspace_path": "foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -95,7 +93,6 @@
       "ci.workspace_path": "/foo/bar~",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -121,7 +118,6 @@
       "ci.workspace_path": "/foo/~/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -149,7 +145,6 @@
       "ci.workspace_path": "/not-my-home/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -177,7 +172,6 @@
       "ci.workspace_path": "~foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -205,7 +199,6 @@
       "ci.workspace_path": "/not-my-home",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -231,7 +224,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -257,7 +249,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -283,7 +274,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -309,7 +299,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "feature/one",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -335,7 +324,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -361,33 +349,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
-      "git.repository_url": "sample"
-    }
-  ],
-  [
-    {
-      "BUILD_NUMBER": "jenkins-pipeline-number",
-      "BUILD_TAG": "jenkins-pipeline-id",
-      "BUILD_URL": "jenkins-pipeline-url",
-      "GIT_BRANCH": "refs/heads/master",
-      "GIT_COMMIT": "jenkins-git-commit",
-      "GIT_URL": "sample",
-      "JENKINS_URL": "jenkins",
-      "JOB_NAME": "jobName/KEY1=VALUE1,KEY2=VALUE2/another-branch",
-      "JOB_URL": "jenkins-job-url",
-      "WORKSPACE": "/foo/bar"
-    },
-    {
-      "ci.pipeline.id": "jenkins-pipeline-id",
-      "ci.pipeline.name": "jobName/another-branch",
-      "ci.pipeline.number": "jenkins-pipeline-number",
-      "ci.pipeline.url": "jenkins-pipeline-url",
-      "ci.provider.name": "jenkins",
-      "ci.workspace_path": "/foo/bar",
-      "git.branch": "master",
-      "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample"
     }
   ],
@@ -410,7 +371,6 @@
       "ci.provider.name": "jenkins",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample",
       "git.tag": "0.1.0"
     }
@@ -434,7 +394,6 @@
       "ci.provider.name": "jenkins",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "sample",
       "git.tag": "0.1.0"
     }
@@ -461,7 +420,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -487,7 +445,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -513,7 +470,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -539,7 +495,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -565,7 +520,6 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "jenkins-git-commit",
-      "git.commit_sha": "jenkins-git-commit",
       "git.repository_url": "git@hostname.com:org/repo.git"
     }
   ]

@@ -1,5 +1,6 @@
 from django.http import HttpResponse
 
+
 try:
     from django.utils.deprecation import MiddlewareMixin
 
@@ -39,6 +40,15 @@ def fn_middleware(get_response):
         return response
 
     return mw
+
+
+def empty_middleware(get_response):
+    """Empty function middleware for regression testing."""
+
+    def mw(request):
+        pass
+
+    pass
 
 
 class ClsMiddleware:

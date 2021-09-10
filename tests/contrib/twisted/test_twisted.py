@@ -6,7 +6,7 @@ from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
 from ddtrace.contrib.mysqldb import patch as mysql_patch
 
-from tests import TracerTestCase, snapshot
+from tests.utils import TracerTestCase, snapshot
 from ..config import MYSQL_CONFIG
 
 
@@ -20,7 +20,6 @@ class TestTwisted(TracerTestCase):
     def setUp(self):
         super(TestTwisted, self).setUp()
         patch()
-        mysql_patch()
         pin = Pin.get_from(twisted)
         self.original_tracer = pin.tracer
         Pin.override(twisted, tracer=self.tracer)
@@ -121,10 +120,9 @@ class TestTwisted(TracerTestCase):
         assert len(spans) == 3
 
         s1, s2, s3 = spans
-        # traces should have separate contexts
-        assert s1.trace_id != s2.trace_id
-        assert s2.trace_id != s3.trace_id
-        assert s1.trace_id != s3.trace_id
+        assert s1.trace_id == s2.trace_id
+        assert s2.trace_id == s3.trace_id
+        assert s1.trace_id == s3.trace_id
 
     @TracerTestCase.run_in_subprocess
     def test_propagation_2_callbacks_separate_traces(self):
@@ -173,7 +171,7 @@ class TestTwisted(TracerTestCase):
 
         task.deferLater(reactor, 0, fn1)
         task.deferLater(reactor, 0, fn2)
-        reactor.callLater(0.01, reactor.stop)
+        reactor.callLater(0.02, reactor.stop)
         reactor.run()
 
         spans = self.tracer.writer.pop()
@@ -183,28 +181,6 @@ class TestTwisted(TracerTestCase):
         assert s1.trace_id != s2.trace_id
         assert s1.parent_id is None
         assert s2.parent_id is None
-
-    @TracerTestCase.run_in_subprocess
-    def test_callback_double_activate(self):
-        def fn1():
-            return 3
-
-        d = task.deferLater(reactor, 0, fn1)
-
-        def fn2(args):
-            def fn():
-                return
-
-            # The context will be activated by the patching code as well.
-            ctx = getattr(d, "__ctx")
-            ctx.run(fn)
-            return 1
-
-        d.addCallback(fn2)
-
-        reactor.callLater(0.01, reactor.stop)
-        reactor.run()
-        assert d.result == 1
 
 
 class TestTwistedSnapshot(TracerTestCase):

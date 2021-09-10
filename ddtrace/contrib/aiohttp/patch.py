@@ -8,11 +8,20 @@ from ...utils.wrappers import unwrap
 try:
     # instrument external packages only if they're available
     import aiohttp_jinja2
+
     from .template import _trace_render_template
 
     template_module = True
 except ImportError:
     template_module = False
+
+
+config._add(
+    "aiohttp",
+    dict(
+        distributed_tracing=True,
+    ),
+)
 
 
 def patch():

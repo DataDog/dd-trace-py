@@ -1,12 +1,42 @@
 import os
 
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+
+
+class PingFilter(TraceFilter):
+    def process_trace(self, trace):
+        # Filter out all traces with trace_id = 1
+        # This is done to prevent certain traces from being included in snapshots and
+        # accomplished by propagating an http trace id of 1 with the request to Django.
+        return None if trace and trace[0].trace_id == 1 else trace
+
+
+tracer.configure(
+    settings={
+        "FILTERS": [PingFilter()],
+    }
+)
+
+
 ALLOWED_HOSTS = [
     "testserver",
+    "localhost",
 ]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+DATABASES = {
+    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
+    "postgres": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "postgres",
+        "USER": "postgres",
+        "PASSWORD": "postgres",
+        "HOST": "127.0.0.1",
+        "PORT": 5432,
+    },
+}
 
 CACHES = {
     "default": {
@@ -71,25 +101,3 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
 ]
-
-# Allows for testing django instrumentation before migration to tracer config api
-if os.environ.get("TEST_DATADOG_DJANGO_MIGRATION"):
-    INSTALLED_APPS.append("ddtrace.contrib.django")
-    DATADOG_TRACE = {
-        "AGENT_HOSTNAME": "host-test",
-        "AGENT_PORT": 1234,
-        "AUTO_INSTRUMENT": True,
-        "INSTRUMENT_CACHE": True,
-        "INSTRUMENT_DATABASE": True,
-        "INSTRUMENT_TEMPLATE": True,
-        "DEFAULT_DATABASE_PREFIX": "db-test-",
-        "DEFAULT_SERVICE": "django-test",
-        "DEFAULT_CACHE_SERVICE": "cache-test",
-        "ENABLED": True,
-        "DISTRIBUTED_TRACING": True,
-        "ANALYTICS_ENABLED": True,
-        "ANALYTICS_SAMPLE_RATE": True,
-        "TRACE_QUERY_STRING": True,
-        "TAGS": {"env": "env-test"},
-        "TRACER": "ddtrace.tracer",
-    }

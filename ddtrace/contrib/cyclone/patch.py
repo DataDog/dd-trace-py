@@ -41,8 +41,7 @@ def traced_requesthandler_execute_handler(cyclone, pin, func, instance, args, kw
         analytics_sr = config.cyclone.get_analytics_sample_rate(use_global_config=True)
         if analytics_sr is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
-
-        trace_utils.store_request_headers(req.headers, span, config.cyclone)
+        trace_utils.set_http_meta(span, config.cyclone, request_headers=req.headers)
 
         setattr(req, "__datadog_span", span)
     except Exception:
@@ -62,11 +61,10 @@ def traced_requesthandler_on_finish(cyclone, pin, func, instance, args, kwargs):
     try:
         span.set_tag("http.method", req.method)
         status_code = instance.get_status()
-        if 500 <= int(status_code) < 600:
-            span.error = 1
-        span.set_tag("http.status_code", status_code)
-        span.set_tag("http.url", req.full_url().rsplit("?", 1)[0])
-        trace_utils.store_response_headers(instance._headers, span, config.cyclone)
+        url = req.full_url().rsplit("?", 1)[0]
+        trace_utils.set_http_meta(
+            span, config.cyclone, status_code=status_code, url=url, response_headers=instance._headers
+        )
         if config.cyclone.http.trace_query_string:
             span.set_tag(http.QUERY_STRING, req.query)
     except Exception:

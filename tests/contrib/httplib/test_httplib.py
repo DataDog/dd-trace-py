@@ -1,28 +1,33 @@
-# Standard library
 import contextlib
 import sys
 
-# Third party
-from ddtrace.vendor import wrapt
 import pytest
 
-# Project
 from ddtrace import config
-from ddtrace.compat import httplib, PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.httplib import patch, unpatch
+from ddtrace.contrib.httplib import patch
+from ddtrace.contrib.httplib import unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import httplib
+from ddtrace.internal.compat import parse
 from ddtrace.pin import Pin
-
+from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_tracer
 
-from ... import TracerTestCase, assert_span_http_status_code, override_global_tracer
 
 if PY2:
-    from urllib2 import urlopen, build_opener, Request
+    from urllib2 import Request
+    from urllib2 import build_opener
+    from urllib2 import urlopen
 else:
-    from urllib.request import urlopen, build_opener, Request
+    from urllib.request import Request
+    from urllib.request import build_opener
+    from urllib.request import urlopen
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
@@ -118,13 +123,14 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        request = self.get_http_connection(self.tracer.writer._hostname, self.tracer.writer._port)
+        parsed = parse.urlparse(self.tracer.writer.agent_url)
+        request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Disabled Pin and internal request
         self.tracer.enabled = False
-        request = self.get_http_connection(self.tracer.writer._hostname, self.tracer.writer._port)
+        request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
@@ -145,7 +151,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -183,7 +189,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -208,7 +214,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -232,7 +238,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -262,7 +268,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "500 Internal Server Error")
             self.assertEqual(resp.status, 500)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -292,7 +298,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "404 Not Found")
             self.assertEqual(resp.status, 404)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -318,7 +324,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
     def test_httplib_request_get_request_disabled_and_enabled(self):
@@ -336,7 +342,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
     def test_httplib_request_and_response_headers(self):
@@ -346,7 +352,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         with contextlib.closing(conn):
             conn.request("GET", "/status/200", headers={"my-header": "my_value"})
             conn.getresponse()
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             s = spans[0]
             self.assertEqual(s.get_tag("http.request.headers.my_header"), None)
             self.assertEqual(s.get_tag("http.response.headers.access_control_allow_origin"), None)
@@ -361,7 +367,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             with contextlib.closing(conn):
                 conn.request("GET", "/status/200", headers={"my-header": "my_value"})
                 conn.getresponse()
-                spans = self.tracer.writer.pop()
+                spans = self.pop_spans()
         s = spans[0]
         self.assertEqual(s.get_tag("http.request.headers.my-header"), "my_value")
         self.assertEqual(s.get_tag("http.response.headers.access-control-allow-origin"), "*")
@@ -378,7 +384,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(self.to_str(resp.read()), "")
         self.assertEqual(resp.getcode(), 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -403,7 +409,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(self.to_str(resp.read()), "")
         self.assertEqual(resp.getcode(), 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -429,7 +435,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(self.to_str(resp.read()), "")
         self.assertEqual(resp.getcode(), 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -454,7 +460,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(self.to_str(resp.read()), "")
         self.assertEqual(resp.getcode(), 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -467,7 +473,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("http.url"), URL_200)
 
     def test_httplib_request_get_request_ot(self):
-        """ OpenTracing version of test with same name. """
+        """OpenTracing version of test with same name."""
         ot_tracer = init_tracer("my_svc", self.tracer)
 
         with ot_tracer.start_active_span("ot_span"):
@@ -478,7 +484,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 self.assertEqual(self.to_str(resp.read()), "")
                 self.assertEqual(resp.status, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 2)
         ot_span, dd_span = spans
 
@@ -541,7 +547,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             with pytest.raises(Exception):
                 conn.request("GET", "/status/500")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assert_is_not_measured(span)
@@ -570,7 +576,7 @@ if PY2:
             self.assertEqual(resp.read(), "")
             self.assertEqual(resp.getcode(), 200)
 
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             self.assertEqual(len(spans), 1)
             span = spans[0]
             self.assert_is_not_measured(span)
@@ -595,7 +601,7 @@ if PY2:
             self.assertEqual(resp.read(), "")
             self.assertEqual(resp.getcode(), 200)
 
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             self.assertEqual(len(spans), 1)
             span = spans[0]
             self.assert_is_not_measured(span)

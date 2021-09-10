@@ -1,3 +1,5 @@
+.. _integrations:
+
 Integrations
 ------------
 
@@ -78,6 +80,13 @@ Celery
 .. automodule:: ddtrace.contrib.celery
 
 
+.. _cherrypy:
+
+CherryPy
+^^^^^^^^
+.. automodule:: ddtrace.contrib.cherrypy
+
+
 .. _consul:
 
 Consul
@@ -100,6 +109,13 @@ Django
 .. automodule:: ddtrace.contrib.django
 
 
+.. _dogpile.cache:
+
+dogpile.cache
+^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.dogpile_cache
+
+
 .. _elasticsearch:
 
 Elasticsearch
@@ -112,6 +128,13 @@ Elasticsearch
 Falcon
 ^^^^^^
 .. automodule:: ddtrace.contrib.falcon
+
+
+.. _fastapi:
+
+Fastapi
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.fastapi
 
 
 .. _flask:
@@ -155,6 +178,12 @@ httplib
 ^^^^^^^
 .. automodule:: ddtrace.contrib.httplib
 
+.. _httpx:
+
+httpx
+^^^^^
+.. automodule:: ddtrace.contrib.httpx
+
 
 .. _jinja2:
 
@@ -175,6 +204,13 @@ kombu
 Mako
 ^^^^
 .. automodule:: ddtrace.contrib.mako
+
+
+.. _mariadb:
+
+MariaDB
+^^^^^^^
+.. automodule:: ddtrace.contrib.mariadb
 
 
 .. _molten:
@@ -199,11 +235,10 @@ mysql-connector
 
 
 .. _mysqlclient:
-.. _MySQL-python:
 .. _mysqldb:
 
-mysqlclient/MySQL-python
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+mysqlclient
+^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.mysqldb
 
 
@@ -333,8 +368,22 @@ Tornado
 .. automodule:: ddtrace.contrib.tornado
 
 
+.. _urllib3:
+
+urllib3
+^^^^^^^
+.. automodule:: ddtrace.contrib.urllib3
+
+
 .. _vertica:
 
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib.vertica
+
+
+.. _wsgi:
+
+WSGI
+^^^^
+.. automodule:: ddtrace.contrib.wsgi

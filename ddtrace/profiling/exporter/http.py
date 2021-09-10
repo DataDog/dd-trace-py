@@ -2,24 +2,23 @@
 import binascii
 import datetime
 import gzip
+import itertools
 import os
 import platform
 
+import attr
+import six
+from six.moves import http_client
 import tenacity
 
-from ddtrace.internal.runtime import container
-from ddtrace.utils.formats import parse_tags_str
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client
-
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal import runtime
-from ddtrace.internal import uds
-from ddtrace.profiling import _attr
+from ddtrace.internal.runtime import container
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
-from ddtrace.vendor.six.moves.urllib import parse as urlparse
 from ddtrace.profiling.exporter import pprof
+from ddtrace.utils import attr as attr_utils
+from ddtrace.utils.formats import parse_tags_str
 
 
 HOSTNAME = platform.node()
@@ -40,13 +39,16 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     endpoint = attr.ib()
     api_key = attr.ib(default=None)
-    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
+    # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
+    # backend is not as fast as the tracer one.
+    timeout = attr.ib(factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float), type=float)
     service = attr.ib(default=None)
     env = attr.ib(default=None)
     version = attr.ib(default=None)
+    tags = attr.ib(factory=dict)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    _retry_upload = attr.ib(init=None, default=None)
+    _retry_upload = attr.ib(init=False, eq=False)
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
@@ -59,6 +61,30 @@ class PprofHTTPExporter(pprof.PprofExporter):
             retry_error_cls=UploadFailed,
             retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
         )
+        tags = {
+            k: six.ensure_binary(v)
+            for k, v in itertools.chain(
+                parse_tags_str(os.environ.get("DD_TAGS")).items(),
+                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+            )
+        }
+        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
+        tags.update(
+            {
+                "host": HOSTNAME.encode("utf-8"),
+                "language": b"python",
+                "runtime": PYTHON_IMPLEMENTATION,
+                "runtime_version": PYTHON_VERSION,
+                "profiler_version": ddtrace.__version__.encode("ascii"),
+            }
+        )
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
+
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
+
+        self.tags = tags
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -97,23 +123,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
     def _get_tags(self, service):
         tags = {
             "service": service.encode("utf-8"),
-            "host": HOSTNAME.encode("utf-8"),
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "language": b"python",
-            "runtime": PYTHON_IMPLEMENTATION,
-            "runtime_version": PYTHON_VERSION,
-            "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
 
-        if self.version:
-            tags["version"] = self.version.encode("utf-8")
+        tags.update(self.tags)
 
-        if self.env:
-            tags["env"] = self.env.encode("utf-8")
-
-        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
-        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
-        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
     def export(self, events, start_time_ns, end_time_ns):
@@ -159,16 +173,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )
         headers["Content-Type"] = content_type
 
-        parsed = urlparse.urlparse(self.endpoint)
-        if parsed.scheme == "https":
-            client = http_client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.timeout)
-        elif parsed.scheme == "http":
-            client = http_client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.timeout)
-        elif parsed.scheme == "unix":
-            client = uds.UDSHTTPConnection(parsed.path, False, parsed.hostname, parsed.port, timeout=self.timeout)
-        else:
-            raise ValueError("Unknown connection scheme %s" % parsed.scheme)
-
+        client = agent.get_connection(self.endpoint, self.timeout)
         self._upload(client, self.endpoint_path, body, headers)
 
     def _upload(self, client, path, body, headers):

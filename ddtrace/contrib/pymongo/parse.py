@@ -7,8 +7,8 @@ from bson.codec_options import CodecOptions
 from bson.son import SON
 
 # project
-from ...compat import to_unicode
 from ...ext import net as netx
+from ...internal.compat import to_unicode
 from ...internal.logger import get_logger
 
 
@@ -18,30 +18,30 @@ log = get_logger(__name__)
 # MongoDB wire protocol commands
 # http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
 OP_CODES = {
-    1: 'reply',
-    1000: 'msg',  # DEV: 1000 was deprecated at some point, use 2013 instead
-    2001: 'update',
-    2002: 'insert',
-    2003: 'reserved',
-    2004: 'query',
-    2005: 'get_more',
-    2006: 'delete',
-    2007: 'kill_cursors',
-    2010: 'command',
-    2011: 'command_reply',
-    2013: 'msg',
+    1: "reply",
+    1000: "msg",  # DEV: 1000 was deprecated at some point, use 2013 instead
+    2001: "update",
+    2002: "insert",
+    2003: "reserved",
+    2004: "query",
+    2005: "get_more",
+    2006: "delete",
+    2007: "kill_cursors",
+    2010: "command",
+    2011: "command_reply",
+    2013: "msg",
 }
 
 # The maximum message length we'll try to parse
 MAX_MSG_PARSE_LEN = 1024 * 1024
 
-header_struct = struct.Struct('<iiii')
+header_struct = struct.Struct("<iiii")
 
 
 class Command(object):
-    """ Command stores information about a pymongo network command, """
+    """Command stores information about a pymongo network command,"""
 
-    __slots__ = ['name', 'coll', 'db', 'tags', 'metrics', 'query']
+    __slots__ = ["name", "coll", "db", "tags", "metrics", "query"]
 
     def __init__(self, name, db, coll):
         self.name = name
@@ -52,18 +52,13 @@ class Command(object):
         self.query = None
 
     def __repr__(self):
-        return (
-            'Command('
-            'name=%s,'
-            'db=%s,'
-            'coll=%s)'
-        ) % (self.name, self.db, self.coll)
+        return ("Command(" "name=%s," "db=%s," "coll=%s)") % (self.name, self.db, self.coll)
 
 
 def parse_msg(msg_bytes):
-    """ Return a command from a binary mongo db message or None if we shoudln't
-        trace it. The protocol is documented here:
-        http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
+    """Return a command from a binary mongo db message or None if we shouldn't
+    trace it. The protocol is documented here:
+    http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
     """
     # NOTE[matt] this is used for queries in pymongo <= 3.0.0 and for inserts
     # in up to date versions.
@@ -76,7 +71,7 @@ def parse_msg(msg_bytes):
 
     op = OP_CODES.get(op_code)
     if not op:
-        log.debug('unknown op code: %s', op_code)
+        log.debug("unknown op code: %s", op_code)
         return None
 
     db = None
@@ -84,7 +79,7 @@ def parse_msg(msg_bytes):
 
     offset = header_struct.size
     cmd = None
-    if op == 'query':
+    if op == "query":
         # NOTE[matt] inserts, updates and queries can all use this opcode
 
         offset += 4  # skip flags
@@ -107,17 +102,17 @@ def parse_msg(msg_bytes):
             cmd = parse_spec(spec, db)
         else:
             # let's still note that a command happened.
-            cmd = Command('command', db, 'untraced_message_too_large')
+            cmd = Command("command", db, "untraced_message_too_large")
 
         # If the command didn't contain namespace info, set it here.
         if not cmd.coll:
             cmd.coll = coll
-    elif op == 'msg':
+    elif op == "msg":
         # Skip header and flag bits
         offset += 4
 
         # Parse the msg kind
-        kind = ord(msg_bytes[offset:offset + 1])
+        kind = ord(msg_bytes[offset : offset + 1])
         offset += 1
 
         # Kinds: https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#sections
@@ -130,10 +125,10 @@ def parse_msg(msg_bytes):
                 cmd = parse_spec(spec, db)
             else:
                 # let's still note that a command happened.
-                cmd = Command('command', db, 'untraced_message_too_large')
+                cmd = Command("command", db, "untraced_message_too_large")
         else:
             # let's still note that a command happened.
-            cmd = Command('command', db, 'unsupported_msg_kind')
+            cmd = Command("command", db, "unsupported_msg_kind")
 
     if cmd:
         cmd.metrics[netx.BYTES_OUT] = msg_len
@@ -141,26 +136,26 @@ def parse_msg(msg_bytes):
 
 
 def parse_query(query):
-    """ Return a command parsed from the given mongo db query. """
+    """Return a command parsed from the given mongo db query."""
     db, coll = None, None
-    ns = getattr(query, 'ns', None)
+    ns = getattr(query, "ns", None)
     if ns:
         # version < 3.1 stores the full namespace
         db, coll = _split_namespace(ns)
     else:
-        # version >= 3.1 stores the db and coll seperately
-        coll = getattr(query, 'coll', None)
-        db = getattr(query, 'db', None)
+        # version >= 3.1 stores the db and coll separately
+        coll = getattr(query, "coll", None)
+        db = getattr(query, "db", None)
 
     # pymongo < 3.1 _Query does not have a name field, so default to 'query'
-    cmd = Command(getattr(query, 'name', 'query'), db, coll)
+    cmd = Command(getattr(query, "name", "query"), db, coll)
     cmd.query = query.spec
     return cmd
 
 
 def parse_spec(spec, db=None):
-    """ Return a Command that has parsed the relevant detail for the given
-        pymongo SON spec.
+    """Return a Command that has parsed the relevant detail for the given
+    pymongo SON spec.
     """
 
     # the first element is the command and collection
@@ -168,41 +163,41 @@ def parse_spec(spec, db=None):
     if not items:
         return None
     name, coll = items[0]
-    cmd = Command(name, db or spec.get('$db'), coll)
+    cmd = Command(name, db or spec.get("$db"), coll)
 
-    if 'ordered' in spec:  # in insert and update
-        cmd.tags['mongodb.ordered'] = spec['ordered']
+    if "ordered" in spec:  # in insert and update
+        cmd.tags["mongodb.ordered"] = spec["ordered"]
 
-    if cmd.name == 'insert':
-        if 'documents' in spec:
-            cmd.metrics['mongodb.documents'] = len(spec['documents'])
+    if cmd.name == "insert":
+        if "documents" in spec:
+            cmd.metrics["mongodb.documents"] = len(spec["documents"])
 
-    elif cmd.name == 'update':
-        updates = spec.get('updates')
+    elif cmd.name == "update":
+        updates = spec.get("updates")
         if updates:
             # FIXME[matt] is there ever more than one here?
-            cmd.query = updates[0].get('q')
+            cmd.query = updates[0].get("q")
 
-    elif cmd.name == 'delete':
-        dels = spec.get('deletes')
+    elif cmd.name == "delete":
+        dels = spec.get("deletes")
         if dels:
             # FIXME[matt] is there ever more than one here?
-            cmd.query = dels[0].get('q')
+            cmd.query = dels[0].get("q")
 
     return cmd
 
 
 def _cstring(raw):
-    """ Return the first null terminated cstring from the bufffer. """
+    """Return the first null terminated cstring from the buffer."""
     return ctypes.create_string_buffer(raw).value
 
 
 def _split_namespace(ns):
-    """ Return a tuple of (db, collecton) from the 'db.coll' string. """
+    """Return a tuple of (db, collection) from the 'db.coll' string."""
     if ns:
         # NOTE[matt] ns is unicode or bytes depending on the client version
         # so force cast to unicode
-        split = to_unicode(ns).split('.', 1)
+        split = to_unicode(ns).split(".", 1)
         if len(split) == 1:
             raise Exception("namespace doesn't contain period: %s" % ns)
         return split

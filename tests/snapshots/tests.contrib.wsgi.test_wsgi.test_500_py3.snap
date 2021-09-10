@@ -1,0 +1,30 @@
+[[{"name" "wsgi.request"
+   "service" "wsgi"
+   "resource" "wsgi.request"
+   "type" "web"
+   "error" 1
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1605726019288462716
+   "duration" 156230
+   "meta" {"runtime-id" "02c419d011d748ba96dcd96cfcc7283d"
+           "error.msg" "Oops!"
+           "error.type" "builtins.Exception"
+           "error.stack" "Traceback (most recent call last):\n  File \"/home/kyle/dev/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 66, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/home/kyle/dev/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 19, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
+              "system.pid" 707775}}
+      {"name" "wsgi.application"
+       "service" "wsgi"
+       "resource" "wsgi.application"
+       "error" 1
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1605726019288491632
+       "duration" 89139
+       "meta" {"error.msg" "Oops!"
+               "error.type" "builtins.Exception"
+               "error.stack" "Traceback (most recent call last):\n  File \"/home/kyle/dev/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 66, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/home/kyle/dev/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 19, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n"}}]]

@@ -1,18 +1,14 @@
-import pkg_resources
-
-from .monkey import patch, patch_all  # noqa: E402
+from .monkey import patch  # noqa: E402
+from .monkey import patch_all
 from .pin import Pin  # noqa: E402
+from .settings import _config as config  # noqa: E402
 from .span import Span  # noqa: E402
 from .tracer import Tracer  # noqa: E402
-from .settings import config  # noqa: E402
 from .utils.deprecation import deprecated  # noqa: E402
+from .version import get_version
 
-try:
-    __version__ = pkg_resources.get_distribution(__name__).version
-except pkg_resources.DistributionNotFound:
-    # package is not installed
-    __version__ = "dev"
 
+__version__ = get_version()
 
 # a global tracer instance with integration settings
 tracer = Tracer()

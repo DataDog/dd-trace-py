@@ -8,13 +8,35 @@ Hook reference: https://docs.pytest.org/en/3.10.1/reference.html#hook-reference
 import os
 import re
 import sys
+from time import time
 
 import pytest
+
 
 # DEV: Enable "testdir" fixture https://docs.pytest.org/en/stable/reference.html#testdir
 pytest_plugins = ("pytester",)
 
 PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
+
+
+# Hook for dynamic configuration of pytest in CI
+# https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
+def pytest_configure(config):
+    if os.getenv("CI") != "true":
+        return
+
+    # Write JUnit xml results to a file that contains this process' PID
+    # This ensures running pytest multiple times does not overwrite previous results
+    # e.g. test-results/junit.xml -> test-results/junit.1797.xml
+    if config.option.xmlpath:
+        fname, ext = os.path.splitext(config.option.xmlpath)
+        # DEV: `ext` will contain the `.`, e.g. `.xml`
+        config.option.xmlpath = "{0}.{1}{2}".format(fname, os.getpid(), ext)
+
+    # Save per-interpreter benchmark results.
+    if config.pluginmanager.hasplugin("benchmark"):
+        gc = "_nogc" if config.option.benchmark_disable_gc else ""
+        config.option.benchmark_save = str(time()).replace(".", "_") + gc + "_py%d_%d" % sys.version_info[:2]
 
 
 # Determine if the folder should be ignored

@@ -1,10 +1,12 @@
-from flask.views import MethodView, View
+from flask.views import MethodView
+from flask.views import View
 
-from ddtrace.compat import PY2
 from ddtrace.ext import http
+from ddtrace.internal.compat import PY2
+from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
-from ... import assert_span_http_status_code
+
 
 base_exception_name = "builtins.Exception"
 if PY2:

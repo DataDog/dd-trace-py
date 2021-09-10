@@ -13,7 +13,7 @@ import pytest
 from ddtrace import config, Pin
 from ddtrace.contrib.cyclone import patch, unpatch
 
-from tests import TracerTestCase, TracerSpanContainer
+from tests.utils import TracerTestCase, TracerSpanContainer
 from .testcase import CycloneTestCase
 
 
