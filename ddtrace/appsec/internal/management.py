@@ -6,6 +6,7 @@ Test it with::
     DD_APPSEC_ENABLED=true FLASK_APP=hello.py ddtrace-run flask run
 
 """
+import json
 import os.path
 from typing import Any
 from typing import List
@@ -17,18 +18,16 @@ from ddtrace import config
 from ddtrace import constants
 from ddtrace.appsec.internal.events import Event
 from ddtrace.appsec.internal.protections import BaseProtection
-from ddtrace.appsec.internal.writer import BaseEventWriter
-from ddtrace.appsec.internal.writer import HTTPEventWriter
-from ddtrace.appsec.internal.writer import NullEventWriter
-from ddtrace.internal import agent
 from ddtrace.internal import logger
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.utils.formats import get_env
+from ddtrace.utils.time import StopWatch
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
-APPSEC_EVENT_TAG = "appsec.event"
+
+APPSEC_EVENTS_TAG = "_dd.appsec.events"
+APPSEC_EVENTS_MS_TAG = "_dd.appsec.events_ms"
 
 log = logger.get_logger(__name__)
 
@@ -40,7 +39,6 @@ class Management(object):
     """
 
     _protections = attr.ib(type=List[BaseProtection], init=False, factory=list)
-    _writer = attr.ib(type=BaseEventWriter, init=False, default=NullEventWriter())
 
     @property
     def enabled(self):
@@ -51,11 +49,6 @@ class Management(object):
     def enable(self):
         # type: () -> None
         """Enable the AppSec module and load static protections."""
-
-        if config.health_metrics_enabled:
-            dogstatsd = get_dogstatsd_client(agent.get_stats_url())
-        else:
-            dogstatsd = None
 
         try:
             path = get_env("appsec", "rules", default=DEFAULT_RULES)
@@ -74,8 +67,6 @@ class Management(object):
             from ddtrace.appsec.internal.sqreen import SqreenLibrary
 
             self._protections = [SqreenLibrary(rules)]
-            self._writer.flush(timeout=0)
-            self._writer = HTTPEventWriter(api_key=get_env("api_key"), dogstatsd=dogstatsd)
         except Exception as e:
             log.warning(
                 "AppSec module failed to load. Please report this issue to support@datadoghq.com",
@@ -90,21 +81,18 @@ class Management(object):
         # type: () -> None
         """Disable the AppSec module and unload protections."""
         self._protections = []
-        self._writer.flush(timeout=0)
-        self._writer = NullEventWriter()
         log.warning("AppSec module is disabled.")
 
     def process_request(self, span, **data):
         # type: (Span, Any) -> None
         """Process HTTP request data emitted by the integration hooks."""
         events = []  # type: List[Event]
-        for protection in self._protections:
-            events.extend(protection.process(span, data))
-        if events:
-            self._writer.write(events)
-            self._retain_trace(span)
 
-    def _retain_trace(self, span):
-        # type: (Span) -> None
-        span.set_tag(constants.MANUAL_KEEP_KEY)
-        span.set_tag(APPSEC_EVENT_TAG, "true")
+        with StopWatch() as timer:
+            for protection in self._protections:
+                events.extend(protection.process(span, data))
+            if events:
+                span.set_tag(constants.MANUAL_KEEP_KEY)
+                span.set_tag(APPSEC_EVENTS_TAG, json.dumps([attr.asdict(e) for e in events]))
+
+        span.set_metric(APPSEC_EVENTS_MS_TAG, timer.elapsed() * 1000)

@@ -60,11 +60,11 @@ def test_enable_bad_rules(appsec):
             assert not appsec._mgmt.enabled
 
 
-def test_retain_traces(tracer, appsec, appsec_dummy_writer):
+def test_retain_traces(tracer, appsec):
     appsec.enable()
 
     with tracer.trace("test") as span:
         appsec.process_request(span, query="<script>")
 
-    assert span.get_tag("appsec.event") == "true"
+    assert len(span.get_tag("_dd.appsec.events")) > 0
     assert span.context.sampling_priority == priority.USER_KEEP

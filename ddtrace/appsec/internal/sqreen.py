@@ -26,7 +26,6 @@ from ddtrace.internal import logger
 from ddtrace.internal.compat import utc
 from ddtrace.utils.formats import get_env
 from ddtrace.utils.http import strip_query_string
-from ddtrace.utils.time import StopWatch
 
 
 log = logger.get_logger(__name__)
@@ -71,15 +70,9 @@ class SqreenLibrary(BaseProtection):
             headers[k.strip().lower()].append(v)
         data = dict(data)
         data["headers"] = dict(headers)
-        with StopWatch() as timer:
-            context = self._instance.create_context()
-            ret = context.run(data, self._budget)
-            del context
-        elapsed_ms = timer.elapsed() * 1000
-        log.debug("context returned %r in %.5fms for %r", ret, elapsed_ms, span)
-        span.set_metric("_dd.appsec.waf_eval_ms", elapsed_ms)
-        if ret.timeout:
-            span.set_metric("_dd.appsec.waf_overtime_ms", elapsed_ms - self._budget)
+        context = self._instance.create_context()
+        ret = context.run(data, self._budget)
+        log.debug("context returned %r (%r) for %r", ret, ret.data, span)
         if ret.report:
             context = get_required_context()
             context.http = Http_0_1_0(

@@ -8,14 +8,6 @@ from ddtrace.appsec.internal.events.context import Context_0_1_0
 
 
 @attr.s(frozen=True)
-class KV(object):
-    """Key-value pair."""
-
-    name = attr.ib(type=str)
-    value = attr.ib(type=str)
-
-
-@attr.s(frozen=True)
 class Rule(object):
     """The rule that detected an attack."""
 
