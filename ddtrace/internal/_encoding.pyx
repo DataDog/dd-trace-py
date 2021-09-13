@@ -3,6 +3,7 @@ from cpython.bytearray cimport PyByteArray_Check
 from libc cimport stdint
 from libc.string cimport strlen
 import threading
+from ._utils cimport PyBytesLike_Check
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -38,10 +39,6 @@ class BufferFull(Exception):
 
 class BufferItemTooLarge(Exception):
     pass
-
-
-cdef inline int PyBytesLike_Check(object o):
-    return PyBytes_Check(o) or PyByteArray_Check(o)
 
 
 cdef inline int array_prefix_size(int l):
@@ -264,7 +261,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef flush(self):
         raise NotImplementedError()
 
-    cdef pack_span(self, object span, char *dd_origin):
+    cdef int pack_span(self, object span, char *dd_origin):
         raise NotImplementedError()
 
 
@@ -325,7 +322,7 @@ cdef class MsgpackEncoder(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef pack_span(self, object span, char *dd_origin):
+    cdef int pack_span(self, object span, char *dd_origin):
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type

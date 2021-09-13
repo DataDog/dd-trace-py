@@ -97,10 +97,11 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
-        if not integration_config.header_is_traced(header_name):
+        tag_name = integration_config._header_tag_name(header_name)
+        if tag_name is None:
             continue
-        tag_name = _normalize_tag_name(request_or_response, header_name)
-        span.set_tag(tag_name, header_value)
+        # An empty tag defaults to a http.<request or response>.headers.<header name> tag
+        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _store_request_headers(headers, span, integration_config):
