@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adding a more informative --info command that's easier to read and provides helpful information.
