@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the reporting of the allocated memory and the number of allocations in
+    the profiler.
