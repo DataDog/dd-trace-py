@@ -9,11 +9,11 @@ from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
 
 
-DEFAULT_HTTP_HOSTNAME = "localhost"
-DEFAULT_HTTP_TRACE_PORT = 8126
+DEFAULT_HOSTNAME = "localhost"
+DEFAULT_TRACE_PORT = 8126
 DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
 DEFAULT_STATS_PORT = 8125
-DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HTTP_HOSTNAME, DEFAULT_HTTP_TRACE_PORT)
+DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
@@ -21,12 +21,12 @@ ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 def get_hostname():
     # type: () -> str
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HTTP_HOSTNAME))
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HOSTNAME))
 
 
 def get_trace_port():
     # type: () -> int
-    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_HTTP_TRACE_PORT)))
+    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_TRACE_PORT)))
 
 
 def get_stats_port():
