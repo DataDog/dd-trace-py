@@ -148,6 +148,7 @@ class Config(object):
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
         self.runtime_metrics = asbool(get_env("runtime", "metrics_enabled", default=False))
+
         self.sampler_rules = parse_tags_str(get_env("trace", "sampling_rules", default=""))
 
     def __getattr__(self, name):

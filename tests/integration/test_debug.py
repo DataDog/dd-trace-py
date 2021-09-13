@@ -104,7 +104,7 @@ def test_standard_tags():
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("priority_sampling_enabled") is True
-    assert f.get("sampler_rules") == []
+    assert f.get("sampler_rules") == {}
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
 
@@ -156,7 +156,7 @@ class TestGlobalConfig(SubprocessTestCase):
             DD_TRACE_HEALTH_METRICS_ENABLED="true",
             DD_RUNTIME_METRICS_ENABLED="true",
             DD_LOGS_INJECTION="true",
-            DD_TRACE_SAMPLING_RULES='[{"sample_rate": 0.2}]',
+            DD_TRACE_SAMPLING_RULES="sample_rate: 0.2",
             DD_ENV="prod",
             DD_VERSION="123456",
             DD_SERVICE="service",
@@ -171,7 +171,7 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("log_injection_enabled") is True
         assert f.get("runtime_metrics_enabled") is True
         assert f.get("priority_sampling_enabled") is True
-        assert f.get("sampler_rules") == []
+        assert f.get("sampler_rules") == {"sample_rate": " 0.2"}
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
