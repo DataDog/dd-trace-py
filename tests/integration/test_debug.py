@@ -44,7 +44,7 @@ def test_standard_tags():
     assert isinstance(date, str)
 
     if sys.version_info >= (3, 7, 0):
-        # Try to parse the date-time, only built-in way to parse`
+        # Try to parse the date-time, only built-in way to parse
         # available in Python 3.7+
         date = datetime.fromisoformat(date)
 
