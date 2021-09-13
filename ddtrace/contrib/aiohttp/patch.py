@@ -1,9 +1,12 @@
 from ddtrace import config
+from ddtrace.internal.logger import get_logger
 from ddtrace.vendor import wrapt
 
 from ...pin import Pin
 from ...utils.wrappers import unwrap
 
+
+log = get_logger(__name__)
 
 try:
     # instrument external packages only if they're available
@@ -14,7 +17,10 @@ try:
     template_module = True
 except ImportError:
     template_module = False
-
+except Exception as e:
+    e_str = str(e)
+    log.warning("failed import: aiohttp_jinja2. aiohttp_jinja2 can not be instrumented. %s", e_str, exc_info=True)
+    template_module = False
 
 config._add(
     "aiohttp",
