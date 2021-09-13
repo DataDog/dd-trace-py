@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes an issue where a manually set ``django.request`` span resource would get
+    overwritten by the integration.

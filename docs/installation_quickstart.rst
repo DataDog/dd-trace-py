@@ -38,14 +38,18 @@ Binary distributions are not available for Alpine so build dependencies must be 
 Quickstart
 ----------
 
-Tracing
-~~~~~~~
-
 .. important::
 
-    If ``gevent`` is used in the application then read the documentation
-    :ref:`here<gevent>`.
 
+    Using `gevent <https://www.gevent.org/>`__? Read our :ref:`gevent documentation<gevent>`.
+
+    Using `Gunicorn <https://gunicorn.org>`__? Read the :ref:`Gunicorn documentation<gunicorn>`.
+
+    Using `uWSGI <https://uwsgi-docs.readthedocs.io>`__? Read our :ref:`uWSGI documentation<uwsgi>`.
+
+
+Tracing
+~~~~~~~
 
 Getting started for tracing is as easy as prefixing your python entry-point
 command with ``ddtrace-run``.
