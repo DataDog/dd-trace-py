@@ -147,6 +147,9 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
 
+        self.runtime_metrics = asbool(get_env("runtime", "metrics_enabled", default=False))
+        self.sampler_rules = parse_tags_str(get_env("trace", "sampling_rules", default=""))
+
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)

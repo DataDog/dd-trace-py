@@ -44,7 +44,7 @@ def test_standard_tags():
     assert isinstance(date, str)
 
     if sys.version_info >= (3, 7, 0):
-        # Try to parse the date-time, only built-in way to parse
+        # Try to parse the date-time, only built-in way to parse`
         # available in Python 3.7+
         date = datetime.fromisoformat(date)
 
@@ -102,7 +102,9 @@ def test_standard_tags():
     assert f.get("analytics_enabled") is False
     assert f.get("log_injection_enabled") is False
     assert f.get("health_metrics_enabled") is False
+    assert f.get("runtime_metrics_enabled") is False
     assert f.get("priority_sampling_enabled") is True
+    assert f.get("sampler_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
 
@@ -152,7 +154,9 @@ class TestGlobalConfig(SubprocessTestCase):
             DD_TRACE_AGENT_PORT="4321",
             DD_TRACE_ANALYTICS_ENABLED="true",
             DD_TRACE_HEALTH_METRICS_ENABLED="true",
+            DD_RUNTIME_METRICS_ENABLED="true",
             DD_LOGS_INJECTION="true",
+            DD_TRACE_SAMPLING_RULES='[{"sample_rate": 0.2}]',
             DD_ENV="prod",
             DD_VERSION="123456",
             DD_SERVICE="service",
@@ -165,7 +169,9 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("analytics_enabled") is True
         assert f.get("health_metrics_enabled") is True
         assert f.get("log_injection_enabled") is True
+        assert f.get("runtime_metrics_enabled") is True
         assert f.get("priority_sampling_enabled") is True
+        assert f.get("sampler_rules") == []
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
