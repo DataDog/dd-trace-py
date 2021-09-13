@@ -423,7 +423,7 @@ def test_info_no_configs():
     Tracer enabled: True
     Debug logging: False
     Writing traces to: http://localhost:8126
-    Agent error: Agent not reachable at http://localhost:8126. Exception raised: [Errno 111] Connection refused
+    Agent error: Agent not reachable at http://localhost:8126. Exception raised: [Errno 61] Connection refused
     App Analytics enabled(deprecated): False
     Log injection enabled: False
     Health metrics enabled: False
@@ -439,7 +439,7 @@ def test_info_no_configs():
 
 \x1b[96m\x1b[1mSummary\x1b[0m"""
         b"""\n\n\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126."""
-        b""" Exception raised: [Errno 111] Connection refused'\n If you're experiencing a connection error, please """
+        b""" Exception raised: [Errno 61] Connection refused'\n If you're experiencing a connection error, please """
         b"""make sure you've followed the setup for your particular environment so that the tracer and Datadog """
         b"""agent are configured properly to connect, and that the Datadog agent is running:"""
         b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html"""
