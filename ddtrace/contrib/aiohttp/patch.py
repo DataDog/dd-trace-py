@@ -17,9 +17,8 @@ try:
     template_module = True
 except ImportError:
     template_module = False
-except Exception as e:
-    e_str = str(e)
-    log.warning("failed import: aiohttp_jinja2. aiohttp_jinja2 can not be instrumented. %s", e_str, exc_info=True)
+except Exception:
+    log.warning("failed import: aiohttp_jinja2. aiohttp_jinja2 can not be instrumented.", exc_info=True)
     template_module = False
 
 config._add(
