@@ -90,6 +90,16 @@ def main():
             print(pretty_collect(ddtrace.tracer))
         sys.exit(0)
 
+    root_dir = os.path.dirname(ddtrace.__file__)
+    log.debug("ddtrace root: %s", root_dir)
+
+    bootstrap_dir = os.path.join(root_dir, "bootstrap")
+    log.debug("ddtrace bootstrap: %s", bootstrap_dir)
+
+    _add_bootstrap_to_pythonpath(bootstrap_dir)
+    log.debug("PYTHONPATH: %s", os.environ["PYTHONPATH"])
+    log.debug("sys.path: %s", sys.path)
+
     if not args.command:
         parser.print_help()
         sys.exit(1)
