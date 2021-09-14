@@ -506,6 +506,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
+      - image: *rabbitmq_image
     steps:
       - run_test:
           pattern: 'celery'
