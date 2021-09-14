@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Make sure that correct endpoint name collected for profiling.
