@@ -60,12 +60,10 @@ def patched_api_call(original_func, instance, args, kwargs):
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             span.resource = operation
 
-            try:
-                table_name = get_argument_value(args, kwargs, 1, "operation_kwargs")["TableName"]
+            if args[1] and "TableName" in args[1]:
+                table_name = args[1]["TableName"]
                 span.set_tag("table_name", table_name)
                 span.resource = span.resource + " " + table_name
-            except ArgumentError:
-                span.resource = span.resource
 
         except ArgumentError:
             span.resource = "Unknown"
