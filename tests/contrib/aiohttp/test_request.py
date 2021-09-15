@@ -143,5 +143,4 @@ def test_raise_exception_on_misconfigured_integration(mocker):
 
     with pytest.raises(Exception) as e:
         __import__("ddtrace.contrib.aiohttp.patch")
-
-    assert error_msg == e.value
+        assert error_msg == e.value
