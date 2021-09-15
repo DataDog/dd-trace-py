@@ -168,7 +168,7 @@ setup(
         "funcsigs>=1.0.0; python_version=='2.7'",
         "typing; python_version<'3.5'",
         "packaging>=17.1",
-        "protobuf>=3",
+        "protobuf>=3,<3.18",
         "tenacity>=5",
         "attrs>=19.2.0",
         "six>=1.12.0",
