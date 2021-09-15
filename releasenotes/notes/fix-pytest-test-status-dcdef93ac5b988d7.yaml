@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes cases in which the ``test.status`` tag of a test span from ``pytest`` would be missing
+    because ``pytest_runtest_makereport`` hook is not run, like when ``pytest`` has an internal error.
