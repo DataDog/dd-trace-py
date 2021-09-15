@@ -133,6 +133,7 @@ def test_raise_exception_on_misconfigured_integration(mocker):
     error_msg = "aiohttp_jinja2 could not be imported and will not be instrumented."
 
     original__import__ = __import__
+
     def mock_import(name, *args):
         if name == "aiohttp_jinja2":
             raise Exception(error_msg)
