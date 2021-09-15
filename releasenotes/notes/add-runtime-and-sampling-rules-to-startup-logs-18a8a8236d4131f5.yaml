@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Added runtime metrics enabled and sampling rules to startup logs

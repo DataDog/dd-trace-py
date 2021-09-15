@@ -17,6 +17,7 @@ from ddtrace.internal import debug
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.runtime import RuntimeMetrics
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -104,7 +105,7 @@ def test_standard_tags():
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("priority_sampling_enabled") is True
-    assert f.get("sampler_rules") == {}
+    assert f.get("sampler_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
 
@@ -154,9 +155,7 @@ class TestGlobalConfig(SubprocessTestCase):
             DD_TRACE_AGENT_PORT="4321",
             DD_TRACE_ANALYTICS_ENABLED="true",
             DD_TRACE_HEALTH_METRICS_ENABLED="true",
-            DD_RUNTIME_METRICS_ENABLED="true",
             DD_LOGS_INJECTION="true",
-            DD_TRACE_SAMPLING_RULES="sample_rate: 0.2",
             DD_ENV="prod",
             DD_VERSION="123456",
             DD_SERVICE="service",
@@ -169,9 +168,7 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("analytics_enabled") is True
         assert f.get("health_metrics_enabled") is True
         assert f.get("log_injection_enabled") is True
-        assert f.get("runtime_metrics_enabled") is True
         assert f.get("priority_sampling_enabled") is True
-        assert f.get("sampler_rules") == {"sample_rate": " 0.2"}
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
@@ -270,6 +267,32 @@ class TestGlobalConfig(SubprocessTestCase):
         assert tracer.log.log.mock_calls == []
 
 
+def test_runtime_metrics_enabled_via_manual_start():
+    f = debug.collect(ddtrace.tracer)
+    assert f.get("runtime_metrics_enabled") is False
+
+    RuntimeMetrics.enable()
+    f = debug.collect(ddtrace.tracer)
+    assert f.get("runtime_metrics_enabled") is True
+
+    RuntimeMetrics.disable()
+    f = debug.collect(ddtrace.tracer)
+    assert f.get("runtime_metrics_enabled") is False
+
+
+def test_runtime_metrics_enabled_via_env_var_start(monkeypatch, ddtrace_run_python_code_in_subprocess):
+    monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "true")
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is True
+""",
+    )
+    assert status == 0
+
+
 def test_to_json():
     info = debug.collect(ddtrace.tracer)
     json.dumps(info)
@@ -311,6 +334,23 @@ def test_different_samplers():
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
+
+
+def test_startup_logs_sampling_rules():
+    tracer = ddtrace.Tracer()
+    sampler = ddtrace.sampler.DatadogSampler(rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0)])
+    tracer.configure(sampler=sampler)
+    f = debug.collect(tracer)
+
+    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE')"]
+
+    sampler = ddtrace.sampler.DatadogSampler(
+        rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
+    )
+    tracer.configure(sampler=sampler)
+    f = debug.collect(tracer)
+
+    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='xyz', name='abc')"]
 
 
 def test_error_output_ddtracerun_debug_mode():
