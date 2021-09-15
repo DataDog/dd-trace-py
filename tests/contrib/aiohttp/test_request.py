@@ -129,13 +129,16 @@ async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, 
     assert request_span.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
 
-def test_raise_non_import_error_exception(monkeypatch):
+def test_raise_exception_on_misconfigured_integration(mocker):
     error_msg = "aiohttp_jinja2 could not be imported and will not be instrumented."
 
-    def mock_jinja2_import():
-        raise Exception(error_msg)
+    original__import__ = __import__
+    def mock_import(name, *args):
+        if name == "aiohttp_jinja2":
+            raise Exception(error_msg)
+        return original__import__(name, *args)
 
-    monkeypatch.setitem(__import__, "aiohttp_jinja2", mock_jinja2_import)
+    mocker.patch("__builtin__.__import__", side_effect=mock_import)
 
     with pytest.raises(Exception) as e:
         __import__("ddtrace.contrib.aiohttp.patch")
