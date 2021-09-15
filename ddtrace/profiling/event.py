@@ -45,10 +45,18 @@ class StackBasedEvent(SampleEvent):
     task_name = attr.ib(default=None)
     frames = attr.ib(default=None)
     nframes = attr.ib(default=None)
-    span = attr.ib(default=None, type=typing.Optional[ddspan.Span])
+    trace_id = attr.ib(default=None, type=typing.Optional[int])
+    span_id = attr.ib(default=None, type=typing.Optional[int])
+    trace_type = attr.ib(default=None, type=typing.Optional[str])
+    trace_resource_container = attr.ib(default=None)
 
     def set_trace_info(
         self,
         span,  # type: typing.Optional[ddspan.Span]
     ):
-        self.span = span
+        if span:
+            self.trace_id = span.trace_id
+            self.span_id = span.span_id
+            if span._local_root is not None:
+                self.trace_type = span._local_root.span_type
+                self.trace_resource_container = span._local_root._resource

@@ -4,17 +4,10 @@ import mock
 import six
 
 from ddtrace import ext
-from ddtrace import span as ddspan
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
-
-
-def create_span(**kwargs):
-    span = ddspan.Span(None, None, **kwargs)
-    span._local_root = span
-    return span
 
 
 TEST_EVENTS = {
@@ -107,10 +100,8 @@ TEST_EVENTS = {
             timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
-            span=create_span(
-                trace_id=1322219321,
-                span_id=1322219,
-            ),
+            trace_id=1322219321,
+            span_id=1322219,
             thread_name="MainThread",
             frames=[
                 ("foobar.py", 23, "func1"),
@@ -188,10 +179,8 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=1322219321,
-                span_id=49393,
-            ),
+            trace_id=1322219321,
+            span_id=49393,
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -295,9 +284,7 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=1322219321,
-            ),
+            trace_id=1322219321,
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -342,12 +329,10 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=1322219321,
-                span_id=49343,
-                resource="myresource",
-                span_type=ext.SpanTypes.WEB.value,
-            ),
+            trace_id=1322219321,
+            span_id=49343,
+            trace_type=ext.SpanTypes.WEB.value,
+            trace_resource_container=["myresource"],
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -365,12 +350,10 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=1322219321,
-                span_id=24930,
-                resource="notme",
-                span_type="sql",
-            ),
+            trace_id=1322219321,
+            span_id=24930,
+            trace_type="sql",
+            trace_resource_container=["notme"],
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -386,10 +369,8 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=1322219321,
-                span_id=24930,
-            ),
+            trace_id=1322219321,
+            span_id=24930,
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -420,10 +401,8 @@ TEST_EVENTS = {
             thread_id=67892304,
             thread_native_id=123987,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=1322219321,
-                span_id=249304,
-            ),
+            trace_id=1322219321,
+            span_id=249304,
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -478,12 +457,10 @@ TEST_EVENTS = {
             ],
             task_id=12234,
             task_name="mytask",
-            span=create_span(
-                trace_id=23435,
-                span_id=345432,
-                resource="myresource",
-                span_type=ext.SpanTypes.WEB.value,
-            ),
+            trace_id=23435,
+            span_id=345432,
+            trace_type=ext.SpanTypes.WEB.value,
+            trace_resource_container=["myresource"],
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
@@ -493,12 +470,10 @@ TEST_EVENTS = {
             timestamp=2,
             thread_id=67892304,
             thread_name="MainThread",
-            span=create_span(
-                trace_id=23435,
-                span_id=345432,
-                resource="notme",
-                span_type="sql",
-            ),
+            trace_id=23435,
+            span_id=345432,
+            trace_type="sql",
+            trace_resource_container=["notme"],
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),

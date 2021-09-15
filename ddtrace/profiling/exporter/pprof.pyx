@@ -388,21 +388,10 @@ class PprofExporter(exporter.Exporter):
     ):
         # type: (...) -> _stack_event_group_key_T
 
-        trace_id = None
-        span_id = None
         trace_resource = None
-        trace_type = None
-        if event.span is not None:
-            span = event.span
-            trace_id = span.trace_id
-            span_id = span.span_id
-
-            if span._local_root is not None:
-                local_root = span._local_root
-                trace_type = local_root.span_type
-                # Do not export trace_resource for non Web spans for privacy concerns.
-                if trace_type == ext.SpanTypes.WEB.value:
-                    trace_resource = local_root.resource
+        # Do not export trace_resource for non Web spans for privacy concerns.
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+            trace_resource = event.trace_resource_container[0]
 
         return (
             event.thread_id,
@@ -410,10 +399,10 @@ class PprofExporter(exporter.Exporter):
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.task_id),
             self._none_to_str(event.task_name),
-            self._none_to_str(trace_id),
-            self._none_to_str(span_id),
+            self._none_to_str(event.trace_id),
+            self._none_to_str(event.span_id),
             self._none_to_str(trace_resource),
-            self._none_to_str(trace_type),
+            self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
         )
@@ -431,21 +420,9 @@ class PprofExporter(exporter.Exporter):
     def _lock_event_group_key(
         self, event  # type: lock.LockEventBase
     ):
-        trace_id = None
-        span_id = None
         trace_resource = None
-        trace_type = None
-        if event.span is not None:
-            span = event.span
-            trace_id = span.trace_id
-            span_id = span.span_id
-
-            if span._local_root is not None:
-                local_root = span._local_root
-                trace_type = local_root.span_type
-                # Do not export trace_resource for non Web spans for privacy concerns.
-                if trace_type == ext.SpanTypes.WEB.value:
-                    trace_resource = local_root.resource
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+            trace_resource = event.trace_resource_container[0]
 
         return (
             event.lock_name,
@@ -453,10 +430,10 @@ class PprofExporter(exporter.Exporter):
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.task_id),
             self._none_to_str(event.task_name),
-            self._none_to_str(trace_id),
-            self._none_to_str(span_id),
+            self._none_to_str(event.trace_id),
+            self._none_to_str(event.span_id),
             self._none_to_str(trace_resource),
-            self._none_to_str(trace_type),
+            self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
         )
@@ -471,30 +448,18 @@ class PprofExporter(exporter.Exporter):
         exc_type = event.exc_type
         exc_type_name = exc_type.__module__ + "." + exc_type.__name__
 
-        trace_id = None
-        span_id = None
         trace_resource = None
-        trace_type = None
-        if event.span is not None:
-            span = event.span
-            trace_id = span.trace_id
-            span_id = span.span_id
-
-            if span._local_root is not None:
-                local_root = span._local_root
-                trace_type = local_root.span_type
-                # Do not export trace_resource for non Web spans for privacy concerns.
-                if trace_type == ext.SpanTypes.WEB.value:
-                    trace_resource = local_root.resource
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+            trace_resource = event.trace_resource_container[0]
 
         return (
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
-            self._none_to_str(trace_id),
-            self._none_to_str(span_id),
+            self._none_to_str(event.trace_id),
+            self._none_to_str(event.span_id),
             self._none_to_str(trace_resource),
-            self._none_to_str(trace_type),
+            self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
             exc_type_name,
