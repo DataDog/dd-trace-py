@@ -1,5 +1,6 @@
 """
-The RQ integration will trace your jobs.
+The RQ__ integration will trace your jobs.
+
 
 Usage
 ~~~~~
@@ -71,6 +72,9 @@ Global Configuration
    variable.
 
    Default: ``rq-worker``
+
+.. __: https://python-rq.org/
+
 """
 import os
 
