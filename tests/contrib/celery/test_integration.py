@@ -771,7 +771,14 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
 
         assert run_span.trace_id == 12345
 
-    def test_thread_in_fork(self):
+    def test_thread_start_during_fork(self):
+        """Test that celery workers get spawned without problems.
+
+        Starting threads while celery is forking worker processes is likely to
+        causes a SIGSEGV with python<=3.6. With this test we enable the
+        runtime metrics worker thread and ensure that celery worker processes
+        are spawned without issues.
+        """
         assert forksafe._soft
 
         with self.override_env(

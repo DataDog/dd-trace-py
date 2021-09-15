@@ -14,6 +14,11 @@ log = logging.getLogger(__name__)
 
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
+
+# Some integrations might require after-fork hooks to be executed after the
+# actual call to os.fork with earlier versions of Python (<= 3.6), else issues
+# like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
+# to be executed after the actual fork, which seems to prevent the issue.
 _soft = False
 
 
