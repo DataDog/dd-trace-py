@@ -42,6 +42,7 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
+from .internal.processor.stats import StatsProcessor
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
@@ -673,6 +674,7 @@ class Tracer(object):
                 trace_processors=trace_processors,
                 writer=self.writer,
             ),
+            StatsProcessor(self.writer.agent_url),
         ]  # type: List[SpanProcessor]
 
     def _log_compat(self, level, msg):
@@ -961,6 +963,10 @@ class Tracer(object):
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
+
+        for proc in self._span_processors:
+            if hasattr(proc, "shutdown"):
+                proc.shutdown()
 
         with self._shutdown_lock:
             atexit.unregister(self._atexit)
