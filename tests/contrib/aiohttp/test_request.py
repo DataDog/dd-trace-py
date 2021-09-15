@@ -139,7 +139,7 @@ def test_raise_exception_on_misconfigured_integration(mocker):
             raise Exception(error_msg)
         return original__import__(name, *args)
 
-    mocker.patch("__builtin__.__import__", side_effect=mock_import)
+    mocker.patch("__import__", side_effect=mock_import)
 
     with pytest.raises(Exception) as e:
         __import__("ddtrace.contrib.aiohttp.patch")
