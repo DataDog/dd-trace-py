@@ -3,6 +3,7 @@ import threading
 from urllib import request
 
 import aiohttp_jinja2
+import pytest
 
 from ddtrace import config
 from ddtrace.contrib.aiohttp.middlewares import trace_app
@@ -126,3 +127,17 @@ async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, 
     request_span = traces[0][0]
     assert request_span.service == "aiohttp-web"
     assert request_span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+
+def test_raise_non_import_error_exception(monkeypatch):
+    error_msg = "aiohttp_jinja2 could not be imported and will not be instrumented."
+
+    def mock_jinja2_import():
+        raise Exception(error_msg)
+
+    monkeypatch.setitem(__import__, "aiohttp_jinja2", mock_jinja2_import)
+
+    with pytest.raises(Exception) as e:
+        __import__("ddtrace.contrib.aiohttp.patch")
+
+    assert error_msg == e.value
