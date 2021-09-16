@@ -382,8 +382,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by mongoengine<0.20
-                    # mongoengine>=0.20 uses pymongo>=3.4
+                    # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by pymongo>=3.4
                     # https://github.com/pypa/setuptools/issues/2086
                     pys=select_pys(max_version="3.5"),
                     pkgs={
@@ -396,10 +395,17 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    # pymongo 3.4 is incompatible with Python>=3.8
+                    # AttributeError: module 'platform' has no attribute 'linux_distribution'
+                    pys=select_pys(max_version="3.7"),
+                    pkgs={
+                        "pymongo": ">=3.4,<3.5",
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pymongo": [
-                            ">=3.4,<3.5",
                             ">=3.5,<3.6",
                             ">=3.6,<3.7",
                             ">=3.7,<3.8",
