@@ -55,6 +55,7 @@ elasticsearch7
 enqueue
 entrypoint
 entrypoints
+enqueuer
 fastapi
 gRPC
 gevent
@@ -118,6 +119,7 @@ rediscluster
 renderers
 repo
 respawn
+rq
 runnable
 runtime
 runtime-id
