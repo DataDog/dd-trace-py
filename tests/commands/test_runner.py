@@ -417,14 +417,14 @@ def test_info_no_configs():
     )
     p.wait()
     stdout = p.stdout.read()
-    print(stdout)
     assert (stdout) == (
         b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
     Tracer enabled: True
     Debug logging: False
     Writing traces to: http://localhost:8126
-    Agent error: Agent not reachable at http://localhost:8126. Exception raised: [Errno 99] Cannot assign requested address
-    App Analytics enabled(deprecated): False
+    Agent error: Agent not reachable at http://localhost:8126. """
+        + b"""Exception raised: [Errno 99] Cannot assign requested address\n"""
+        b"""    App Analytics enabled(deprecated): False
     Log injection enabled: False
     Health metrics enabled: False
     Priority sampling enabled: True
@@ -439,7 +439,8 @@ def test_info_no_configs():
 
 \x1b[96m\x1b[1mSummary\x1b[0m"""
         b"""\n\n\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126."""
-        b""" Exception raised: [Errno 99] Cannot assign requested address'\n If you're experiencing a connection error, please """
+        b""" Exception raised: [Errno 99] Cannot assign requested address'"""
+        b""" If you're experiencing a connection error, please """
         b"""make sure you've followed the setup for your particular environment so that the tracer and Datadog """
         b"""agent are configured properly to connect, and that the Datadog agent is running:"""
         b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html"""
@@ -455,6 +456,7 @@ def test_info_no_configs():
         b"""It is recommended that a version tag be set for all traced applications. """
         b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m\n"""
     )
+
     assert p.returncode == 0
 
 
@@ -479,7 +481,6 @@ def test_info_w_configs():
 
     p.wait()
     stdout = p.stdout.read()
-    print(stdout)
     assert (
         (stdout)
         == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
