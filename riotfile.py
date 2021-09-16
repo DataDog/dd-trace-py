@@ -377,15 +377,28 @@ venv = Venv(
         Venv(
             name="pymongo",
             command="pytest {cmdargs} tests/contrib/pymongo",
+            pkgs={
+                "mongoengine": latest,
+            },
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.7"),
+                    # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by mongoengine<0.20
+                    # mongoengine>=0.20 uses pymongo>=3.4
+                    # https://github.com/pypa/setuptools/issues/2086
+                    pys=select_pys(max_version="3.5"),
                     pkgs={
                         "pymongo": [
                             ">=3.0,<3.1",
                             ">=3.1,<3.2",
                             ">=3.2,<3.3",
                             ">=3.3,<3.4",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "pymongo": [
                             ">=3.4,<3.5",
                             ">=3.5,<3.6",
                             ">=3.6,<3.7",
@@ -396,27 +409,6 @@ venv = Venv(
                             ">=3.12,<3.13",
                             latest,
                         ],
-                        "mongoengine": latest,
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={
-                        "pymongo": [
-                            ">=3.0,<3.1",
-                            ">=3.1,<3.2",
-                            ">=3.2,<3.3",
-                            ">=3.3,<3.4",
-                            ">=3.5,<3.6",
-                            ">=3.6,<3.7",
-                            ">=3.7,<3.8",
-                            ">=3.8,<3.9",
-                            ">=3.9,<3.10",
-                            ">=3.10,<3.11",
-                            ">=3.12,<3.13",
-                            latest,
-                        ],
-                        "mongoengine": latest,
                     },
                 ),
             ],
