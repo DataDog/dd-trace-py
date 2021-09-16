@@ -142,6 +142,13 @@ below:
      - 1.0
      - A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
 
+       .. _dd-trace-header-tags:
+   * - ``DD_TRACE_HEADER_TAGS``
+     - String
+     -
+     - A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
+       For example, ``User-Agent:http.useragent,content-type:http.content_type``.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean

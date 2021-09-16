@@ -19,6 +19,7 @@ from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...utils import get_argument_value
 from ...utils.deprecation import deprecated
 from ...utils.formats import deep_getattr
 from ...vendor import wrapt
@@ -68,7 +69,7 @@ def _close_span_on_success(result, future):
 
 
 def traced_set_final_result(func, instance, args, kwargs):
-    result = args[0]
+    result = get_argument_value(args, kwargs, 0, "response")
     _close_span_on_success(result, instance)
     return func(*args, **kwargs)
 
@@ -92,7 +93,7 @@ def _close_span_on_error(exc, future):
 
 
 def traced_set_final_exception(func, instance, args, kwargs):
-    exc = args[0]
+    exc = get_argument_value(args, kwargs, 0, "response")
     _close_span_on_error(exc, instance)
     return func(*args, **kwargs)
 
@@ -134,7 +135,7 @@ def traced_execute_async(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    query = kwargs.get("query") or args[0]
+    query = get_argument_value(args, kwargs, 0, "query")
 
     span = _start_span_and_set_tags(pin, query, instance, cluster)
 

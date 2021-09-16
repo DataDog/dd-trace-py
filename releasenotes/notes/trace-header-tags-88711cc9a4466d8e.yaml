@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Tag traces with HTTP headers specified on the ``DD_TRACE_HEADER_TAGS`` environment variable.
+    Value must be either comma or space separated. e.g. ``Host:http.host,User-Agent,http.user_agent``
+    or ``referer:http.referer Content-Type:http.content_type``.

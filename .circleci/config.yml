@@ -818,6 +818,15 @@ jobs:
           wait: rediscluster
           pattern: '^rediscluster_contrib-'
 
+  rq:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "rq"
+          snapshot: true
+          docker_services: "redis"
+
   urllib3:
     <<: *machine_executor
     steps:
@@ -972,6 +981,7 @@ requires_tests: &requires_tests
     - redis
     - rediscluster
     - requests
+    - rq
     - sanic
     - sqlalchemy
     - sqlite3
@@ -1053,6 +1063,7 @@ workflows:
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
+      - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs

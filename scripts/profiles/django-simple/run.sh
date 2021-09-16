@@ -30,6 +30,9 @@ export DJANGO_ALLOWED_HOSTS="127.0.0.1"
 export DJANGO_SECRET_KEY="SECRET_KEY"
 export DATABASE_URL="sqlite:///django.db"
 
+# Tag traces with HTTP headers to benchmark the related code
+export DD_TRACE_HEADER_TAGS="User-Agent:http.user_agent,Referer:http.referer,Content-Type:http.content_type,Etag:http.etag"
+
 # Baseline
 pushd ${PREFIX}/trace-examples/python/django/django-simple
     gunicorn config.wsgi --pid ${PREFIX}/gunicorn.pid > /dev/null &

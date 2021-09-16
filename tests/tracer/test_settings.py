@@ -4,6 +4,7 @@ from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
 from tests.utils import BaseTestCase
+from tests.utils import override_env
 
 
 class TestConfig(BaseTestCase):
@@ -173,7 +174,8 @@ class TestIntegrationConfig(BaseTestCase):
 
         self.integration_config.http.trace_headers("integration_header")
         assert self.integration_config.header_is_traced("integration_header")
-        assert not self.integration_config.header_is_traced("global_header")
+
+        assert not self.integration_config.http.header_is_traced("global_header")
         assert not self.config.header_is_traced("integration_header")
 
     def test_environment_analytics_enabled(self):
@@ -317,3 +319,14 @@ def test_config_is_header_tracing_configured(global_headers, int_headers, expect
         integration_config.http.is_header_tracing_configured,
         integration_config.is_header_tracing_configured,
     ) == expected
+
+
+def test_environment_header_tags():
+    with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
+        config = Config()
+
+    assert config.http.is_header_tracing_configured
+    assert config._header_tag_name("Host") == "http.host"
+    assert config._header_tag_name("User-agent") == "http.user_agent"
+    # Case insensitive
+    assert config._header_tag_name("User-Agent") == "http.user_agent"
