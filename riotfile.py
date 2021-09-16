@@ -272,7 +272,9 @@ venv = Venv(
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
-                    pys=select_pys(max_version="3.6"),
+                    # Use <=3.5 to avoid setuptools >=58 which removed `use_2to3` which is needed by celery<4
+                    # https://github.com/pypa/setuptools/issues/2086
+                    pys=select_pys(max_version="3.5"),
                     pkgs={
                         "celery": "~=3.0",  # most recent 3.x.x release
                         "redis": "~=2.10.6",
@@ -892,10 +894,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by mongoengine<0.20
+                    # https://github.com/pypa/setuptools/issues/2086
+                    pys=select_pys(max_version="3.5"),
                     pkgs={
                         # 0.20 dropped support for Python 2.7
-                        "mongoengine": [">=0.15,<0.16", ">=0.16,<0.17", ">=0.17,<0.18", ">=0.18,<0.19"]
+                        "mongoengine": [">=0.15,<0.16", ">=0.16,<0.17", ">=0.17,<0.18", ">=0.18,<0.19"],
                     },
                 ),
                 Venv(
