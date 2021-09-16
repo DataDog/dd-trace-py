@@ -439,7 +439,7 @@ def test_info_no_configs():
 
 \x1b[96m\x1b[1mSummary\x1b[0m"""
         b"""\n\n\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126."""
-        b""" Exception raised: [Errno 99] Cannot assign requested address'"""
+        b""" Exception raised: [Errno 99] Cannot assign requested address'\n"""
         b""" If you're experiencing a connection error, please """
         b"""make sure you've followed the setup for your particular environment so that the tracer and Datadog """
         b"""agent are configured properly to connect, and that the Datadog agent is running:"""
