@@ -1,4 +1,4 @@
 ---
-upgrade:
+other:
   - |
-    Added runtime metrics enabled and sampling rules to startup logs
+    Added runtime metrics status and sampling rules to startup logs.

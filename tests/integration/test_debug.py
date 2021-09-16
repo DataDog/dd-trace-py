@@ -281,6 +281,18 @@ def test_runtime_metrics_enabled_via_manual_start():
 
 
 def test_runtime_metrics_enabled_via_env_var_start(monkeypatch, ddtrace_run_python_code_in_subprocess):
+    # default, no env variable set
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+""",
+    )
+    assert status == 0
+
+    # Explicitly set env variable
     monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "true")
     _, _, status, _ = ddtrace_run_python_code_in_subprocess(
         """
