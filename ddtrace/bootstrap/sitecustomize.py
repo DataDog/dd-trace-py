@@ -16,11 +16,13 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 
     gevent.monkey.patch_all()
 
-
+# FIXME: The patching done by _threading is happening too late. We need to patch
+# threading before most of the library is imported.
 from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.profiling.collector import _threading  # noqa:F401
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
 from ddtrace.utils.formats import asbool  # noqa

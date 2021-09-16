@@ -127,19 +127,15 @@ ELSE:
             self._last_process_time = compat.process_time_ns()
 
         def __call__(self, pthread_ids):
-            current_process_time = compat.process_time_ns()
-            cpu_time = current_process_time - self._last_process_time
-            self._last_process_time = current_process_time
-            # Spread the consumed CPU time on all threads.
-            # It's not fair, but we have no clue which CPU used more unless we can use `pthread_getcpuclockid`
-            # Check that we don't have zero thread — _might_ very rarely happen at shutdown
-            nb_threads = len(pthread_ids)
-            if nb_threads == 0:
-                cpu_time = 0
-            else:
-                cpu_time //= nb_threads
+            # FIXME: This could be done more efficiently
+            cdef dict threads = {}
+            threads.update(threading._active)
+            threads.update(threading._limbo)
+
+            # FIXME: At this point we should be certain that all the threads are
+            # actually proxy objects.
             return {
-                (pthread_id, _threading.get_thread_native_id(pthread_id)): cpu_time
+                (pthread_id, _threading.get_thread_native_id(pthread_id)): getattr(threads[pthread_id], "_last_thread_time", lambda: 0)()
                 for pthread_id in pthread_ids
             }
 
