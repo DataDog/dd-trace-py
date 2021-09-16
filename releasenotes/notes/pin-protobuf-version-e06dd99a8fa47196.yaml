@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes ``protobuf`` dropping support for Python <=3.5.
+    Pin ``protobuf`` version to ``<3.18`` for Python <=3.5 due to support being dropped.
