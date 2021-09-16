@@ -51,6 +51,7 @@ PATCH_MODULES = {
     "redis": True,
     "rediscluster": True,
     "requests": True,
+    "rq": True,
     "sanic": True,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,

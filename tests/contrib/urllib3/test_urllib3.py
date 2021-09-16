@@ -101,7 +101,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         for args, kwargs in inputs:
 
-            with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
+            with self.override_http_config("urllib3", {"_header_tags": dict()}):
                 config.urllib3.http.trace_headers(["accept"])
                 pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
                 out = pool.urlopen(*args, **kwargs)
@@ -314,7 +314,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("http.response.headers.access-control-allow-origin") is None
 
         # Enabled when explicitly configured
-        with self.override_http_config("urllib3", {"_whitelist_headers": set()}):
+        with self.override_http_config("urllib3", {"_header_tags": dict()}):
             config.urllib3.http.trace_headers(["my-header", "access-control-allow-origin"])
             self.http.request("GET", URL_200, headers={"my-header": "my_value"})
             spans = self.pop_spans()

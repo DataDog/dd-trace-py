@@ -4,6 +4,7 @@ import attr
 
 import ddtrace
 
+from ...utils import get_argument_value
 from ...utils.wrappers import unwrap as _u
 from ...vendor.wrapt import wrap_function_wrapper as _w
 
@@ -76,7 +77,7 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
     # has a "service" property
     # PercentStyle, and StringTemplateStyle both look for
     # a "dd.service" property on the record
-    record = kwargs.get("record", args[0])
+    record = get_argument_value(args, kwargs, 0, "record")
 
     record.dd = DDLogRecord(
         trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
