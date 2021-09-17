@@ -1,6 +1,13 @@
+import json
 import os
+from typing import Any
+from typing import Dict
+from typing import Optional
 from typing import Union
 
+import six
+
+from ddtrace.internal import compat
 from ddtrace.internal.compat import parse
 from ddtrace.utils.formats import get_env
 
@@ -38,14 +45,23 @@ def get_trace_agent_timeout():
     return float(get_env("trace", "agent", "timeout", "seconds", default=DEFAULT_TIMEOUT))  # type: ignore[arg-type]
 
 
-def get_trace_url():
-    # type: () -> str
+def get_agent_url(envvar="DD_AGENT_URL"):
+    # type: (str) -> str
     """Return the Agent URL computed from the environment.
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    url = os.environ.get(envvar, "http://%s:%d" % (get_hostname(), get_trace_port()))
     return url
+
+
+def get_trace_url():
+    # type: () -> str
+    """Return the trace agent URL computed from the environment.
+
+    Raises a ``ValueError`` if the URL is not supported by the Agent.
+    """
+    return get_agent_url("DD_TRACE_AGENT_URL")
 
 
 def get_stats_url():
@@ -90,3 +106,46 @@ def get_connection(url, timeout=DEFAULT_TIMEOUT):
         return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
 
     raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+
+
+def _get_info(url=None):
+    # type: (Optional[str]) -> Optional[Dict[str, Any]]
+    agent_url = url or get_agent_url()
+
+    conn = None
+    try:
+        conn = get_connection(agent_url)
+        conn.request("GET", "/info")
+        resp = compat.get_connection_response(conn)
+
+        if resp.status == 200:
+            return json.loads(six.ensure_text(resp.read()))
+
+        if resp.status == 404:
+            # We don't have the info endpoint, but we have an agent
+            return {}
+
+    except Exception:
+        pass
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return None
+
+
+def _test_endpoint(endpoint, url=None):
+    # type: (str, Optional[str]) -> bool
+    agent_url = url or get_agent_url()
+
+    conn = None
+    try:
+        conn = get_connection(agent_url)
+        conn.request("GET", endpoint)
+        resp = compat.get_connection_response(conn)
+        return resp.status != 404
+    except Exception:
+        return False
+    finally:
+        if conn is not None:
+            conn.close()

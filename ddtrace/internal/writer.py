@@ -28,8 +28,8 @@ from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .encoding import Encoder
 from .encoding import JSONEncoderV2
+from .encoding import encoder_for_endpoints
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
@@ -250,11 +250,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         }
         self._timeout = timeout
 
-        if priority_sampler is not None:
-            self._endpoint = "v0.4/traces"
-        else:
-            self._endpoint = "v0.3/traces"
-
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
             self._headers.update(
@@ -263,10 +258,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 }
             )
 
-        self._encoder = Encoder(
-            max_size=self._buffer_size,
-            max_item_size=self._max_payload_size,
-        )
+        self._infer_endpoint_and_encoder(agent_url)
+
         self._headers.update({"Content-Type": self._encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
@@ -284,6 +277,32 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             ),
             stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
+        )
+
+    def _infer_endpoint_and_encoder(self, url):
+        # type: (str) -> None
+        info = agent._get_info(url)
+        if info is None:
+            # The agent is not running
+            raise RuntimeError("Agent not reachable on %s" % url)
+
+        endpoints = None
+        if info == {}:
+            # The agent is running but does not have an info endpoint
+            for endpoint in ["/v0.%d/traces" % i for i in (4, 3)]:
+                if agent._test_endpoint(endpoint, url):
+                    endpoints = [endpoint]
+                    break
+        else:
+            endpoints = [_ for _ in info.get("endpoints", []) if _.endswith("/traces")]
+
+        if not endpoints:
+            raise RuntimeError("No traces endpoint found")
+
+        self._endpoint, encoder_class = encoder_for_endpoints(endpoints)
+        self._encoder = encoder_class(
+            max_size=self._buffer_size,
+            max_item_size=self._max_payload_size,
         )
 
     def _metrics_dist(self, name, count=1, tags=None):
@@ -341,12 +360,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             finally:
                 conn.close()
 
-    def _downgrade(self, payload, response):
-        if self._endpoint == "v0.4/traces":
-            self._endpoint = "v0.3/traces"
-            return payload
-        raise ValueError
-
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
@@ -361,18 +374,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("http.sent.bytes", len(payload))
 
         if response.status in [404, 415]:
-            log.debug("calling endpoint '%s' but received %s; downgrading API", self._endpoint, response.status)
-            try:
-                payload = self._downgrade(payload, response)
-            except ValueError:
-                log.error(
-                    "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
-                    self._endpoint,
-                    response.status,
-                    self.agent_url,
-                )
-            else:
-                return self._send_payload(payload, count)
+            log.error(
+                "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
+                self._endpoint,
+                response.status,
+                self.agent_url,
+            )
         elif response.status >= 400:
             log.error(
                 "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",

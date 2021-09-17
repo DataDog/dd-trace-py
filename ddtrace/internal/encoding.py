@@ -4,6 +4,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Tuple
+from typing import Type
 
 from ._encoding import MsgpackEncoder
 from .logger import get_logger
@@ -89,3 +91,22 @@ class JSONEncoderV2(JSONEncoder):
 
 
 Encoder = MsgpackEncoder
+
+
+_ENCODERS = (
+    ("/v0.5/traces", MsgpackEncoder),
+    ("/v0.4/traces", MsgpackEncoder),
+    ("/v0.3/traces", MsgpackEncoder),
+)
+
+
+def encoder_for_endpoints(endpoints):
+    # type: (List[str]) -> Tuple[str, Type[MsgpackEncoder]]
+    """
+    Returns the encoder for the given endpoint.
+    """
+    for ep, enc in _ENCODERS:
+        if ep in endpoints:
+            return (ep, enc)
+
+    raise RuntimeError("No compatible encoders for the currently running version of the agent")
