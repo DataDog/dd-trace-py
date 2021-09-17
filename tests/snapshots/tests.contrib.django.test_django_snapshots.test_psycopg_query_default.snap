@@ -33,7 +33,6 @@
                "db.user" "postgres"
                "db.application" "None"}
        "metrics" {"_dd.measured" 1
-                  "_dd.top_level" 1
                   "out.port" 5432
                   "db.rowcount" 1
                   "sql.rows" 1}}]]
