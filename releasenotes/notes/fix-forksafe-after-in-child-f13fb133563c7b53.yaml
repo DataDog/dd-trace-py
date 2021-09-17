@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed the support for threaded applications that fork sub-processes with
+    Python 3.6 and earlier versions.
