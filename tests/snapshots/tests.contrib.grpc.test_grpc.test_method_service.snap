@@ -21,7 +21,7 @@
               "_dd.top_level" 1
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 18581
+      "system.pid" 18581
               "_dd.tracer_kr" 1.0}}
       {"name" "grpc"
        "service" "grpc-server"
@@ -40,7 +40,6 @@
                "grpc.method.kind" "unary"
                "span.kind" "server"}
        "metrics" {"_dd.measured" 1
-                  "_dd.top_level" 0
                   "system.pid" 18581}}]
  [{"name" "grpc"
    "service" "grpc-client"
@@ -86,5 +85,4 @@
                "grpc.method.kind" "unary"
                "span.kind" "server"}
        "metrics" {"_dd.measured" 1
-                  "_dd.top_level" 0
                   "system.pid" 18581}}]]

@@ -62,6 +62,4 @@
        "start" 1604947180997072400
        "duration" 319500
        "meta" {"sql.db" "test.db"}
-       "metrics" {"_dd.measured" 1
-                  "_dd.top_level" 0
-       }}]]
+       "metrics" {"_dd.measured" 1}}]]
