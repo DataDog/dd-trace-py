@@ -17,6 +17,7 @@
            "error.stack" "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 73, in _trace_method\n    return method(*args, **kwargs)\nmariadb.ProgrammingError: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1\n"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
+              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "system.pid" 1502
               "out.port" 3306

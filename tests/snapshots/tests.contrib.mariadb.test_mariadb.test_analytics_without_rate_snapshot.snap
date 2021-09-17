@@ -14,6 +14,7 @@
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
+              "_dd.top_level" 1
               "_dd1.sr.eausr" 1.0
               "_sampling_priority_v1" 1
               "system.pid" 1502

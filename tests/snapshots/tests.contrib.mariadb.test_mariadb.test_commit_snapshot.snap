@@ -12,6 +12,7 @@
            "db.user" "test"
            "db.name" "test"}
    "metrics" {"_dd.agent_psr" 1.0
+              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "system.pid" 1502
               "out.port" 3306

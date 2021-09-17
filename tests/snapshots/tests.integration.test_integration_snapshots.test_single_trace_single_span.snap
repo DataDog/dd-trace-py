@@ -10,6 +10,7 @@
    "meta" {"runtime-id" "ddf562510b004d60bdfaa21911ab1e60"
            "k" "v"}
    "metrics" {"_dd.agent_psr" 1.0
+              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "system.pid" 39631
               "int_metric" 4321
