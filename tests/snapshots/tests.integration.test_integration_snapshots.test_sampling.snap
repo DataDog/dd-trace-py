@@ -82,6 +82,7 @@
    "duration" 52000
    "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
+              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "system.pid" 28857
               "_dd.tracer_kr" 1.0
@@ -106,6 +107,7 @@
    "duration" 30000
    "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_sampling_priority_v1" 0
+              "_dd.top_level" 1
               "system.pid" 28857
               "_dd.tracer_kr" 1.0
               "_dd.rule_psr" 0}}
@@ -129,6 +131,7 @@
    "duration" 44000
    "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
+              "_dd.top_level" 1
               "_sampling_priority_v1" -1
               "system.pid" 28857
               "_dd.tracer_kr" 1.0
@@ -153,6 +156,7 @@
    "duration" 38000
    "meta" {"runtime-id" "f0f1fea1234e410a95e7868881ad817e"}
    "metrics" {"_dd.limit_psr" 1.0
+              "_dd.top_level" 1
               "_sampling_priority_v1" 2
               "system.pid" 28857
               "_dd.tracer_kr" 1.0
