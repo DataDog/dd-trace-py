@@ -30,7 +30,6 @@
        "duration" 459300
        "meta" {"sql.db" "test.db"}
        "metrics" {"_dd.measured" 1
-                  "_dd.top_level" 0
                   "sql.rows" 1}}]
  [{"name" "starlette.request"
    "service" "starlette"
