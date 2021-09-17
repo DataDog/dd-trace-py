@@ -422,7 +422,7 @@ class PprofExporter(exporter.Exporter):
     ):
         trace_resource = None
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
-            trace_resource = event.trace_resource_container[0]
+            (trace_resource,) = event.trace_resource_container
 
         return (
             event.lock_name,
@@ -450,7 +450,7 @@ class PprofExporter(exporter.Exporter):
 
         trace_resource = None
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
-            trace_resource = event.trace_resource_container[0]
+            (trace_resource,) = event.trace_resource_container
 
         return (
             event.thread_id,
