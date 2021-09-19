@@ -13,6 +13,7 @@
            "job.id" "be34a76b-aa9e-455e-9b33-d98da5c66cd7"
            "job.func_name" "tests.contrib.rq.jobs.job_fail"}
    "metrics" {"_dd.agent_psr" 1.0
+              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "system.pid" 462
               "_dd.tracer_kr" 1.0}}
