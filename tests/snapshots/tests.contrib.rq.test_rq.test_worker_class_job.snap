@@ -32,6 +32,7 @@
                "job.status" "finished"
                "job.origin" "q"}
        "metrics" {"_sampling_priority_v1" 1
+                  "_dd.top_level" 1
                   "system.pid" 19332
                   "_dd.tracer_kr" 1.0}}
           {"name" "rq.job.perform"
@@ -78,6 +79,7 @@
                "job.status" "finished"
                "job.origin" "q"}
        "metrics" {"_sampling_priority_v1" 1
+                  "_dd.top_level" 1
                   "system.pid" 19332
                   "_dd.tracer_kr" 1.0}}
           {"name" "rq.job.perform"
