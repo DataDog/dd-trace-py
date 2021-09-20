@@ -17,7 +17,6 @@ from ddtrace.internal import debug
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.runtime import RuntimeMetrics
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -267,17 +266,26 @@ class TestGlobalConfig(SubprocessTestCase):
         assert tracer.log.log.mock_calls == []
 
 
-def test_runtime_metrics_enabled_via_manual_start():
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is False
+def test_runtime_metrics_enabled_via_manual_start(ddtrace_run_python_code_in_subprocess):
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+from ddtrace.runtime import RuntimeMetrics
 
-    RuntimeMetrics.enable()
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is True
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
 
-    RuntimeMetrics.disable()
-    f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is False
+RuntimeMetrics.enable()
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is True
+
+RuntimeMetrics.disable()
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+""",
+    )
+    assert status == 0
 
 
 def test_runtime_metrics_enabled_via_env_var_start(monkeypatch, ddtrace_run_python_code_in_subprocess):
