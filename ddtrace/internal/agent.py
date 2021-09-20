@@ -7,6 +7,7 @@ from ddtrace.utils.formats import get_env
 from .http import HTTPConnection
 from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
+from typing import TypeVar
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -18,15 +19,19 @@ DEFAULT_TIMEOUT = 2.0
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
+T = TypeVar("T")
 
-def get_hostname():
-    # type: () -> str
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HOSTNAME))
+def get_hostname(default=DEFAULT_HOSTNAME):
+    # type: (Union[T, str]) -> Union[T, str]
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", default))
 
 
-def get_trace_port():
-    # type: () -> int
-    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_TRACE_PORT)))
+def get_trace_port(default=DEFAULT_TRACE_PORT):
+    # type: (Union[T, int]) -> Union[T,int]
+    v = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", default))
+    if v is not None:
+        return int(v)
+    return default
 
 
 def get_stats_port():
@@ -45,9 +50,9 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    # check these envars inside of method to make testing easier
-    user_supplied_host = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")) is not None
-    user_supplied_port = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT")) is not None
+    user_supplied_host = get_hostname(None) is not None
+    user_supplied_port = get_trace_port(None) is not None
+
     url = os.environ.get("DD_TRACE_AGENT_URL")
 
     if not url:
