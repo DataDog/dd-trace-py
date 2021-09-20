@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Add new ``DD_TRACE_SAMPLING_RULES`` environment variable to override default sampling rules.

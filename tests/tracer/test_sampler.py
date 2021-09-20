@@ -261,6 +261,31 @@ def test_sampling_rule_init():
     assert rule.name == name_regex
 
 
+def test_sampling_rule_init_via_env():
+    # Testing single sampling rule
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == "abc"
+
+    # Testing multiple sampling rules
+    with override_env(
+        dict(
+            DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}, \
+            {"sample_rate":0.5,"service":"my-service","name":"my-name"}]'
+        )
+    ):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == "abc"
+
+        assert sampling_rule[1].sample_rate == 0.5
+        assert sampling_rule[1].service == "my-service"
+        assert sampling_rule[1].name == "my-name"
+
+
 @pytest.mark.parametrize(
     "span,rule,expected",
     [

@@ -3,6 +3,7 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
+from json import loads
 from typing import Any
 from typing import Dict
 from typing import List
@@ -177,6 +178,17 @@ class DatadogSampler(BasePrioritySampler):
         # Ensure rules is a list
         if not rules:
             rules = []
+
+        # DD_TRACE_SAMPLING_RULES = ['{"sample_rate": "1", "service": "b", "name": 0.1}', ....]
+        env_rules = get_env("trace", "sampling_rules")
+        if env_rules is not None:
+            json_rules = loads(env_rules)
+            for rule in json_rules:
+                rate = rule["sample_rate"]
+                service = rule["service"]
+                name = rule["name"]
+                sampling_rule = SamplingRule(sample_rate=rate, service=service, name=name)
+                rules.append(sampling_rule)
 
         # Validate that the rules is a list of SampleRules
         for rule in rules:
