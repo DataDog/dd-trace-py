@@ -83,8 +83,7 @@ def main():
         # Inline imports for performance.
         from ddtrace.internal.debug import pretty_collect
 
-        if args.colorless:
-            print(pretty_collect(ddtrace.tracer, color=False))
+        print(pretty_collect(ddtrace.tracer, color=!args.colorless))
 
         else:
             print(pretty_collect(ddtrace.tracer))
