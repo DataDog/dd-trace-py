@@ -11,6 +11,7 @@ from typing import Union
 import ddtrace
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
+from ddtrace.sampler import DatadogSampler
 
 from .logger import get_logger
 
@@ -45,6 +46,8 @@ def collect(tracer):
 
     import pkg_resources
 
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
     if isinstance(tracer.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
@@ -61,6 +64,10 @@ def collect(tracer):
     else:
         agent_url = "CUSTOM"
         agent_error = None
+
+    sampler_rules = None
+    if isinstance(tracer.sampler, DatadogSampler):
+        sampler_rules = [str(rule) for rule in tracer.sampler.rules]
 
     is_venv = in_venv()
 
@@ -123,12 +130,14 @@ def collect(tracer):
         tracer_enabled=tracer.enabled,
         sampler_type=type(tracer.sampler).__name__ if tracer.sampler else "N/A",
         priority_sampler_type=type(tracer.priority_sampler).__name__ if tracer.priority_sampler else "N/A",
+        sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
         debug=ddtrace.tracer.log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         analytics_enabled=ddtrace.config.analytics_enabled,
         log_injection_enabled=ddtrace.config.logs_injection,
         health_metrics_enabled=ddtrace.config.health_metrics_enabled,
+        runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
         priority_sampling_enabled=tracer.priority_sampler is not None,
         global_tags=os.getenv("DD_TAGS", ""),
