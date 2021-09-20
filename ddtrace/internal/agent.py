@@ -1,4 +1,5 @@
 import os
+from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.compat import parse
@@ -7,7 +8,6 @@ from ddtrace.utils.formats import get_env
 from .http import HTTPConnection
 from .http import HTTPSConnection
 from .uds import UDSHTTPConnection
-from typing import TypeVar
 
 
 DEFAULT_HOSTNAME = "localhost"
@@ -20,6 +20,7 @@ DEFAULT_TIMEOUT = 2.0
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 T = TypeVar("T")
+
 
 def get_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
