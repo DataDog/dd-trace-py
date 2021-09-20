@@ -1,3 +1,6 @@
+import subprocess
+from time import sleep
+
 import celery
 from celery.exceptions import Retry
 import pytest
@@ -7,6 +10,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
+import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer
 
@@ -766,3 +770,32 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             run_span = traces[0][0]
 
         assert run_span.trace_id == 12345
+
+    def test_thread_start_during_fork(self):
+        """Test that celery workers get spawned without problems.
+
+        Starting threads while celery is forking worker processes is likely to
+        causes a SIGSEGV with python<=3.6. With this test we enable the
+        runtime metrics worker thread and ensure that celery worker processes
+        are spawned without issues.
+        """
+        assert forksafe._soft
+
+        with self.override_env(
+            dict(
+                DD_RUNTIME_METRICS_INTERVAL="2",
+                DD_RUNTIME_METRICS_ENABLED="true",
+            )
+        ):
+            celery = subprocess.Popen(
+                ["ddtrace-run", "celery", "worker"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            sleep(5)
+            celery.terminate()
+            while True:
+                err = celery.stdout.readline().strip()
+                if not err:
+                    break
+                assert b"SIGSEGV" not in err
