@@ -15,6 +15,12 @@ log = logging.getLogger(__name__)
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
 
+# Some integrations might require after-fork hooks to be executed after the
+# actual call to os.fork with earlier versions of Python (<= 3.6), else issues
+# like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
+# to be executed after the actual fork, which seems to prevent the issue.
+_soft = False
+
 
 def ddtrace_after_in_child():
     # type: () -> None
@@ -52,16 +58,29 @@ def unregister(after_in_child):
 
 if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=ddtrace_after_in_child)
-else:
-    _threading_after_fork = threading._after_fork  # type: ignore[attr-defined]
+elif hasattr(os, "fork"):
+    # DEV: This "should" be the correct way of implementing this, but it doesn't
+    # work if hooks create new threads.
+    _threading_after_fork = threading._after_fork  # type: ignore
 
     def _after_fork():
         # type: () -> None
         _threading_after_fork()
-        ddtrace_after_in_child()
+        if not _soft:
+            ddtrace_after_in_child()
 
     threading._after_fork = _after_fork  # type: ignore[attr-defined]
 
+    # DEV: If hooks create threads, we should do this instead.
+    _os_fork = os.fork
+
+    def _fork():
+        pid = _os_fork()
+        if pid == 0 and _soft:
+            ddtrace_after_in_child()
+        return pid
+
+    os.fork = _fork
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
