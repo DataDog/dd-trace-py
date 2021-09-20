@@ -27,6 +27,8 @@ log = logging.getLogger(__name__)
 USAGE = """
 Execute the given Python command after configuring it to emit Datadog traces
 and profiles.
+
+
 Examples
 ddtrace-run python app.py
 ddtrace-run gunicorn myproject.wsgi

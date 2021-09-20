@@ -62,8 +62,9 @@ your desired settings in place of the example environment variables)::
 For more advanced usage of ``ddtrace-run`` refer to the documentation
 :ref:`here<ddtracerun>`.
 
-Once your application is running you can run the command ``ddtrace-run --info``. 
-This will print out info useful for debugging to make sure the tracer's running as expected and able to connect to the Datadog agent properly. 
+To verify the environment configuration for your application run the command ``ddtrace-run --info``. 
+This will print out info useful for debugging to make sure your environment variable configurations are 
+being picked up correctly and that the tracer will be able to connect to the Datadog agent with them. 
 Note: ``--info`` Only reflects configurations made via environment variables, not those made in code.
 
 

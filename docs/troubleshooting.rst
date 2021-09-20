@@ -13,7 +13,7 @@ communication issue:
 - Ensure that ``ddtrace`` is configured with the hostname and port of the
   agent. See :ref:`Configuration` for the configuration variables.
 
-To verify that a connection is being made to the agent, run the command ``ddtrace-run --info`` while your application is running.
+To verify that a connection can be made to the agent with your environment variable configurations run the command ``ddtrace-run --info``.
 
 
 Failed to send traces... ``ConnectionRefusedError``
