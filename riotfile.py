@@ -1130,5 +1130,22 @@ venv = Venv(
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
         ),
+        Venv(
+            name="redis",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/redis",
+            pkgs={
+                "redis": [
+                    ">=2.10,<2.11",
+                    ">=3.0,<3.1",
+                    ">=3.1,<3.2",
+                    ">=3.2,<3.3",
+                    ">=3.3,<3.4",
+                    ">=3.4,<3.5",
+                    ">=3.5,<3.6",
+                    latest,
+                ]
+            },
+        ),
     ],
 )

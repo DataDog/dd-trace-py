@@ -803,8 +803,10 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - run_tox_scenario_with_testagent:
-          pattern: '^redis_contrib-'
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'redis$'
+          snapshot: true
 
   rediscluster:
     <<: *contrib_job
