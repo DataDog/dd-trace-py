@@ -29,7 +29,7 @@ def get_hostname(default=DEFAULT_HOSTNAME):
 
 def get_trace_port(default=DEFAULT_TRACE_PORT):
     # type: (Union[T, int]) -> Union[T,int]
-    v = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", default))
+    v = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
     if v is not None:
         return int(v)
     return default
