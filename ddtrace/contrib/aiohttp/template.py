@@ -3,6 +3,7 @@ import aiohttp_jinja2
 from ddtrace import Pin
 
 from ...ext import SpanTypes
+from ...utils import get_argument_value
 
 
 def _trace_render_template(func, module, args, kwargs):
@@ -16,8 +17,8 @@ def _trace_render_template(func, module, args, kwargs):
 
     # original signature:
     # render_template(template_name, request, context, *, app_key=APP_KEY, encoding='utf-8')
-    template_name = args[0]
-    request = args[1]
+    template_name = get_argument_value(args, kwargs, 0, "template_name")
+    request = get_argument_value(args, kwargs, 1, "request")
     env = aiohttp_jinja2.get_env(request.app)
 
     # the prefix is available only on PackageLoader
