@@ -15,6 +15,7 @@ agentless
 analytics
 api
 app
+aredis
 args
 asgi
 asyncio
