@@ -7,23 +7,183 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 1,
+    "error": 0,
     "meta": {
-      "error.msg": "[Errno 111] Connection refused",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_exceptions.py\", line 342, in map_exceptions\n    yield\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_client.py\", line 798, in _send_single_request\n    ) = transport.request(\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpcore/_sync/connection_pool.py\", line 188, in request\n    response = connection.request(\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpcore/_sync/connection.py\", line 83, in request\n    self.socket = self._open_socket(timeout)\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpcore/_sync/connection.py\", line 104, in _open_socket\n    return self.backend.open_tcp_stream(\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpcore/_backends/sync.py\", line 144, in open_tcp_stream\n    return SyncSocketStream(sock=sock)\n  File \"/root/.pyenv/versions/3.9.1/lib/python3.9/contextlib.py\", line 135, in __exit__\n    self.gen.throw(type, value, traceback)\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpcore/_exceptions.py\", line 12, in map_exceptions\n    raise to_exc(exc) from None\nhttpcore.ConnectError: [Errno 111] Connection refused\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/httpx/patch.py\", line 124, in _wrapped_sync_send\n    resp = wrapped(*args, **kwargs)\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_client.py\", line 703, in send\n    response = self._send_handling_redirects(\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_client.py\", line 732, in _send_handling_redirects\n    response = self._send_handling_auth(\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_client.py\", line 769, in _send_handling_auth\n    response = self._send_single_request(request, timeout)\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_client.py\", line 792, in _send_single_request\n    (\n  File \"/root/.pyenv/versions/3.9.1/lib/python3.9/contextlib.py\", line 135, in __exit__\n    self.gen.throw(type, value, traceback)\n  File \"/root/project/.riot/venv_py391_httpx~0140_pytest-asyncio/lib/python3.9/site-packages/httpx/_exceptions.py\", line 359, in map_exceptions\n    raise mapped_exc(message, **kwargs) from exc  # type: ignore\nhttpx.ConnectError: [Errno 111] Connection refused\n",
-      "error.type": "httpx.ConnectError",
       "http.method": "GET",
       "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
       "http.url": "http://localhost:8001/status/200?some=query&string=args",
-      "runtime-id": "37562aa63fc543359bab36e8843ce3d6"
+      "runtime-id": "5f9f1e7420d244069ecdd87f9b4c8568"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 548
+      "system.pid": 8359
     },
-    "duration": 2174300,
-    "start": 1632153390057768200
+    "duration": 5007000,
+    "start": 1632172764761044000
+  }],
+[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "http.method": "GET",
+      "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200?some=query&string=args",
+      "runtime-id": "229e411aac83491d8748a37ab7257407"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 8387
+    },
+    "duration": 4053000,
+    "start": 1632172800811474000
+  }],
+[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "http.method": "GET",
+      "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200?some=query&string=args",
+      "runtime-id": "dc16eaf4c5da4492bfe0ccb8371aaf1c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 8415
+    },
+    "duration": 9022000,
+    "start": 1632172836943081000
+  }],
+[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "http.method": "GET",
+      "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200?some=query&string=args",
+      "runtime-id": "0c193c5bdf384b6f90ed6e271a8a1857"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 8443
+    },
+    "duration": 3718000,
+    "start": 1632172872605252000
+  }],
+[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "http.method": "GET",
+      "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200?some=query&string=args",
+      "runtime-id": "f0e13f1bbcf34d78a8e2ea327a802378"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 8471
+    },
+    "duration": 8001000,
+    "start": 1632172911621343000
+  }],
+[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "http.method": "GET",
+      "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200?some=query&string=args",
+      "runtime-id": "c34cf008330e4d6bbb0909c990c5993b"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 8499
+    },
+    "duration": 3812000,
+    "start": 1632172951186479000
+  }],
+[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 6,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "http.method": "GET",
+      "http.query.string": "some=query&string=args",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200?some=query&string=args",
+      "runtime-id": "6330f633b38b446dbcc7ddfaf69f077e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 9061
+    },
+    "duration": 3870000,
+    "start": 1632173161906650000
   }]]
