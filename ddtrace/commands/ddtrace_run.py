@@ -13,8 +13,7 @@ from ddtrace.utils.formats import get_env
 
 if PY2:
     # Python 2 does not have PermissionError but Python 3 does.
-    class PermissionError(OSError):  # noqa
-        pass
+    PermissionError = None  # noqa: A001
 
 
 # Do not use `ddtrace.internal.logger.get_logger` here
@@ -123,12 +122,13 @@ def main():
         )
 
     try:
-        # Raises OSError for permissions errors in Python 2
-        #        PermissionError for Python 3
         os.execl(executable, executable, *args.command[1:])
-    except (OSError, PermissionError):
-        print("ddtrace-run: executable '%s' does not have executable permissions.\n" % executable)
-        parser.print_usage()
+    except PermissionError:
+        print("ddtrace-run: permission error while launching '%s'" % executable)
+        print("Did you mean `ddtrace-run python %s`?" % executable)
         sys.exit(1)
+    except Exception:
+        print("ddtrace-run: error launching '%s'" % executable)
+        raise
 
     sys.exit(0)
