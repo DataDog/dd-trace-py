@@ -785,8 +785,9 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *moto_image
     steps:
-      - run_tox_scenario:
-          pattern: '^aiobotocore_contrib'
+       - run_test:
+          wait: postgres
+          pattern: 'aiobotocore'
 
   aiopg:
     <<: *contrib_job
