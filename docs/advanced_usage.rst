@@ -373,7 +373,7 @@ Examples::
 
     from ddtrace import config
 
-    # Global config
+    # Global config
     config.http.trace_query_string = True
 
     # Integration level config, e.g. 'falcon'
@@ -387,13 +387,15 @@ Headers tracing
 
 For a selected set of integrations, it is possible to store http headers from both requests and responses in tags.
 
-Configuration can be provided both at the global level and at the integration level.
+The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
+
+Alternatively, configuration can be provided both at the global level and at the integration level in your application code.
 
 Examples::
 
     from ddtrace import config
 
-    # Global config
+    # Global config
     config.trace_headers([
         'user-agent',
         'transfer-encoding',
@@ -602,6 +604,8 @@ and database modules without the need for changing your code::
 
   Usage: ddtrace-run <my_program>
 
+`--info`: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made at the code level,
+only environment variable configurations.
 
 The environment variables for ``ddtrace-run`` used to configure the tracer are
 detailed in :ref:`Configuration`.
@@ -740,3 +744,4 @@ API
 
 .. toctree::
    :maxdepth: 2
+   

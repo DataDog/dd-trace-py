@@ -127,6 +127,10 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
+        # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
+        # (where the actual test status is set), it means there was a pytest error
+        span.set_tag(test.STATUS, test.Status.FAIL.value)
+
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
         if getattr(item, "callspec", None):
@@ -161,39 +165,38 @@ def pytest_runtest_makereport(item, call):
     if span is None:
         return
 
-    called_without_status = call.when == "call" and span.get_tag(test.STATUS) is None
-    failed_setup = call.when == "setup" and call.excinfo is not None
-    if not called_without_status and not failed_setup:
+    is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
+    has_exception = call.excinfo is not None
+
+    if is_setup_or_teardown and not has_exception:
         return
 
-    try:
-        result = outcome.get_result()
-        xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
-        has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
+    result = outcome.get_result()
+    xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
+    has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
-        if result.skipped:
-            if xfail and not has_skip_keyword:
-                # XFail tests that fail are recorded skipped by pytest, should be passed instead
-                span.set_tag(test.RESULT, test.Status.XFAIL.value)
-                span.set_tag(test.XFAIL_REASON, result.wasxfail)
-                span.set_tag(test.STATUS, test.Status.PASS.value)
-            else:
-                span.set_tag(test.STATUS, test.Status.SKIP.value)
-            reason = _extract_reason(call)
-            if reason is not None:
-                span.set_tag(test.SKIP_REASON, reason)
-        elif result.passed:
+    if result.skipped:
+        if xfail and not has_skip_keyword:
+            # XFail tests that fail are recorded skipped by pytest, should be passed instead
+            span.set_tag(test.RESULT, test.Status.XFAIL.value)
+            span.set_tag(test.XFAIL_REASON, result.wasxfail)
             span.set_tag(test.STATUS, test.Status.PASS.value)
-            if xfail and not has_skip_keyword:
-                # XPass (strict=False) are recorded passed by pytest
-                span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
-                span.set_tag(test.RESULT, test.Status.XPASS.value)
         else:
-            if xfail and not has_skip_keyword:
-                # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-                span.set_tag(test.XFAIL_REASON, result.longrepr)
-                span.set_tag(test.RESULT, test.Status.XPASS.value)
-            raise RuntimeWarning(result)
-    except Exception:
-        span.set_traceback()
+            span.set_tag(test.STATUS, test.Status.SKIP.value)
+        reason = _extract_reason(call)
+        if reason is not None:
+            span.set_tag(test.SKIP_REASON, reason)
+    elif result.passed:
+        span.set_tag(test.STATUS, test.Status.PASS.value)
+        if xfail and not has_skip_keyword:
+            # XPass (strict=False) are recorded passed by pytest
+            span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+            span.set_tag(test.RESULT, test.Status.XPASS.value)
+    else:
+        if xfail and not has_skip_keyword:
+            # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
+            span.set_tag(test.XFAIL_REASON, result.longrepr)
+            span.set_tag(test.RESULT, test.Status.XPASS.value)
         span.set_tag(test.STATUS, test.Status.FAIL.value)
+        if call.excinfo:
+            span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)

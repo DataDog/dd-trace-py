@@ -21,6 +21,7 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
 
+
 try:
     import gevent.thread
 except ImportError:

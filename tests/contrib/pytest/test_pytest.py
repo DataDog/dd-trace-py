@@ -545,6 +545,100 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
 
+    def test_pytest_exception(self):
+        """Test that pytest sets exception information correctly."""
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_fail():
+            assert 2 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("AssertionError") is True
+        assert test_span.get_tag("error.msg") == "assert 2 == 1"
+        assert test_span.get_tag("error.stack") is not None
+
+    def test_pytest_tests_with_internal_exceptions_get_test_status(self):
+        """Test that pytest sets a fail test status if it has an internal exception."""
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        # This is bad usage and results in a pytest internal exception
+        @pytest.mark.filterwarnings("ignore::pytest.ExceptionThatDoesNotExist")
+        def test_will_fail_internally():
+            assert 2 == 2
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type") is None
+
+    def test_pytest_broken_setup_will_be_reported_as_error(self):
+        """Test that pytest sets a fail test status if the setup fails."""
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        @pytest.fixture
+        def my_fixture():
+            raise Exception('will fail in setup')
+            yield
+
+        def test_will_fail_in_setup(my_fixture):
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("Exception") is True
+        assert test_span.get_tag("error.msg") == "will fail in setup"
+        assert test_span.get_tag("error.stack") is not None
+
+    def test_pytest_broken_teardown_will_be_reported_as_error(self):
+        """Test that pytest sets a fail test status if the teardown fails."""
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        @pytest.fixture
+        def my_fixture():
+            yield
+            raise Exception('will fail in teardown')
+
+        def test_will_fail_in_teardown(my_fixture):
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("Exception") is True
+        assert test_span.get_tag("error.msg") == "will fail in teardown"
+        assert test_span.get_tag("error.stack") is not None
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",
