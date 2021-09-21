@@ -56,9 +56,13 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_env_name_passthrough(self):
         """
-        $DATADOG_ENV gets passed through to the global tracer as an 'env' tag
+        $DATADOG_ENV or $DD_ENV gets passed through to the global tracer as an 'env' tag
         """
         with self.override_env(dict(DATADOG_ENV="test")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_ENV="test")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
             assert out.startswith(b"Test success")
 
