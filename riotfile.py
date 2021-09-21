@@ -1133,7 +1133,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version=3.8),
+                    pys=select_pys(max_version="3.8"),
                     pkgs={
                         "aiohttp": "~=2.3",
                         "aiohttp_jinja":"~=0.1.5",
@@ -1154,7 +1154,7 @@ venv = Venv(
             name="jinja2",
             venvs=[
                 Venv(
-                    pys= select_pys(),
+                    pys=select_pys(),
                     pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
                 ),
                 Venv(
