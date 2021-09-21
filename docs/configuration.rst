@@ -101,11 +101,12 @@ below:
        .. _dd-trace-agent-url:
    * - ``DD_TRACE_AGENT_URL``
      - URL
-     - ``http://localhost:8126``
+     - ``unix:///var/run/datadog/dsd.socket`` if available 
+       otherwise ``http://localhost:8126``
      - The URL to use to connect the Datadog agent. The url can starts with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.   
-       Example for http url: ``DD_TRACE_AGENT_URL=localhost:8126``
+       Example for http url: ``DD_TRACE_AGENT_URL=http://localhost:8126``
        Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/dsd.socket``
 
        .. _dd-trace-agent-timeout-seconds:
