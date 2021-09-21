@@ -1,14 +1,12 @@
 import twisted
 from twisted.enterprise import adbapi
-from twisted.internet import defer, reactor, task
-
-import pytest
+from twisted.internet import reactor, task
 
 from ddtrace import Pin
 from ddtrace.contrib.twisted import patch, unpatch
 from ddtrace.contrib.mysqldb import patch as mysql_patch
 
-from tests import TracerTestCase, snapshot
+from tests.utils import TracerTestCase, snapshot
 from ..config import MYSQL_CONFIG
 
 
@@ -22,7 +20,6 @@ class TestTwisted(TracerTestCase):
     def setUp(self):
         super(TestTwisted, self).setUp()
         patch()
-        mysql_patch()
         pin = Pin.get_from(twisted)
         self.original_tracer = pin.tracer
         Pin.override(twisted, tracer=self.tracer)
@@ -123,9 +120,9 @@ class TestTwisted(TracerTestCase):
         assert len(spans) == 3
 
         s1, s2, s3 = spans
-        assert s1.trace_id == s2.trace_id == s3.trace_id
-        assert s2.parent_id == s1.span_id
-        assert s3.parent_id == s1.span_id
+        assert s1.trace_id == s2.trace_id
+        assert s2.trace_id == s3.trace_id
+        assert s1.trace_id == s3.trace_id
 
     @TracerTestCase.run_in_subprocess
     def test_propagation_2_callbacks_separate_traces(self):
@@ -174,7 +171,7 @@ class TestTwisted(TracerTestCase):
 
         task.deferLater(reactor, 0, fn1)
         task.deferLater(reactor, 0, fn2)
-        reactor.callLater(0.01, reactor.stop)
+        reactor.callLater(0.02, reactor.stop)
         reactor.run()
 
         spans = self.tracer.writer.pop()
@@ -184,107 +181,6 @@ class TestTwisted(TracerTestCase):
         assert s1.trace_id != s2.trace_id
         assert s1.parent_id is None
         assert s2.parent_id is None
-
-    @pytest.mark.xfail(reason="Deferred callbacks cannot be recursive so this is an invalid use-case.")
-    @TracerTestCase.run_in_subprocess
-    def test_callback_double_activate(self):
-        def fn1():
-            return 3
-
-        d = task.deferLater(reactor, 0, fn1)
-
-        def fn2(args):
-            def fn():
-                return
-
-            # The context will be activated by the patching code as well.
-            ctx = getattr(d, "__ctx")
-            ctx.run(fn)
-            return 1
-
-        d.addCallback(fn2)
-
-        reactor.callLater(0.01, reactor.stop)
-        reactor.run()
-        assert d.result == 1
-
-    @TracerTestCase.run_in_subprocess
-    def test_deferred_trace(self):
-        def callback():
-            s = self.tracer.active()
-            assert s is not None
-            assert s.name == "callback"
-            s.finish()
-            return 3
-
-        d = task.deferLater(reactor, 0, callback)
-        # Need auto_finish=False to check that the span can
-        # stay active during the callback
-        d.ddtrace("callback", resource="hi", auto_finish=False)
-        assert self.tracer.active() is None
-
-        reactor.callLater(0.01, reactor.stop)
-        reactor.run()
-        assert self.tracer.active() is None
-        assert d.result == 3, d.result
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 1
-        assert spans[0].name == "callback"
-        assert spans[0].resource == "hi"
-
-    @TracerTestCase.run_in_subprocess
-    def test_deferred_trace_multi(self):
-        def auto():
-            s = self.tracer.active()
-            assert s is None
-            return True
-
-        def no_auto():
-            s = self.tracer.active()
-            assert s is not None
-            s.finish()
-            return True
-
-        d1 = task.deferLater(reactor, 0, no_auto)
-        d1.ddtrace("fn1", auto_finish=False)
-        d2 = task.deferLater(reactor, 0, auto)
-        d2.ddtrace("fn2")
-        assert self.tracer.active() is None
-
-        reactor.callLater(0.01, reactor.stop)
-        assert self.tracer.active() is None
-        reactor.run()
-        assert self.tracer.active() is None
-        assert d1
-        assert d2
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 2
-
-    @TracerTestCase.run_in_subprocess
-    def test_deferred_inlinecallbacks(self):
-        def sleep(t):
-            d = defer.Deferred()
-            d.ddtrace("test")
-            assert self.tracer.active() is None
-            reactor.callLater(t, lambda: d.callback(5))
-            return d
-
-        @defer.inlineCallbacks
-        def fn1():
-            # With inlineCallbacks the deferred is evaluated synchronously.
-            d = yield sleep(0.01)
-            assert d == 5
-            # Make sure context doesn't leak from deferred.
-            assert self.tracer.active() is None
-
-        d1 = task.deferLater(reactor, 0, fn1)
-        reactor.callLater(0.1, reactor.stop)
-        reactor.run()
-
-        spans = self.tracer.writer.pop()
-        assert len(spans) == 1
-        assert spans[0].name == "test"
-        assert 0.01 <= spans[0].duration <= 0.03
 
 
 class TestTwistedSnapshot(TracerTestCase):
