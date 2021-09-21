@@ -689,7 +689,7 @@ def test_to_str_none():
 
 
 @mock.patch("ddtrace.utils.config.get_application_name")
-def test_ppprof_exporter(gan):
+def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
     exports = exp.export(TEST_EVENTS, 1, 7)

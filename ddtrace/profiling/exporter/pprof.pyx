@@ -181,14 +181,10 @@ class _PprofConverter(object):
             ),
         )
 
-        nevents = len(events)
-        sampling_ratio_avg = sum(event.capture_pct for event in events) / nevents / 100.0
-        total_alloc = sum(event.nevents for event in events)
-        number_of_alloc = total_alloc * sampling_ratio_avg
-        average_alloc_size = sum(event.size for event in events) / float(nevents)
-
-        self._location_values[location_key]["alloc-samples"] = nevents
-        self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
+        self._location_values[location_key]["alloc-samples"] = sum(event.nevents for event in events)
+        self._location_values[location_key]["alloc-space"] = round(
+            sum(event.size / event.capture_pct * 100.0 for event in events)
+        )
 
     def convert_memalloc_heap_event(self, event):
         location_key = (
