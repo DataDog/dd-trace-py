@@ -85,7 +85,6 @@ def test_trace_url(monkeypatch, mocker):
         m.setenv("DD_TRACE_AGENT_URL", "http://saturn:1111")
         assert agent.get_trace_url() == "http://saturn:1111"
         mock_exists.assert_not_called()
-        mock_exists.reset_mock()
 
     # with port, host, and url set by user, and default UDS unavailable, we choose url
     mock_exists.return_value = False
