@@ -15,7 +15,7 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
     def __attrs_post_init__(self):
-        # type () -> None
+        # type: () -> None
         """Default post initializer which logs the representation of the
         Processor at the ``logging.DEBUG`` level.
 

@@ -98,7 +98,7 @@ class Pin(object):
 
     @staticmethod
     def get_from(obj):
-        # type: (Any) -> Pin
+        # type: (Any) -> Optional[Pin]
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
@@ -147,15 +147,10 @@ class Pin(object):
             return
 
         pin = cls.get_from(obj)
-        if not pin:
-            pin = Pin(service)
-
-        pin.clone(
-            service=service,
-            app=app,
-            tags=tags,
-            tracer=tracer,
-        ).onto(obj)
+        if pin is None:
+            Pin(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
+        else:
+            pin.clone(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
 
     def enabled(self):
         # type: () -> bool

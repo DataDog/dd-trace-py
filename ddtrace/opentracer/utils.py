@@ -1,8 +1,14 @@
+from opentracing import ScopeManager
+
+from ddtrace.provider import BaseContextProvider
+
+
 # DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,
 #    `context_provider` will just not be set and we'll get an `AttributeError` instead
 
 
 def get_context_provider_for_scope_manager(scope_manager):
+    # type: (ScopeManager) -> BaseContextProvider
     """Returns the context_provider to use with a given scope_manager."""
 
     scope_manager_type = type(scope_manager).__name__
@@ -12,7 +18,7 @@ def get_context_provider_for_scope_manager(scope_manager):
     if scope_manager_type == "AsyncioScopeManager":
         import ddtrace.contrib.asyncio
 
-        dd_context_provider = ddtrace.contrib.asyncio.context_provider
+        dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: BaseContextProvider
     elif scope_manager_type == "GeventScopeManager":
         import ddtrace.contrib.gevent
 
@@ -28,6 +34,7 @@ def get_context_provider_for_scope_manager(scope_manager):
 
 
 def _patch_scope_manager(scope_manager, context_provider):
+    # type: (ScopeManager, BaseContextProvider) -> None
     """
     Patches a scope manager so that any time a span is activated
     it'll also activate the underlying ddcontext with the underlying

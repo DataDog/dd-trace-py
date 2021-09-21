@@ -21,7 +21,7 @@ log = get_logger(__name__)
 @attr.s
 class TraceProcessor(six.with_metaclass(abc.ABCMeta)):
     def __attrs_post_init__(self):
-        # type () -> None
+        # type: () -> None
         """Default post initializer which logs the representation of the
         TraceProcessor at the ``logging.DEBUG`` level.
 

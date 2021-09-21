@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 # C extensions
+ddtrace/profiling/collector/_task.c
 ddtrace/profiling/collector/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
@@ -12,6 +13,9 @@ ddtrace/profiling/_build.c
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 *.so
+
+# Cython annotate HTML files
+ddtrace/**/*.html
 
 # Distribution / packaging
 .Python
@@ -109,3 +113,6 @@ ENV/
 
 # Riot
 .riot/
+
+# Auto-generated version file
+ddtrace/_version.py

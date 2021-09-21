@@ -602,7 +602,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.34.0
 ## 0.34.0 (21/02/2020)
 ## Upgrading to 0.34.0
 
-This release adds a new integration for Django. The goal of this effort was to make the Django integration more consistent with our other integrations, simplifying configuration and patching. See the [Django documentation](http://pypi.datadoghq.com/trace/docs/web_integrations.html#django) for details on how to get started with the integration. For existing Django applications, be sure to consult the [migration section](http://pypi.datadoghq.com/trace/docs/web_integrations.html#migration-from-ddtrace-0-33-0) of the documentation. 
+This release adds a new integration for Django. The goal of this effort was to make the Django integration more consistent with our other integrations, simplifying configuration and patching. See the [Django documentation](https://ddtrace.readthedocs.io/en/latest/integrations.html#django) for details on how to get started with the integration. For existing Django applications, be sure to consult the [migration section](https://ddtrace.readthedocs.io/en/v0.50.3/integrations.html#migration-from-ddtrace-0-33-0) of the documentation. 
 
 While we are now vendoring `psutil`, `msgpack` will no longer be vendored and instead specified as a requirement. 
 

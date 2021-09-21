@@ -102,7 +102,9 @@ def test_standard_tags():
     assert f.get("analytics_enabled") is False
     assert f.get("log_injection_enabled") is False
     assert f.get("health_metrics_enabled") is False
+    assert f.get("runtime_metrics_enabled") is False
     assert f.get("priority_sampling_enabled") is True
+    assert f.get("sampler_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
 
@@ -264,6 +266,53 @@ class TestGlobalConfig(SubprocessTestCase):
         assert tracer.log.log.mock_calls == []
 
 
+def test_runtime_metrics_enabled_via_manual_start(ddtrace_run_python_code_in_subprocess):
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+from ddtrace.runtime import RuntimeMetrics
+
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+
+RuntimeMetrics.enable()
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is True
+
+RuntimeMetrics.disable()
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+""",
+    )
+    assert status == 0
+
+
+def test_runtime_metrics_enabled_via_env_var_start(monkeypatch, ddtrace_run_python_code_in_subprocess):
+    # default, no env variable set
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is False
+""",
+    )
+    assert status == 0
+
+    # Explicitly set env variable
+    monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "true")
+    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+from ddtrace.internal import debug
+f = debug.collect(ddtrace.tracer)
+assert f.get("runtime_metrics_enabled") is True
+""",
+    )
+    assert status == 0
+
+
 def test_to_json():
     info = debug.collect(ddtrace.tracer)
     json.dumps(info)
@@ -305,6 +354,23 @@ def test_different_samplers():
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
+
+
+def test_startup_logs_sampling_rules():
+    tracer = ddtrace.Tracer()
+    sampler = ddtrace.sampler.DatadogSampler(rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0)])
+    tracer.configure(sampler=sampler)
+    f = debug.collect(tracer)
+
+    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE')"]
+
+    sampler = ddtrace.sampler.DatadogSampler(
+        rules=[ddtrace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
+    )
+    tracer.configure(sampler=sampler)
+    f = debug.collect(tracer)
+
+    assert f.get("sampler_rules") == ["SamplingRule(sample_rate=1.0, service='xyz', name='abc')"]
 
 
 def test_error_output_ddtracerun_debug_mode():
@@ -391,8 +457,8 @@ def test_partial_flush_log(run_python_code_in_subprocess):
 
     partial_flush_min_spans = "2"
     env = os.environ.copy()
-    env["DD_TRACER_PARTIAL_FLUSH_ENABLED"] = "true"
-    env["DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
+    env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "true"
+    env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
