@@ -8,11 +8,12 @@ import cyclone.web
 from cyclone import template
 from twisted.internet import defer, reactor
 from twisted.internet.defer import inlineCallbacks
+import pytest
 
 from ddtrace import config, Pin
 from ddtrace.contrib.cyclone import patch, unpatch
 
-from tests import TracerTestCase, TracerSpanContainer, snapshot
+from tests.utils import TracerTestCase, TracerSpanContainer, snapshot
 from .testcase import CycloneTestCase
 
 
@@ -98,11 +99,11 @@ def mk_app():
     return app
 
 
-class TestCyclone(CycloneTestCase, TracerTestCase):
+class TestCylcone(CycloneTestCase, TracerTestCase):
     app_builder = staticmethod(mk_app)
 
     def setUp(self):
-        super(TestCyclone, self).setUp()
+        super(TestCylcone, self).setUp()
 
         patch()
         pin = Pin.get_from(cyclone)
@@ -236,6 +237,35 @@ class TestCyclone(CycloneTestCase, TracerTestCase):
         span = self.test_spans.find_span(name="cyclone.request")
         span.assert_matches(trace_id=1234321, parent_id=12, metrics={"_sampling_priority_v1": 2})
 
+<<<<<<< HEAD
+=======
+    # def test_async_trace(self):
+    #     self.client.get("/async-trace")
+    #     reactor.callLater(0.5, reactor.stop)
+    #     reactor.run()
+
+    #     spans = self.test_spans.get_spans()
+    #     assert len(spans) == 3
+
+    #     s1, s2, s3 = spans
+    #     assert s1.trace_id == s2.trace_id == s3.trace_id
+
+    @pytest.mark.xfail(reason="twisted integration is required to get context propagation")
+    def test_concurrent_requests(self):
+        self.client.get("/async-sleep?k=1")
+        self.client.get("/async-sleep?k=2")
+        self.client.get("/async-sleep?k=3")
+
+        reactor.callLater(0.5, reactor.stop)
+        reactor.run()
+
+        spans = self.test_spans.get_spans()
+        assert len(spans) == 3
+
+        roots = self.test_spans.get_root_spans()
+        assert len(roots) == 3
+
+>>>>>>> e0a1bee90 (Updates)
     @inlineCallbacks
     def test_handler_trace(self):
         with self.override_global_tracer(tracer=self.tracer):
