@@ -5,6 +5,7 @@
 When contributing to this repository, we advise you to discuss the change you
 wish to make via an `issue <https://github.com/DataDog/dd-trace-py/issues>`_.
 
+
 Branches
 ========
 
@@ -200,52 +201,10 @@ that the integration:
     2) is invisible: does not impact the library or application by disturbing state,
        performance or causing errors
 
-The best way to get started writing tests is to reference other integration test suites. 
-We'd recommend ``tests/contrib/django`` and ``tests/contrib/mariadb``
-There are a number of test utilities and fixtures which can be used to make testing less of a burden.
-
-To run tests:
-~~~~~~~~~~~~~
-1) Spin up the testrunner container: `docker-compose run --rm testrunner`
-
-2) Install riot: ``pip install riot``
-
-3) Install whatever dependencies might be needed for you to run your tests(these will also need to be added to
-``dd-trace-py/Dockerfile.buster`` in a separate PR so we can run the tests in CI once you're finished 
-writing the integration and tests). For example see: https://github.com/DataDog/dd-trace-py/pull/2584
-
-4) Spin up any other containers necessary for running the tests. This container should be specified in
-``dd-trace-py/docker-compose.yml``
-e.g. to have database to hit for Mariadb: ``docker-compose up -d mariadb``
-
-5) Run your tests ``riot -v run <test_name>``
-Note: you can also add -p to specify a Python version and -s to skip building. This can speed up running the tests.
-For example if you wanted to test Mariadb:  ``riot -v run -s -p 3.8 mariadb``
-
-Snapshot Tests
-~~~~~~~~~~~~~~
-Snapshot tests capture the output of the tracer when tests are running and prints it to a snap file located in
-``dd-trace-py/tests/snapshots/``. When the tests are run again, the snap is compared to the output to make sure
-that the trace has not changed in an unintended way. This works around the need to assert that all of the values 
-of the trace are as expected.
-
-To run snapshot tests:
-~~~~~~~~~~~~~~~~~~~~~~
-1) Start the fake snapshot trace-agent: https://github.com/Datadog/dd-trace-test-agent:
-```docker run --rm\
-            -p 9126:8126\
-            -e SNAPSHOT_DIR=/snaps\
-            -v $HOME/dev/dd-trace-py/tests/snapshots:/snaps\
-            kyleverhoog/dd-trace-test-agent:latest```
-
-2) Use the @snapshot annotation to specify for which tests you'd like the tracer to write to the snapshot 
-trace-agent. See ``tests/contrib/mariadb/test_maridb.py`` for examples.
-
-3) Use the ``DD_TRACE_AGENT_URL`` environment variable to tell the tracer to send its traces to the snapshot 
-trace-agent listening on port 9126.
-For example ``DD_TRACE_AGENT_URL=http://localhost:9126 riot run -s mariadb``
-
-4) Make sure your snaps are generated in ``dd-trace-py/tests/snapshots/``
+The best way to get started writing tests is to reference other integration test
+suites. ``tests/contrib/django`` and ``tests/contrib/mariadb`` are good examples.
+Be sure to make use of the test utilities and fixtures which will make testing
+less of a burden.
 
 
 Trace Examples
