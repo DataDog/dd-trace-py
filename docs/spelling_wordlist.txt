@@ -55,6 +55,7 @@ elasticsearch7
 enqueue
 entrypoint
 entrypoints
+env
 enqueuer
 fastapi
 gRPC
