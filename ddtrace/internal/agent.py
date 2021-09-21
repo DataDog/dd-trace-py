@@ -1,4 +1,5 @@
 import os
+from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.compat import parse
@@ -11,21 +12,27 @@ from .uds import UDSHTTPConnection
 
 DEFAULT_HOSTNAME = "localhost"
 DEFAULT_TRACE_PORT = 8126
+DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
 
 ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
-
-def get_hostname():
-    # type: () -> str
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", DEFAULT_HOSTNAME))
+T = TypeVar("T")
 
 
-def get_trace_port():
-    # type: () -> int
-    return int(os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT", DEFAULT_TRACE_PORT)))
+def get_hostname(default=DEFAULT_HOSTNAME):
+    # type: (Union[T, str]) -> Union[T, str]
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", default))
+
+
+def get_trace_port(default=DEFAULT_TRACE_PORT):
+    # type: (Union[T, int]) -> Union[T,int]
+    v = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+    if v is not None:
+        return int(v)
+    return default
 
 
 def get_stats_port():
@@ -44,7 +51,19 @@ def get_trace_url():
 
     Raises a ``ValueError`` if the URL is not supported by the Agent.
     """
-    url = os.environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (get_hostname(), get_trace_port()))
+    user_supplied_host = get_hostname(None) is not None
+    user_supplied_port = get_trace_port(None) is not None
+
+    url = os.environ.get("DD_TRACE_AGENT_URL")
+
+    if not url:
+        if user_supplied_host or user_supplied_port:
+            url = "http://%s:%s" % (get_hostname(), get_trace_port())
+        elif os.path.exists("/var/run/datadog/apm.socket"):
+            url = "unix://%s" % (DEFAULT_UNIX_TRACE_PATH)
+        else:
+            url = DEFAULT_TRACE_URL
+
     return url
 
 
