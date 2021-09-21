@@ -43,7 +43,6 @@ def test_trace_url(monkeypatch, mocker):
         m.setenv("DD_TRACE_AGENT_PORT", "1235")
         assert agent.get_trace_url() == "http://localhost:1235"
         mock_exists.assert_not_called()
-        mock_exists.reset()
 
     # with host set by user, and default UDS unavailable, we choose user settings
     with monkeypatch.context() as m:
