@@ -127,9 +127,13 @@ venv = Venv(
             pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
+            create=True,
             pkgs={
-                # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
-                "mypy": "<0.900",
+                "mypy": latest,
+                "types-attrs": latest,
+                "types-protobuf": latest,
+                "types-setuptools": latest,
+                "types-six": latest,
             },
         ),
         Venv(
