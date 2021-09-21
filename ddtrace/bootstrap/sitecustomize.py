@@ -109,8 +109,9 @@ try:
 
         patch_all(**EXTRA_PATCHED_MODULES)
 
-    if "DATADOG_ENV" in os.environ:
-        tracer.set_tags({constants.ENV_KEY: os.environ["DATADOG_ENV"]})
+    dd_env = get_env("env")
+    if dd_env:
+        tracer.set_tags({constants.ENV_KEY: dd_env})
 
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
