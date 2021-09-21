@@ -1105,7 +1105,7 @@ venv = Venv(
                     },
                 ),
             ],
-            command="pytest3 {cmdargs} tests/contrib/aiohttp",
+            command="pytest {cmdargs} tests/contrib/aiohttp",
         ),
         Venv(
             name="jinja2",
